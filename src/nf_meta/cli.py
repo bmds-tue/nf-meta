@@ -1,18 +1,10 @@
 import click
 from functools import wraps
-from nf_meta.engine.runner import Runners
+from nf_meta.engine.runner import Runners, run
+from nf_meta.engine.metawf_graph import MetaworkflowGraph
 
 
-VERSION = "0.0.1"
-
-
-def common_options(f):
-    @click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
-    @click.option('--config', type=click.Path(), help="Path to config file")
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        return f(*args, **kwargs)
-    return wrapper
+TOOL_VERSION = "0.0.1"
 
 
 @click.group()
@@ -21,22 +13,26 @@ def cli() -> None:
 
 
 @click.command("editor")
-@common_options
-def edit_browser(verbose, config):
+@click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
+@click.argument("config", required=False, type=click.Path())
+def edit_browser(config, verbose):
     pass
 
 
 @click.command("validate")
-@common_options
-def validate_config(verbose, config):
-    pass
+@click.argument("config", type=click.Path())
+@click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
+def validate_config(config, verbose):
+    g = MetaworkflowGraph.from_file(config)
 
 
 @click.command("run")
-@common_options
-@click.option("--runner", type=click.Choice([e.value for e in Runners]), default=Runners.PYTHON.value)
-def run(verbose, config, runner):
-    pass
+@click.argument("config", type=click.Path())
+@click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
+@click.option("--runner", "-r", prompt=True, type=click.Choice([e.value for e in Runners]), default=Runners.PYTHON.value)
+def run(config, verbose, runner):
+    g = MetaworkflowGraph.from_file(config)
+    run(g, runner)
 
 
 cli.add_command(edit_browser)

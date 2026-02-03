@@ -1,2 +1,2 @@
-def main() -> None:
-    print("Hello from metaflow!")
+from nf_meta.cli import cli
+

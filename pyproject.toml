@@ -1,0 +1,21 @@
+[project]
+name = "nf-meta"
+version = "0.1.0"
+description = "nf-meta is a cli tool for building, validating and running meta-pipelines based on the Nextflow workflow language"
+readme = "README.md"
+authors = [
+    { name = "Julian Flesch", email = "julian.flesch@qbic.uni-tuebingen.de" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.1.2",
+    "networkx>=3.6.1",
+    "pydantic>=2.12.5",
+]
+
+[project.scripts]
+nf-meta = "nf_meta:main"
+
+[build-system]
+requires = ["uv_build>=0.8.13,<0.9.0"]
+build-backend = "uv_build"

@@ -1,7 +1,7 @@
 import click
 from functools import wraps
 from nf_meta.engine.runner import Runners, run
-from src.nf_meta.engine.graph import MetaworkflowGraph
+from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.editor import start_editor_backend
 
 @click.group()

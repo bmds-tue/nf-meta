@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-nf-meta = "nf_meta:cli"
+nf-meta = "nf_meta.__main__:cli"
 
 [build-system]
 requires = ["uv_build>=0.8.13,<0.9.0"]

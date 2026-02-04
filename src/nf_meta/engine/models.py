@@ -16,11 +16,12 @@ CONFIG_VERSION_MAX = "0.9.9"
 
 class Workflow(BaseModel):
     id: str
-    pipeline_description: Optional[str] = ""
+    pipeline_description: Optional[str] = None
     name: str
-    pipeline_location: Optional[str] = ""
+    pipeline_location: Optional[str] = None
     version: str
-    is_nfcore: Optional[bool]
+    is_nfcore: Optional[bool] = None
+    layout_coords: Optional[tuple[float, float]] = None
 
 
 class WorkflowOptions(BaseModel):
@@ -74,7 +75,7 @@ class MetaworkflowConfig(BaseModel):
 
             # For nf-core pipelines, make an attempt to read the description           
             if w.is_nfcore:
-                nfcore_wf_info = list(filter(lambda wf: wf.name == w.name, nf_core_pipelines))[0]
+                nfcore_wf_info = list(filter(lambda wf: wf.get("name") == w.name, nf_core_pipelines))[0]
                 w.pipeline_description = nfcore_wf_info.get("description", "")
 
         non_nfcore_wfs = list(filter(lambda wf: not wf.is_nfcore, workflows))

@@ -68,16 +68,17 @@ class MetaworkflowGraph:
             src = t.from_ if t.from_ else None
             tgt = t.run
 
-            if src != None and src not in obj.G.nodes:
-                raise ValueError(f"Unknown node {src} found in transition {src}->{tgt}")
-            
             if tgt not in obj.G.nodes:
                 raise ValueError(f"Unknown node {tgt} found in transition {src}->{tgt}")
 
-            if not obj.G.has_edge(src, tgt):
-                # Transition not declared in metalayout → auto-add
-                # TODO: Be more specific with keys once they are stable-ish
-                obj.G.add_edge(src, tgt, data=t.model_dump())
+            if src is not None: 
+                if src not in obj.G.nodes:
+                    raise ValueError(f"Unknown node {src} found in transition {src}->{tgt}")
+
+                if not obj.G.has_edge(src, tgt):
+                    # Transition not declared in metalayout → auto-add
+                    # TODO: Be more specific with keys once they are stable-ish
+                    obj.G.add_edge(src, tgt, data=t.model_dump())
 
         # Run graph validation
         obj.validate()

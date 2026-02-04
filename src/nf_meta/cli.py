@@ -1,7 +1,7 @@
 import click
 from functools import wraps
 from nf_meta.engine.runner import Runners, run
-from nf_meta.engine.metawf_graph import MetaworkflowGraph
+from src.nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.editor import start_editor_backend
 
 TOOL_VERSION = "0.0.1"

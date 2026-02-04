@@ -20,6 +20,7 @@ class Workflow(BaseModel):
     name: str
     pipeline_location: Optional[str] = ""
     version: str
+    is_nfcore: Optional[bool]
 
 
 class WorkflowOptions(BaseModel):
@@ -67,19 +68,18 @@ class MetaworkflowConfig(BaseModel):
             return workflows
         
         nf_core_pipeline_names = {w.get("name") for w in nf_core_pipelines}
-        unknown_workflows = []
         for w in workflows:
             if w.name not in nf_core_pipeline_names:
-                unknown_workflows.append(w)
-        if len(unknown_workflows):
-            names = list(map(lambda w: w.name, unknown_workflows))
+                w.is_nfcore = False
+
+        non_nfcore_wfs = list(filter(lambda wf: not wf.is_nfcore, workflows))
+        if len(non_nfcore_wfs):
+            names = list(map(lambda w: w.name, non_nfcore_wfs))
             logger.warning(f"Potentially uncompatible workflows found, which are not officially supported by nf-core: {", ".join(names)}")
-            without_repo = []
-            for w in unknown_workflows:
-                if not w.pipeline_location:
-                    without_repo.append(w)
-            if len(without_repo):
-                names = list(map(lambda w: w.name, without_repo))
+
+            no_repo_wfs = list(filter(lambda wf: not wf.pipeline_location, workflows))
+            if len(no_repo_wfs):
+                names = list(map(lambda w: w.name, no_repo_wfs))
                 raise ValueError(f"Workflows from outside nf-core must specify a repository! No `pipeline_location` found for: {", ".join(names)}")
         return workflows
 

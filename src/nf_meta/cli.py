@@ -2,7 +2,7 @@ import click
 from functools import wraps
 from nf_meta.engine.runner import Runners, run
 from nf_meta.engine.metawf_graph import MetaworkflowGraph
-
+from nf_meta.editor import start_editor_backend
 
 TOOL_VERSION = "0.0.1"
 
@@ -14,9 +14,11 @@ def cli() -> None:
 
 @click.command("editor")
 @click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
+@click.option("--host", default="localhost", help="Host to use for running the editor ui")
+@click.option("--port", help="Port to use for running the editor ui")
 @click.argument("config", required=False, type=click.Path())
-def edit_browser(config, verbose):
-    pass
+def edit_browser(config, verbose, host, port):
+    start_editor_backend(host, port)
 
 
 @click.command("validate")

@@ -65,10 +65,10 @@ class MetaworkflowGraph:
 
         # Add transition metadata
         for t in cfg.transitions:
-            src = t.from_ if t.from_ else cls.ROOT_NODE
+            src = t.from_ if t.from_ else None
             tgt = t.run
 
-            if src != cls.ROOT_NODE and src not in obj.G.nodes:
+            if src != None and src not in obj.G.nodes:
                 raise ValueError(f"Unknown node {src} found in transition {src}->{tgt}")
             
             if tgt not in obj.G.nodes:
@@ -100,8 +100,6 @@ class MetaworkflowGraph:
 
         # 3. Ensure workflow IDs are valid (non-empty)
         for n in self.G.nodes:
-            if n == self.ROOT_NODE:
-                continue
             if not isinstance(n, str) or not n:
                 raise ValueError("Workflow id must be a non-empty string.")
 
@@ -109,7 +107,7 @@ class MetaworkflowGraph:
     #   EXPORT BACK TO CONFIG
     # ===========================
     def to_config(self) -> Dict[str, Any]:
-        nodes = [n for n in self.G.nodes if n != self.ROOT_NODE]
+        nodes = [n for n in self.G.nodes]
 
         workflows = [
             {
@@ -124,7 +122,7 @@ class MetaworkflowGraph:
         transitions = []
         for src, tgt, data in self.G.edges(data=True):
             meta = data.get("data", {})
-            if src == self.ROOT_NODE:
+            if src is None:
                 t = {"run": tgt}
             else:
                 t = {"from": src, "run": tgt}
@@ -142,24 +140,21 @@ class MetaworkflowGraph:
     def to_file(self, file: Path|str) -> None:
         dump_config(self.to_config(), Path(file))
         
-        
+
     # ===========================
     #        UTILITIES
     # ===========================
-    def execution_order(self):
+    def get_nodes_execution_order(self):
         """Returns workflow ids in valid execution order."""
-        return [
-            n for n in nx.topological_sort(self.G)
-            if n != self.ROOT_NODE
-        ]
+        return list(nx.topological_sort(self.G))
 
-    def first_node_or_root(self):
+    def get_start_node(self):
         """
-        Return the first order in topological sorting or the root node, if no nodes exist
+        Return the first order in topological sorting or None if no nodes exist
         """
         nodes_ordered = self.execution_order()
         if not len(nodes_ordered):
-            return self.ROOT_NODE
+            return None
         else:
             return nodes_ordered[0]
 

@@ -14,6 +14,10 @@ logger = logging.getLogger()
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
 
+
+# TODO: Serializers for Workflow: 
+# For writing config -> omit pipeline_description, is_nfcore, layout_coords
+# For editor -> Think about omitting desciption, location, ...? 
 class Workflow(BaseModel):
     id: str
     pipeline_description: Optional[str] = None
@@ -23,6 +27,9 @@ class Workflow(BaseModel):
     is_nfcore: Optional[bool] = None
     layout_coords: Optional[tuple[float, float]] = None
 
+    # TODO: do nf-core validation here:
+    # Is it nfcore pipeline? -> set is_nfcore
+    # -> add pipeline_description if possible
 
 class WorkflowOptions(BaseModel):
     wf_opts: str

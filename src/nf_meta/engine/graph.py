@@ -5,7 +5,7 @@ import logging
 
 import networkx as nx
 
-from .models import MetaworkflowConfig, CONFIG_VERSION_MIN, dump_config
+from .models import MetaworkflowConfig, Workflow, Transition, CONFIG_VERSION_MIN, dump_config
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
 
 

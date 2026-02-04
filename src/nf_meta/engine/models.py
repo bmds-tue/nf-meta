@@ -16,7 +16,7 @@ CONFIG_VERSION_MAX = "0.9.9"
 
 class Workflow(BaseModel):
     id: str
-    description: Optional[str] = ""
+    pipeline_description: Optional[str] = ""
     name: str
     pipeline_location: Optional[str] = ""
     version: str
@@ -63,14 +63,19 @@ class MetaworkflowConfig(BaseModel):
     @classmethod
     def workflows_exist_in_nfcore_or_have_location(cls, workflows):
         nf_core_pipelines = get_nfcore_pipelines()
+        nf_core_pipeline_names = {w.get("name") for w in nf_core_pipelines}
+
         if not len(nf_core_pipelines):
             logger.warning("Workflows could not be validated against nf-core")
             return workflows
         
-        nf_core_pipeline_names = {w.get("name") for w in nf_core_pipelines}
         for w in workflows:
-            if w.name not in nf_core_pipeline_names:
-                w.is_nfcore = False
+            w.is_nfcore = w.name in nf_core_pipeline_names
+
+            # For nf-core pipelines, make an attempt to read the description           
+            if w.is_nfcore:
+                nfcore_wf_info = list(filter(lambda wf: wf.name == w.name, nf_core_pipelines))[0]
+                w.pipeline_description = nfcore_wf_info.get("description", "")
 
         non_nfcore_wfs = list(filter(lambda wf: not wf.is_nfcore, workflows))
         if len(non_nfcore_wfs):

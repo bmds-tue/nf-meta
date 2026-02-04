@@ -63,6 +63,25 @@ class MetaworkflowGraph:
 
         return obj
 
+    def add_workflow(self, wf: Workflow):
+        self.G.add_node(wf.id, **wf.model_dump())
+
+    def remove_workflow(self, wf_id: str, recursive=False):
+        # TODO: check id
+        # TODO: implement removal
+        # TODO: if recursive, then avoid disconnected graph, by recursively deleting all children nodes
+        pass
+
+    def add_transition(self, tr: Transition):
+        # TODO: whats important for adding?
+        pass
+
+    def remove_transition(self, tr_id: str, recursive=False):
+        # TODO: check id
+        # TODO: implement removal
+        # TODO: if recursive, then avoid disconnected graph, by recursively deleting all connected nodes
+        pass
+
     # ===========================
     #        VALIDATION
     # ===========================

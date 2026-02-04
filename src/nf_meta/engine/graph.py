@@ -37,31 +37,9 @@ class MetaworkflowGraph:
 
         obj = cls()
 
-        nfcore_pipelines = get_nfcore_pipelines()
-
         # Add workflow nodes
         for wf in cfg.workflows:
-            nfcore_matches = list(filter(lambda p: p.get("name") == wf.name, nfcore_pipelines))
-            if len(nfcore_matches) > 0:
-                match = nfcore_matches.pop()
-                obj.G.add_node(
-                    wf.id,
-                    id=wf.id,
-                    is_nfcore=True,
-                    pipeline_location=match.get("location"),
-                    pipeline_description=match.get("description"),
-                    name=wf.name,
-                    version=wf.version,
-                )
-            else:
-                obj.G.add_node(
-                    wf.id,
-                    id=wf.id,
-                    is_nfcore=False,
-                    name=wf.name,
-                    pipeline_location=wf.pipeline_location,
-                    version=wf.version
-                )
+            obj.G.add_node(wf.id, **wf.model_dump())
 
         # Add transition metadata
         for t in cfg.transitions:

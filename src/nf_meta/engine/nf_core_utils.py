@@ -1,11 +1,15 @@
 import os
 import json
 import functools
+import logging
 from dataclasses import dataclass
 
 import requests
 import networkx as nx
 from networkx.readwrite import json_graph
+
+
+logger = logging.getLogger()
 
 
 def save_graph_to_file(graph: nx.DiGraph, file: str):
@@ -33,8 +37,12 @@ def get_nfcore_pipelines() -> list[dict]:
 
     # List all repositories at nf-core
     nfcore_url = "https://nf-co.re/pipelines.json"
+    try:
+        response = requests.get(nfcore_url, timeout=10)
+    except ConnectionError as e:
+        logger.warning(f"Error while attempting to access {nfcore_url}", e)
+        return []
     
-    response = requests.get(nfcore_url, timeout=10)
     if response.status_code != 200:
         return []
     else:

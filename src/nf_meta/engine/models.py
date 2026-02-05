@@ -15,21 +15,31 @@ CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
 
 
-# TODO: Serializers for Workflow: 
-# For writing config -> omit pipeline_description, is_nfcore, layout_coords
-# For editor -> Think about omitting desciption, location, ...? 
 class Workflow(BaseModel):
+    def model_dump(self, **kwargs: Any):
+        # overwrite default serialization behavior
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(**kwargs)
+
     id: str
-    pipeline_description: Optional[str] = None
     name: str
+    pipeline_description: Optional[str] = Field(default=None, exclude=True)
     pipeline_location: Optional[str] = None
     version: str
-    is_nfcore: Optional[bool] = None
-    layout_coords: Optional[tuple[float, float]] = None
+    is_nfcore: Optional[bool] = Field(default=None, exclude=True)
+    layout_coords: Optional[tuple[float, float]] = Field(default=None, exclude=True)
 
     # TODO: do nf-core validation here:
     # Is it nfcore pipeline? -> set is_nfcore
     # -> add pipeline_description if possible
+
+
+class VerboseWorkflow(Workflow):
+    # Includes the optional fields in the parent definition
+    pipeline_description: Optional[str] = None
+    layout_coords: Optional[tuple[float, float]] = None
+    is_nfcore: Optional[bool] = None
+
 
 class WorkflowOptions(BaseModel):
     wf_opts: str

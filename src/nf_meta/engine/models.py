@@ -16,18 +16,17 @@ CONFIG_VERSION_MAX = "0.9.9"
 
 
 class Workflow(BaseModel):
-    def model_dump(self, **kwargs: Any):
-        # overwrite default serialization behavior
-        kwargs.setdefault("exclude_none", True)
-        return super().model_dump(**kwargs)
+    """
+    Workflow representation for internal use 
+    """
 
     id: str
     name: str
-    pipeline_description: Optional[str] = Field(default=None, exclude=True)
-    pipeline_location: Optional[str] = None
     version: str
-    is_nfcore: Optional[bool] = Field(default=None, exclude=True)
-    layout_coords: Optional[tuple[float, float]] = Field(default=None, exclude=True)
+    pipeline_location: Optional[str] = None
+    pipeline_description: Optional[str] = None
+    is_nfcore: Optional[bool] = None
+    layout_coords: Optional[tuple[float, float]] = None
 
     @model_validator(mode="after")
     def is_nfcore_workflow(self):
@@ -46,12 +45,19 @@ class Workflow(BaseModel):
         
         return self
 
-
-class VerboseWorkflow(Workflow):
-    # Includes the optional fields in the parent definition
-    pipeline_description: Optional[str] = None
-    layout_coords: Optional[tuple[float, float]] = None
-    is_nfcore: Optional[bool] = None
+    def model_dump_config(self) -> dict:
+        fields = {"id", "name", "version", "pipeline_location"}
+        return self.model_dump(include=fields, exclude_none=True)
+    
+    def model_dump_display(self) -> dict:
+        fields = {"id", "name", "version", "pipeline_location",
+                  "pipeline_description", "is_nfcore", "layout_coords"}
+        return self.model_dump(include=fields, exclude_none=False)
+    
+    def model_dump(self, **kwargs: Any):
+        # overwrite default serialization behavior
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(**kwargs)
 
 
 class WorkflowOptions(BaseModel):
@@ -111,10 +117,12 @@ def load_config(path: Path) -> MetaworkflowConfig:
 
 
 def dump_config(config: MetaworkflowConfig, path: Path):
+    config_dict = {
+        "config_version": config.config_version,
+        "workflows": [w.model_dump_config() for w in config.workflows],
+        "workflow_opts": config.workflow_opts.model_dump(exclude_none=True) if config.workflow_opts else None,
+        "workflow_opts_custom": config.workflow_opts_custom.model_dump(exclude_none=True) if config.workflow_opts_custom else None,
+        "transitions": [t.model_dump(by_alias=True, exclude_none=True) for t in config.transitions],
+    }
     with open(path, "w") as fh:
-        yaml.safe_dump(config.model_dump(by_alias=True, exclude_none=True), fh, sort_keys=False)
-
-
-def dump_config_dict(config: dict, path: Path):
-    with open(path, "w") as fh:
-        yaml.safe_dump(config, fh, sort_keys=False)
+        yaml.safe_dump(config_dict, fh, sort_keys=False)

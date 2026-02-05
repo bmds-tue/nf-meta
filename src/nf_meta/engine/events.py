@@ -45,6 +45,7 @@ class AddWorkflow(Command):
 
 @dataclass(frozen=True)
 class RemoveWorkflow(Command):
+    # TODO: Think about removing single nodes (Command design) vs whole subgraphs (Memento / subgraph caching)
     workflow: Workflow
 
     def __post_init__(self):

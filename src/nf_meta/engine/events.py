@@ -21,14 +21,7 @@ class Event(BaseModel):
     payload: dict
 
 
-@dataclass
 class Command(ABC):
-    raw_data: dict
-    model: BaseModel
-    validated_obj: BaseModel
-
-    def __post_init__(self):
-        validated = self.model(**self.raw_data)
 
     @abstractmethod
     def apply(self, graph: MetaworkflowGraph):

@@ -6,7 +6,6 @@ import logging
 import networkx as nx
 
 from .models import MetaworkflowConfig, Workflow, Transition, CONFIG_VERSION_MIN, dump_config
-from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
 
 
 logger = logging.getLogger()
@@ -120,19 +119,19 @@ class MetaworkflowGraph:
     # ===========================
     #        UTILITIES
     # ===========================
-    def get_transitions(self):
+    def get_transitions(self) -> list[Transition]:
         return [Transition(**data.get("data")) for _, _, data in self.G.edges(data=True)]
 
-    def get_workflows(self):
+    def get_workflows(self) -> list[Workflow]:
         return [Workflow(**self.G.nodes[n]) for n in self.G.nodes]
 
-    def get_workflows_sorted(self):
+    def get_workflows_sorted(self) -> list[Workflow]:
         """Returns workflow ids in valid execution order."""
         nodes_sorted = list(nx.topological_sort(self.G))
         workflows = [Workflow(**self.G.nodes[n]) for n in nodes_sorted]
         return workflows
 
-    def get_start_workflow(self):
+    def get_start_workflow(self) -> Optional[Workflow]:
         """
         Return the first order in topological sorting or None if no nodes exist
         """
@@ -142,8 +141,8 @@ class MetaworkflowGraph:
         else:
             return workflows_sorted[0]
 
-    def successors(self, workflow_id: str):
-        return list(self.G.successors(workflow_id))
+    def successors(self, wf: Workflow) -> list[Workflow]:
+        return [Workflow(**self.G.nodes[n]) for n in self.G.successors(wf.id)]
 
-    def predecessors(self, workflow_id: str):
-        return list(self.G.predecessors(workflow_id))
+    def predecessors(self, wf: Workflow) -> list[Workflow]:
+        return [Workflow(**self.G.nodes[n]) for n in self.G.predecessors(wf.id)]

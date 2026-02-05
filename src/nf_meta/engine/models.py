@@ -29,10 +29,6 @@ class Workflow(BaseModel):
     is_nfcore: Optional[bool] = Field(default=None, exclude=True)
     layout_coords: Optional[tuple[float, float]] = Field(default=None, exclude=True)
 
-    # TODO: do nf-core validation here:
-    # Is it nfcore pipeline? -> set is_nfcore
-    # -> add pipeline_description if possible
-
     @model_validator(mode="after")
     def is_nfcore_workflow(self):
         nfcore_pipelines = get_nfcore_pipelines()
@@ -43,7 +39,8 @@ class Workflow(BaseModel):
             nfcore_wf_info = nfcore_wf_info[0]
             self.pipeline_description = nfcore_wf_info.get("description", "")
         else:
-            logger.warning(f"Potentially uncompatible workflows, which is not officially supported by nf-core: {self.name}")
+            logger.warning(f"Potentially uncompatible workflow, not officially supported by nf-core: {self.name}")
+
             if not self.pipeline_location:
                 raise ValueError(f"No `pipeline_location` specified for '{self.name}'. Workflows from outside nf-core must specify a repository!")
         

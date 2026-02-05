@@ -72,6 +72,12 @@ class MetaworkflowGraph:
     def add_workflow(self, wf: Workflow):
         self.G.add_node(wf.id, **wf.model_dump())
 
+    def update_workflow(self, wf: Workflow):
+        try:
+            self.G.nodes[wf.id] = wf.model_dump()
+        except KeyError as e:
+            raise ValueError("Workflow has invalid id. Update unsuccessful!")
+
     def remove_workflow(self, wf_id: str, recursive=False):
         # TODO: check id
         # TODO: implement removal
@@ -80,6 +86,11 @@ class MetaworkflowGraph:
 
     def add_transition(self, tr: Transition):
         # TODO: whats important for adding?
+        pass
+
+    def update_transition(self, tr: Transition):
+        # TODO: Add update
+        # TODO: Think about nodes without a predecessor!
         pass
 
     def remove_transition(self, tr_id: str, recursive=False):

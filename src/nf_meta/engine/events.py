@@ -48,8 +48,6 @@ class RemoveWorkflow(Command):
     # TODO: Think about removing single nodes (Command design) vs whole subgraphs (Memento / subgraph caching)
     workflow: Workflow
 
-    def __post_init__(self):
-        self
     def apply(self, g: MetaworkflowGraph):
         g.remove_workflow(self.workflow)
 
@@ -68,7 +66,7 @@ class AddTransition(Command):
         g.remove_workflow(self.transition)
 
 
-@dataclass
+@dataclass(frozen=True)
 class RemoveTransition(Command):
     transition: Transition
 
@@ -79,7 +77,7 @@ class RemoveTransition(Command):
         g.add_transition(self.transition)
 
 
-@dataclass
+@dataclass(frozen=True)
 class EditWorkflow(Command):
     new_workflow: Workflow
     old_workflow: Workflow
@@ -95,7 +93,7 @@ class EditWorkflow(Command):
         g.update_workflow(self.old_workflow)
 
 
-@dataclass
+@dataclass(frozen=True)
 class EditTransition(Command):
     new_transition: Transition
     old_transition: Transition

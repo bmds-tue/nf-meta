@@ -33,6 +33,22 @@ class Workflow(BaseModel):
     # Is it nfcore pipeline? -> set is_nfcore
     # -> add pipeline_description if possible
 
+    @model_validator(mode="after")
+    def is_nfcore_workflow(self):
+        nfcore_pipelines = get_nfcore_pipelines()
+        nfcore_wf_info = list(filter(lambda wf: wf.get("name") == self.name, nfcore_pipelines))
+        self.is_nfcore = bool(len(nfcore_wf_info))
+
+        if self.is_nfcore:
+            nfcore_wf_info = nfcore_wf_info[0]
+            self.pipeline_description = nfcore_wf_info.get("description", "")
+        else:
+            logger.warning(f"Potentially uncompatible workflows, which is not officially supported by nf-core: {self.name}")
+            if not self.pipeline_location:
+                raise ValueError(f"No `pipeline_location` specified for '{self.name}'. Workflows from outside nf-core must specify a repository!")
+        
+        return self
+
 
 class VerboseWorkflow(Workflow):
     # Includes the optional fields in the parent definition
@@ -73,38 +89,6 @@ class MetaworkflowConfig(BaseModel):
             if tr.from_ and tr.from_ not in all_ids:
                 raise ValueError(f"transition 'from' references unknown workflow id: {tr.from_}")
         return self
-    
-    # ------------------------------
-    # Validation: transitions refer to nf-core workflow IDs
-    # ------------------------------
-    @field_validator("workflows")
-    @classmethod
-    def workflows_exist_in_nfcore_or_have_location(cls, workflows):
-        nf_core_pipelines = get_nfcore_pipelines()
-        nf_core_pipeline_names = {w.get("name") for w in nf_core_pipelines}
-
-        if not len(nf_core_pipelines):
-            logger.warning("Workflows could not be validated against nf-core")
-            return workflows
-        
-        for w in workflows:
-            w.is_nfcore = w.name in nf_core_pipeline_names
-
-            # For nf-core pipelines, make an attempt to read the description           
-            if w.is_nfcore:
-                nfcore_wf_info = list(filter(lambda wf: wf.get("name") == w.name, nf_core_pipelines))[0]
-                w.pipeline_description = nfcore_wf_info.get("description", "")
-
-        non_nfcore_wfs = list(filter(lambda wf: not wf.is_nfcore, workflows))
-        if len(non_nfcore_wfs):
-            names = list(map(lambda w: w.name, non_nfcore_wfs))
-            logger.warning(f"Potentially uncompatible workflows found, which are not officially supported by nf-core: {", ".join(names)}")
-
-            no_repo_wfs = list(filter(lambda wf: not wf.pipeline_location, workflows))
-            if len(no_repo_wfs):
-                names = list(map(lambda w: w.name, no_repo_wfs))
-                raise ValueError(f"Workflows from outside nf-core must specify a repository! No `pipeline_location` found for: {", ".join(names)}")
-        return workflows
 
     @field_validator("config_version")
     @classmethod

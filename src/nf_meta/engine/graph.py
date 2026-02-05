@@ -105,29 +105,8 @@ class MetaworkflowGraph:
     #   EXPORT BACK TO CONFIG
     # ===========================
     def to_config(self) -> Dict[str, Any]:
-        nodes = [n for n in self.G.nodes]
-
-        workflows = [
-            {
-                "id": n,
-                "name": self.G.nodes[n]["name"],
-                "pipeline_location": self.G.nodes[n].get("pipeline_location", None),
-                "version": self.G.nodes[n].get("version", None),
-            }
-            for n in nodes
-        ]
-
-        transitions = []
-        for src, tgt, data in self.G.edges(data=True):
-            meta = data.get("data", {})
-            if src is None:
-                t = {"run": tgt}
-            else:
-                t = {"from": src, "run": tgt}
-
-            # TODO: This potentially adds unwanted fields!
-            t.update(meta)
-            transitions.append(t)
+        workflows = self.get_workflows()
+        transitions = self.get_transitions()
 
         return MetaworkflowConfig.model_validate({
             "config_version": CONFIG_VERSION_MIN,
@@ -137,24 +116,31 @@ class MetaworkflowGraph:
 
     def to_file(self, file: Path|str) -> None:
         dump_config(self.to_config(), Path(file))
-        
 
     # ===========================
     #        UTILITIES
     # ===========================
-    def get_nodes_execution_order(self):
-        """Returns workflow ids in valid execution order."""
-        return list(nx.topological_sort(self.G))
+    def get_transitions(self):
+        return [Transition(**data.get("data")) for _, _, data in self.G.edges(data=True)]
 
-    def get_start_node(self):
+    def get_workflows(self):
+        return [Workflow(**self.G.nodes[n]) for n in self.G.nodes]
+
+    def get_workflows_sorted(self):
+        """Returns workflow ids in valid execution order."""
+        nodes_sorted = list(nx.topological_sort(self.G))
+        workflows = [Workflow(**self.G.nodes[n]) for n in nodes_sorted]
+        return workflows
+
+    def get_start_workflow(self):
         """
         Return the first order in topological sorting or None if no nodes exist
         """
-        nodes_ordered = self.execution_order()
-        if not len(nodes_ordered):
+        workflows_sorted = self.get_workflows_sorted()
+        if not len(workflows_sorted):
             return None
         else:
-            return nodes_ordered[0]
+            return workflows_sorted[0]
 
     def successors(self, workflow_id: str):
         return list(self.G.successors(workflow_id))

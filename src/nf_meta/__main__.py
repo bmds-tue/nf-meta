@@ -2,7 +2,9 @@ import click
 from functools import wraps
 from nf_meta.engine.runner import Runners, run
 from nf_meta.engine.graph import MetaworkflowGraph
+from nf_meta.engine.session import start_session
 from nf_meta.editor import start_editor_backend
+
 
 @click.group()
 def cli() -> None:
@@ -15,6 +17,10 @@ def cli() -> None:
 @click.option("--port", help="Port to use for running the editor ui")
 @click.argument("config", required=False, type=click.Path())
 def edit_browser(config, verbose, host, port):
+    # start engine
+    start_session(config)
+
+    # start api and open editor in browser
     start_editor_backend(host, port)
 
 

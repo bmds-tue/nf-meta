@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from typing import Protocol
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -19,19 +19,15 @@ class Event(BaseModel):
     payload: dict
 
 
-class Command(ABC):
+class Command(Protocol):
 
-    @abstractmethod
-    def apply(self, graph: MetaworkflowGraph):
-        pass
+    def apply(self, graph: MetaworkflowGraph) -> None: ...
 
-    @abstractmethod
-    def undo(self, graph: MetaworkflowGraph):
-        pass
+    def undo(self, graph: MetaworkflowGraph) -> None: ...
 
 
 @dataclass(frozen=True)
-class AddWorkflow(Command):
+class AddWorkflow:
     workflow: Workflow
 
     def apply(self, g: MetaworkflowGraph):
@@ -42,7 +38,7 @@ class AddWorkflow(Command):
 
 
 @dataclass(frozen=True)
-class RemoveWorkflow(Command):
+class RemoveWorkflow:
     # TODO: Think about removing single nodes (Command design) vs whole subgraphs (Memento / subgraph caching)
     workflow: Workflow
 
@@ -54,7 +50,7 @@ class RemoveWorkflow(Command):
 
 
 @dataclass(frozen=True)
-class AddTransition(Command):
+class AddTransition:
     transition: Transition
 
     def apply(self, g: MetaworkflowGraph):
@@ -65,7 +61,7 @@ class AddTransition(Command):
 
 
 @dataclass(frozen=True)
-class RemoveTransition(Command):
+class RemoveTransition:
     transition: Transition
 
     def apply(self, g: MetaworkflowGraph):
@@ -76,7 +72,7 @@ class RemoveTransition(Command):
 
 
 @dataclass(frozen=True)
-class EditWorkflow(Command):
+class EditWorkflow:
     new_workflow: Workflow
     old_workflow: Workflow
 
@@ -92,7 +88,7 @@ class EditWorkflow(Command):
 
 
 @dataclass(frozen=True)
-class EditTransition(Command):
+class EditTransition:
     new_transition: Transition
     old_transition: Transition
 

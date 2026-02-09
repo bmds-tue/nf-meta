@@ -13,11 +13,10 @@ class EventTypes(StrEnum):
     AddTransition = "add_transition"
     RemoveTransition = "remove_transition"
 
-# TODO: Is this needed
-class Event(BaseModel):
-    type: EventTypes
-    payload: dict
 
+# ------------------------------------------
+# ----- COMMANDS: State Change Intents -----
+# ------------------------------------------
 
 class Command(Protocol):
 

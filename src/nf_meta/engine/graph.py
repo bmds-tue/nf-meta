@@ -146,7 +146,7 @@ class MetaworkflowGraph:
         return [Workflow(**self.G.nodes[n]) for n in self.G.nodes]
 
     def get_workflows_sorted(self) -> list[Workflow]:
-        """Returns workflow ids in valid execution order."""
+        """Returns workflows in valid execution order."""
         nodes_sorted = list(nx.topological_sort(self.G))
         workflows = [Workflow(**self.G.nodes[n]) for n in nodes_sorted]
         return workflows

@@ -1,26 +1,54 @@
+from .events import Command
 from .history import History
 from .graph import MetaworkflowGraph
 from .models import Workflow, Transition, WorkflowOptions, MetaworkflowConfig
 from pathlib import Path
 
-SESSION = None
 
-class Session:
+class EditorSession:
 
     def __init__(self, config_file=None):
 
         self.config_file: Path = config_file
         self.graph: MetaworkflowGraph = None
-
-        # Undo / Redo History
         self.history: History = None
-        # TODO
 
     def load_config(self, config: Path):
-        # TODO
-        pass
+        self.start(config)
+
+    def start(self, config: Path):
+
+        self.config_file = config
+        if self.config_file.exists():
+            self.graph = MetaworkflowGraph.from_file(self.config_file)
+        else:
+            self.graph = MetaworkflowGraph()
+
+        self.history = History()
+
+    def handle_command(self, c: Command):
+        return self.history.execute(c, self.graph)
+        
+    def handle_undo(self):
+        return self.history.undo(self.graph)
+
+    def handle_redo(self):
+        return self.history.redo(self.graph)
+
+    def save_to_config(self, config: Path|None):
+        if not (config or self.config):
+            raise ValueError("No config file to write to specified")
+
+        if config:
+            self.config_file = config
+
+        self.graph.to_file(self.config_file)
+
+
+SESSION = EditorSession()
 
 
 def start_session(config: Path):
     global SESSION
-    SESSION = Session(config_file=config)
+    SESSION.start(config)
+    return SESSION

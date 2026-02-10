@@ -5,7 +5,7 @@ import logging
 
 import networkx as nx
 
-from .models import MetaworkflowConfig, Workflow, WorkflowOptions, Transition, dump_config
+from .models import MetaworkflowConfig, Workflow, WorkflowOptions, Transition, dump_config, CONFIG_VERSION_MAX
 
 
 logger = logging.getLogger()
@@ -23,7 +23,7 @@ class MetaworkflowGraph:
         self.G: nx.DiGraph = nx.DiGraph()
         self.workflow_opts: Optional[WorkflowOptions] = None
         self.workflow_opts_custom: Optional[WorkflowOptions] = None
-        self.config_version: str = None
+        self.config_version: str = CONFIG_VERSION_MAX
 
     @classmethod
     def from_file(cls, cfg_file: Path) -> "MetaworkflowGraph":

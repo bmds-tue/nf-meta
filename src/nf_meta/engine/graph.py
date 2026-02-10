@@ -45,8 +45,8 @@ class MetaworkflowGraph:
 
         # Add transition metadata
         for t in cfg.transitions:
-            src = t.from_ if t.from_ else None
-            tgt = t.run
+            src = t.source if t.source else None
+            tgt = t.target
 
             if tgt not in obj.G.nodes:
                 raise ValueError(f"Unknown node {tgt} found in transition {src}->{tgt}")

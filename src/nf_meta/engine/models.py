@@ -65,12 +65,15 @@ class WorkflowOptions(BaseModel):
 
 
 class Transition(BaseModel):
-    run: str
-    from_: Optional[str] = Field(default=None, alias="from")
+    target: str
+    source: str
     params_file: Optional[Path] = Field(default=None, alias="params-file")
     config_file: Optional[Path] = Field(default=None, alias="config-file")
     adapter: Optional[str] = None
     params: Optional[List[Dict[str, Any]]] = None
+
+    def model_dump_display(self) -> dict:
+        return self.model_dump(exclude_none=False)
 
 
 class MetaworkflowConfig(BaseModel):
@@ -87,10 +90,10 @@ class MetaworkflowConfig(BaseModel):
     def transitions_valid(self):
         all_ids = {w.id for w in self.workflows}
         for tr in self.transitions:
-            if tr.run not in all_ids:
-                raise ValueError(f"transition 'run' references unknown workflow id: {tr.run}")
-            if tr.from_ and tr.from_ not in all_ids:
-                raise ValueError(f"transition 'from' references unknown workflow id: {tr.from_}")
+            if tr.target not in all_ids:
+                raise ValueError(f"transition 'target' references unknown workflow id: {tr.target}")
+            if tr.source and tr.source not in all_ids:
+                raise ValueError(f"transition 'source' references unknown workflow id: {tr.source}")
         return self
 
     @field_validator("config_version")

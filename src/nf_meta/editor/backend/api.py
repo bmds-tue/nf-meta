@@ -27,7 +27,7 @@ api_router = APIRouter()
 app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 
 
-@app.get("/")
+@app.api_route("/")
 def serve_ui():
     if DEV_MODE:
         return RedirectResponse(f"http://localhost:{DEV_VITE_PORT}/")
@@ -69,7 +69,3 @@ def get_nfcore_pipelines():
 
 
 app.include_router(api_router, prefix="/api")
-if DEV_MODE:
-    setup_dev_proxy(app)
-else:
-    setup_static(app)

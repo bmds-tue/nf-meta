@@ -10,65 +10,34 @@ from nf_meta.engine.events import AddTransition, AddWorkflow, RemoveWorkflow
 
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
 
 
 DEV_MODE = int(os.getenv("NF_META_DEVMODE", 0)) == 1
-VITE_URL = "http://localhost:5173"
+DEV_HOST = "localhost"
+DEV_PORT = "8080"
+DEV_VITE_PORT = "5173"
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend_dist"
 
 app = FastAPI(title="metapipeline_editor")
 api_router = APIRouter()
 
-def setup_dev_proxy(app: FastAPI):
-    """
-    Setup up a proxy to serve statics via vite dev server
-    """
-    @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-    async def vite_proxy(path: str, request: Request):
-        
-        url = f"{VITE_URL}/{path}"
-
-        client = httpx.AsyncClient()
-
-        upstream = await client.send(
-            client.build_request(
-                request.method,
-                url,
-                headers=request.headers.raw,
-                content=await request.body(),
-            ),
-            stream=True
-        )
-
-        return StreamingResponse(
-            upstream.aiter_raw(),
-            status_code=upstream.status_code,
-            headers=dict(upstream.headers),
-            background=lambda: client.aclose()
-        )
+# serve static files for deployment through fastapi
+app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 
 
-def setup_static(app: FastAPI):
-    """
-    Setup static file serving for production from local dir
-    """
-    app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
-
-    @app.get("/")
-    def serve_ui():
-        return FileResponse(DIST_DIR / "index.html")
-
-    # SPA fallback
-    @app.get("/{full_path:path}")
-    def spa_fallback(full_path: str):
-        return FileResponse(DIST_DIR / "index.html")
+@app.get("/")
+def serve_ui():
+    if DEV_MODE:
+        return RedirectResponse(f"http://localhost:{DEV_VITE_PORT}/")
+    return FileResponse(DIST_DIR / "index.html")
 
 
 @api_router.get("/graph/")
 def get_graph():
     return serialize_graph(SESSION.graph)
+
 
 @api_router.post("/graph/save/")
 def save_graph(config: Path):

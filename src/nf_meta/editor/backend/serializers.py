@@ -18,13 +18,15 @@ class Position(BaseModel):
 
 
 class Node(BaseModel):
-    id: Optional[str]
+    id: Optional[str] = Field(default=None)
     position: Position
+    label: str
     data: dict
 
     @classmethod
     def from_workflow(cls, wf: Workflow) -> "Node":
         obj = cls(id=wf.id,
+                  label=wf.name,
                   position=Position(x=0, y=0),
                   data=wf.model_dump_display())
         return obj

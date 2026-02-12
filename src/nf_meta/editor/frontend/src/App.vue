@@ -3,14 +3,15 @@ import { ref, onMounted } from 'vue'
 import { VueFlow, useVueFlow, MarkerType, ConnectionMode, type Node, type Edge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { Layouts, useLayout } from './LayoutGraph.vue'
+import { useLayout } from './LayoutGraph.vue'
 import WorkflowNode from './components/WorkflowNode.vue'
 
 
 const { onConnect, addEdges } = useVueFlow()
 const nodes = ref([])
 const edges = ref([])
-const { layout } = useLayout()
+const { layout, layoutOptions } = useLayout()
+const layoutDirection = layoutOptions.horizontal
 const { fitView } = useVueFlow()
 const layoutDirection = Layouts.horizontal
             

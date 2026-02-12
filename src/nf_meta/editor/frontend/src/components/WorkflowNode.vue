@@ -1,13 +1,14 @@
 <script setup>
 import { Position, Handle } from '@vue-flow/core'
 import { computed } from 'vue'
-import { Layouts } from '../LayoutGraph.vue'
+import { useLayout } from '../LayoutGraph.vue'
 
+const { layoutOptions } = useLayout()
 const props = defineProps(["label", "layout", "data"])
 const horizLayout = computed(() => {
     console.log("props.layout", props.layout)
-    console.log("Layouts.horizontal", Layouts.horizontal)
-    return props.layout == Layouts.horizontal
+    console.log("Layouts.horizontal", layoutOptions.horizontal)
+    return props.layout == layoutOptions.horizontal
 })
 </script>
 

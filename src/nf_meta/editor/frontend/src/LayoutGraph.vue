@@ -1,22 +1,22 @@
 <script lang="ts">
 import dagre from '@dagrejs/dagre'
-import { Position, useVueFlow } from '@vue-flow/core'
+import { Position, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { ref } from 'vue'
 
-
-export enum Layouts {
-  horizontal = 'LR',
-  vertical = 'TD'
-}
 
 export function useLayout() {
   const { findNode } = useVueFlow()
 
   const graph = ref(new dagre.graphlib.Graph())
 
-  const previousDirection = ref(Layouts.horizontal)
+  const layoutOptions = {
+    horizontal: 'LR',
+    vertical: 'TD'
+  }
+  const previousDirection = ref(layoutOptions.horizontal)
 
-  function layout(nodes, edges, direction) {
+
+  function layout(nodes: [Node], edges: [Edge], direction: string) {
     // we create a new graph instance, in case some nodes/edges were removed, otherwise dagre would act as if they were still there
     const dagreGraph = new dagre.graphlib.Graph()
 
@@ -24,7 +24,7 @@ export function useLayout() {
 
     dagreGraph.setDefaultEdgeLabel(() => ({}))
 
-    const isHorizontal = direction === Layouts.horizontal
+    const isHorizontal = direction === layoutOptions.horizontal
     dagreGraph.setGraph({ rankdir: direction })
 
     previousDirection.value = direction
@@ -55,6 +55,6 @@ export function useLayout() {
     })
   }
 
-  return { graph, layout, previousDirection }
+  return { layoutOptions, graph, layout, previousDirection }
 }
 </script>

@@ -33,19 +33,21 @@ def open_browser_when_ready(host, port):
 
 
 def start_editor_backend(host: str, port: int|None):
-    api_port = port
-    editor_port = port
     if DEV_MODE:
-        logger.debug(f"DEV_MODE is set. Overwriting port preferences to {DEV_PORT} (api) and {DEV_VITE_PORT} (vite)")
+        logger.debug(f"DEV_MODE is set: Ignoring port preferences and running on {DEV_PORT} (api) and {DEV_VITE_PORT} (vite)")
         api_port = DEV_PORT
         editor_port = DEV_VITE_PORT
-    if port is None:
+    elif port is None:
+        logger.debug("Automatically assigning free port")
         port = find_free_port()
+        api_port = port
+        editor_port = port
+    else:
         api_port = port
         editor_port = port
 
     thread = threading.Thread(
-        target=open_browser_when_ready,
+        target=open_browser_when_ready(host, editor_port),
         args=(host, editor_port),
         daemon=False
     )

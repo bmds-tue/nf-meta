@@ -1,39 +1,34 @@
 <script setup lang="ts">
-import { Position, Handle } from '@vue-flow/core'
+import { Handle, Position } from '@vue-flow/core'
 import { computed } from 'vue'
-import { useLayout } from '../layout_graph.ts'
+import type { NodeProps } from '@vue-flow/core'
+import type { APINodeData } from '../types.ts'
 
-const props = defineProps({
-        label: String,
-        layout: String,
-        data: Object
-    })
-
-const { layoutOptions } = useLayout()
-
+const props = defineProps<NodeProps<APINodeData>>()
+    
 const horizLayout = computed(() => {
-    console.log("props.layout", props.layout)
-    console.log("Layouts.horizontal", layoutOptions.horizontal)
-    return props.layout == layoutOptions.horizontal
-})
+    return props.data.targetHandlePosition == Position.Left && 
+        props.data.sourceHandlePosition == Position.Right
+}) 
+
 </script>
 
 <template>
   <div 
         class="workflow-node"
-        :class="{'workflow-node-nfcore' : props.data?.is_nfcore} ">
+        :class="{'workflow-node-nfcore' : data.is_nfcore} ">
     <Handle class="workflow-node-handle" 
-            :class="{'handle-horiz' : horizLayout}"
+            :class="{'handle-horiz' : horizLayout }"
             type="target" 
-            :position="horizLayout ? Position.Left : Position.Top"
+            :position="data.targetHandlePosition"
             />
-    <div>{{ props.label }}</div>
-    <div> {{ props.data?.pipeline_location }} </div>
+    <div>{{ data.name }}</div>
+    <div> {{ data.pipeline_location }} </div>
     <Handle class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout}"
             type="source" 
-            :position="horizLayout ? Position.Right : Position.Bottom"
-            />
+            :position="data.sourceHandlePosition"
+            /> 
   </div>
 
 </template>

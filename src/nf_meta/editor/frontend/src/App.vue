@@ -1,33 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { VueFlow, useVueFlow, MarkerType, ConnectionMode, type Position, type Node, type Edge, type Connection } from '@vue-flow/core'
+import type { Node, Edge, Connection } from '@vue-flow/core'
+import { VueFlow, useVueFlow, MarkerType, ConnectionMode} from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { useLayout } from './layout_graph.ts'
 import WorkflowNode from './components/WorkflowNode.vue'
-
-type APIEdge = Edge & {
-  data: Record<string, string>
-}
-
-type APINode = Node & {
-  data: Record<string, string>,
-  targetHandlePosition?: Position,
-  sourceHandlePosition?: Position,
-}
-
-type APIGraph = {
-  nodes: APINode[],
-  transitions: APIEdge[]
-}
+import type { APIEdgeData, APINodeData, APIGraph } from './types.ts'
 
 const { addEdges } = useVueFlow()
 const { fitView } = useVueFlow()
 const { layout, layoutOptions } = useLayout()
 
 const layoutDirection = layoutOptions.horizontal
-const edges = ref<APIEdge[]>()
-const nodes = ref<APINode[]>()
+const edges = ref<Edge<APIEdgeData>[]>()
+const nodes = ref<Node<APINodeData>[]>()
 
 const updateEdges = (newEdges: Edge[]) => {
   edges.value = newEdges.map(t => ({
@@ -43,7 +30,6 @@ const updateNodes = (newNodes: Node[]) => {
   nodes.value = newNodes.map(n => ({
     ...n,
     data: n.data ?? {},
-    id: n.id,
     type: "workflow-node",
   }))
 }
@@ -84,8 +70,9 @@ onMounted(async () => {
       <Background />
       
       <Controls></Controls>
-      <template #node-workflow-node="node">
-        <WorkflowNode :label="node.data?.name" :data="node.data"/>
+      <template #node-workflow-node="nodeProps">
+        <WorkflowNode 
+          v-bind="nodeProps"/>
       </template>
     </VueFlow>
   </div>

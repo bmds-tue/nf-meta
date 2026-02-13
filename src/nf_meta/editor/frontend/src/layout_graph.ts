@@ -47,9 +47,12 @@ export function useLayout() {
 
       return {
         ...node,
-        targetHandlePosition: isHorizontal ? Position.Left : Position.Top,
-        sourceHandlePosition: isHorizontal ? Position.Right : Position.Bottom,
-        position: { x: nodeWithPosition.x, y: nodeWithPosition.y },
+        data: {
+            ...node.data,
+            targetHandlePosition: isHorizontal ? Position.Left : Position.Top,
+            sourceHandlePosition: isHorizontal ? Position.Right : Position.Bottom,
+        },
+        position: { x: nodeWithPosition.x, y: nodeWithPosition.y }
       }
     })
   }

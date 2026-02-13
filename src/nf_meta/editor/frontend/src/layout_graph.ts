@@ -1,4 +1,3 @@
-<script lang="ts">
 import dagre from '@dagrejs/dagre'
 import { Position, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { ref } from 'vue'
@@ -57,4 +56,3 @@ export function useLayout() {
 
   return { layoutOptions, graph, layout, previousDirection }
 }
-</script>

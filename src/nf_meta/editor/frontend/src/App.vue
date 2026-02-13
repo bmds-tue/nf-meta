@@ -1,39 +1,76 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { VueFlow, useVueFlow, MarkerType, ConnectionMode, type Node, type Edge } from '@vue-flow/core'
+import { VueFlow, useVueFlow, MarkerType, ConnectionMode, type Position, type Node, type Edge, type Connection } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { useLayout } from './LayoutGraph.vue'
+import { useLayout } from './layout_graph.ts'
 import WorkflowNode from './components/WorkflowNode.vue'
 
+type APIEdge = Edge & {
+  data: Record<string, string>
+}
 
-const { onConnect, addEdges } = useVueFlow()
-const nodes = ref([])
-const edges = ref([])
-const { layout, layoutOptions } = useLayout()
-const layoutDirection = layoutOptions.horizontal
+type APINode = Node & {
+  data: Record<string, string>,
+  targetHandlePosition?: Position,
+  sourceHandlePosition?: Position,
+}
+
+type APIGraph = {
+  nodes: APINode[],
+  transitions: APIEdge[]
+}
+
+const { addEdges } = useVueFlow()
 const { fitView } = useVueFlow()
-const layoutDirection = Layouts.horizontal
-            
+const { layout, layoutOptions } = useLayout()
+
+const layoutDirection = layoutOptions.horizontal
+const edges = ref<APIEdge[]>()
+const nodes = ref<APINode[]>()
+
+const updateEdges = (newEdges: Edge[]) => {
+  edges.value = newEdges.map(t => ({
+    ...t,
+    data: t.data ?? {},
+    animated: true,
+    markerEnd: MarkerType.Arrow,
+    
+  }))
+}
+
+const updateNodes = (newNodes: Node[]) => {
+  nodes.value = newNodes.map(n => ({
+    ...n,
+    data: n.data ?? {},
+    id: n.id,
+    type: "workflow-node",
+  }))
+}
+
+const onConnected = (conn: Connection) => {
+  const edge = {
+    ...conn,
+    animated: true,
+    markerEnd: MarkerType.Arrow
+  }
+  addEdges([edge])
+}
+
 onMounted(async () => {
   const res = await fetch('/api/graph/')
-  const graph = await res.json()
+  const graph: APIGraph = await res.json()
 
-  const direction = layoutDirection
   console.log(graph)
-  edges.value = graph.transitions.map(t => ({
-    ...t,
-    markerEnd: MarkerType.ArrowClosed,
-  }))
-  nodes.value = layout(graph.nodes, graph.transitions, direction).map(n => ({
-    ...n,
-    layout: "vertical",
-    type: "workflow-node"
-  }))
+  updateEdges(graph.transitions)
+  if (graph.nodes.length > 0) {
+    updateNodes(layout(graph.nodes, graph.transitions, layoutDirection))
+  }
 
   console.log(">>>NODES", nodes.value)
   console.log(">>>EDGES", edges.value)
 })
+
 </script>
 
 <template>
@@ -42,11 +79,13 @@ onMounted(async () => {
       :nodes="nodes" 
       :edges="edges" 
       :connection-mode="ConnectionMode.Loose"
+      @connect=onConnected
       fit-view-on-init>
       <Background />
       
-      <template #node-workflow-node="props">
-        <WorkflowNode v-bind="props" :layout="layoutDirection"/>
+      <Controls></Controls>
+      <template #node-workflow-node="node">
+        <WorkflowNode :label="node.data?.name" :data="node.data"/>
       </template>
     </VueFlow>
   </div>

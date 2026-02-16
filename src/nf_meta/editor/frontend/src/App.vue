@@ -110,7 +110,7 @@ onMounted(async () => {
           <Icon name="undo" />
         </button>
 
-        <button title="redo last operations">
+        <button title="redo last operations" :disabled="true">
           <Icon name="redo" />
         </button>
 
@@ -236,13 +236,19 @@ onMounted(async () => {
     background-color: #2563eb;
     transition: background-color 0.2s;
   }
-
 }
 
 button.btn-active {
     background-color: #5e88e3;
-    transition: background-color 0.2s;
   }
+
+button:disabled {
+  background-color: #18233a;
+  transition: none !important;
+  cursor: not-allowed;
+  /* This prevents :hover from triggering at all */
+  pointer-events: none;
+}
 
 .checkbox-panel {
   display: flex;

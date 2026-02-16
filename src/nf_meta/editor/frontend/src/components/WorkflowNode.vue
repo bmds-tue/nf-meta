@@ -7,8 +7,8 @@ import type { APINodeData } from '../types.ts'
 const props = defineProps<NodeProps<APINodeData>>()
     
 const horizLayout = computed(() => {
-    return props.data.targetHandlePosition == Position.Left && 
-        props.data.sourceHandlePosition == Position.Right
+    return props.targetPosition == Position.Left && 
+        props.sourcePosition == Position.Right
 }) 
 
 </script>
@@ -20,14 +20,14 @@ const horizLayout = computed(() => {
     <Handle class="workflow-node-handle" 
             :class="{'handle-horiz' : horizLayout }"
             type="target" 
-            :position="data.targetHandlePosition"
+            :position="targetPosition"
             />
     <div>{{ data.name }}</div>
     <div> {{ data.pipeline_location }} </div>
     <Handle class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout}"
             type="source" 
-            :position="data.sourceHandlePosition"
+            :position="sourcePosition"
             /> 
   </div>
 

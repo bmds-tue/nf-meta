@@ -1,6 +1,7 @@
 import dagre from '@dagrejs/dagre'
 import { Position, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { ref } from 'vue'
+import type { APINodeData } from './types'
 
 
 export function useLayout() {
@@ -15,7 +16,7 @@ export function useLayout() {
   const previousDirection = ref(layoutOptions.horizontal)
 
 
-  function layout(nodes: Node[], edges: Edge[], direction: string) {
+  function layout(nodes: Node<APINodeData>[], edges: Edge[], direction: string) {
     // we create a new graph instance, in case some nodes/edges were removed, otherwise dagre would act as if they were still there
     const dagreGraph = new dagre.graphlib.Graph()
 
@@ -47,10 +48,10 @@ export function useLayout() {
 
       return {
         ...node,
+        targetPosition: isHorizontal ? Position.Left : Position.Top,
+        sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
         data: {
             ...node.data,
-            targetHandlePosition: isHorizontal ? Position.Left : Position.Top,
-            sourceHandlePosition: isHorizontal ? Position.Right : Position.Bottom,
         },
         position: { x: nodeWithPosition.x, y: nodeWithPosition.y }
       }

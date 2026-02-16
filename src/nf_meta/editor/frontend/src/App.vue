@@ -36,9 +36,13 @@ const updateNodes = (newNodes: Node[]) => {
 }
 
 
-const layoutGraph = async function(direction: string) {
-  updateNodes(layout(nodes.value, edges.value, direction))
-  layoutDirection.value = direction
+const switchLayout = async function() {
+  layoutDirection.value = layoutDirection.value == layoutOptions.vertical ? 
+      layoutOptions.horizontal : 
+      layoutOptions.vertical
+
+  updateNodes(layout(nodes.value, edges.value, layoutDirection.value))
+
   nextTick(() => {
     fitView()
   })
@@ -78,11 +82,11 @@ onMounted(async () => {
       <Background />
       <Panel class="process-panel" position="top-right">
         <div class="layout-panel">
-          <button title="set horizontal layout" @click="layoutGraph(layoutOptions.horizontal)">
+          <button v-if="layoutDirection == layoutOptions.vertical" title="set horizontal layout" @click="switchLayout()">
             <Icon name="horizontal" />
           </button>
 
-          <button title="set vertical layout" @click="layoutGraph(layoutOptions.vertical)">
+          <button v-else title="set vertical layout" @click="switchLayout()">
             <Icon name="vertical" />
           </button>
         </div>

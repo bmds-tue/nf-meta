@@ -26,7 +26,7 @@ const github = "https://github.com/JulianFlesch/mp-builder-2"
 
 <style scoped>
 .app-footer {
-  height: 32px;
+  height: 25px;
 
   display: flex;
   align-items: center;
@@ -37,10 +37,7 @@ const github = "https://github.com/JulianFlesch/mp-builder-2"
   font-size: 12px;
   color: #cbd5e1;
 
-  /*background: #111827;*/
-  border-top: 1px solid #1f2937;
-
-  background-color: #2d3748;
+  background-color: #2d3748cf;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
 
   flex-shrink: 0;

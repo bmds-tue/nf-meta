@@ -178,7 +178,9 @@ onMounted(async () => {
 .process-panel {
   flex: 0;
   padding: 10px;
-  background-color: #2d3748;
+  background-color: #2d3748cf;
+  backdrop-filter: blur(6px);
+
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   border-radius: 8px;
 }

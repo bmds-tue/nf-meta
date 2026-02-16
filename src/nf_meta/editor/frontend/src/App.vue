@@ -3,10 +3,11 @@ import { nextTick, ref, onMounted } from 'vue'
 import type { Node, Edge, Connection } from '@vue-flow/core'
 import { VueFlow, useVueFlow, MarkerType, ConnectionMode, Panel} from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
 import { useLayout } from './layout_graph.ts'
 import WorkflowNode from './components/WorkflowNode.vue'
 import Icon from './components/Icon.vue'
+import Sidebar from './components/Sidebar.vue'
+import Footer from './components/Footer.vue'
 import type { APIEdgeData, APINodeData, APIGraph } from './types.ts'
 
 const { addEdges } = useVueFlow()
@@ -72,80 +73,130 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div style="width: 100vw; height: 100vh;">
+  <div class="editor">
+  
+    <Panel class="process-panel" position="top-left">
+      <div class="layout-panel">
+        <div class="title"> 
+          <h1>MetaFlow_2</h1>
+        </div>
+        <button title="add a workflow node">
+          <Icon name="add" />
+        </button>
+        
+        <button title="save to file">
+          <Icon name="save" />
+        </button>
+
+        <button title="undo last operation">
+          <Icon name="undo" />
+        </button>
+
+        <button title="redo last operations">
+          <Icon name="redo" />
+        </button>
+
+        <button v-if="layoutDirection == layoutOptions.vertical" title="set horizontal layout" @click="switchLayout()">
+          <Icon name="horizontal" />
+        </button>
+
+        <button v-else title="set vertical layout" @click="switchLayout()">
+          <Icon name="vertical" />
+        </button>
+
+        <button title="editor options">
+          <Icon name="split" />
+        </button>
+
+        <button title="editor options">
+          <Icon name="options" />
+        </button>
+      </div>
+    </Panel>
     <VueFlow 
+      class="vueflow-graph"
       :nodes="nodes" 
       :edges="edges" 
       :connection-mode="ConnectionMode.Loose"
       @connect=onConnected
       fit-view-on-init>
       <Background />
-      <Panel class="process-panel" position="top-right">
-        <div class="layout-panel">
-          <button title="add a workflow node">
-            <Icon name="add" />
-          </button>
-          
-          <button title="save to file">
-            <Icon name="save" />
-          </button>
-  
-          <button title="undo last operation">
-            <Icon name="undo" />
-          </button>
-  
-          <button title="redo last operations">
-            <Icon name="redo" />
-          </button>
-  
-          <button v-if="layoutDirection == layoutOptions.vertical" title="set horizontal layout" @click="switchLayout()">
-            <Icon name="horizontal" />
-          </button>
-
-          <button v-else title="set vertical layout" @click="switchLayout()">
-            <Icon name="vertical" />
-          </button>
-  
-          <button title="editor options">
-            <Icon name="split" />
-          </button>
-  
-          <button title="editor options">
-            <Icon name="options" />
-          </button>
-        </div>
-      </Panel>
       
-      <Controls></Controls>
       <template #node-workflow-node="nodeProps">
         <WorkflowNode 
           v-bind="nodeProps"/>
       </template>
     </VueFlow>
+
+    <Footer class="footer"></Footer>
   </div>
 </template>
 
 
-<style>
-.layout-flow {
-  background-color: #1a192b;
-  height: 100%;
+<style scoped>
+.editor {
+  /* This fixes the scrollbar and no size for VueFlow issues: */
+  position: fixed;
+  inset: 0;
+  
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  height: 100%;
 }
 
-.process-panel,
-.layout-panel {
+.editor * {
+  outline: 1px solid red;
+}
+
+/* 
+.editor aside {
   display: flex;
-  gap: 10px;
+  flex-direction:column;
+  gap:5px;
+  color:#fff;
+  font-weight:700;
+  border-right:1px solid #eee;
+  padding:10px;
+  font-size:12px;
+  background:#10b981bf;
+  -webkit-box-shadow:0px 5px 10px 0px rgba(0,0,0,.3);
+  box-shadow:0 5px 10px #0000004d
+} */
+
+.vueflow-graph {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.footer {
+  flex-grow: 0;
+  flex-shrink: 0;
 }
 
 .process-panel {
-  background-color: #2d3748;
+  flex: 0;
   padding: 10px;
-  border-radius: 8px;
+  background-color: #2d3748;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+}
+
+.layout-panel {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.title {
+  margin-left: 50px;
+  margin-right: 50px;
+
+  h1 {
+    color: white;
+    margin: 0;
+  }
 }
 
 .process-panel button {
@@ -155,9 +206,6 @@ onMounted(async () => {
   border-radius: 8px;
   color: white;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-}
-
-.process-panel button {
   font-size: 16px;
   width: 40px;
   height: 40px;
@@ -182,7 +230,7 @@ onMounted(async () => {
   color: white;
   font-size: 12px;
 }
-
+/* 
 .stop-btn svg {
   display: none;
 }
@@ -211,5 +259,5 @@ onMounted(async () => {
   100% {
     transform: rotate(360deg);
   }
-}
+} */
 </style>

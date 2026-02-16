@@ -37,4 +37,46 @@ defineProps({
       d="M14 20v-2h2.6l-3.175-3.175L14.85 13.4L18 16.55V14h2v6zm-8.6 0L4 18.6L16.6 6H14V4h6v6h-2V7.4zm3.775-9.425L4 5.4L5.4 4l5.175 5.175z"
     />
   </svg>
+
+  <svg v-else-if="name === 'add'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11 5h2v14h-2zM5 11h14v2H5z" fill="currentColor" />
+  </svg>
+
+  <svg v-else-if="name === 'save'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <!-- Arrow down -->
+    <path d="M11 3h2v10l3.5-3.5 1.4 1.4L12 17.8 6.1 10.9l1.4-1.4L11 13z" fill="currentColor"/>
+    <!-- Bottom bar -->
+    <path d="M5 19h14v2H5z" fill="currentColor"/>
+  </svg>
+
+  <svg v-else-if="name === 'options'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="6" cy="12" r="2" fill="currentColor"/>
+    <circle cx="12" cy="12" r="2" fill="currentColor"/>
+    <circle cx="18" cy="12" r="2" fill="currentColor"/>
+  </svg>
+
+  <svg v-else-if="name === 'undo'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path
+        d="M12 5a7 7 0 0 1 0 14H7v-2h5a5 5 0 0 0 0-10H8.8l2.6 2.6L10 11 5 6l5-5 1.4 1.4L8.8 5z"
+        fill="currentColor"
+    />
+  </svg>
+
+  <svg v-else-if="name === 'redo'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path
+        d="M12 5a7 7 0 0 0 0 14h5v-2h-5a5 5 0 0 1 0-10h3.2l-2.6 2.6L14 11l5-5-5-5-1.4 1.4L15.2 5z"
+        fill="currentColor"
+    />
+  </svg>
+
+  <svg v-else-if="name === 'split'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <!-- Left pane -->
+    <rect x="3" y="5" width="7" height="14" rx="1.5" fill="currentColor"/>
+  
+    <!-- Right pane -->
+    <rect x="14" y="5" width="7" height="14" rx="1.5" fill="currentColor"/>
+  
+    <!-- Divider -->
+    <rect x="11" y="5" width="2" height="14" fill="currentColor"/>
+  </svg>
 </template>

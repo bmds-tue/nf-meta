@@ -82,12 +82,36 @@ onMounted(async () => {
       <Background />
       <Panel class="process-panel" position="top-right">
         <div class="layout-panel">
+          <button title="add a workflow node">
+            <Icon name="add" />
+          </button>
+          
+          <button title="save to file">
+            <Icon name="save" />
+          </button>
+  
+          <button title="undo last operation">
+            <Icon name="undo" />
+          </button>
+  
+          <button title="redo last operations">
+            <Icon name="redo" />
+          </button>
+  
           <button v-if="layoutDirection == layoutOptions.vertical" title="set horizontal layout" @click="switchLayout()">
             <Icon name="horizontal" />
           </button>
 
           <button v-else title="set vertical layout" @click="switchLayout()">
             <Icon name="vertical" />
+          </button>
+  
+          <button title="editor options">
+            <Icon name="split" />
+          </button>
+  
+          <button title="editor options">
+            <Icon name="options" />
           </button>
         </div>
       </Panel>

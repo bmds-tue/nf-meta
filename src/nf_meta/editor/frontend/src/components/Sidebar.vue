@@ -1,13 +1,16 @@
 <script setup lang="ts">
 
-import { watch, ref, onBeforeUnmount } from "vue"
+import { nextTick, onBeforeUnmount, ref, watch } from "vue"
+import { useVueFlow } from '@vue-flow/core'
+
+const { fitView } = useVueFlow()
 
 const props = defineProps(["resized"])
 
 const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
 
 const MIN = 0.15*vw
-const MAX = 0.5*vw
+const MAX = 0.6*vw
 
 const isDragging = ref(false)
 
@@ -38,6 +41,10 @@ const stopDrag = () => {
 
     document.body.style.userSelect = ""
     document.body.style.cursor = ""
+
+    nextTick(() => {
+        fitView()
+    })
 }
 
 const startDrag = (e: MouseEvent) => {

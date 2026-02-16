@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, onMounted } from 'vue'
+import { watch, nextTick, ref, onMounted } from 'vue'
 import type { Node, Edge, Connection } from '@vue-flow/core'
 import { VueFlow, useVueFlow, MarkerType, ConnectionMode, Panel} from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -13,6 +13,16 @@ import type { APIEdgeData, APINodeData, APIGraph } from './types.ts'
 const { addEdges } = useVueFlow()
 const { fitView } = useVueFlow()
 const { layout, layoutOptions } = useLayout()
+
+const showSidebar = ref(
+  Boolean(localStorage.getItem("show-sidebar") == "true")
+)
+console.log("SHOWSIDEBAR from localstorage", localStorage.getItem("show-sidebar") )
+
+watch (showSidebar, (v: boolean) => { 
+  console.log("localstorage update: showSidebar", v)
+  localStorage.setItem("show-sidebar", String(v))
+})
 
 const layoutDirection = ref(layoutOptions.vertical)
 const edges = ref<Edge<APIEdgeData>[]>([])
@@ -49,6 +59,14 @@ const switchLayout = async function() {
   })
 }
 
+const toggleSidebar = async function() {
+  showSidebar.value = !showSidebar.value
+
+  nextTick(() => {
+    setTimeout(fitView, 10)
+  })
+}
+
 const onConnected = (conn: Connection) => {
   const edge = {
     ...conn,
@@ -78,7 +96,7 @@ onMounted(async () => {
     <Panel class="process-panel" position="top-left">
       <div class="layout-panel">
         <div class="title"> 
-          <h1>MetaFlow_2</h1>
+          <h1>MetaFlow v2</h1>
         </div>
         <button title="add a workflow node">
           <Icon name="add" />
@@ -104,8 +122,8 @@ onMounted(async () => {
           <Icon name="vertical" />
         </button>
 
-        <button title="editor options">
-          <Icon name="split" />
+        <button title="toggle sidebar" :class="{'btn-active': showSidebar}" @click="toggleSidebar" >
+          <Icon name="split"/>
         </button>
 
         <button title="editor options">
@@ -113,21 +131,25 @@ onMounted(async () => {
         </button>
       </div>
     </Panel>
-    <VueFlow 
-      class="vueflow-graph"
-      :nodes="nodes" 
-      :edges="edges" 
-      :connection-mode="ConnectionMode.Loose"
-      @connect=onConnected
-      fit-view-on-init>
-      <Background />
-      
-      <template #node-workflow-node="nodeProps">
-        <WorkflowNode 
-          v-bind="nodeProps"/>
-      </template>
-    </VueFlow>
 
+    <div class="split-view">
+      <VueFlow 
+        class="vueflow-graph"
+        :nodes="nodes" 
+        :edges="edges" 
+        :connection-mode="ConnectionMode.Loose"
+        @connect=onConnected
+        fit-view-on-init>
+        <Background />
+        
+        <template #node-workflow-node="nodeProps">
+          <WorkflowNode 
+            v-bind="nodeProps"/>
+        </template>
+      </VueFlow>
+  
+      <Sidebar v-if="showSidebar"></Sidebar>
+    </div>
     <Footer class="footer"></Footer>
   </div>
 </template>
@@ -138,40 +160,35 @@ onMounted(async () => {
   /* This fixes the scrollbar and no size for VueFlow issues: */
   position: fixed;
   inset: 0;
-  
+
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
 }
-
+/* 
 .editor * {
   outline: 1px solid red;
-}
-
-/* 
-.editor aside {
-  display: flex;
-  flex-direction:column;
-  gap:5px;
-  color:#fff;
-  font-weight:700;
-  border-right:1px solid #eee;
-  padding:10px;
-  font-size:12px;
-  background:#10b981bf;
-  -webkit-box-shadow:0px 5px 10px 0px rgba(0,0,0,.3);
-  box-shadow:0 5px 10px #0000004d
 } */
-
-.vueflow-graph {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
 
 .footer {
   flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.split-view {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: row;
+}
+/* 
+.split-view .vueflow-graph {
+} */
+
+.split-view aside {
   flex-shrink: 0;
 }
 
@@ -183,38 +200,49 @@ onMounted(async () => {
 
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   border-radius: 8px;
-}
 
-.layout-panel {
-  display: flex;
-  flex-direction: row;
-  gap: 10px;
-}
-
-.title {
-  margin-left: 50px;
-  margin-right: 50px;
-
-  h1 {
-    color: white;
-    margin: 0;
+  .layout-panel {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
   }
+
+  .title {
+    margin-left: 25px;
+    margin-right: 25px;
+
+    h1 {
+      color: white;
+      margin: 0;
+    }
+  }
+
+ button {
+    border: none;
+    cursor: pointer;
+    background-color: #4a5568;
+    border-radius: 8px;
+    color: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    font-size: 16px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  button:hover {
+    background-color: #2563eb;
+    transition: background-color 0.2s;
+  }
+
 }
 
-.process-panel button {
-  border: none;
-  cursor: pointer;
-  background-color: #4a5568;
-  border-radius: 8px;
-  color: white;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-  font-size: 16px;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+button.btn-active {
+    background-color: #5e88e3;
+    transition: background-color 0.2s;
+  }
 
 .checkbox-panel {
   display: flex;

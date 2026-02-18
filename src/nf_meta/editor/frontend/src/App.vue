@@ -18,8 +18,7 @@ const { fitView } = useVueFlow()
 const toggleSidebarAndfitView = async function() {
   editorStore.toggleSidebar()
   nextTick(() => {
-    // TODO: Wait for component to be ready PROPERLY!
-    setTimeout(fitView, 10)
+    setTimeout(fitView, 1)
   })
 }
 

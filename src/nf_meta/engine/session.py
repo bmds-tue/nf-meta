@@ -19,7 +19,7 @@ class EditorSession:
     def start(self, config: Path):
 
         self.config_file = config
-        if self.config_file.exists():
+        if self.config_file:
             self.graph = MetaworkflowGraph.from_file(self.config_file)
         else:
             self.graph = MetaworkflowGraph()
@@ -27,13 +27,16 @@ class EditorSession:
         self.history = History()
 
     def handle_command(self, c: Command):
-        return self.history.execute(c, self.graph)
-        
+        self.history.execute(c, self.graph)
+        events = self.graph.pop_events()
+
     def handle_undo(self):
-        return self.history.undo(self.graph)
+        self.history.undo(self.graph)
+        events = self.graph.pop_events()
 
     def handle_redo(self):
-        return self.history.redo(self.graph)
+        self.history.redo(self.graph)
+        events = self.graph.pop_events()
 
     def save_to_config(self, config: Path|None):
         if not (config or self.config):

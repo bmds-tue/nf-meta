@@ -15,6 +15,44 @@ class EventTypes(StrEnum):
 
 
 # ------------------------------------------
+# ----- Events: State Changes --------------
+# ------------------------------------------
+
+class Event(Protocol):
+    pass
+
+
+@dataclass(frozen=True)
+class WorkflowAdded:
+    workflow: Workflow
+
+
+@dataclass(frozen=True)
+class WorkflowRemoved:
+    workflow: Workflow
+
+
+@dataclass(frozen=True)
+class WorkflowAltered:
+    workflow: Workflow
+
+
+@dataclass(frozen=True)
+class TransitionAdded:
+    transition: Transition
+
+
+@dataclass(frozen=True)
+class TransitionRemoved:
+    transition: Transition
+
+
+@dataclass(frozen=True)
+class TransitionAltered:
+    transition: Transition
+
+
+# ------------------------------------------
 # ----- COMMANDS: State Change Intents -----
 # ------------------------------------------
 

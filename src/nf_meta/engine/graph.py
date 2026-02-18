@@ -6,7 +6,7 @@ import logging
 import networkx as nx
 
 from .models import MetaworkflowConfig, Workflow, WorkflowOptions, Transition, dump_config, CONFIG_VERSION_MAX
-
+from .events import Event, WorkflowAdded, WorkflowRemoved, WorkflowAltered, TransitionAdded, TransitionAltered, TransitionRemoved
 
 logger = logging.getLogger()
 
@@ -24,6 +24,15 @@ class MetaworkflowGraph:
         self.workflow_opts: Optional[WorkflowOptions] = None
         self.workflow_opts_custom: Optional[WorkflowOptions] = None
         self.config_version: str = CONFIG_VERSION_MAX
+        self._events: list[Event] = []
+
+    def _emit(self, event: Event):
+        self._events.append(event)
+
+    def pop_events(self):
+        events = self._events
+        self._events = []
+        return events
 
     @classmethod
     def from_file(cls, cfg_file: Path) -> "MetaworkflowGraph":
@@ -71,10 +80,12 @@ class MetaworkflowGraph:
 
     def add_workflow(self, wf: Workflow):
         self.G.add_node(wf.id, **wf.model_dump())
+        self._emit(WorkflowAdded(wf))
 
     def update_workflow(self, wf: Workflow):
         try:
             self.G.nodes[wf.id] = wf.model_dump()
+            self._emit(WorkflowAltered(wf))
         except KeyError as e:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
 

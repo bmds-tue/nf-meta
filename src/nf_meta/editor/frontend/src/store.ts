@@ -12,7 +12,7 @@ export const useEventStore = defineStore("event", () => {
 
 export const useEditorStore = defineStore("editor", () => {
     // read from local browser storage and default to true
-    const _showSideBar = ref(Boolean(localStorage.getItem("showSideBar") == "true"))
+    const _showSideBar = ref(localStorage.getItem("showSideBar") == "true")
 
     const showSidebar = computed(() => _showSideBar.value)
 
@@ -41,14 +41,16 @@ export const useGraphStore = defineStore('graph', () => {
         return _nodes.value
     })
 
-    const _isHorizontalLayout = ref(Boolean(localStorage.getItem("isHorizontalLayout") == "true"))
+    const _isHorizontalLayout = ref(localStorage.getItem("isHorizontalLayout") == "true")
     const isHorizontalLayout = computed(() => _isHorizontalLayout.value)
     const layoutDirection = computed(() => (_isHorizontalLayout.value ? layoutOptions.horizontal : layoutOptions.vertical))
 
     async function switchLayout() {
         _isHorizontalLayout.value = !_isHorizontalLayout.value
+        localStorage.setItem("isHorizontalLayout", String(isHorizontalLayout.value))
+        // recalculate node positions in new Layout
         _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
-    }    
+    }
     
     async function get<T>(endpoint: string): Promise<T> {
         const requestOptions = {

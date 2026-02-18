@@ -1,12 +1,11 @@
 import os
-import httpx
 
 from .serializers import serialize_graph, Node, Edge
 
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
 from nf_meta.engine.models import Workflow
-from nf_meta.engine.events import AddTransition, AddWorkflow, RemoveWorkflow
+from nf_meta.engine.events import AddTransition, AddWorkflow, RemoveWorkflow, RemoveTransition
 
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +13,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
 
 
-DEV_MODE = int(os.getenv("NF_META_DEVMODE", 0)) == 1
+DEV_MODE = os.getenv("NF_META_DEVMODE", 0) == "1"
 DEV_HOST = "localhost"
 DEV_PORT = "8080"
 DEV_VITE_PORT = "5173"
@@ -51,19 +50,31 @@ def load_graph(config: Path):
     return serialize_graph(SESSION.graph)
 
 
-@api_router.post("/node/add")
+@api_router.post("/node/add/")
 def add_node(node: Node):
     wf = node.to_workflow()
     return SESSION.handle_command(AddWorkflow(wf))
 
 
-@api_router.post("node/remove")
+@api_router.delete("/node/")
 def remove_node(node: Node):
     wf = node.to_workflow()
     return SESSION.handle_command(RemoveWorkflow(wf))
 
 
-@api_router.get("nfcore/pipelines")
+@api_router.post("/edge/add/")
+def add_edge(edge: Edge):
+    tr = edge.to_transition()
+    return SESSION.handle_command(AddTransition(tr))
+
+
+@api_router.delete("/edge/")
+def delete_edge(edge: Edge):
+    tr = edge.to_transition()
+    return SESSION.handle_command(RemoveTransition(tr))
+
+
+@api_router.get("nfcore/pipelines/")
 def get_nfcore_pipelines():
     return get_nfcore_pipelines()
 

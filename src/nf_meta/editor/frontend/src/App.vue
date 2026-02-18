@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { watch, nextTick, ref, onMounted, computed } from 'vue'
+import { nextTick, ref, onMounted, computed } from 'vue'
 import type { Node, Edge, Connection } from '@vue-flow/core'
 import { VueFlow, useVueFlow, MarkerType, ConnectionMode, Panel} from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
-import { useLayout } from './layout_graph.ts'
 import WorkflowNode from './components/WorkflowNode.vue'
 import Icon from './components/Icon.vue'
 import Sidebar from './components/Sidebar.vue'
 import Footer from './components/Footer.vue'
-import type { APIEdgeData, APINodeData, APIGraph } from './types.ts'
 import { useEditorStore, useGraphStore } from './store'
 
 const editorStore = useEditorStore()
@@ -16,7 +14,6 @@ const graphStore = useGraphStore()
 
 const { addEdges } = useVueFlow()
 const { fitView } = useVueFlow()
-const { layout } = useLayout()
 
 const toggleSidebarAndfitView = async function() {
   editorStore.toggleSidebar()

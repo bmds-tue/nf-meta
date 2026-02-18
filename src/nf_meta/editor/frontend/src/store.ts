@@ -51,6 +51,23 @@ export const useGraphStore = defineStore('graph', () => {
         // recalculate node positions in new Layout
         _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
     }
+
+    function nodeDefaults(node: Node<APINodeData>) {
+        return {
+            ...node,
+            // apply common node attributes (e.g. our custom node type)
+            type: "workflow-node"
+        }
+    }
+
+    function edgeDefaults(edge: Edge<APIEdgeData>) {
+        return {
+            ...edge,
+            // apply common default edge attributes
+            animated: true,
+            markerEnd: MarkerType.Arrow
+        }
+    }
     
     async function get<T>(endpoint: string): Promise<T> {
         const requestOptions = {
@@ -100,39 +117,29 @@ export const useGraphStore = defineStore('graph', () => {
         const endpoint = '/api/graph/'
         await get<APIGraph>(endpoint)
             .then((graph) => {
-                _edges.value = graph.transitions.map(t => ({
-                    ...t,
-                    // apply common default edge attributes
-                    animated: true,
-                    markerEnd: MarkerType.Arrow
-                }))
+                _edges.value = graph.transitions.map(t => edgeDefaults(t))
 
                 _nodes.value = layout(
-                    graph.nodes.map(n => ({
-                        ...n,
-                        // apply common node attributes (e.g. our custom node type)
-                        type: "workflow-node"
-                    })), 
+                    graph.nodes.map(n => nodeDefaults(n)),
                     _edges.value,
-                    layoutDirection.value)
-
-                //fitVueFlowGraph()
+                    layoutDirection.value
+                    )
             })
     }
 
     async function addEdge(edge: Edge<APIEdgeData>) {
-        const endpoint = '/api/edge/'
+        const endpoint = '/api/edge/add/'
         await add<Edge<APIEdgeData>>(endpoint, edge)
             .then((newEdge) => {
-                _edges.value.push(newEdge)
+                _edges.value.push(edgeDefaults(newEdge))
             })
     }
 
     async function addNode(node: Node<APINodeData>, updateLayout=true) {
-        const endpoint = '/api/node/'
+        const endpoint = '/api/node/add/'
         await add<Node<APINodeData>>(endpoint, node)
             .then((newNode) => {
-                _nodes.value.push(newNode)
+                _nodes.value.push(nodeDefaults(newNode))
 
                 if (updateLayout) {
                     _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)

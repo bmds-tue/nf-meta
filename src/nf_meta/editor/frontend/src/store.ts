@@ -1,33 +1,24 @@
 import { type APINodeData, type APIEdgeData, type APIGraph  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
-import { MarkerType, useVueFlow } from '@vue-flow/core'
-import { ref, computed, nextTick } from 'vue'
+import { MarkerType } from '@vue-flow/core'
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 
 import { useLayout } from './layout_graph.ts'
-
-const { fitView } = useVueFlow()
-
-function fitVueFlowGraph() {
-    // update vue-flow graph
-    nextTick(() => { setTimeout(fitView, 50) })
-}
 
 export const useEventStore = defineStore("event", () => {
 
 })
 
 export const useEditorStore = defineStore("editor", () => {
-    const showSidebar = computed(() => (
-        // read from local browser storage and default to false
-        Boolean(localStorage.getItem("show-sidebar") == "true")
-    ))
+    // read from local browser storage and default to true
+    const _showSideBar = ref(Boolean(localStorage.getItem("showSideBar") == "true"))
+
+    const showSidebar = computed(() => _showSideBar.value)
 
     function toggleSidebar() {
-        const show = !showSidebar
-        localStorage.setItem("show-sidebar", String(show))
-
-        fitVueFlowGraph()
+        _showSideBar.value = !_showSideBar.value
+        localStorage.setItem("showSideBar", String(_showSideBar.value))
     }
 
     return {
@@ -50,29 +41,13 @@ export const useGraphStore = defineStore('graph', () => {
         return _nodes.value
     })
 
-    const getLayoutDirection = computed(() => {
-        const cachedLayoutDirection = String(localStorage.getItem("layoutDirection"))
-        if (cachedLayoutDirection
-            && cachedLayoutDirection != layoutOptions.horizontal
-            && cachedLayoutDirection != layoutOptions.vertical){
-            console.log("[WARN] Invalid layoutDirection read from local storage: ", cachedLayoutDirection)
-            return layoutOptions.horizontal
-        }
-        return cachedLayoutDirection
-    })
-
-    function setLayoutDirection (layoutDirection: string) {
-        localStorage.setItem("layoutDirection", layoutDirection)
-    }
+    const _isHorizontalLayout = ref(Boolean(localStorage.getItem("isHorizontalLayout") == "true"))
+    const isHorizontalLayout = computed(() => _isHorizontalLayout.value)
+    const layoutDirection = computed(() => (_isHorizontalLayout.value ? layoutOptions.horizontal : layoutOptions.vertical))
 
     async function switchLayout() {
-        const inverseLayout = 
-            ( getLayoutDirection.value == layoutOptions.vertical) 
-            ? layoutOptions.horizontal 
-            : layoutOptions.vertical
-
-        setLayoutDirection(inverseLayout)
-        _nodes.value = layout(_nodes.value, _edges.value, getLayoutDirection.value)
+        _isHorizontalLayout.value = !_isHorizontalLayout.value
+        _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
     }    
     
     async function get<T>(endpoint: string): Promise<T> {
@@ -137,9 +112,9 @@ export const useGraphStore = defineStore('graph', () => {
                         type: "workflow-node"
                     })), 
                     _edges.value,
-                    getLayoutDirection.value)
+                    layoutDirection.value)
 
-                fitVueFlowGraph()
+                //fitVueFlowGraph()
             })
     }
 
@@ -158,8 +133,7 @@ export const useGraphStore = defineStore('graph', () => {
                 _nodes.value.push(newNode)
 
                 if (updateLayout) {
-                    _nodes.value = layout(_nodes.value, _edges.value, getLayoutDirection.value)
-                    fitVueFlowGraph()
+                    _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
                 }
             })
     }
@@ -183,7 +157,7 @@ export const useGraphStore = defineStore('graph', () => {
 
     return { 
         nodes, edges,
-        getLayoutDirection, setLayoutDirection, switchLayout,
+        isHorizontalLayout, layoutDirection, switchLayout,
         updateGraph,
         addNode, removeNode, 
         addEdge, removeEdge 

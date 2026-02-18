@@ -44,7 +44,7 @@ class Edge(BaseModel):
     id: Optional[str]
     source: str
     target: str
-    data: dict
+    data: Optional[dict] = Field(default=dict())
 
     @classmethod
     def from_transition(cls, t: Transition) -> "Edge":

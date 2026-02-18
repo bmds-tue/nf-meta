@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, nextTick, ref, onMounted } from 'vue'
+import { watch, nextTick, ref, onMounted, computed } from 'vue'
 import type { Node, Edge, Connection } from '@vue-flow/core'
 import { VueFlow, useVueFlow, MarkerType, ConnectionMode, Panel} from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -9,61 +9,28 @@ import Icon from './components/Icon.vue'
 import Sidebar from './components/Sidebar.vue'
 import Footer from './components/Footer.vue'
 import type { APIEdgeData, APINodeData, APIGraph } from './types.ts'
+import { useEditorStore, useGraphStore } from './store'
+
+const editorStore = useEditorStore()
+const graphStore = useGraphStore()
 
 const { addEdges } = useVueFlow()
 const { fitView } = useVueFlow()
-const { layout, layoutOptions } = useLayout()
+const { layout } = useLayout()
 
-const showSidebar = ref(
-  Boolean(localStorage.getItem("show-sidebar") == "true")
-)
-console.log("SHOWSIDEBAR from localstorage", localStorage.getItem("show-sidebar") )
-
-watch (showSidebar, (v: boolean) => { 
-  console.log("localstorage update: showSidebar", v)
-  localStorage.setItem("show-sidebar", String(v))
-})
-
-const layoutDirection = ref(layoutOptions.vertical)
-const edges = ref<Edge<APIEdgeData>[]>([])
-const nodes = ref<Node<APINodeData>[]>([])
-
-const updateEdges = (newEdges: Edge[]) => {
-  edges.value = newEdges.map(t => ({
-    ...t,
-    data: t.data ?? {},
-    animated: true,
-    markerEnd: MarkerType.Arrow,
-    
-  }))
-}
-
-const updateNodes = (newNodes: Node[]) => {
-  nodes.value = newNodes.map(n => ({
-    ...n,
-    data: n.data ?? {},
-    type: "workflow-node",
-  }))
-}
-
-
-const switchLayout = async function() {
-  layoutDirection.value = layoutDirection.value == layoutOptions.vertical ? 
-      layoutOptions.horizontal : 
-      layoutOptions.vertical
-
-  updateNodes(layout(nodes.value, edges.value, layoutDirection.value))
-
+const toggleSidebarAndfitView = async function() {
+  editorStore.toggleSidebar()
   nextTick(() => {
-    fitView()
+    // TODO: Wait for component to be ready PROPERLY!
+    setTimeout(fitView, 10)
   })
 }
 
-const toggleSidebar = async function() {
-  showSidebar.value = !showSidebar.value
-
+const toggleLayoutAndFitView = async function() {
+  graphStore.switchLayout()
   nextTick(() => {
-    setTimeout(fitView, 10)
+    // TODO: Wait for component to be ready PROPERLY!
+    setTimeout(fitView, 10)  
   })
 }
 
@@ -77,15 +44,8 @@ const onConnected = (conn: Connection) => {
 }
 
 onMounted(async () => {
-  const res = await fetch('/api/graph/')
-  const graph: APIGraph = await res.json()
-
-  console.log(graph)
-  updateEdges(graph.transitions)
-  updateNodes(layout(graph.nodes, graph.transitions, layoutDirection.value))
-
-  console.log(">>>NODES", nodes.value)
-  console.log(">>>EDGES", edges.value)
+  console.log("[INFO] Updating graph")
+  graphStore.updateGraph()
 })
 
 </script>
@@ -114,15 +74,15 @@ onMounted(async () => {
           <Icon name="redo" />
         </button>
 
-        <button v-if="layoutDirection == layoutOptions.vertical" title="set horizontal layout" @click="switchLayout()">
+        <button v-if="graphStore.isHorizontalLayout" title="set horizontal layout" @click="toggleLayoutAndFitView">
           <Icon name="horizontal" />
         </button>
 
-        <button v-else title="set vertical layout" @click="switchLayout()">
+        <button v-else title="set vertical layout" @click="toggleLayoutAndFitView">
           <Icon name="vertical" />
         </button>
 
-        <button title="toggle sidebar" :class="{'btn-active': showSidebar}" @click="toggleSidebar" >
+        <button title="toggle sidebar" :class="{'btn-active': editorStore.showSidebar}" @click="toggleSidebarAndfitView" >
           <Icon name="split"/>
         </button>
 
@@ -135,8 +95,8 @@ onMounted(async () => {
     <div class="split-view">
       <VueFlow 
         class="vueflow-graph"
-        :nodes="nodes" 
-        :edges="edges" 
+        :nodes="graphStore.nodes" 
+        :edges="graphStore.edges" 
         :connection-mode="ConnectionMode.Loose"
         @connect=onConnected
         fit-view-on-init>
@@ -148,7 +108,7 @@ onMounted(async () => {
         </template>
       </VueFlow>
   
-      <Sidebar v-if="showSidebar"></Sidebar>
+      <Sidebar v-if="editorStore.showSidebar"></Sidebar>
     </div>
     <Footer class="footer"></Footer>
   </div>

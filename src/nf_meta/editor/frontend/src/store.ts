@@ -83,7 +83,7 @@ export const useGraphStore = defineStore('graph', () => {
             })
     }
 
-    async function add<T>(endpoint: string, data: T): Promise<T> {
+    async function add<T>(endpoint: string, data: T) {
         const requestOptions = {
             method: "POST",
             headers: { 'Content-Type': 'application/json' },
@@ -94,11 +94,11 @@ export const useGraphStore = defineStore('graph', () => {
                 if (!response.ok) {
                     // TODO: Handle errors 
                 }
-                return response.json()
+                updateGraph()
             })
     }
 
-    async function remove<T>(endpoint: string, data: T): Promise<T> {
+    async function remove<T>(endpoint: string, data: T) {
         const requestOptions = {
             method: "DELETE",
             headers: { 'Content-Type': 'application/json' },
@@ -109,7 +109,7 @@ export const useGraphStore = defineStore('graph', () => {
                 if (!response.ok) {
                     // TODO: Handle errors 
                 }
-                return response.json()
+                updateGraph()
             })
     }
 
@@ -130,37 +130,37 @@ export const useGraphStore = defineStore('graph', () => {
     async function addEdge(edge: Edge<APIEdgeData>) {
         const endpoint = '/api/edge/add/'
         await add<Edge<APIEdgeData>>(endpoint, edge)
-            .then((newEdge) => {
-                _edges.value.push(edgeDefaults(newEdge))
-            })
+            // .then((newEdge) => {
+            //     _edges.value.push(edgeDefaults(newEdge))
+            // })
     }
 
     async function addNode(node: Node<APINodeData>, updateLayout=true) {
         const endpoint = '/api/node/add/'
         await add<Node<APINodeData>>(endpoint, node)
-            .then((newNode) => {
-                _nodes.value.push(nodeDefaults(newNode))
+            // .then((newNode) => {
+            //     _nodes.value.push(nodeDefaults(newNode))
 
-                if (updateLayout) {
-                    _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
-                }
-            })
+            //     if (updateLayout) {
+            //         _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
+            //     }
+            // })
     }
 
     async function removeEdge(edge: Edge<APIEdgeData>) {
         const endpoint = '/api/edge/'
         await remove<Edge<APIEdgeData>>(endpoint, edge)
-            .then((_) => {
-                _edges.value = _edges.value.filter((e) => e.id != edge.id)
-            })
+            // .then((_) => {
+            //     _edges.value = _edges.value.filter((e) => e.id != edge.id)
+            // })
     }
 
     async function removeNode(node: Node<APINodeData>) {
         const endpoint = '/api/edge/'
         await remove<Node<APINodeData>>(endpoint, node)
-            .then((_) => {
-                _nodes.value = _nodes.value.filter((n) => n.id != node.id)
-            })
+            // .then((_) => {
+            //     _nodes.value = _nodes.value.filter((n) => n.id != node.id)
+            // })
     }
 
 

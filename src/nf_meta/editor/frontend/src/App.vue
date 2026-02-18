@@ -25,10 +25,7 @@ const toggleSidebarAndfitView = async function() {
 
 const toggleLayoutAndFitView = async function() {
   graphStore.switchLayout()
-  nextTick(() => {
-    // TODO: Wait for component to be ready PROPERLY!
-    setTimeout(fitView, 10)  
-  })
+  nextTick(fitView)
 }
 
 const onConnected = (conn: Connection) => {

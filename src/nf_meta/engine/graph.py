@@ -6,7 +6,7 @@ import logging
 import networkx as nx
 
 from .models import MetaworkflowConfig, Workflow, WorkflowOptions, Transition, dump_config, CONFIG_VERSION_MAX
-from .events import Event, WorkflowAdded, WorkflowRemoved, WorkflowAltered, TransitionAdded, TransitionAltered, TransitionRemoved
+from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionUpdated, TransitionRemoved
 
 logger = logging.getLogger()
 
@@ -54,20 +54,19 @@ class MetaworkflowGraph:
 
         # Add transition metadata
         for t in cfg.transitions:
-            src = t.source if t.source else None
+            src = t.source
             tgt = t.target
 
             if tgt not in obj.G.nodes:
                 raise ValueError(f"Unknown node {tgt} found in transition {src}->{tgt}")
 
-            if src is not None: 
-                if src not in obj.G.nodes:
-                    raise ValueError(f"Unknown node {src} found in transition {src}->{tgt}")
+            if src not in obj.G.nodes:
+                raise ValueError(f"Unknown node {src} found in transition {src}->{tgt}")
 
-                if not obj.G.has_edge(src, tgt):
-                    # Transition not declared in metalayout → auto-add
-                    # TODO: Be more specific with keys once they are stable-ish
-                    obj.G.add_edge(src, tgt, data=t.model_dump())
+            if not obj.G.has_edge(src, tgt):
+                # Transition not declared in metalayout → auto-add
+                # TODO: Be more specific with keys once they are stable-ish
+                obj.G.add_edge(src, tgt, data=t.model_dump())
 
         obj.workflow_opts = cfg.workflow_opts
         obj.workflow_opts_custom = cfg.workflow_opts_custom
@@ -85,7 +84,7 @@ class MetaworkflowGraph:
     def update_workflow(self, wf: Workflow):
         try:
             self.G.nodes[wf.id] = wf.model_dump()
-            self._emit(WorkflowAltered(wf))
+            self._emit(WorkflowUpdated(wf))
         except KeyError as e:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
 
@@ -96,8 +95,9 @@ class MetaworkflowGraph:
         pass
 
     def add_transition(self, tr: Transition):
-        # TODO: whats important for adding?
-        pass
+        assert tr.source in self.G.nodes and tr.target in self.G.nodes
+        self.G.add_edge(tr.source, tr.target, data=tr.model_dump())
+        self._emit(TransitionAdded(tr))
 
     def update_transition(self, tr: Transition):
         # TODO: Add update

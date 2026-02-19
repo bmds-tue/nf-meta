@@ -30,7 +30,7 @@ class MetaworkflowGraph:
         self._events.append(event)
 
     def pop_events(self):
-        events = self._events
+        events = tuple(self._events)
         self._events = []
         return events
 

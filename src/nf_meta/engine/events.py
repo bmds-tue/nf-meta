@@ -16,7 +16,7 @@ class EventTypes(StrEnum):
 # Event Handler
 class GraphEventHandler(Protocol):
 
-    def pop_events(self) -> tuple[Event]: ...
+    def pop_events(self) -> tuple["Event"]: ...
 
     def add_workflow(self, w: Workflow) -> None: ...
 
@@ -36,7 +36,7 @@ class GraphEventHandler(Protocol):
 # ------------------------------------------
 
 class Event(Protocol):
-    def get_undo_cmd(self, graph: GraphEventHandler) -> Command: ...
+    def get_undo_cmd(self, graph: GraphEventHandler) -> "Command": ...
 
 
 @dataclass(frozen=True)

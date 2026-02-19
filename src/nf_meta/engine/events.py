@@ -15,6 +15,9 @@ class EventTypes(StrEnum):
 
 # Event Handler
 class GraphEventHandler(Protocol):
+
+    def pop_events(self) -> tuple[Event]: ...
+
     def add_workflow(self, w: Workflow) -> None: ...
 
     def remove_workflow(self, w: Workflow) -> None: ...
@@ -33,37 +36,53 @@ class GraphEventHandler(Protocol):
 # ------------------------------------------
 
 class Event(Protocol):
-    pass
+    def get_undo_cmd(self, graph: GraphEventHandler) -> Command: ...
 
 
 @dataclass(frozen=True)
 class WorkflowAdded:
     workflow: Workflow
 
+    def get_undo_cmd(self):
+        return RemoveWorkflow(self.workflow)
+
 
 @dataclass(frozen=True)
 class WorkflowRemoved:
     workflow: Workflow
 
+    def get_undo_cmd(self, graph: GraphEventHandler):
+        return AddWorkflow(self.workflow)
+
 
 @dataclass(frozen=True)
-class WorkflowAltered:
+class WorkflowUpdated:
     workflow: Workflow
+
+    def get_undo_cmd(self, graph: GraphEventHandler): ...
 
 
 @dataclass(frozen=True)
 class TransitionAdded:
     transition: Transition
 
+    def get_undo_cmd(self, graph: GraphEventHandler):
+        return RemoveTransition(self.transition)
+
 
 @dataclass(frozen=True)
 class TransitionRemoved:
     transition: Transition
 
+    def get_undo_cmd(self, graph: GraphEventHandler):
+        return AddTransition(self.transition)
+
 
 @dataclass(frozen=True)
-class TransitionAltered:
+class TransitionUpdated:
     transition: Transition
+
+    def get_undo_cmd(self, graph: GraphEventHandler): ...
 
 
 # ------------------------------------------
@@ -74,7 +93,15 @@ class Command(Protocol):
 
     def apply(self, graph: GraphEventHandler) -> None: ...
 
-    def undo(self, graph: GraphEventHandler) -> None: ...
+
+@dataclass(frozen=True)
+class Transaction:
+    commands: list[Command]
+
+    def apply(self, graph: GraphEventHandler):
+        # TODO: Handle errors?
+        for cmd in self.commands:
+            cmd.apply(graph)
 
 
 @dataclass(frozen=True)
@@ -83,9 +110,6 @@ class AddWorkflow:
 
     def apply(self, g: GraphEventHandler):
         g.add_workflow(self.workflow)
-
-    def undo(self, g: GraphEventHandler):
-        g.remove_workflow(self.workflow)
 
 
 @dataclass(frozen=True)
@@ -96,9 +120,6 @@ class RemoveWorkflow:
     def apply(self, g: GraphEventHandler):
         g.remove_workflow(self.workflow)
 
-    def undo(self, g: GraphEventHandler):
-        g.remove_workflow(self.workflow)
-
 
 @dataclass(frozen=True)
 class AddTransition:
@@ -107,9 +128,6 @@ class AddTransition:
     def apply(self, g: GraphEventHandler):
         g.add_transition(self.transition)
 
-    def undo(self, g: GraphEventHandler):
-        g.remove_workflow(self.transition)
-
 
 @dataclass(frozen=True)
 class RemoveTransition:
@@ -117,9 +135,6 @@ class RemoveTransition:
 
     def apply(self, g: GraphEventHandler):
         g.remove_workflow(self.transition)
-
-    def undo(self, g: GraphEventHandler):
-        g.add_transition(self.transition)
 
 
 @dataclass(frozen=True)
@@ -134,9 +149,6 @@ class EditWorkflow:
     def apply(self, g: GraphEventHandler):
         g.update_workflow(self.new_workflow)
 
-    def undo(self, g: GraphEventHandler):
-        g.update_workflow(self.old_workflow)
-
 
 @dataclass(frozen=True)
 class EditTransition:
@@ -149,6 +161,3 @@ class EditTransition:
 
     def apply(self, g: GraphEventHandler):
         g.update_workflow(self.new_transition)
-
-    def undo(self, g: GraphEventHandler):
-        g.update_workflow(self.old_transition)

@@ -27,16 +27,13 @@ class EditorSession:
         self.history = History()
 
     def handle_command(self, c: Command):
-        self.history.execute(c, self.graph)
-        events = self.graph.pop_events()
+        events = self.history.execute(c, self.graph)
 
     def handle_undo(self):
-        self.history.undo(self.graph)
-        events = self.graph.pop_events()
+        events = self.history.undo(self.graph)
 
     def handle_redo(self):
-        self.history.redo(self.graph)
-        events = self.graph.pop_events()
+        events = self.history.redo(self.graph)
 
     def save_to_config(self, config: Path|None):
         if not (config or self.config):

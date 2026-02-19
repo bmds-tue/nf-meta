@@ -67,7 +67,7 @@ onMounted(async () => {
           <Icon name="redo" />
         </button>
 
-        <button v-if="graphStore.isHorizontalLayout" title="set horizontal layout" @click="toggleLayoutAndFitView">
+        <button v-if="!graphStore.isHorizontalLayout" title="set horizontal layout" @click="toggleLayoutAndFitView">
           <Icon name="horizontal" />
         </button>
 

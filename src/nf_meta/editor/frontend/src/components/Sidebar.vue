@@ -1,7 +1,10 @@
 <script setup lang="ts">
-
+import NodeDetail from "./NodeDetail.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
+import { useEditorStore } from "../store"
+
+const editorStore = useEditorStore()
 
 const { fitView } = useVueFlow()
 
@@ -68,7 +71,9 @@ onBeforeUnmount(stopDrag)
     <div class="description">Teleport destination</div>
     
     <div class="content">
-      <slot />
+      <div v-for="sbDetail in editorStore.sideBarNodes">
+        <NodeDetail :id="sbDetail.id" :detail-data="sbDetail.detailData"> </NodeDetail>
+      </div>
     </div>
 
     <div

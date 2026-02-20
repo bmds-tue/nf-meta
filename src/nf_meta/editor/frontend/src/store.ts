@@ -1,4 +1,4 @@
-import { type APINodeData, type APIEdgeData, type APIGraph  } from './types'
+import { type APINodeData, type APIEdgeData, type APIGraph, type SideBarDetail  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
@@ -12,17 +12,50 @@ export const useEventStore = defineStore("event", () => {
 
 export const useEditorStore = defineStore("editor", () => {
     // read from local browser storage and default to true
-    const _showSideBar = ref(localStorage.getItem("showSideBar") == "true")
+    const _sideBarOpen = ref(localStorage.getItem("showSideBar") == "true")
+    const sideBarOpen = computed(() => _sideBarOpen.value)
 
-    const showSidebar = computed(() => _showSideBar.value)
-
+    const _sideBarActiveDetailId = ref()
+    const sideBarActiveDetailId = computed(() => _sideBarActiveDetailId.value)
+    const _nextSideBarId = ref(1)
+    const _sideBarNodes = ref<SideBarDetail<APINodeData>[]>([])
+    const sideBarNodes = computed(() => _sideBarNodes.value)
+    
     function toggleSidebar() {
-        _showSideBar.value = !_showSideBar.value
-        localStorage.setItem("showSideBar", String(_showSideBar.value))
+        _sideBarOpen.value = !_sideBarOpen.value
+        localStorage.setItem("showSideBar", String(_sideBarOpen.value))
+    }
+
+    function setActiveSidebarDetailId(id: number) {
+        _sideBarActiveDetailId.value = id
+    }
+
+    function createSideBarDetailWithId<T>(detailData: T): SideBarDetail<T> {
+        _nextSideBarId.value ++
+        return {id: _nextSideBarId.value, detailData: detailData}
+    }
+
+    function addNodeToSideBar(node: APINodeData) {
+        // If the node is not new (i.e. has an id)
+        // -> Check if it is already opened in the side bar and jump there instead
+        // If it is new, there should only be one being created at a time.
+        const existingDetail = sideBarNodes.value.find(
+            (sideBarDetail) => sideBarDetail.detailData?.id == node?.id
+        )
+        if (existingDetail) {
+            setActiveSidebarDetailId(existingDetail.id)
+            return
+        }
+
+        const newDetail = createSideBarDetailWithId(node)
+        _sideBarNodes.value = [..._sideBarNodes.value, newDetail]
+        setActiveSidebarDetailId(newDetail.id)
     }
 
     return {
-        showSidebar, toggleSidebar
+        showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
+        sideBarActiveDetailId, setActiveSidebarDetailId,
+        sideBarNodes, addNodeToSideBar
     }
 })
 
@@ -64,8 +97,8 @@ export const useGraphStore = defineStore('graph', () => {
         return {
             ...edge,
             // apply common default edge attributes
-            animated: true,
-            markerEnd: MarkerType.Arrow
+            animated: false,
+            markerEnd: MarkerType.ArrowClosed
         }
     }
     

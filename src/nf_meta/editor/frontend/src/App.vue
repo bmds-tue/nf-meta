@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, onMounted, computed } from 'vue'
-import type { Node, Edge, Connection } from '@vue-flow/core'
+import type { Node, Edge, Connection, NodeMouseEvent } from '@vue-flow/core'
 import { VueFlow, useVueFlow, MarkerType, ConnectionMode, Panel} from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import WorkflowNode from './components/WorkflowNode.vue'
@@ -8,6 +8,7 @@ import Icon from './components/Icon.vue'
 import Sidebar from './components/Sidebar.vue'
 import Footer from './components/Footer.vue'
 import { useEditorStore, useGraphStore } from './store'
+import type { APINodeData } from './types'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -27,13 +28,30 @@ const toggleLayoutAndFitView = async function() {
   nextTick(fitView)
 }
 
+const openNodeDetail = function (node: Node<APINodeData> | null | undefined = null) {
+  if (!!node && !node.data) {
+    console.warn("[WARN] Node from Graph view has no APINodeData: ", node)
+    return
+  }
+  
+  if (!editorStore.sideBarOpen) { editorStore.toggleSidebar() }
+  editorStore.addNodeToSideBar(node?.data ?? {})
+}
+
+const onNodeDbClick = function (event: NodeMouseEvent) {
+  openNodeDetail(event.node)
+}
+
+const onAddNodeClick = function (_: any) {
+  openNodeDetail()
+}
+
 const onConnected = (conn: Connection) => {
   const edge = {
     ...conn,
-    animated: true,
-    markerEnd: MarkerType.Arrow
+    id: `${conn.source}->${conn.target}`
   }
-  addEdges([edge])
+  graphStore.addEdge(edge)
 }
 
 onMounted(async () => {
@@ -51,7 +69,7 @@ onMounted(async () => {
         <div class="title"> 
           <h1>MetaFlow v2</h1>
         </div>
-        <button title="add a workflow node">
+        <button title="add a workflow node" @click=onAddNodeClick>
           <Icon name="add" />
         </button>
         
@@ -75,7 +93,7 @@ onMounted(async () => {
           <Icon name="vertical" />
         </button>
 
-        <button title="toggle sidebar" :class="{'btn-active': editorStore.showSidebar}" @click="toggleSidebarAndfitView" >
+        <button title="toggle sidebar" :class="{'btn-active': editorStore.sideBarOpen}" @click="toggleSidebarAndfitView" >
           <Icon name="split"/>
         </button>
 
@@ -92,6 +110,7 @@ onMounted(async () => {
         :edges="graphStore.edges" 
         :connection-mode="ConnectionMode.Loose"
         @connect=onConnected
+        @node-double-click=onNodeDbClick
         fit-view-on-init>
         <Background />
         
@@ -101,7 +120,7 @@ onMounted(async () => {
         </template>
       </VueFlow>
   
-      <Sidebar v-if="editorStore.showSidebar"></Sidebar>
+      <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
     </div>
     <Footer class="footer"></Footer>
   </div>

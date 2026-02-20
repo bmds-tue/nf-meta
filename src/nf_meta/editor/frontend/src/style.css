@@ -9,12 +9,31 @@ html, body, #app, :root {
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
+  /* color-scheme: light dark; */
   color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* background-color: #242424; */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.workflow-node {
+    padding: 10px;
+    color: #303030;
+    background: #efefef;
+    border-width: 4px;
+    border-style: solid;
+    border-radius: 10px;
+    border-color: #925819;
+}
+
+.workflow-node:hover {
+    box-shadow:0 0 0 4px #6c6c6c80;
+    transition:box-shadow .2s;
+}
+
+.workflow-node-nfcore {
+    border-color: #1a9655;
 }

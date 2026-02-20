@@ -34,29 +34,13 @@ const horizLayout = computed(() => {
 </template>
 
 <style scoped>
-:global(.workflow-node) {
-    padding: 10px;
-    color: #303030;
-    background: #efefef;
-    border-width: 2px;
-    border-style: solid;
-    border-radius: 10px;
-    border-color: #925819;
-}
-:global(.workflow-node:hover) {
-    box-shadow:0 0 0 2px #6c6c6c80;
-    transition:box-shadow .2s;
-}
-:global(.workflow-node-nfcore) {
-    border-color: #1a9655;
-}
-:global(.workflow-node-handle) {
+.workflow-node-handle {
     background: #2d3f46;
     width: 35px;
     height: 7px;
     border-radius: 10px;
 }
-:global(.handle-horiz) {
+.handle-horiz {
     width: 7px;
     height: 35px;
 }

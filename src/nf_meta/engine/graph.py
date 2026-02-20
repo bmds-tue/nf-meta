@@ -150,6 +150,12 @@ class MetaworkflowGraph:
     # ===========================
     #        UTILITIES
     # ===========================
+    def get_workflow_by_id(self, id) -> Workflow:
+        pass
+
+    def get_transition_by_id(self, id) -> Transition:
+        pass
+
     def get_transitions(self) -> list[Transition]:
         return [Transition(**data.get("data")) for _, _, data in self.G.edges(data=True)]
 

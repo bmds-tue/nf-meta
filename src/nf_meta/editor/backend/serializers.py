@@ -4,6 +4,7 @@ from typing import Optional
 
 from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.engine.models import Workflow, Transition
+from nf_meta.engine.events import Event
 
 from pydantic import BaseModel, Field
 
@@ -17,18 +18,17 @@ class Position(BaseModel):
     y: int
 
 
-class Node(BaseModel):
+class Node(Workflow):
     id: Optional[str] = Field(default=None)
     position: Position
-    label: str
-    data: dict
 
     @classmethod
     def from_workflow(cls, wf: Workflow) -> "Node":
-        obj = cls(id=wf.id,
-                  label=wf.name,
-                  position=Position(x=0, y=0),
-                  data=wf.model_dump_display())
+        pos = Position(x=0, y=0)
+        if wf.layout_coords is not None:
+            pos = Position(x=wf.layout_coords[0], y=wf.layout_coords[1])
+        obj = cls(position=pos,
+                  **wf.model_dump_display())
         return obj
         
 
@@ -40,19 +40,14 @@ class Node(BaseModel):
         return Workflow(**self.model_dump())
 
 
-class Edge(BaseModel):
+class Edge(Transition):
     id: Optional[str]
-    source: str
-    target: str
-    data: Optional[dict] = Field(default=dict())
 
     @classmethod
     def from_transition(cls, t: Transition) -> "Edge":
         tid = f"{t.source}->{t.target}"
-        d = t.model_dump_display()
         return cls(id=tid,
-                   data=d,
-                   **d)
+                   **t.model_dump_display())
 
     def to_transition(self) -> Transition:
         return Transition(**self.model_dump())

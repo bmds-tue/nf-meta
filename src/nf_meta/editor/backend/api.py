@@ -5,9 +5,11 @@ from .serializers import serialize_graph, Node, Edge
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
 from nf_meta.engine.models import Workflow
-from nf_meta.engine.events import AddTransition, AddWorkflow, RemoveWorkflow, RemoveTransition
+from nf_meta.engine.events import (AddTransition, AddWorkflow, 
+                                    RemoveWorkflow, RemoveTransition,
+                                    EditWorkflow, EditTransition)
 
-from fastapi import FastAPI, APIRouter, Request
+from fastapi import FastAPI, APIRouter, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
@@ -53,25 +55,45 @@ def load_graph(config: Path):
 @api_router.post("/node/add/")
 def add_node(node: Node):
     wf = node.to_workflow()
-    return SESSION.handle_command(AddWorkflow(wf))
+    SESSION.handle_command(AddWorkflow(wf))
+    return Response()
+
+
+@api_router.post("/node/update/")
+def update_node(node: Node):
+    # TODO: Rework EditWorkflow, EditTransition apply()
+    #wf = node.to_workflow()
+    #SESSION.handle_command(EditWorkflow(wf))
+    return Response()
 
 
 @api_router.delete("/node/")
 def remove_node(node: Node):
     wf = node.to_workflow()
-    return SESSION.handle_command(RemoveWorkflow(wf))
+    SESSION.handle_command(RemoveWorkflow(wf))
+    return Response()
 
 
 @api_router.post("/edge/add/")
 def add_edge(edge: Edge):
     tr = edge.to_transition()
-    return SESSION.handle_command(AddTransition(tr))
+    SESSION.handle_command(AddTransition(tr))
+    return Response()
+
+
+@api_router.post("/edge/update/")
+def update_edge(edge: Edge):
+    # TODO: Rework EditWorkflow, EditTransition apply()
+    # tr = edge.to_transition()
+    # SESSION.handle_command(EditTransition(tr))
+    return Response()
 
 
 @api_router.delete("/edge/")
 def delete_edge(edge: Edge):
     tr = edge.to_transition()
-    return SESSION.handle_command(RemoveTransition(tr))
+    SESSION.handle_command(RemoveTransition(tr))
+    return Response()
 
 
 @api_router.get("nfcore/pipelines/")

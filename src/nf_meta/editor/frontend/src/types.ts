@@ -1,4 +1,4 @@
-import type { Edge, Node } from "@vue-flow/core"
+import type { Edge, Node, XYPosition } from "@vue-flow/core"
 
 export type SideBarDetail<T> = {
   id: number,
@@ -15,6 +15,7 @@ export type APINodeData = {
     id?: string,
     name?: string,
     pipeline_location?: string,
+    position?: XYPosition,
     is_nfcore?: boolean,
 }
 

@@ -88,9 +88,10 @@ export const useGraphStore = defineStore('graph', () => {
     function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {
         return {
             data: nodeData,
+            label: nodeData.name,
             // required attributes for Node
             id: nodeData?.id || "",
-            position: {x: 0, y: 0},
+            position: nodeData?.position ?? {x: 0, y: 0},
             // apply common node attributes (e.g. our custom node type)
             type: "workflow-node"
         }
@@ -166,12 +167,12 @@ export const useGraphStore = defineStore('graph', () => {
             })
     }
 
-    async function addOrUpdateEdge(edgeData: APIEdgeData) {
+    async function saveEdge(edgeData: APIEdgeData) {
         const endpoint = edgeData?.id ? '/api/edge/add/' : '/api/edge/update'
         await addOrUpdate<APIEdgeData>(endpoint, edgeData)
     }
 
-    async function addOrUpdateNode(nodeData: APINodeData) {
+    async function saveNode(nodeData: APINodeData) {
         const endpoint = nodeData?.id ? '/api/node/add/' : '/api/node/update/'
         await addOrUpdate<APINodeData>(endpoint, nodeData)
     }
@@ -191,7 +192,7 @@ export const useGraphStore = defineStore('graph', () => {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
-        addOrUpdateNode, addOrUpdateEdge,
+        saveNode, saveEdge,
         removeNode, removeEdge 
     } 
 })

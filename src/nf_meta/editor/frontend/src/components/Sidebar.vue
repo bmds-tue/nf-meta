@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import NodeDetail from "./NodeDetail.vue"
+import NodeDetail from "./SidebarNodeDetail.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
 import { useEditorStore } from "../store"

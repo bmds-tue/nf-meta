@@ -85,17 +85,23 @@ export const useGraphStore = defineStore('graph', () => {
         _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
     }
 
-    function nodeDefaults(node: Node<APINodeData>) {
+    function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {
         return {
-            ...node,
+            data: nodeData,
+            // required attributes for Node
+            id: nodeData?.id || "",
+            position: {x: 0, y: 0},
             // apply common node attributes (e.g. our custom node type)
             type: "workflow-node"
         }
     }
 
-    function edgeDefaults(edge: Edge<APIEdgeData>) {
+    function createEdgeWithDefaults(edgeData: APIEdgeData): Edge<APIEdgeData> {
         return {
-            ...edge,
+            id: edgeData?.id || `${edgeData.source}->${edgeData.target}`,
+            source: edgeData.source,
+            target: edgeData.target,
+            data: edgeData,
             // apply common default edge attributes
             animated: false,
             markerEnd: MarkerType.ArrowClosed
@@ -116,7 +122,7 @@ export const useGraphStore = defineStore('graph', () => {
             })
     }
 
-    async function add<T>(endpoint: string, data: T) {
+    async function addOrUpdate<T>(endpoint: string, data: T) {
         const requestOptions = {
             method: "POST",
             headers: { 'Content-Type': 'application/json' },
@@ -127,7 +133,7 @@ export const useGraphStore = defineStore('graph', () => {
                 if (!response.ok) {
                     // TODO: Handle errors 
                 }
-                updateGraph()
+                getAndUpdateGraph()
             })
     }
 
@@ -142,66 +148,50 @@ export const useGraphStore = defineStore('graph', () => {
                 if (!response.ok) {
                     // TODO: Handle errors 
                 }
-                updateGraph()
+                getAndUpdateGraph()
             })
     }
 
-    async function updateGraph() {
+    async function getAndUpdateGraph() {
         const endpoint = '/api/graph/'
         await get<APIGraph>(endpoint)
             .then((graph) => {
-                _edges.value = graph.transitions.map(t => edgeDefaults(t))
+                _edges.value = graph.transitions.map(edgeData => createEdgeWithDefaults(edgeData))
 
                 _nodes.value = layout(
-                    graph.nodes.map(n => nodeDefaults(n)),
+                    graph.nodes.map(nodeData => createNodeWithDefaults(nodeData)),
                     _edges.value,
                     layoutDirection.value
                     )
             })
     }
 
-    async function addEdge(edge: Edge<APIEdgeData>) {
-        const endpoint = '/api/edge/add/'
-        await add<Edge<APIEdgeData>>(endpoint, edge)
-            // .then((newEdge) => {
-            //     _edges.value.push(edgeDefaults(newEdge))
-            // })
+    async function addOrUpdateEdge(edgeData: APIEdgeData) {
+        const endpoint = edgeData?.id ? '/api/edge/add/' : '/api/edge/update'
+        await addOrUpdate<APIEdgeData>(endpoint, edgeData)
     }
 
-    async function addNode(node: Node<APINodeData>, updateLayout=true) {
-        const endpoint = '/api/node/add/'
-        await add<Node<APINodeData>>(endpoint, node)
-            // .then((newNode) => {
-            //     _nodes.value.push(nodeDefaults(newNode))
-
-            //     if (updateLayout) {
-            //         _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
-            //     }
-            // })
+    async function addOrUpdateNode(nodeData: APINodeData) {
+        const endpoint = nodeData?.id ? '/api/node/add/' : '/api/node/update/'
+        await addOrUpdate<APINodeData>(endpoint, nodeData)
     }
 
-    async function removeEdge(edge: Edge<APIEdgeData>) {
+    async function removeEdge(edgeData: APIEdgeData) {
         const endpoint = '/api/edge/'
-        await remove<Edge<APIEdgeData>>(endpoint, edge)
-            // .then((_) => {
-            //     _edges.value = _edges.value.filter((e) => e.id != edge.id)
-            // })
+        await remove<APIEdgeData>(endpoint, edgeData)
     }
 
-    async function removeNode(node: Node<APINodeData>) {
+    async function removeNode(nodeData: APINodeData) {
         const endpoint = '/api/edge/'
-        await remove<Node<APINodeData>>(endpoint, node)
-            // .then((_) => {
-            //     _nodes.value = _nodes.value.filter((n) => n.id != node.id)
-            // })
+        await remove<APINodeData>(endpoint, nodeData)
     }
 
 
-    return { 
+    return {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
-        updateGraph,
-        addNode, removeNode, 
-        addEdge, removeEdge 
+        getAndUpdateGraph,
+        addOrUpdateNode, addOrUpdateEdge,
+        removeNode, removeEdge 
     } 
 })

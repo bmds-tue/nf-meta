@@ -1,14 +1,21 @@
-import type { Edge, Node, Position } from "@vue-flow/core"
+import type { Edge, Node } from "@vue-flow/core"
 
-export type APIEdgeData = {}
+export type SideBarDetail<T> = {
+  id: number,
+  detailData: T
+}
 
+export type APIEdgeData = {
+  id?: string,
+  source: string,
+  target: string,
+}
 
 export type APINodeData = {
+    id?: string,
     name?: string,
     pipeline_location?: string,
     is_nfcore?: boolean,
-    targetHandlePosition?: Position,
-    sourceHandlePosition?: Position,
 }
 
 export type APIGraph = {

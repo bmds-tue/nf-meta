@@ -13,7 +13,6 @@ import type { APINodeData } from './types'
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
-const { addEdges } = useVueFlow()
 const { fitView } = useVueFlow()
 
 const toggleSidebarAndfitView = async function() {
@@ -51,12 +50,12 @@ const onConnected = (conn: Connection) => {
     ...conn,
     id: `${conn.source}->${conn.target}`
   }
-  graphStore.addEdge(edge)
+  graphStore.addOrUpdateEdge(edge)
 }
 
 onMounted(async () => {
   console.log("[INFO] Updating graph")
-  graphStore.updateGraph()
+  graphStore.getAndUpdateGraph()
 })
 
 </script>

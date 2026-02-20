@@ -18,6 +18,10 @@ class GraphEventHandler(Protocol):
 
     def pop_events(self) -> tuple["Event"]: ...
 
+    def get_workflow_by_id(self, id: str) -> Workflow: ...
+
+    def get_transition_by_id(self, id: str) -> Transition: ...
+
     def add_workflow(self, w: Workflow) -> None: ...
 
     def remove_workflow(self, w: Workflow) -> None: ...
@@ -142,6 +146,10 @@ class EditWorkflow:
     new_workflow: Workflow
     old_workflow: Workflow
 
+    # TODO: move __post_init__ validation to the graph logic
+    # TODO: Is old_workflow really needed?
+    # TODO: Can old_workflow be added at the time of calling apply()
+
     def __post_init__(self):
         if self.new_workflow.id != self.old_workflow.id:
             raise ValueError("Id must not be edited!")
@@ -154,6 +162,11 @@ class EditWorkflow:
 class EditTransition:
     new_transition: Transition
     old_transition: Transition
+
+    # Same as above:
+    # TODO: move __post_init__ validation to the graph logic
+    # TODO: Is old_transition really needed?
+    # TODO: Can old_transition be added at the time of calling apply()
 
     def __post_init__(self):
         if self.new_transition.id != self.old_transition.id:

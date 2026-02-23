@@ -96,8 +96,8 @@ def delete_edge(edge: Edge):
     return Response()
 
 
-@api_router.get("nfcore/pipelines/")
-def get_nfcore_pipelines():
+@api_router.get("/nfcore/pipelines/")
+def get_all_nfcore_pipelines():
     return get_nfcore_pipelines()
 
 

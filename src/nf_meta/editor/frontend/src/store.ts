@@ -1,4 +1,4 @@
-import { type APINodeData, type APIEdgeData, type APIGraph, type SideBarDetail  } from './types'
+import { type APINodeData, type APIEdgeData, type APIGraph, type SideBarDetail, type NfCorePipelineInfo  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
@@ -15,7 +15,7 @@ export const useEditorStore = defineStore("editor", () => {
     const _sideBarOpen = ref(localStorage.getItem("showSideBar") == "true")
     const sideBarOpen = computed(() => _sideBarOpen.value)
 
-    const _sideBarActiveDetailId = ref()
+    const _sideBarActiveDetailId = ref(0)
     const sideBarActiveDetailId = computed(() => _sideBarActiveDetailId.value)
     const _nextSideBarId = ref(1)
     const _sideBarNodes = ref<SideBarDetail<APINodeData>[]>([])
@@ -52,10 +52,27 @@ export const useEditorStore = defineStore("editor", () => {
         setActiveSidebarDetailId(newDetail.id)
     }
 
+    function removeSidebarDetail(id: number) {
+        _sideBarNodes.value = _sideBarNodes.value.filter(
+            (sideBarDetail) => sideBarDetail.id != id)
+    }
+
+    function collapseSidebarDetail(id: number) {
+        console.log("Trying to collapse Sidebar detail with id:", id)
+        console.log("All SidebarDetails: ", sideBarNodes.value)
+        console.log("ACTIVE:", _sideBarActiveDetailId.value, sideBarActiveDetailId.value)
+        if (id == _sideBarActiveDetailId.value) {
+            console.log("Active Status changing!")
+            _sideBarActiveDetailId.value = 0            
+        }
+        console.log("ACTIVE:", _sideBarActiveDetailId.value, sideBarActiveDetailId.value)
+    }
+
     return {
         showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
         sideBarActiveDetailId, setActiveSidebarDetailId,
-        sideBarNodes, addNodeToSideBar
+        sideBarNodes, addNodeToSideBar,
+        removeSidebarDetail, collapseSidebarDetail
     }
 })
 
@@ -187,7 +204,6 @@ export const useGraphStore = defineStore('graph', () => {
         await remove<APINodeData>(endpoint, nodeData)
     }
 
-
     return {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
@@ -195,4 +211,37 @@ export const useGraphStore = defineStore('graph', () => {
         saveNode, saveEdge,
         removeNode, removeEdge 
     } 
+})
+
+export const usePipelineStore = defineStore("pipeline", () => {
+
+    const nfCorePipelines = ref<NfCorePipelineInfo[]>()
+    const isInitialized = ref(false)
+
+    async function updateNfCorePipelines() {
+        const endpoint = '/api/nfcore/pipelines/'
+        const requestOptions = {
+            method: "GET",
+            headers: { 'Content-Type': 'application/json' },
+        }
+        fetch(endpoint, requestOptions)
+            .then((response) => {
+                if (!response.ok) {
+                    // TODO: Handle errors 
+                }
+                return response.json()
+            }).then((response: NfCorePipelineInfo[]) => {
+                nfCorePipelines.value = response
+            })
+    }
+
+    async function initialize() {
+        updateNfCorePipelines()
+        isInitialized.value = true
+    }
+
+    return {
+        initialize,
+        nfCorePipelines,
+    }
 })

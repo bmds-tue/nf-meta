@@ -79,4 +79,23 @@ defineProps({
     <!-- Divider -->
     <rect x="11" y="5" width="2" height="14" fill="currentColor"/>
   </svg>
+
+  <svg v-else-if="name === 'edit'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <!-- Pencil body -->
+    <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z" fill="currentColor"/>
+    <!-- Pencil tip -->
+    <path d="M20.71 6.04a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75 1.13-1.13z" fill="currentColor"/>
+  </svg>
+
+  <svg v-else-if="name === 'close'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+
+  <svg v-else-if="name === 'expand'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+
+  <svg v-else-if="name === 'collapse'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
 </template>

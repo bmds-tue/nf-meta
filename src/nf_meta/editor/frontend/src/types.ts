@@ -34,7 +34,6 @@ export type NfCorePipelineReleaseInfo = {
 
 export type NfCorePipelineInfo = {
   name: string
-  full_name: string,
   description: string,
   url: string,
   releases: NfCorePipelineReleaseInfo[]

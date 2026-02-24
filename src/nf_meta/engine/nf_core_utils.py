@@ -47,4 +47,10 @@ def get_nfcore_pipelines() -> list[dict]:
         return []
     else:
         repos = response.json()["remote_workflows"]
-        return [{"name": p.get("full_name", ""), "location": p.get("url", ""), "description": p.get("description", "")} for p in repos]
+        return [{
+                "name": p.get("name", ""),
+                "full_name": p.get("full_name", ""),
+                "location": p.get("url", ""),
+                "description": p.get("description", ""),
+                "releases": p.get("releases", [])
+            } for p in repos]

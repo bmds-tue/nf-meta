@@ -1,4 +1,4 @@
-import { type APINodeData, type APIEdgeData, type APIGraph, type SideBarDetail, type NfCorePipelineInfo  } from './types'
+import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type SideBarDetail, type NfCorePipelineInfo  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
@@ -100,7 +100,7 @@ export const useEditorStore = defineStore("editor", () => {
 export const useGraphStore = defineStore('graph', () => {
 
     const { layout, layoutOptions } = useLayout()
-
+    const messageStore = useMessageStore()
     const _edges = ref<Edge<APIEdgeData>[]>([])
     const _nodes = ref<Node<APINodeData>[]>([])
 
@@ -120,7 +120,8 @@ export const useGraphStore = defineStore('graph', () => {
         _isHorizontalLayout.value = !_isHorizontalLayout.value
         localStorage.setItem("isHorizontalLayout", String(isHorizontalLayout.value))
         // recalculate node positions in new Layout
-        _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
+        // TODO: Is there a better fix than using any?
+        _nodes.value = layout(_nodes.value as any, _edges.value as any, layoutDirection.value)
     }
 
     function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {
@@ -147,82 +148,128 @@ export const useGraphStore = defineStore('graph', () => {
         }
     }
     
-    async function get<T>(endpoint: string): Promise<T> {
-        const requestOptions = {
-            method: "GET",
-            headers: { 'Content-Type': 'application/json' },
+    function mapPydanticErrors(detail: any[]): Record<string, string[]> {
+        const errors: Record<string, string[]> = {}
+
+        for (const err of detail) {
+            const field = err.loc[err.loc.length - 1]
+            if (!errors[field]) errors[field] = []
+            errors[field].push(err.msg)
         }
-        return fetch(endpoint, requestOptions)
-            .then((response) => {
-                if (!response.ok) {
-                    // TODO: Handle errors 
+
+        return errors
+        }
+
+    async function apiRequest<T>(endpoint: string, options: RequestInit): Promise<ApiResult<T>> {
+        try {
+            console.log("graphStore:apiRequest: Before request")
+            const response = await fetch(endpoint, { headers: { 'Content-Type': 'application/json' }, ...options})
+            const data = await response.json()
+
+            console.log("graphStore:apiRequest: After request")
+
+            if (!response.ok) {
+                console.log("graphStore:apiRequest: Error Response received")
+
+                if (response.status === 422 && data.detail) {
+                    console.log("graphStore:apiRequest: 422 HTTP Error")
+                    return {
+                        ok: false,
+                        status: 422,
+                        message: "Validation error",
+                        fieldErrors: mapPydanticErrors(data.detail)
+                    }
                 }
-                return response.json()
-            })
+
+                return {
+                    ok: false,
+                    status: response.status,
+                    message: data?.detail ?? "Request failed"
+                }
+            }
+
+            return { ok: true, data: data }
+
+        } catch (err) {
+            console.log("graphStore:apiRequest: Handling Error while making request during request")
+
+            return {
+                ok: false,
+                status: 0,
+                message: "Network error"
+            }
+        }
     }
 
     async function addOrUpdate<T>(endpoint: string, data: T) {
-        const requestOptions = {
+        const result = await apiRequest(endpoint, {
             method: "POST",
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
+        })
+
+        if (!result.ok) {
+            messageStore.add(result.message, "error")
+        } else {
+            await getAndUpdateGraph()
         }
-        return fetch(endpoint, requestOptions)
-            .then((response) => {
-                if (!response.ok) {
-                    // TODO: Handle errors 
-                }
-                getAndUpdateGraph()
-            })
+        return result
     }
 
     async function remove<T>(endpoint: string, data: T) {
-        const requestOptions = {
+        const result = await apiRequest(endpoint, {
             method: "DELETE",
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
+        })
+
+        if (!result.ok) {
+            messageStore.add("Delete failed: ", result.message)
+        } else {
+            await getAndUpdateGraph()
         }
-        return fetch(endpoint, requestOptions)
-            .then((response) => {
-                if (!response.ok) {
-                    // TODO: Handle errors 
-                }
-                getAndUpdateGraph()
-            })
+
+        return result
     }
 
     async function getAndUpdateGraph() {
-        const endpoint = '/api/graph/'
-        await get<APIGraph>(endpoint)
-            .then((graph) => {
-                _edges.value = graph.transitions.map(edgeData => createEdgeWithDefaults(edgeData))
+        const endpoint = "/api/graph/"
+        const requestOptions = { method: "GET"}
+        await apiRequest<APIGraph>(endpoint, requestOptions)
+            .then((response) => {
+                if (!response.ok) { 
+                    messageStore.add("Unable to fetch Graph Data", "error")
+                    _edges.value = []
+                    _nodes.value = []
+                } else {
+                    _edges.value = response.data.transitions.map(edgeData => createEdgeWithDefaults(edgeData))
+    
+                    _nodes.value = layout(
+                        response.data.nodes.map(nodeData => createNodeWithDefaults(nodeData)),
+                        _edges.value,
+                        layoutDirection.value
+                        )
 
-                _nodes.value = layout(
-                    graph.nodes.map(nodeData => createNodeWithDefaults(nodeData)),
-                    _edges.value,
-                    layoutDirection.value
-                    )
+                }
             })
     }
 
-    async function saveEdge(edgeData: APIEdgeData) {
+    function saveEdge(edgeData: APIEdgeData) {
         const endpoint = edgeData?.id ? '/api/edge/add/' : '/api/edge/update'
-        await addOrUpdate<APIEdgeData>(endpoint, edgeData)
+        return addOrUpdate<APIEdgeData>(endpoint, edgeData)
     }
 
     async function saveNode(nodeData: APINodeData) {
         const endpoint = nodeData?.id ? '/api/node/add/' : '/api/node/update/'
-        await addOrUpdate<APINodeData>(endpoint, nodeData)
+        return await addOrUpdate<APINodeData>(endpoint, nodeData)
     }
 
-    async function removeEdge(edgeData: APIEdgeData) {
+    function removeEdge(edgeData: APIEdgeData) {
         const endpoint = '/api/edge/'
-        await remove<APIEdgeData>(endpoint, edgeData)
+        return remove<APIEdgeData>(endpoint, edgeData)
     }
 
-    async function removeNode(nodeData: APINodeData) {
+    function removeNode(nodeData: APINodeData) {
         const endpoint = '/api/edge/'
-        await remove<APINodeData>(endpoint, nodeData)
+        return remove<APINodeData>(endpoint, nodeData)
     }
 
     return {

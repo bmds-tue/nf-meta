@@ -1,5 +1,9 @@
 import type { Edge, Node, XYPosition } from "@vue-flow/core"
 
+export type ApiResult<T> = 
+  | { ok: true; data: T }
+  | { ok: false; status: number; message: string; fieldErrors?: Record<string, string[]> }
+
 export type SideBarDetail<T> = {
   id: number,
   detailData: T

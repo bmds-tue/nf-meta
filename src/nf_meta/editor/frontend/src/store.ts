@@ -240,7 +240,8 @@ export const useGraphStore = defineStore('graph', () => {
                     _edges.value = []
                     _nodes.value = []
                 } else {
-                    _edges.value = response.data.transitions.map(edgeData => createEdgeWithDefaults(edgeData))
+                    // TODO: Can we fix this some other way? "Excessively deep recursion"
+                    _edges.value = response.data.transitions.map(edgeData => createEdgeWithDefaults(edgeData as any) as any)
     
                     _nodes.value = layout(
                         response.data.nodes.map(nodeData => createNodeWithDefaults(nodeData)),

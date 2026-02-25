@@ -6,8 +6,29 @@ import { defineStore } from 'pinia'
 
 import { useLayout } from './layout_graph.ts'
 
-export const useEventStore = defineStore("event", () => {
+export const useMessageStore = defineStore("message", () => {
+    interface Message {
+        text: string,
+        color: string,
+        timeout?: number,
+    }
+    const queue = ref<Message[]>([])
 
+    function add(text: string, color="success") {
+        if (!["success", "error", "warning"].includes(color)) {
+            console.warn("Message store: Invalid color received:", color, text)
+        }
+        queue.value.push({
+            text: text,
+            color: color,
+            timeout: 2000,
+        })
+    }
+
+    return {
+        queue,
+        add
+    }
 })
 
 export const useEditorStore = defineStore("editor", () => {

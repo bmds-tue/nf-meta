@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 
-from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError, ValidationInfo
+from pydantic import BaseModel, Field, field_validator, model_validator
 import yaml
 
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
@@ -14,6 +14,12 @@ logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
+
+
+def get_or_create_id(value: Optional[str]):
+    if value:
+        return value
+    return str(uuid.uuid4())
 
 
 class Position(BaseModel):
@@ -26,13 +32,18 @@ class Workflow(BaseModel):
     Workflow representation for internal use 
     """
 
-    id: Optional[str] = Field(default=str(uuid.uuid4()))
+    id: Optional[str] = Field(default=None)
     name: str
     version: str
-    pipeline_location: Optional[str] = None
-    pipeline_description: Optional[str] = None
+    url: Optional[str] = None
+    description: Optional[str] = None
     is_nfcore: Optional[bool] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
+
+    @field_validator("id", mode="after")
+    @classmethod
+    def init_id(cls, value):
+        return get_or_create_id(value)
 
     @model_validator(mode="after")
     def is_nfcore_workflow(self):
@@ -42,22 +53,22 @@ class Workflow(BaseModel):
 
         if self.is_nfcore:
             nfcore_wf_info = nfcore_wf_info[0]
-            self.pipeline_description = nfcore_wf_info.get("description", "")
+            self.description = nfcore_wf_info.get("description", "")
         else:
             logger.warning(f"Potentially uncompatible workflow, not officially supported by nf-core: {self.name}")
 
-            if not self.pipeline_location:
-                raise ValueError(f"No `pipeline_location` specified for '{self.name}'. Workflows from outside nf-core must specify a repository!")
+            if not self.url:
+                raise ValueError(f"No `url` specified for '{self.name}'. Workflows from outside nf-core must specify a repository!")
         
         return self
 
     def model_dump_config(self) -> dict:
-        fields = {"id", "name", "version", "pipeline_location"}
+        fields = {"id", "name", "version", "url"}
         return self.model_dump(include=fields, exclude_none=True)
     
     def model_dump_display(self) -> dict:
-        fields = {"id", "name", "version", "pipeline_location",
-                  "pipeline_description", "is_nfcore", "position"}
+        fields = {"id", "name", "version", "url",
+                  "description", "is_nfcore", "position"}
         return self.model_dump(include=fields, exclude_none=False)
     
     def model_dump(self, **kwargs: Any):
@@ -71,13 +82,18 @@ class WorkflowOptions(BaseModel):
 
 
 class Transition(BaseModel):
-    id: Optional[str] = Field(default=str(uuid.uuid4()))
+    id: Optional[str] = Field(default=None)
     target: str
     source: str
     params_file: Optional[Path] = Field(default=None, alias="params-file")
     config_file: Optional[Path] = Field(default=None, alias="config-file")
     adapter: Optional[str] = None
     params: Optional[List[Dict[str, Any]]] = None
+
+    @field_validator("id", mode="after")
+    @classmethod
+    def init_id(cls, value):
+        return get_or_create_id(value)
 
     def model_dump_display(self) -> dict:
         return self.model_dump(exclude_none=False)

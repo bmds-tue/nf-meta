@@ -1,20 +1,70 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { useEditorStore, useGraphStore } from '../store';
+import { computed, ref } from 'vue';
+import { useEditorStore, useGraphStore, usePipelineStore } from '../store';
 import type { APINodeData, SideBarDetail } from '../types';
-import Icon from './Icon.vue'
-import WorkflowNode from './WorkflowNode.vue';
+import type { SubmitEventPromise } from 'vuetify';
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
+const pipelineStore = usePipelineStore()
 
 const props = defineProps<SideBarDetail<APINodeData>>()
-const active = computed(() => editorStore.sideBarActiveDetailId == props.id)
-
 const form = ref<APINodeData>({ ...props.detailData })
+const errors = ref<Record<string, string[]>>({})
 
-function save(nodeData: APINodeData) {
-    graphStore.saveNode(nodeData)
+const isActive = computed(() => editorStore.sideBarActiveDetailId == props.id)
+const isNew = computed(() => Boolean(!props.detailData?.id) )
+const isEditing = ref(isNew.value)
+
+const nfCorePipelines = computed(() => {
+  return pipelineStore.nfCorePipelines?.map(pipeline => pipeline.name)
+})
+
+const selectedPipeline = computed(() => {
+  return pipelineStore.nfCorePipelines?.find(
+    pipeline => pipeline.name == form.value.name
+  )
+})
+
+const selectedPipelineVersions = computed(() => {
+  if (!selectedPipeline.value) {
+    return []
+  }
+  return selectedPipeline.value.releases.map(release => release.tag_name)
+})
+
+function handleUpdatePipeline() {
+  if(form.value.name && selectedPipeline.value?.description) {
+    form.value.description = selectedPipeline.value.description
+    form.value.url = selectedPipeline.value.url
+    console.log("Updating description and location automatically:", 
+      selectedPipeline.value.description,
+      selectedPipeline.value.url
+    )
+  }
+}
+
+function submitForm(e: SubmitEventPromise) {
+  e.then(value => {
+    if (value.valid) {
+      errors.value = {}
+      graphStore.saveNode(form.value)
+        .then(result => {
+          if (!result.ok) {
+            if (result?.fieldErrors) {
+              errors.value = result.fieldErrors
+            }
+          } else {
+            removeDetail()
+          }
+        })
+    }
+  })
+}
+
+function handleReset() {
+  form.value = props.detailData
+  isEditing.value = false
 }
 
 function expandDetails() {
@@ -30,50 +80,131 @@ function removeDetail() {
 }
 
 function editDetail() {
-
+  isEditing.value = true
+  expandDetails()
 }
 
 </script>
 
 <template>
-<div class="workflow-node sidebar-detail" :class="{'workflow-node-nfcore': form.is_nfcore}">
+<v-card class="workflow-node sidebar-detail" :class="{'workflow-node-nfcore': form.is_nfcore}">
   <div class="header">
-    <b>DETAIL: {{ props.detailData.name }} </b>
+    <b class="header-name"> {{ form.id || "Add New Workflow" }} </b>
     <div class="header-actions">
-      <button @click.stop="editDetail">
-        <Icon name="edit" />
-      </button>
-      <button v-show="!active" @click.stop=expandDetails>
-        <Icon name="collapse" />
-      </button>
-      <button v-show="active" @click.stop=collapseDetails>
-        <Icon name="expand" />
-      </button>
-      <button @click.stop=removeDetail>
-        <Icon name="close" />
-      </button>
+      <v-btn 
+        @click.stop="editDetail"
+        icon="edit"
+        >
+      </v-btn>
+      <v-btn 
+        @click.stop="!isActive ? expandDetails() : collapseDetails()"
+        :icon="isActive ? 'collapse' : 'expand'"
+        >
+      </v-btn>
+      <v-btn 
+        @click.stop="removeDetail"
+        icon="close"
+        >
+      </v-btn>
     </div>
   </div>
 
-  <div v-show="active" class="content">
-      <p v-show="!!props.detailData.pipeline_description">
-        Description: {{ props.detailData.pipeline_description }}
+  <div v-show="isActive && !isEditing" class="content">
+      <p>ID: {{ form.id }}</p>
+      <p>Name: {{ form.name }} </p>
+      <p>Pipeline Location: {{ form.url }}</p>
+      <p>Version: {{ form.version }}</p>
+      <p v-show="!!form.description">
+        Description: {{ form.description }}
       </p>
-      <p> 
-        Location: {{ props.detailData.pipeline_location }}
-      </p>
-      <p>
-        Version: {{ props.detailData.pipeline_version }}
-      </p>
-      <p>Pipeline Location: {{ props.detailData.pipeline_location }}</p>
   </div>
-</div>
+
+  <div v-show="isActive && isEditing" class="content">
+    <v-form @submit.prevent="submitForm">
+      <v-container>
+        <input
+          id="is-nfcore-cb" 
+          type="checkbox"
+          v-model="form.is_nfcore" />
+        <label for="is-nfcore-cb">nf-core pipeline</label>
+      </v-container>
+        
+      <v-text-field 
+        v-if="isNew"
+        label="unique identifier"
+        v-model="form.id"
+        variant="outlined">
+      </v-text-field>
+
+      <v-text-field
+        v-if="!form.is_nfcore"
+        v-model="form.name"
+        label="Pipeline name"
+        variant="outlined"
+        :error-messages="errors.name">
+      </v-text-field>
+      <v-text-field
+        v-if="!form.is_nfcore"
+        v-model="form.url"
+        label="Pipeline URL"
+        variant="outlined"
+        :error-messages="errors.pipeline_location">
+      </v-text-field>
+      <v-text-field
+        v-if="!form.is_nfcore"
+        label="Version"
+        v-model="form.version"
+        variant="outlined"
+        :error-messages="errors.pipeline_version">
+      </v-text-field>
+
+      <v-autocomplete
+        v-if="form.is_nfcore"
+        label="Pipeline name"
+        v-model="form.name"
+        :items="nfCorePipelines"
+        variant="outlined"
+        @update:modelValue="handleUpdatePipeline"
+        :error-messages="errors.name">
+      </v-autocomplete>
+      <v-autocomplete
+        v-if="form.is_nfcore"
+        label="Version"
+        v-model="form.version"
+        :items="selectedPipelineVersions"
+        variant="outlined"
+        :error-messages="errors.pipeline_version">
+      </v-autocomplete>
+
+      <v-textarea
+        :label="form.is_nfcore ? 'Pipeline Description (autofilled from nf-core)' : 'Pipeline Description'"
+        v-model="form.description"
+        variant="outlined"
+        :readonly="form.is_nfcore">
+      </v-textarea>
+
+      <v-btn
+        class="me-4"
+        type="submit"
+      >
+        save changes
+      </v-btn>
+
+      <v-btn @click="handleReset">
+        cancel edit
+      </v-btn>
+
+    </v-form>
+  </div> 
+
+</v-card>
 </template>
 
 <style scoped>
 .sidebar-detail {
   margin: 20px 5px 20px 5px;
 }
+
 .header {
   display: flex;
   flex-direction: row;
@@ -83,10 +214,10 @@ function editDetail() {
   flex-wrap: nowrap;
 }
 .header button {
+  color: rgb(var(--v-theme-onSurface));
   width: 24px; 
   height: 24px;
   padding: 2px;
   border-radius: 8px;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
 }
 </style>

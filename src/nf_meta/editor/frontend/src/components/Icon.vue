@@ -91,11 +91,11 @@ defineProps({
     <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
   </svg>
 
-  <svg v-else-if="name === 'expand'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <svg v-else-if="name === 'collapse'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
 
-  <svg v-else-if="name === 'collapse'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <svg v-else-if="name === 'expand'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
 </template>

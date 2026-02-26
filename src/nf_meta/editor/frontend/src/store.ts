@@ -254,12 +254,12 @@ export const useGraphStore = defineStore('graph', () => {
     }
 
     function saveEdge(edgeData: APIEdgeData) {
-        const endpoint = edgeData?.id ? '/api/edge/add/' : '/api/edge/update'
+        const endpoint = edgeData?.id ? '/api/edge/update/' : '/api/edge/add/'
         return addOrUpdate<APIEdgeData>(endpoint, edgeData)
     }
 
     async function saveNode(nodeData: APINodeData) {
-        const endpoint = nodeData?.id ? '/api/node/add/' : '/api/node/update/'
+        const endpoint = nodeData?.id ? '/api/node/update/' : '/api/node/add/'
         return await addOrUpdate<APINodeData>(endpoint, nodeData)
     }
 

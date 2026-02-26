@@ -1,5 +1,5 @@
 <template>
-  <footer class="app-footer">
+  <v-footer class="app-footer">
     <span class="left">
       {{ year }} ©
     </span>
@@ -12,7 +12,7 @@
     <span class="right">
       v{{ version }}
     </span>
-  </footer>
+  </v-footer>
 </template>
 
 <script setup lang="ts">
@@ -26,28 +26,13 @@ const github = "https://github.com/JulianFlesch/mp-builder-2"
 
 <style scoped>
 .app-footer {
-  height: 25px;
-
   display: flex;
   align-items: center;
   justify-content: space-between;
-
-  padding: 0 12px;
-
   font-size: 12px;
-  color: #cbd5e1;
-
-  background-color: #2d3748cf;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-
+  color: rgb(var(--v-theme-onSurface));
   flex-shrink: 0;
-
   backdrop-filter: blur(6px);
-}
-
-/* optional subtle feel */
-.app-footer span {
-  opacity: 0.8;
 }
 
 .app-footer a {

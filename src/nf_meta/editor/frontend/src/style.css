@@ -2,16 +2,13 @@ html, body, #app, :root {
   height: 100%;
   width: 100%;
   padding: 0;
+  background-color: rgb(var(--v-theme-background));
 }
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  /* color-scheme: light dark; */
-  color: rgba(255, 255, 255, 0.87);
-  /* background-color: #242424; */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -21,19 +18,32 @@ html, body, #app, :root {
 
 .workflow-node {
     padding: 10px;
-    color: #303030;
-    background: #efefef;
+    color: rgb(var(--v-theme-onPrimary));
+    background: rgb(var(--v-theme-background));;
     border-width: 4px;
     border-style: solid;
-    border-radius: 10px;
-    border-color: #925819;
+    border-radius: 8px;
+    border-color: rgb(var(--v-theme-nodeDefaultBorder));
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
 }
 
 .workflow-node:hover {
-    box-shadow:0 0 0 4px #6c6c6c80;
+    box-shadow:0 0 0 4px rgb(var(--v-theme-surface));
     transition:box-shadow .2s;
 }
 
 .workflow-node-nfcore {
-    border-color: #1a9655;
+    border-color: rgb(var(--v-theme-nodeNfCoreBorder));
+}
+
+button {
+  border-radius: 8px;
+}
+
+button:active {
+  background-color: rgb(var(--v-theme-primarySoft));
+}
+
+.checkbox {
+  color: black;
 }

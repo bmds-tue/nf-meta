@@ -67,14 +67,12 @@ onBeforeUnmount(stopDrag)
 </script>
 
 <template>
-  <aside class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
-    <div class="description">Teleport destination</div>
+  <v-container class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
+    <div class="description">Node Details</div>
     
-    <div class="content">
-      <div v-for="sbDetail in editorStore.sideBarNodes">
-        <NodeDetail :id="sbDetail.id" :detail-data="sbDetail.detailData"> </NodeDetail>
-      </div>
-    </div>
+    <v-container class="content">
+      <NodeDetail v-for="sbDetail in editorStore.sideBarNodes" :id="sbDetail.id" :detail-data="sbDetail.detailData"> </NodeDetail>
+    </v-container>
 
     <div
       class="resize-handle"
@@ -82,12 +80,12 @@ onBeforeUnmount(stopDrag)
       @pointerdown="startDrag">
     </div>
     
-  </aside>
+  </v-container>
 </template>
 
 <style scoped>
 
-aside {
+.split-pane {
     position: relative;
     flex-shrink: 0;
     height: 100%;
@@ -103,14 +101,8 @@ aside {
     box-shadow:0 5px 10px #0000004d;
 
     border-radius: 8px;
-    color:#fff;
-    font-weight:700;
-    font-size:12px;
-    background:#10b981bf;
-}
-
-aside.dragging {
-    border-left: 2px solid #4a5568;
+    border: 2px solid rgb(var(--v-theme-surfaceVariant));
+    background: rgb(var(--v-theme-surfaceVariant));
 }
 
 /* critical flex rule */
@@ -133,19 +125,22 @@ aside.dragging {
     cursor: col-resize;
     border-radius: 6px;
     border-width: 2px;
-    border-color:rgba(55, 55, 5, 0.65);;
+    border-color:rgb(var(--v-theme-surface));;
 
-    background: rgba(255, 255, 255, 0.8);
+    background: rgb(var(--v-theme-onSurface));
 }
 
 .resize-handle:hover {
-    background: rgba(235,235,235,0.9);
+    background: rgb(var(--v-theme-onSurface));
     transition: background 0.1s;
-
 }
 
 .resize-handle.dragging {
     background: rgba(235,235,235,0.9);
+}
+
+.split-pane.dragging {
+    border-left: 2px solid #4a5568;
 }
 
 </style>

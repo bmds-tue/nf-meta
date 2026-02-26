@@ -14,34 +14,31 @@ const horizLayout = computed(() => {
 </script>
 
 <template>
-  <div 
-        class="workflow-node"
-        :class="{'workflow-node-nfcore' : data.is_nfcore} ">
+  <v-container :class="['workflow-node', data.is_nfcore && 'workflow-node-nfcore']">
     <Handle class="workflow-node-handle" 
             :class="{'handle-horiz' : horizLayout }"
             type="target" 
             :position="targetPosition"
             />
-    <div>{{ data.name }}</div>
-    <div> {{ data.pipeline_location }} </div>
+        <strong>{{ data.name }}</strong> <small v-if="data.version">{{ data.version }}</small>
     <Handle class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout}"
             type="source" 
             :position="sourcePosition"
             /> 
-  </div>
+  </v-container>
 
 </template>
 
 <style scoped>
 .workflow-node-handle {
     background: #2d3f46;
-    width: 35px;
-    height: 7px;
+    width: 20px;
+    height: 10px;
     border-radius: 10px;
 }
 .handle-horiz {
-    width: 7px;
-    height: 35px;
+    width: 10px;
+    height: 20px;
 }
 </style>

@@ -18,9 +18,9 @@ export type APIEdgeData = {
 export type APINodeData = {
     id?: string,
     name?: string,
-    pipeline_description?: string,
-    pipeline_location?: string,
-    pipeline_version?: string,
+    description?: string,
+    url?: string,
+    version?: string,
     position?: XYPosition,
     is_nfcore?: boolean,
 }

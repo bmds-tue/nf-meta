@@ -1,17 +1,17 @@
 import os
 
-from .serializers import serialize_graph, Node, Edge
+from .serializers import serialize_graph
 
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
-from nf_meta.engine.models import Workflow
+from nf_meta.engine.models import Workflow, Transition
 from nf_meta.engine.events import (AddTransition, AddWorkflow, 
                                     RemoveWorkflow, RemoveTransition,
                                     EditWorkflow, EditTransition)
 
-from fastapi import FastAPI, APIRouter, Response
+from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pathlib import Path
 
 
@@ -53,47 +53,41 @@ def load_graph(config: Path):
 
 
 @api_router.post("/node/add/")
-def add_node(node: Node):
-    wf = node.to_workflow()
+def add_node(wf: Workflow):
     SESSION.handle_command(AddWorkflow(wf))
-    return Response()
+    return JSONResponse(dict())
 
 
 @api_router.post("/node/update/")
-def update_node(node: Node):
+def update_node(wf: Workflow):
     # TODO: Rework EditWorkflow, EditTransition apply()
-    #wf = node.to_workflow()
     #SESSION.handle_command(EditWorkflow(wf))
-    return Response()
+    return JSONResponse(dict())
 
 
 @api_router.delete("/node/")
-def remove_node(node: Node):
-    wf = node.to_workflow()
+def remove_node(wf: Workflow):
     SESSION.handle_command(RemoveWorkflow(wf))
-    return Response()
+    return JSONResponse(dict())
 
 
 @api_router.post("/edge/add/")
-def add_edge(edge: Edge):
-    tr = edge.to_transition()
+def add_edge(tr: Transition):
     SESSION.handle_command(AddTransition(tr))
-    return Response()
+    return JSONResponse(dict())
 
 
 @api_router.post("/edge/update/")
-def update_edge(edge: Edge):
+def update_edge(tr: Transition):
     # TODO: Rework EditWorkflow, EditTransition apply()
-    # tr = edge.to_transition()
     # SESSION.handle_command(EditTransition(tr))
-    return Response()
+    return JSONResponse(dict())
 
 
 @api_router.delete("/edge/")
-def delete_edge(edge: Edge):
-    tr = edge.to_transition()
+def delete_edge(tr: Transition):
     SESSION.handle_command(RemoveTransition(tr))
-    return Response()
+    return JSONResponse(dict())
 
 
 @api_router.get("/nfcore/pipelines/")

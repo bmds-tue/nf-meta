@@ -128,13 +128,6 @@ function editDetail() {
           v-model="form.is_nfcore" />
         <label for="is-nfcore-cb">nf-core pipeline</label>
       </v-container>
-        
-      <v-text-field 
-        v-if="isNew"
-        label="unique identifier"
-        v-model="form.id"
-        variant="outlined">
-      </v-text-field>
 
       <v-text-field
         v-if="!form.is_nfcore"
@@ -148,14 +141,14 @@ function editDetail() {
         v-model="form.url"
         label="Pipeline URL"
         variant="outlined"
-        :error-messages="errors.pipeline_location">
+        :error-messages="errors.url">
       </v-text-field>
       <v-text-field
         v-if="!form.is_nfcore"
         label="Version"
         v-model="form.version"
         variant="outlined"
-        :error-messages="errors.pipeline_version">
+        :error-messages="errors.version">
       </v-text-field>
 
       <v-autocomplete
@@ -173,7 +166,7 @@ function editDetail() {
         v-model="form.version"
         :items="selectedPipelineVersions"
         variant="outlined"
-        :error-messages="errors.pipeline_version">
+        :error-messages="errors.version">
       </v-autocomplete>
 
       <v-textarea

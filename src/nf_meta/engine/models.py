@@ -3,6 +3,7 @@ from packaging.version import Version
 from typing import Optional, Dict, List, Any
 import logging
 import re
+import uuid
 
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError, ValidationInfo
 import yaml
@@ -15,18 +16,23 @@ CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
 
 
+class Position(BaseModel):
+    x: int
+    y: int
+
+
 class Workflow(BaseModel):
     """
     Workflow representation for internal use 
     """
 
-    id: str
+    id: Optional[str] = Field(default=str(uuid.uuid4()))
     name: str
     version: str
     pipeline_location: Optional[str] = None
     pipeline_description: Optional[str] = None
     is_nfcore: Optional[bool] = None
-    layout_coords: Optional[tuple[float, float]] = None
+    position: Optional[Position] = Field(default=Position(x=0, y=0))
 
     @model_validator(mode="after")
     def is_nfcore_workflow(self):
@@ -51,7 +57,7 @@ class Workflow(BaseModel):
     
     def model_dump_display(self) -> dict:
         fields = {"id", "name", "version", "pipeline_location",
-                  "pipeline_description", "is_nfcore", "layout_coords"}
+                  "pipeline_description", "is_nfcore", "position"}
         return self.model_dump(include=fields, exclude_none=False)
     
     def model_dump(self, **kwargs: Any):
@@ -65,6 +71,7 @@ class WorkflowOptions(BaseModel):
 
 
 class Transition(BaseModel):
+    id: Optional[str] = Field(default=str(uuid.uuid4()))
     target: str
     source: str
     params_file: Optional[Path] = Field(default=None, alias="params-file")

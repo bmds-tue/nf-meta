@@ -1,4 +1,4 @@
-import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type SideBarDetail, type NfCorePipelineInfo  } from './types'
+import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type Selection, type SideBarDetail, type NfCorePipelineInfo  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
@@ -120,7 +120,7 @@ export const useGraphStore = defineStore('graph', () => {
         _isHorizontalLayout.value = !_isHorizontalLayout.value
         localStorage.setItem("isHorizontalLayout", String(isHorizontalLayout.value))
         // recalculate node positions in new Layout
-        _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
+        _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value) as Node<APINodeData>[]
     }
 
     function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {
@@ -132,7 +132,7 @@ export const useGraphStore = defineStore('graph', () => {
             position: nodeData?.position ?? {x: 0, y: 0},
             // apply common node attributes (e.g. our custom node type)
             type: "workflow-node"
-        }
+        } as Node<APINodeData>
     }
 
     function createEdgeWithDefaults(edgeData: APIEdgeData): Edge<APIEdgeData> {
@@ -239,7 +239,6 @@ export const useGraphStore = defineStore('graph', () => {
                     _edges.value = []
                     _nodes.value = []
                 } else {
-                    // TODO: Can we fix this some other way? "Excessively deep recursion"
                     _edges.value = response.data.transitions.map(edgeData => createEdgeWithDefaults(edgeData as any) as any)
     
                     _nodes.value = layout(
@@ -262,14 +261,21 @@ export const useGraphStore = defineStore('graph', () => {
         return await addOrUpdate<APINodeData>(endpoint, nodeData)
     }
 
+    // TODO: Rework Removes to always handle lists of ids
     function removeEdge(edgeData: APIEdgeData) {
-        const endpoint = '/api/edge/'
+        const endpoint = '/api/edge/' // TODO: Doesn't exist anymore
         return remove<APIEdgeData>(endpoint, edgeData)
     }
 
-    function removeNode(nodeData: APINodeData) {
-        const endpoint = '/api/edge/'
-        return remove<APINodeData>(endpoint, nodeData)
+    function removeNodeById(nodeId: string) {
+        const endpoint = '/api/node/' // TODO: Doesn't exist anymore
+        return remove<any>(endpoint, {id: nodeId})
+    }
+
+    function removeSelectionById(selection: Selection) {
+        for (let nodeId of selection.nodes) {
+            // TODO
+        }
     }
 
     return {
@@ -277,7 +283,7 @@ export const useGraphStore = defineStore('graph', () => {
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
         saveNode, saveEdge,
-        removeNode, removeEdge 
+        removeSelectionById
     } 
 })
 

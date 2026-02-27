@@ -1,5 +1,10 @@
 import type { Edge, Node, XYPosition } from "@vue-flow/core"
 
+export type Selection = {
+  nodes: string[],
+  edges: string[]
+}
+
 export type ApiResult<T> = 
   | { ok: true; data: T }
   | { ok: false; status: number; message: string; fieldErrors?: Record<string, string[]> }

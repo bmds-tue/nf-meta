@@ -94,17 +94,17 @@ class MetaworkflowGraph:
         
         for edge in list(self.G.in_edges(wf_id)):
             edge_data = self.G.edges[edge]
-            self._emit(TransitionRemoved(Transition(**edge_data)))
             self.G.remove_edge(*edge)
+            self._emit(TransitionRemoved(Transition(**edge_data)))
 
         for edge in list(self.G.out_edges(wf_id)):
             edge_data = self.G.edges[edge]
-            self._emit(TransitionRemoved(Transition(**edge_data)))
             self.G.remove_edge(*edge)
+            self._emit(TransitionRemoved(Transition(**edge_data)))
 
         node_data = self.G.nodes[wf_id]
-        self._emit(WorkflowRemoved(Workflow(**node_data)))
         self.G.remove_node(wf_id)
+        self._emit(WorkflowRemoved(Workflow(**node_data)))
 
         # TODO: if recursive, then avoid disconnected graph, by recursively deleting all children nodes
 

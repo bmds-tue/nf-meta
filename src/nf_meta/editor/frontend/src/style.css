@@ -27,7 +27,8 @@ html, body, #app, :root {
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
 }
 
-.workflow-node:hover {
+.workflow-node:hover, .selected{
+    border-radius: 8px;
     box-shadow:0 0 0 4px rgb(var(--v-theme-surface));
     transition:box-shadow .2s;
 }

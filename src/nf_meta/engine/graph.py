@@ -66,7 +66,7 @@ class MetaworkflowGraph:
             if not obj.G.has_edge(src, tgt):
                 # Transition not declared in metalayout → auto-add
                 # TODO: Be more specific with keys once they are stable-ish
-                obj.G.add_edge(src, tgt, data=t.model_dump())
+                obj.G.add_edge(src, tgt, **t.model_dump())
 
         obj.workflow_opts = cfg.workflow_opts
         obj.workflow_opts_custom = cfg.workflow_opts_custom
@@ -89,14 +89,28 @@ class MetaworkflowGraph:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
 
     def remove_workflow(self, wf_id: str, recursive=False):
-        # TODO: check id
-        # TODO: implement removal
+        if wf_id not in self.G.nodes:
+            raise ValueError("Invalid wf_id")
+        
+        for edge in list(self.G.in_edges(wf_id)):
+            edge_data = self.G.edges[edge]
+            self._emit(TransitionRemoved(Transition(**edge_data)))
+            self.G.remove_edge(*edge)
+
+        for edge in list(self.G.out_edges(wf_id)):
+            edge_data = self.G.edges[edge]
+            self._emit(TransitionRemoved(Transition(**edge_data)))
+            self.G.remove_edge(*edge)
+
+        node_data = self.G.nodes[wf_id]
+        self._emit(WorkflowRemoved(Workflow(**node_data)))
+        self.G.remove_node(wf_id)
+
         # TODO: if recursive, then avoid disconnected graph, by recursively deleting all children nodes
-        pass
 
     def add_transition(self, tr: Transition):
         assert tr.source in self.G.nodes and tr.target in self.G.nodes
-        self.G.add_edge(tr.source, tr.target, data=tr.model_dump())
+        self.G.add_edge(tr.source, tr.target, **tr.model_dump())
         self._emit(TransitionAdded(tr))
 
     def update_transition(self, tr: Transition):
@@ -105,10 +119,14 @@ class MetaworkflowGraph:
         pass
 
     def remove_transition(self, tr_id: str, recursive=False):
-        # TODO: check id
-        # TODO: implement removal
-        # TODO: if recursive, then avoid disconnected graph, by recursively deleting all connected nodes
-        pass
+        matches = list(filter(lambda edge: self.G.edges[edge].get("id", "") == tr_id, self.G.edges))
+        if len(matches) != 0:
+            raise ValueError("Invalid or ambiguous tr_id")
+
+        edge = matches[0]
+        edge_data = self.G.edges[edge]
+        self.G.remove_edge(edge)
+        self._emit(TransitionRemoved(**edge_data))
 
     # ===========================
     #        VALIDATION
@@ -157,7 +175,7 @@ class MetaworkflowGraph:
         pass
 
     def get_transitions(self) -> list[Transition]:
-        return [Transition(**data.get("data")) for _, _, data in self.G.edges(data=True)]
+        return [Transition(**self.G.edges[e]) for e in self.G.edges]
 
     def get_workflows(self) -> list[Workflow]:
         return [Workflow(**self.G.nodes[n]) for n in self.G.nodes]

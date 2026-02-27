@@ -46,15 +46,10 @@ export function useLayout() {
     return nodes.map((node) => {
       const nodeWithPosition = dagreGraph.node(node.id)
 
-      return {
-        ...node,
-        targetPosition: isHorizontal ? Position.Left : Position.Top,
-        sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-        data: {
-            ...node.data,
-        },
-        position: { x: nodeWithPosition.x, y: nodeWithPosition.y }
-      }
+      node.targetPosition = isHorizontal ? Position.Left : Position.Top
+      node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom
+      node.position = { x: nodeWithPosition.x, y: nodeWithPosition.y }
+      return node as Node<APINodeData>
     })
   }
 

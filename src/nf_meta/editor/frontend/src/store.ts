@@ -120,8 +120,7 @@ export const useGraphStore = defineStore('graph', () => {
         _isHorizontalLayout.value = !_isHorizontalLayout.value
         localStorage.setItem("isHorizontalLayout", String(isHorizontalLayout.value))
         // recalculate node positions in new Layout
-        // TODO: Is there a better fix than using any?
-        _nodes.value = layout(_nodes.value as any, _edges.value as any, layoutDirection.value)
+        _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value)
     }
 
     function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {

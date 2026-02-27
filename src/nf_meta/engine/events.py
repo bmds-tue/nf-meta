@@ -119,10 +119,10 @@ class AddWorkflow:
 @dataclass(frozen=True)
 class RemoveWorkflow:
     # TODO: Think about removing single nodes (Command design) vs whole subgraphs (Memento / subgraph caching)
-    workflow: Workflow
+    workflow_id: str
 
     def apply(self, g: GraphEventHandler):
-        g.remove_workflow(self.workflow)
+        g.remove_workflow(self.workflow_id)
 
 
 @dataclass(frozen=True)
@@ -135,10 +135,10 @@ class AddTransition:
 
 @dataclass(frozen=True)
 class RemoveTransition:
-    transition: Transition
+    transition_id: str
 
     def apply(self, g: GraphEventHandler):
-        g.remove_workflow(self.transition)
+        g.remove_workflow(self.transition_id)
 
 
 @dataclass(frozen=True)

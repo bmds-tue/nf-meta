@@ -1,10 +1,10 @@
 import os
 
-from .serializers import serialize_graph
+from .serializers import serialize_graph, Selection
 
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
-from nf_meta.engine.models import Workflow, Transition
+from nf_meta.engine.models import Workflow, Transition, Transaction
 from nf_meta.engine.events import (AddTransition, AddWorkflow, 
                                     RemoveWorkflow, RemoveTransition,
                                     EditWorkflow, EditTransition)
@@ -54,7 +54,7 @@ def load_graph(config: Path):
 
 @api_router.post("/node/add/")
 def add_node(wf: Workflow):
-    SESSION.handle_command(AddWorkflow(wf))
+    SESSION.handle_command(AddWorkflow(workflow=wf))
     return JSONResponse(dict())
 
 
@@ -65,9 +65,13 @@ def update_node(wf: Workflow):
     return JSONResponse(dict())
 
 
-@api_router.delete("/node/")
-def remove_node(wf: Workflow):
-    SESSION.handle_command(RemoveWorkflow(wf))
+@api_router.delete("/delete/")
+def remove_node(selection: Selection):
+    cmds = []
+    for node_id in selection.nodes:
+        cmds.append(RemoveWorkflow(node_id))
+
+    SESSION.handle_command(Transaction(cmds))
     return JSONResponse(dict())
 
 
@@ -81,12 +85,6 @@ def add_edge(tr: Transition):
 def update_edge(tr: Transition):
     # TODO: Rework EditWorkflow, EditTransition apply()
     # SESSION.handle_command(EditTransition(tr))
-    return JSONResponse(dict())
-
-
-@api_router.delete("/edge/")
-def delete_edge(tr: Transition):
-    SESSION.handle_command(RemoveTransition(tr))
     return JSONResponse(dict())
 
 

@@ -54,6 +54,18 @@ def load_graph(config: Path):
     return serialize_state(SESSION.graph)
 
 
+@api_router.get("/graph/undo/")
+def undo_most_recent():
+    SESSION.handle_undo()
+    return JSONResponse(dict())
+
+
+@api_router.get("/graph/redo/")
+def redo_most_recent():
+    SESSION.handle_redo()
+    return JSONResponse(dict())
+
+
 @api_router.post("/node/add/")
 def add_node(wf: Workflow):
     SESSION.handle_command(AddWorkflow(workflow=wf))

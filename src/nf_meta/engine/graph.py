@@ -119,13 +119,13 @@ class MetaworkflowGraph:
 
     def remove_transition(self, tr_id: str, recursive=False):
         matches = list(filter(lambda edge: self.G.edges[edge].get("id", "") == tr_id, self.G.edges))
-        if len(matches) != 0:
+        if len(matches) != 1:
             raise ValueError("Invalid or ambiguous tr_id")
 
         edge = matches[0]
         edge_data = self.G.edges[edge]
-        self.G.remove_edge(edge)
-        self._emit(TransitionRemoved(**edge_data))
+        self.G.remove_edge(*edge)
+        self._emit(TransitionRemoved(Transition(**edge_data)))
 
     # ===========================
     #        VALIDATION

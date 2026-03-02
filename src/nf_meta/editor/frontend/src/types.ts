@@ -31,6 +31,9 @@ export type APINodeData = {
 }
 
 export type APIGraph = {
+  redoable: boolean,
+  undoable: boolean,
+  filename: string,
   nodes: Node<APINodeData>[],
   transitions: Edge<APIEdgeData>[]
 }

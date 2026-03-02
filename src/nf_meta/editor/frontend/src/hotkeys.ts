@@ -1,9 +1,10 @@
 import { useHotkey } from 'vuetify'
-import { useGraphStore } from './store.ts'
+import { useEditorStore, useGraphStore } from './store.ts'
 import { useVueFlow } from '@vue-flow/core'
 
 export function useEditorHotkeys() {
   const graphStore = useGraphStore()
+  const editorStore = useEditorStore()
   const { getSelectedNodes, getSelectedEdges } = useVueFlow()
 
   function deleteSelection() {
@@ -27,12 +28,14 @@ export function useEditorHotkeys() {
   })
 
   useHotkey('meta+s', (e) => {
-    console.log("SAVE pressed!")
-    graphStore.save()
+    if (!graphStore.filename) {
+      editorStore.openSaveDialog()
+    } else {
+      graphStore.save()
+    }
   })
 
   useHotkey('meta+shift+s', (e) => {
-    console.log("SAVE-AS pressed!")
-    graphStore.save()
+    editorStore.openSaveDialog()
   })
 }

@@ -10,6 +10,7 @@ import Snackbar from './components/Snackbar.vue'
 import { useEditorStore, useGraphStore } from './store'
 import type { APINodeData } from './types'
 import { useEditorHotkeys } from './hotkeys'
+import SaveDialog from './components/SaveDialog.vue'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -50,6 +51,14 @@ const onConnected = (conn: Connection) => {
   graphStore.saveEdge(conn)
 }
 
+const onSave = () => {
+  if (!graphStore.filename) {
+    editorStore.openSaveDialog()
+  } else {
+    graphStore.save()
+  }
+}
+
 onMounted(async () => {
   console.log("[INFO] Updating graph")
   graphStore.getAndUpdateGraph()
@@ -73,17 +82,20 @@ onMounted(async () => {
         
         <v-btn 
           title="save to file"
-          icon="save">
+          icon="save"
+          @click="onSave"
+          >
         </v-btn>
 
         <v-btn
           title="undo last operation"
+          :disabled="!graphStore.undoable"
           icon="undo">
         </v-btn>
 
         <v-btn 
           title="redo last operations"
-          :disabled="true" 
+          :disabled="!graphStore.redoable" 
           icon="redo">
         </v-btn>
 
@@ -129,6 +141,7 @@ onMounted(async () => {
   
       <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
     </div>
+    <SaveDialog></SaveDialog>
     <Snackbar></Snackbar>
     <Footer class="footer"></Footer>
 </v-app>

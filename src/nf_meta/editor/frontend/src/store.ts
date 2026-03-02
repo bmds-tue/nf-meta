@@ -42,6 +42,17 @@ export const useEditorStore = defineStore("editor", () => {
     const _sideBarNodes = ref<SideBarDetail<APINodeData>[]>([])
     const sideBarNodes = computed(() => _sideBarNodes.value)
     
+    const _saveDialogOpen = ref<boolean>(false)
+    const saveDialogOpen = computed(() => _saveDialogOpen.value)
+
+    function openSaveDialog() {
+        _saveDialogOpen.value = true
+    }
+
+    function closeSaveDialog() {
+        _saveDialogOpen.value = false
+    }
+
     function toggleSidebar() {
         _sideBarOpen.value = !_sideBarOpen.value
         localStorage.setItem("showSideBar", String(_sideBarOpen.value))
@@ -93,7 +104,8 @@ export const useEditorStore = defineStore("editor", () => {
         showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
         sideBarActiveDetailId, setActiveSidebarDetailId,
         sideBarNodes, addNodeToSideBar,
-        removeSidebarDetail, collapseSidebarDetail
+        removeSidebarDetail, collapseSidebarDetail,
+        saveDialogOpen, openSaveDialog, closeSaveDialog
     }
 })
 
@@ -111,6 +123,14 @@ export const useGraphStore = defineStore('graph', () => {
     const nodes = computed(() => {
         return _nodes.value
     })
+
+    const _filename = ref<string>()
+    const filename = computed(() => _filename.value)
+
+    const _redoable = ref<boolean>(false)
+    const redoable = computed(() => _redoable.value)
+    const _undoable = ref<boolean>(false)
+    const undoable = computed(() => _undoable.value)
 
     const _isHorizontalLayout = ref(localStorage.getItem("isHorizontalLayout") == "true")
     const isHorizontalLayout = computed(() => _isHorizontalLayout.value)
@@ -246,7 +266,10 @@ export const useGraphStore = defineStore('graph', () => {
                         _edges.value,
                         layoutDirection.value
                         )
-
+                    
+                    _undoable.value = response.data.undoable
+                    _redoable.value = response.data.redoable
+                    _filename.value = response.data.filename
                 }
             })
     }
@@ -274,12 +297,37 @@ export const useGraphStore = defineStore('graph', () => {
         return await remove(endpoint, selection)
     }
 
+    async function undo() {}
+
+    async function redo() {}
+
+    async function save() {
+        if (!filename.value) {
+            messageStore.add("No save destination specified!", "error")
+            return
+        }
+
+        const endpoint = "/api/graph/save/"
+        const options = {
+            method: "POST",
+            body: JSON.stringify({config: filename.value})
+        }
+        return await apiRequest(endpoint, options)
+    }
+
+    async function saveAs(filename: string) {
+        _filename.value = filename
+        save()
+    }
+
     return {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
         saveNode, saveEdge,
-        removeSelectionById, removeNodeById, removeEdgeById
+        removeSelectionById, removeNodeById, removeEdgeById,
+        undo, redo, save, saveAs, filename,
+        redoable, undoable
     } 
 })
 

@@ -83,8 +83,9 @@ class MetaworkflowGraph:
 
     def update_workflow(self, wf: Workflow):
         try:
-            self.G.nodes[wf.id] = wf.model_dump()
-            self._emit(WorkflowUpdated(wf))
+            old_wf_data = self.G.nodes[wf.id]
+            self.G.nodes[wf.id].update(wf.model_dump())
+            self._emit(WorkflowUpdated(old_workflow=Workflow(**old_wf_data), new_workflow=wf))
         except KeyError as e:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
 
@@ -105,8 +106,6 @@ class MetaworkflowGraph:
         node_data = self.G.nodes[wf_id]
         self.G.remove_node(wf_id)
         self._emit(WorkflowRemoved(Workflow(**node_data)))
-
-        # TODO: if recursive, then avoid disconnected graph, by recursively deleting all children nodes
 
     def add_transition(self, tr: Transition):
         assert tr.source in self.G.nodes and tr.target in self.G.nodes

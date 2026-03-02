@@ -149,9 +149,6 @@ class RemoveTransition:
 class EditWorkflow:
     workflow: Workflow
 
-    # TODO: move __post_init__ validation to the graph logic
-    # TODO: Can old_workflow be added at the time of calling apply()
-
     def apply(self, g: GraphEventHandler):
         g.update_workflow(self.workflow)
 
@@ -159,10 +156,6 @@ class EditWorkflow:
 @dataclass(frozen=True)
 class EditTransition:
     transition: Transition
-
-    # Same as above:
-    # TODO: move __post_init__ validation to the graph logic
-    # TODO: Can old_transition be added at the time of calling apply()
 
     def apply(self, g: GraphEventHandler):
         g.update_workflow(self.transition)

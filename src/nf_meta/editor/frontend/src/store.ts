@@ -357,6 +357,13 @@ export const useGraphStore = defineStore('graph', () => {
             body: JSON.stringify({config: filename.value})
         }
         return await apiRequest(endpoint, options)
+            .then((response) => {
+                if (!response.ok) {
+                    messageStore.add(`Saveing failed: ${response.message}`, "error")
+                } else {
+                    messageStore.add("Saved", "success")
+                }
+            })
     }
 
     async function saveAs(filename: string) {

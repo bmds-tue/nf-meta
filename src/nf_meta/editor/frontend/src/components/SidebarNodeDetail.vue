@@ -37,10 +37,6 @@ function handleUpdatePipeline() {
   if(form.value.name && selectedPipeline.value?.description) {
     form.value.description = selectedPipeline.value.description
     form.value.url = selectedPipeline.value.url
-    console.log("Updating description and location automatically:", 
-      selectedPipeline.value.description,
-      selectedPipeline.value.url
-    )
   }
 }
 
@@ -79,6 +75,13 @@ function removeDetail() {
   editorStore.removeSidebarDetail(props.id)
 }
 
+function deleteNode() {
+  if (props.detailData?.id) {
+    graphStore.removeNodeById(props.detailData?.id)
+  }
+  editorStore.removeSidebarDetail(props.id)
+}
+
 function editDetail() {
   isEditing.value = true
   expandDetails()
@@ -91,11 +94,6 @@ function editDetail() {
   <div class="header">
     <b class="header-name"> {{ form.id || "Add New Workflow" }} </b>
     <div class="header-actions">
-      <v-btn 
-        @click.stop="editDetail"
-        icon="edit"
-        >
-      </v-btn>
       <v-btn 
         @click.stop="!isActive ? expandDetails() : collapseDetails()"
         :icon="isActive ? 'collapse' : 'expand'"
@@ -117,6 +115,13 @@ function editDetail() {
       <p v-show="!!form.description">
         Description: {{ form.description }}
       </p>
+      <v-btn 
+        @click.stop="editDetail"
+      >Edit</v-btn>
+      <v-btn
+        @click.stop="deleteNode"
+        color="error"
+      >Delete</v-btn>
   </div>
 
   <div v-show="isActive && isEditing" class="content">

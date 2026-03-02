@@ -48,7 +48,7 @@ class WorkflowAdded:
     workflow: Workflow
 
     def get_undo_cmd(self):
-        return RemoveWorkflow(self.workflow)
+        return RemoveWorkflow(self.workflow.id)
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ class TransitionAdded:
     transition: Transition
 
     def get_undo_cmd(self):
-        return RemoveTransition(self.transition)
+        return RemoveTransition(self.transition.id)
 
 
 @dataclass(frozen=True)

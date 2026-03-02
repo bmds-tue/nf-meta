@@ -40,7 +40,7 @@ class GraphEventHandler(Protocol):
 # ------------------------------------------
 
 class Event(Protocol):
-    def get_undo_cmd(self, graph: GraphEventHandler) -> "Command": ...
+    def get_undo_cmd(self) -> "Command": ...
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ class WorkflowAdded:
 class WorkflowRemoved:
     workflow: Workflow
 
-    def get_undo_cmd(self, graph: GraphEventHandler):
+    def get_undo_cmd(self):
         return AddWorkflow(self.workflow)
 
 
@@ -64,7 +64,7 @@ class WorkflowUpdated:
     new_workflow: Workflow
     old_workflow: Workflow
 
-    def get_undo_cmd(self, graph: GraphEventHandler):
+    def get_undo_cmd(self):
         return EditWorkflow(workflow=self.old_workflow)
 
 
@@ -72,7 +72,7 @@ class WorkflowUpdated:
 class TransitionAdded:
     transition: Transition
 
-    def get_undo_cmd(self, graph: GraphEventHandler):
+    def get_undo_cmd(self):
         return RemoveTransition(self.transition)
 
 
@@ -80,7 +80,7 @@ class TransitionAdded:
 class TransitionRemoved:
     transition: Transition
 
-    def get_undo_cmd(self, graph: GraphEventHandler):
+    def get_undo_cmd(self):
         return AddTransition(self.transition)
 
 
@@ -89,7 +89,7 @@ class TransitionUpdated:
     new_transition: Transition
     old_transition: Transition
 
-    def get_undo_cmd(self, graph: GraphEventHandler):
+    def get_undo_cmd(self):
         return EditTransition(transition=self.old_transition)
 
 

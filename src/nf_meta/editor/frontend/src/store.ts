@@ -215,7 +215,7 @@ export const useGraphStore = defineStore('graph', () => {
             return {
                 ok: false,
                 status: 0,
-                message: "Network error"
+                message: "Error while making request"
             }
         }
     }

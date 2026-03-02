@@ -92,7 +92,7 @@ function editDetail() {
 <template>
 <v-card class="workflow-node sidebar-detail" :class="{'workflow-node-nfcore': form.is_nfcore}">
   <div class="header">
-    <b class="header-name"> {{ form.id || "Add New Workflow" }} </b>
+    <b class="header-name"> {{ form?.name ? `${form.name}:${form.version}` : "Add New Workflow" }} </b>
     <div class="header-actions">
       <v-btn 
         @click.stop="!isActive ? expandDetails() : collapseDetails()"
@@ -108,7 +108,6 @@ function editDetail() {
   </div>
 
   <div v-show="isActive && !isEditing" class="content">
-      <p>ID: {{ form.id }}</p>
       <p>Name: {{ form.name }} </p>
       <p>Pipeline Location: {{ form.url }}</p>
       <p>Version: {{ form.version }}</p>

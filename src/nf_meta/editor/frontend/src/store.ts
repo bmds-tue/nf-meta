@@ -221,7 +221,7 @@ export const useGraphStore = defineStore('graph', () => {
         })
 
         if (!result.ok) {
-            messageStore.add("Delete failed: ", result.message)
+            messageStore.add(`Delete failed: ${result.message}`, "error")
         } else {
             await getAndUpdateGraph()
         }
@@ -251,7 +251,7 @@ export const useGraphStore = defineStore('graph', () => {
             })
     }
 
-    function saveEdge(edgeData: APIEdgeData) {
+    async function saveEdge(edgeData: APIEdgeData) {
         const endpoint = edgeData?.id ? '/api/edge/update/' : '/api/edge/add/'
         return addOrUpdate<APIEdgeData>(endpoint, edgeData)
     }
@@ -261,21 +261,17 @@ export const useGraphStore = defineStore('graph', () => {
         return await addOrUpdate<APINodeData>(endpoint, nodeData)
     }
 
-    // TODO: Rework Removes to always handle lists of ids
-    function removeEdge(edgeData: APIEdgeData) {
-        const endpoint = '/api/edge/' // TODO: Doesn't exist anymore
-        return remove<APIEdgeData>(endpoint, edgeData)
+    async function removeEdgeById(edgeId: string) {
+        await removeSelectionById({edges: [edgeId], nodes: []})
     }
 
-    function removeNodeById(nodeId: string) {
-        const endpoint = '/api/node/' // TODO: Doesn't exist anymore
-        return remove<any>(endpoint, {id: nodeId})
+    async function removeNodeById(nodeId: string) {
+        await removeSelectionById({edges: [], nodes: [nodeId]})
     }
 
-    function removeSelectionById(selection: Selection) {
-        for (let nodeId of selection.nodes) {
-            // TODO
-        }
+    async function removeSelectionById(selection: Selection) {
+        const endpoint = "/api/delete/"
+        return await remove(endpoint, selection)
     }
 
     return {
@@ -283,7 +279,7 @@ export const useGraphStore = defineStore('graph', () => {
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
         saveNode, saveEdge,
-        removeSelectionById
+        removeSelectionById, removeNodeById, removeEdgeById
     } 
 })
 

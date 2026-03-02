@@ -1,6 +1,7 @@
 import os
+from typing import Annotated
 
-from .serializers import serialize_graph, Selection
+from .serializers import serialize_state, Selection
 
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
@@ -10,7 +11,7 @@ from nf_meta.engine.events import (AddTransition, AddWorkflow,
                                     EditWorkflow, EditTransition,
                                     Transaction)
 
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pathlib import Path
@@ -38,19 +39,19 @@ def serve_ui():
 
 @api_router.get("/graph/")
 def get_graph():
-    return serialize_graph(SESSION.graph)
+    return serialize_state(SESSION)
 
 
 @api_router.post("/graph/save/")
-def save_graph(config: Path):
+def save_graph(config: Path = Body(embed=True)):
     SESSION.save_to_config(config)
-    return serialize_graph(SESSION.graph)
+    return JSONResponse(dict())
 
 
 @api_router.post("/graph/load/")
 def load_graph(config: Path):
     SESSION.load_config(config)
-    return serialize_graph(SESSION.graph)
+    return serialize_state(SESSION.graph)
 
 
 @api_router.post("/node/add/")
@@ -68,6 +69,9 @@ def update_node(wf: Workflow):
 @api_router.delete("/delete/")
 def remove_node(selection: Selection):
     cmds = []
+    for edge_id in selection.edges:
+        cmds.append(RemoveTransition(edge_id))
+
     for node_id in selection.nodes:
         cmds.append(RemoveWorkflow(node_id))
 

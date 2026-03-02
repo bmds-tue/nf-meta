@@ -6,6 +6,12 @@ class History:
         self.undo_stack: list[tuple[Event]] = []
         self.redo_stack: list[tuple[Event]] = []
 
+    def undoable(self):
+        return len(self.undo_stack) > 0
+    
+    def redoable(self):
+        return len(self.redo_stack) > 0
+
     def execute(self, command: Command, graph: GraphEventHandler) -> tuple[Event]:
         command.apply(graph)
         events = graph.pop_events()

@@ -1,4 +1,5 @@
-from nf_meta.engine.graph import MetaworkflowGraph
+from pathlib import Path
+from nf_meta.engine.session import EditorSession
 from nf_meta.engine.models import Workflow, Transition
 
 from nf_meta.engine.events import Event
@@ -11,12 +12,14 @@ class Selection(BaseModel):
     nodes: list[str]
 
 
-def serialize_graph(g: MetaworkflowGraph) -> dict:
-    cfg = g.to_config()
+def serialize_state(session: EditorSession) -> dict:
+    cfg = session.graph.to_config()
     d = {
+        "filename": session.config_file or "",
+        "undoable": session.history.undoable(),
+        "redoable": session.history.redoable(),
         "nodes": cfg.workflows,
         "transitions": cfg.transitions
-        # TODO: Add global extra config
     }
     return d
 

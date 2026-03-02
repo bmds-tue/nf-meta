@@ -16,10 +16,8 @@ CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
 
 
-def get_or_create_id(value: Optional[str]):
-    if value:
-        return value
-    return str(uuid.uuid4())
+def create_id():
+    return str(uuid.uuid4())[:8]
 
 
 class Position(BaseModel):
@@ -32,18 +30,13 @@ class Workflow(BaseModel):
     Workflow representation for internal use 
     """
 
-    id: Optional[str] = Field(default=None)
+    id: str = Field(default_factory=create_id)
     name: str
     version: str
     url: Optional[str] = None
     description: Optional[str] = None
     is_nfcore: Optional[bool] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
-
-    @field_validator("id", mode="after")
-    @classmethod
-    def init_id(cls, value):
-        return get_or_create_id(value)
 
     @model_validator(mode="after")
     def is_nfcore_workflow(self):
@@ -82,18 +75,13 @@ class WorkflowOptions(BaseModel):
 
 
 class Transition(BaseModel):
-    id: Optional[str] = Field(default=None)
+    id: str = Field(default_factory=create_id)
     target: str
     source: str
     params_file: Optional[Path] = Field(default=None, alias="params-file")
     config_file: Optional[Path] = Field(default=None, alias="config-file")
     adapter: Optional[str] = None
     params: Optional[List[Dict[str, Any]]] = None
-
-    @field_validator("id", mode="after")
-    @classmethod
-    def init_id(cls, value):
-        return get_or_create_id(value)
 
     def model_dump_display(self) -> dict:
         return self.model_dump(exclude_none=False)

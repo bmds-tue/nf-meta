@@ -297,9 +297,39 @@ export const useGraphStore = defineStore('graph', () => {
         return await remove(endpoint, selection)
     }
 
-    async function undo() {}
+    async function undo() {
+        if (!undoable.value) {
+            console.warn("Undo not possible")
+            return
+        }
+        const endpoint = "/api/graph/undo/"
+        const options = { method: "GET" }
+        await apiRequest(endpoint, options)
+            .then((response) => {
+                if (!response.ok) {
+                    messageStore.add(`Undo failed: ${response.message}`, "error")
+                    return
+                }
+                getAndUpdateGraph() 
+            })
+    }
 
-    async function redo() {}
+    async function redo() {
+        if (!redoable.value) {
+            console.warn("Redo not possible")
+            return
+        }
+        const endpoint = "/api/graph/redo/"
+        const options = { method: "GET" }
+        await apiRequest(endpoint, options)
+            .then((response) => {
+                if (!response.ok) {
+                    messageStore.add(`Redo failed: ${response.message}`, "error")
+                    return
+                }
+                getAndUpdateGraph() 
+            })
+    }
 
     async function save() {
         if (!filename.value) {

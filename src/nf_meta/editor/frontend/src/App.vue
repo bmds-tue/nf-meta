@@ -59,6 +59,14 @@ const onSave = () => {
   }
 }
 
+const onUndo = () => {
+  graphStore.undo()
+}
+
+const onRedo = () => {
+  graphStore.redo()
+}
+
 onMounted(async () => {
   console.log("[INFO] Updating graph")
   graphStore.getAndUpdateGraph()
@@ -75,28 +83,28 @@ onMounted(async () => {
           <h1>MetaFlow v2</h1>
         <v-btn 
           title="add a workflow node" 
-          @click=onAddNodeClick
           icon="add"
-          >
+          @click=onAddNodeClick>
         </v-btn>
         
         <v-btn 
           title="save to file"
           icon="save"
-          @click="onSave"
-          >
+          @click="onSave">
         </v-btn>
 
         <v-btn
           title="undo last operation"
           :disabled="!graphStore.undoable"
-          icon="undo">
+          icon="undo"
+          @click="onUndo">
         </v-btn>
 
         <v-btn 
           title="redo last operations"
           :disabled="!graphStore.redoable" 
-          icon="redo">
+          icon="redo"
+          @click="onRedo">
         </v-btn>
 
         <v-btn

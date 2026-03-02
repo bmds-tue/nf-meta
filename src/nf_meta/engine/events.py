@@ -142,7 +142,7 @@ class RemoveTransition:
     transition_id: str
 
     def apply(self, g: GraphEventHandler):
-        g.remove_workflow(self.transition_id)
+        g.remove_transition(self.transition_id)
 
 
 @dataclass(frozen=True)

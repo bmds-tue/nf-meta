@@ -49,9 +49,9 @@ def save_graph(config: Path = Body(embed=True)):
 
 
 @api_router.post("/graph/load/")
-def load_graph(config: Path):
+def load_graph(config: Path = Body(embed=True)):
     SESSION.load_config(config)
-    return serialize_state(SESSION.graph)
+    return JSONResponse(dict())
 
 
 @api_router.get("/graph/undo/")

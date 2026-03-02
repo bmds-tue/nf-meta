@@ -4,10 +4,11 @@ from .serializers import serialize_graph, Selection
 
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
-from nf_meta.engine.models import Workflow, Transition, Transaction
+from nf_meta.engine.models import Workflow, Transition
 from nf_meta.engine.events import (AddTransition, AddWorkflow, 
                                     RemoveWorkflow, RemoveTransition,
-                                    EditWorkflow, EditTransition)
+                                    EditWorkflow, EditTransition,
+                                    Transaction)
 
 from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles

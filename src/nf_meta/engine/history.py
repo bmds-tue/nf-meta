@@ -28,7 +28,7 @@ class History:
     def undo(self, graph: GraphEventHandler) -> tuple[Event]:
         events = self.undo_stack.pop()
         undo = self._get_inverse_command(events)
-        undo.apply()
+        undo.apply(graph)
         new_events = graph.pop_events()
         self.redo_stack.append(new_events)
         return new_events
@@ -36,7 +36,7 @@ class History:
     def redo(self, graph: GraphEventHandler) -> tuple[Event]:
         events = self.redo_stack.pop()
         redo = self._get_inverse_command(events)
-        redo.apply()
+        redo.apply(graph)
         new_events = graph.pop_events()
         self.undo_stack.append(new_events)
         return new_events

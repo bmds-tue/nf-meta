@@ -11,6 +11,7 @@ import { useEditorStore, useGraphStore } from './store'
 import type { APINodeData } from './types'
 import { useEditorHotkeys } from './hotkeys'
 import SaveDialog from './components/SaveDialog.vue'
+import LoadDialog from './components/LoadDialog.vue'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -149,6 +150,7 @@ onMounted(async () => {
   
       <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
     </div>
+    <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>
     <Snackbar></Snackbar>
     <Footer class="footer"></Footer>

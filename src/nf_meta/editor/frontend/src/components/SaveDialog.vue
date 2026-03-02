@@ -51,7 +51,7 @@ function cancel() {
                 v-model="filename"
                 :error-messages="errorMessages"
                 autofocus
-            />
+                variant="outlined"/>
         </v-card-text>
 
         <v-card-actions>

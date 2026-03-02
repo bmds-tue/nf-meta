@@ -45,7 +45,20 @@ export const useEditorStore = defineStore("editor", () => {
     const _saveDialogOpen = ref<boolean>(false)
     const saveDialogOpen = computed(() => _saveDialogOpen.value)
 
+    const _loadDialogOpen = ref<boolean>(false)
+    const loadDialogOpen = computed(() => _loadDialogOpen.value)
+
+    function openLoadDialog() {
+        closeSaveDialog()
+        _loadDialogOpen.value = true
+    }
+
+    function closeLoadDialog() {
+        _loadDialogOpen.value = false
+    }
+
     function openSaveDialog() {
+        closeLoadDialog()
         _saveDialogOpen.value = true
     }
 
@@ -105,7 +118,8 @@ export const useEditorStore = defineStore("editor", () => {
         sideBarActiveDetailId, setActiveSidebarDetailId,
         sideBarNodes, addNodeToSideBar,
         removeSidebarDetail, collapseSidebarDetail,
-        saveDialogOpen, openSaveDialog, closeSaveDialog
+        saveDialogOpen, openSaveDialog, closeSaveDialog,
+        loadDialogOpen, openLoadDialog, closeLoadDialog
     }
 })
 
@@ -350,14 +364,34 @@ export const useGraphStore = defineStore('graph', () => {
         save()
     }
 
+    async function loadConfig(filename: string) {
+        const endpoint = "/api/graph/load/"
+        const options = {
+            method: "POST",
+            body: JSON.stringify({config: filename})
+        }
+        return await apiRequest(endpoint, options)
+            .then((response) => {
+                if (!response.ok) {
+                    messageStore.add(`Loading config failed: ${response.message}`, "error")
+                    return
+                }
+                getAndUpdateGraph()
+                    .then(() => {
+                        if (response.ok) {
+                            messageStore.add(`Config Loaded`, "success")
+                        }})
+            })
+    }
+
     return {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
         saveNode, saveEdge,
         removeSelectionById, removeNodeById, removeEdgeById,
-        undo, redo, save, saveAs, filename,
-        redoable, undoable
+        undo, redo, redoable, undoable, 
+        loadConfig, save, saveAs, filename,
     } 
 })
 

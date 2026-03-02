@@ -18,12 +18,10 @@ export function useEditorHotkeys() {
   useHotkey('backspace', deleteSelection)
 
   useHotkey('meta+z', () => {
-    console.log("UNDO pressed!")
     graphStore.undo()
   })
 
   useHotkey('meta+shift+z', () => {
-    console.log("REDO pressed!")
     graphStore.redo()
   })
 
@@ -37,5 +35,10 @@ export function useEditorHotkeys() {
 
   useHotkey('meta+shift+s', (e) => {
     editorStore.openSaveDialog()
+  })
+
+  useHotkey('meta+o', (e) => {
+    console.log("OPEN pressed")
+    editorStore.openLoadDialog()
   })
 }

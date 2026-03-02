@@ -60,8 +60,7 @@ def add_node(wf: Workflow):
 
 @api_router.post("/node/update/")
 def update_node(wf: Workflow):
-    # TODO: Rework EditWorkflow, EditTransition apply()
-    #SESSION.handle_command(EditWorkflow(wf))
+    SESSION.handle_command(EditWorkflow(workflow=wf))
     return JSONResponse(dict())
 
 
@@ -83,8 +82,7 @@ def add_edge(tr: Transition):
 
 @api_router.post("/edge/update/")
 def update_edge(tr: Transition):
-    # TODO: Rework EditWorkflow, EditTransition apply()
-    # SESSION.handle_command(EditTransition(tr))
+    SESSION.handle_command(EditTransition(transition=tr))
     return JSONResponse(dict())
 
 

@@ -6,7 +6,7 @@ from nf_meta.engine.events import Event
 from pydantic import BaseModel
 
 
-def Selection(BaseMode):
+class Selection(BaseModel):
     edges: list[str]
     nodes: list[str]
 

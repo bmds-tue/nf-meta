@@ -9,11 +9,12 @@ import Footer from './components/Footer.vue'
 import Snackbar from './components/Snackbar.vue'
 import { useEditorStore, useGraphStore } from './store'
 import type { APINodeData } from './types'
+import { useEditorHotkeys } from './hotkeys'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
-const { fitView } = useVueFlow()
+const { fitView } = useVueFlow({id: "main-flow"})
 
 const toggleSidebarAndfitView = async function() {
   editorStore.toggleSidebar()
@@ -52,6 +53,8 @@ const onConnected = (conn: Connection) => {
 onMounted(async () => {
   console.log("[INFO] Updating graph")
   graphStore.getAndUpdateGraph()
+  // TODO: Where does this have to go? Produces warnings
+  useEditorHotkeys()
 })
 
 </script>
@@ -107,12 +110,14 @@ onMounted(async () => {
 
     <div class="split-view">
       <VueFlow 
+        id="main-flow"
         class="vueflow-graph"
         :nodes="graphStore.nodes" 
         :edges="graphStore.edges" 
         :connection-mode="ConnectionMode.Loose"
         @connect=onConnected
         @node-double-click=onNodeDbClick
+        :delete-key-code="null"
         fit-view-on-init>
         <Background />
         

@@ -90,7 +90,7 @@ function editDetail() {
 </script>
 
 <template>
-<v-card class="workflow-node sidebar-detail" :class="{'workflow-node-nfcore': form.is_nfcore}">
+<v-card class="workflow-node" :class="{'workflow-node-nfcore': form.is_nfcore}">
   <v-card-title class="d-flex justify-space-between w-100">
     <div class="d-flex flex-grow flex-shrink" style="min-width: 0;">
       <strong class="text-truncate mr-2"> 
@@ -213,7 +213,4 @@ function editDetail() {
 </template>
 
 <style scoped>
-.sidebar-detail {
-  margin: 20px 5px 20px 5px;
-}
 </style>

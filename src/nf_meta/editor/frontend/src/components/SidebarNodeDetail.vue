@@ -90,7 +90,7 @@ function editDetail() {
 </script>
 
 <template>
-<v-card class="workflow-node" :class="{'workflow-node-nfcore': form.is_nfcore}">
+<v-card class="workflow-node mb-2 mt-2" :class="{'workflow-node-nfcore': form.is_nfcore}">
   <v-card-title class="d-flex justify-space-between w-100">
     <div class="d-flex flex-grow flex-shrink" style="min-width: 0;">
       <strong class="text-truncate mr-2"> 

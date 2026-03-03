@@ -216,11 +216,4 @@ function editDetail() {
 .sidebar-detail {
   margin: 20px 5px 20px 5px;
 }
-.header button {
-  color: rgb(var(--v-theme-onSurface));
-  width: 24px; 
-  height: 24px;
-  padding: 2px;
-  border-radius: 8px;
-}
 </style>

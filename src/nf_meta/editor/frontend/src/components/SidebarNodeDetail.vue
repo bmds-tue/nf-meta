@@ -91,39 +91,52 @@ function editDetail() {
 
 <template>
 <v-card class="workflow-node sidebar-detail" :class="{'workflow-node-nfcore': form.is_nfcore}">
-  <div class="header">
-    <b class="header-name"> {{ form?.name ? `${form.name}:${form.version}` : "Add New Workflow" }} </b>
-    <div class="header-actions">
+  <v-card-title class="d-flex justify-space-between w-100">
+    <div class="d-flex flex-grow flex-shrink" style="min-width: 0;">
+      <strong class="text-truncate mr-2"> 
+        {{ form.name ?? "Add New Workflow" }}
+      </strong>
+      <v-chip v-if="form.version" size="small">{{ form.version }}</v-chip>
+    </div>
+    <div class="">
       <v-btn 
         @click.stop="!isActive ? expandDetails() : collapseDetails()"
         :icon="isActive ? 'collapse' : 'expand'"
-        >
+        height="30"
+        width="30"
+        class="ml-1"
+      >
       </v-btn>
       <v-btn 
         @click.stop="removeDetail"
         icon="close"
+        height="30"
+        width="30"
+        class="ml-1"
         >
       </v-btn>
     </div>
-  </div>
+  </v-card-title>
 
-  <div v-show="isActive && !isEditing" class="content">
-      <p>Name: {{ form.name }} </p>
-      <p>Pipeline Location: {{ form.url }}</p>
-      <p>Version: {{ form.version }}</p>
-      <p v-show="!!form.description">
-        Description: {{ form.description }}
-      </p>
+  <v-card-text v-show="isActive && !isEditing" class="content">
+    <strong v-show="!!form.description">
+      Description: {{ form.description }}
+    </strong>
+    <p>Pipeline Location: <a :href="form.url" target="_blank"> {{ form.url }} </a></p>
+    <v-card-actions>
       <v-btn 
-        @click.stop="editDetail"
-      >Edit</v-btn>
+        @click.stop="editDetail"> 
+        Edit 
+      </v-btn>
       <v-btn
         @click.stop="deleteNode"
-        color="error"
-      >Delete</v-btn>
-  </div>
+        color="error"> 
+        Delete
+      </v-btn>
+    </v-card-actions>
+  </v-card-text>
 
-  <div v-show="isActive && isEditing" class="content">
+  <v-card-text v-show="isActive && isEditing" class="content">
     <v-form @submit.prevent="submitForm">
       <v-container>
         <input
@@ -180,19 +193,21 @@ function editDetail() {
         :readonly="form.is_nfcore">
       </v-textarea>
 
-      <v-btn
-        class="me-4"
-        type="submit"
-      >
-        save changes
-      </v-btn>
-
-      <v-btn @click="handleReset">
-        cancel edit
-      </v-btn>
-
+      <v-card-actions>
+        <v-btn
+          class="me-4"
+          type="submit">
+          save changes
+        </v-btn>
+  
+        <v-btn 
+          @click="handleReset"
+          color="error">
+          cancel edit
+        </v-btn>
+      </v-card-actions>
     </v-form>
-  </div> 
+  </v-card-text> 
 
 </v-card>
 </template>
@@ -200,15 +215,6 @@ function editDetail() {
 <style scoped>
 .sidebar-detail {
   margin: 20px 5px 20px 5px;
-}
-
-.header {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-}
-.header-actions {
-  flex-wrap: nowrap;
 }
 .header button {
   color: rgb(var(--v-theme-onSurface));

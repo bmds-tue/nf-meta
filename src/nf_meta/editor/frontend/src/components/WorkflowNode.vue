@@ -20,7 +20,14 @@ const horizLayout = computed(() => {
             type="target" 
             :position="targetPosition"
             />
-        <strong>{{ data.name }}</strong> <v-chip v-if="data.version">{{ data.version }}</v-chip>
+        <strong>
+            {{ data.name }}
+        </strong> 
+        <v-chip 
+            v-if="data.version" 
+            class="ml-2">
+            {{ data.version }}
+        </v-chip>
     <Handle class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout}"
             type="source" 

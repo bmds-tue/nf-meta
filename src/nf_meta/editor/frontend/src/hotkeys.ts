@@ -25,7 +25,7 @@ export function useEditorHotkeys() {
     graphStore.redo()
   })
 
-  useHotkey('meta+s', (e) => {
+  useHotkey('meta+s', () => {
     if (!graphStore.filename) {
       editorStore.openSaveDialog()
     } else {
@@ -33,11 +33,11 @@ export function useEditorHotkeys() {
     }
   })
 
-  useHotkey('meta+shift+s', (e) => {
+  useHotkey('meta+shift+s', () => {
     editorStore.openSaveDialog()
   })
 
-  useHotkey('meta+o', (e) => {
+  useHotkey('meta+o', () => {
     console.log("OPEN pressed")
     editorStore.openLoadDialog()
   })

@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator, ValidationInfo
 import yaml
 
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
@@ -35,23 +35,54 @@ class Workflow(BaseModel):
     version: str
     url: Optional[str] = None
     description: Optional[str] = None
-    is_nfcore: Optional[bool] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
 
-    @model_validator(mode="after")
-    def is_nfcore_workflow(self):
+    @computed_field
+    @property
+    def is_nfcore(self) -> bool:
         nfcore_pipelines = get_nfcore_pipelines()
-        nfcore_wf_info = list(filter(lambda wf: wf.get("name") == self.name, nfcore_pipelines))
-        self.is_nfcore = bool(len(nfcore_wf_info))
+        return any(p.get("name") == self.name for p in nfcore_pipelines)
 
-        if self.is_nfcore:
-            nfcore_wf_info = nfcore_wf_info[0]
+    @classmethod
+    def get_nfcore_info(cls, name: str) -> Optional[dict]:
+        nfcore_pipelines = get_nfcore_pipelines()
+        nfcore_info = next(
+            (wf for wf in nfcore_pipelines if wf.get("name") == name),
+            None)
+        return nfcore_info
+
+    @field_validator("url", mode="after")
+    @classmethod
+    def validate_url(cls, value: Optional[str], info: ValidationInfo):
+        name = info.data.get("name")
+        if not name:
+            return value
+        
+        nfcore_wf_info = cls.get_nfcore_info(name)
+        is_nfcore = bool(nfcore_wf_info)
+
+        if not value:
+            if not is_nfcore:
+                raise ValueError("Workflows from outside nf-core must specify a repository!") 
+            return nfcore_wf_info.get("url")
+        
+        if is_nfcore and value != nfcore_wf_info.get("url"):
+            raise ValueError("Nf-core workflow referenced, but url does not match!")
+        
+        # TODO: Actually check the url!?
+
+        return value
+
+    @model_validator(mode="after")
+    def populate_nfcore_fields(self):
+        nfcore_wf_info = self.get_nfcore_info(self.name)
+        is_nfcore = bool(nfcore_wf_info)
+
+        if is_nfcore:
             self.description = nfcore_wf_info.get("description", "")
-        else:
-            logger.warning(f"Potentially uncompatible workflow, not officially supported by nf-core: {self.name}")
-
-            if not self.url:
-                raise ValueError(f"No `url` specified for '{self.name}'. Workflows from outside nf-core must specify a repository!")
+            nfcore_url = nfcore_wf_info.get("url")
+            if self.url is not None and self.url != nfcore_url:
+                raise 
         
         return self
 

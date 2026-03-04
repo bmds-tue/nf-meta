@@ -69,6 +69,10 @@ class Workflow(BaseModel):
         if is_nfcore and value != nfcore_wf_info.get("url"):
             raise ValueError("Nf-core workflow referenced, but url does not match!")
         
+        if (not is_nfcore 
+            and not value.startswith("http")):
+            raise ValueError("Url should start with https://")
+
         if not is_nfcore and not url_exists(value):
             raise ValueError("Invalid or inaccessible pipeline url")
 

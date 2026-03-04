@@ -103,14 +103,10 @@ export const useEditorStore = defineStore("editor", () => {
     }
 
     function collapseSidebarDetail(id: number) {
-        console.log("Trying to collapse Sidebar detail with id:", id)
-        console.log("All SidebarDetails: ", sideBarNodes.value)
-        console.log("ACTIVE:", _sideBarActiveDetailId.value, sideBarActiveDetailId.value)
         if (id == _sideBarActiveDetailId.value) {
             console.log("Active Status changing!")
             _sideBarActiveDetailId.value = 0            
         }
-        console.log("ACTIVE:", _sideBarActiveDetailId.value, sideBarActiveDetailId.value)
     }
 
     return {
@@ -195,17 +191,10 @@ export const useGraphStore = defineStore('graph', () => {
 
     async function apiRequest<T>(endpoint: string, options: RequestInit): Promise<ApiResult<T>> {
         try {
-            console.log("graphStore:apiRequest: Before request")
             const response = await fetch(endpoint, { headers: { 'Content-Type': 'application/json' }, ...options})
             const data = await response.json()
-
-            console.log("graphStore:apiRequest: After request")
-
             if (!response.ok) {
-                console.log("graphStore:apiRequest: Error Response received")
-
                 if (response.status === 422 && data.detail) {
-                    console.log("graphStore:apiRequest: 422 HTTP Error")
                     return {
                         ok: false,
                         status: 422,
@@ -224,8 +213,6 @@ export const useGraphStore = defineStore('graph', () => {
             return { ok: true, data: data }
 
         } catch (err) {
-            console.log("graphStore:apiRequest: Handling Error while making request during request")
-
             return {
                 ok: false,
                 status: 0,
@@ -241,7 +228,10 @@ export const useGraphStore = defineStore('graph', () => {
         })
 
         if (!result.ok) {
-            messageStore.add(result.message, "error")
+            // Validation erros can be printed right in the form
+            if (result.status != 422) {
+                messageStore.add(result.message, "error")
+            }
         } else {
             await getAndUpdateGraph()
         }
@@ -359,7 +349,7 @@ export const useGraphStore = defineStore('graph', () => {
         return await apiRequest(endpoint, options)
             .then((response) => {
                 if (!response.ok) {
-                    messageStore.add(`Saveing failed: ${response.message}`, "error")
+                    messageStore.add(`Saving failed: ${response.message}`, "error")
                 } else {
                     messageStore.add("Saved", "success")
                 }

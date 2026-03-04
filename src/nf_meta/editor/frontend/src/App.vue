@@ -60,6 +60,10 @@ const onSave = () => {
   }
 }
 
+const onOpen = () => {
+  editorStore.openLoadDialog()
+}
+
 const onUndo = () => {
   graphStore.undo()
 }
@@ -92,6 +96,12 @@ onMounted(async () => {
           title="save to file"
           icon="save"
           @click="onSave">
+        </v-btn>
+
+        <v-btn
+          title="open from file"
+          icon="open"
+          @click="onOpen">
         </v-btn>
 
         <v-btn

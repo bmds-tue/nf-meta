@@ -49,6 +49,13 @@ defineProps({
     <path d="M5 19h14v2H5z" fill="currentColor"/>
   </svg>
 
+  <svg v-else-if="name === 'open'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <g transform="rotate(180 12 10)">
+      <path d="M11 3h2v10l3.5-3.5 1.4 1.4L12 17.8 6.1 10.9l1.4-1.4L11 13z" fill="currentColor"/>
+    </g>
+    <path d="M5 19h14v2H5z" fill="currentColor"/>
+  </svg>
+
   <svg v-else-if="name === 'options'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <circle cx="6" cy="12" r="2" fill="currentColor"/>
     <circle cx="12" cy="12" r="2" fill="currentColor"/>

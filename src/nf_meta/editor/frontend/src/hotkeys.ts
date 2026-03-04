@@ -38,7 +38,6 @@ export function useEditorHotkeys() {
   })
 
   useHotkey('meta+o', () => {
-    console.log("OPEN pressed")
     editorStore.openLoadDialog()
   })
 }

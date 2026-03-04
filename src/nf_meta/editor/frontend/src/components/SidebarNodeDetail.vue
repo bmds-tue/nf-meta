@@ -119,10 +119,22 @@ function editDetail() {
   </v-card-title>
 
   <v-card-text v-show="isActive && !isEditing" class="content">
-    <strong v-show="!!form.description">
-      Description: {{ form.description }}
-    </strong>
-    <p>Pipeline Location: <a :href="form.url" target="_blank"> {{ form.url }} </a></p>
+    <div class="d-flex flex-row align-center">
+      Pipeline Location:
+      <v-btn
+        :href="form.url"
+        target="_blank"
+        variant="text"
+        append-icon="mdi-open-in-new"
+        class="text-none text-truncate">
+        {{ form.url }} 
+      </v-btn>
+    </div>
+    <p>
+      <strong v-show="!!form.description">
+        Description: {{ form.description }}
+      </strong>
+    </p>
     <v-card-actions>
       <v-btn 
         @click.stop="editDetail"> 

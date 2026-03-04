@@ -8,7 +8,7 @@ import uuid
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator, ValidationInfo
 import yaml
 
-from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
+from nf_meta.engine.nf_core_utils import get_nfcore_pipelines, url_exists
 
 logger = logging.getLogger()
 
@@ -69,7 +69,8 @@ class Workflow(BaseModel):
         if is_nfcore and value != nfcore_wf_info.get("url"):
             raise ValueError("Nf-core workflow referenced, but url does not match!")
         
-        # TODO: Actually check the url!?
+        if not is_nfcore and not url_exists(value):
+            raise ValueError("Invalid or inaccessible pipeline url")
 
         return value
 

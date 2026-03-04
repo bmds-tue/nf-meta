@@ -49,7 +49,37 @@ def get_nfcore_pipelines() -> list[dict]:
         repos = response.json()["remote_workflows"]
         return [{
                 "name": p.get("full_name", ""),
-                "location": p.get("url", ""),
+                "url": p.get("url", ""),
                 "description": p.get("description", ""),
                 "releases": p.get("releases", [])
             } for p in repos]
+
+@functools.cache
+def url_exists(url: str, timeout: float=10) -> bool:
+    """
+    Check whether a URL exists by making a lightweight HTTP request.
+
+    Uses HEAD when possible. Falls back to GET if HEAD is not allowed.
+    Results are cached for performance.
+    """
+    try:
+        # Try HEAD first (fast, no body download)
+        response = requests.head(
+            url,
+            allow_redirects=True,
+            timeout=timeout,
+        )
+
+        # Some servers don't support HEAD properly
+        if response.status_code == 405:
+            response = requests.get(
+                url,
+                stream=True,
+                allow_redirects=True,
+                timeout=timeout,
+            )
+
+        return 200 <= response.status_code < 400
+
+    except requests.RequestException:
+        return False

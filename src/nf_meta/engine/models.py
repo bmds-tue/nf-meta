@@ -80,9 +80,7 @@ class Workflow(BaseModel):
 
         if is_nfcore:
             self.description = nfcore_wf_info.get("description", "")
-            nfcore_url = nfcore_wf_info.get("url")
-            if self.url is not None and self.url != nfcore_url:
-                raise 
+            self.url = nfcore_wf_info.get("url")
         
         return self
 

@@ -101,7 +101,7 @@ function editDetail() {
     <div class="">
       <v-btn 
         @click.stop="!isActive ? expandDetails() : collapseDetails()"
-        :icon="isActive ? 'collapse' : 'expand'"
+        :icon="isActive ? 'mdi-chevron-up' : 'mdi-chevron-down'"
         height="30"
         width="30"
         class="ml-1"
@@ -109,7 +109,7 @@ function editDetail() {
       </v-btn>
       <v-btn 
         @click.stop="removeDetail"
-        icon="close"
+        icon="mdi-close"
         height="30"
         width="30"
         class="ml-1"
@@ -150,14 +150,10 @@ function editDetail() {
 
   <v-card-text v-show="isActive && isEditing" class="content">
     <v-form @submit.prevent="submitForm">
-      <v-container>
-        <input
-          id="is-nfcore-cb" 
-          type="checkbox"
-          v-model="form.is_nfcore" />
-        <label for="is-nfcore-cb">nf-core pipeline</label>
-      </v-container>
-
+      <v-checkbox
+        label="nf-core pipeline" 
+        v-model="form.is_nfcore">
+      </v-checkbox>
       <v-text-field
         v-if="!form.is_nfcore"
         v-model="form.name"

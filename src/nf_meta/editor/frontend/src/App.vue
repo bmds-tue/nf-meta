@@ -88,40 +88,40 @@ onMounted(async () => {
           <h1>MetaFlow v2</h1>
         <v-btn 
           title="add a workflow node" 
-          icon="add"
+          icon="mdi-plus"
           @click=onAddNodeClick>
         </v-btn>
         
         <v-btn 
           title="save to file"
-          icon="save"
+          icon="mdi-content-save"
           @click="onSave">
         </v-btn>
 
         <v-btn
           title="open from file"
-          icon="open"
+          icon="mdi-upload"
           @click="onOpen">
         </v-btn>
 
         <v-btn
           title="undo last operation"
           :disabled="!graphStore.undoable"
-          icon="undo"
+          icon="mdi-undo"
           @click="onUndo">
         </v-btn>
 
         <v-btn 
           title="redo last operations"
           :disabled="!graphStore.redoable" 
-          icon="redo"
+          icon="mdi-redo"
           @click="onRedo">
         </v-btn>
 
         <v-btn
           :title="graphStore.isHorizontalLayout ? 'set vertical layout' : 'set horizontal layout'" 
           @click="toggleLayoutAndFitView"
-          :icon="graphStore.isHorizontalLayout ? 'vertical' : 'horizontal'">
+          :icon="graphStore.isHorizontalLayout ? 'mdi-arrow-up-down' : 'mdi-arrow-left-right'">
         </v-btn>
 
         <v-btn 
@@ -129,12 +129,12 @@ onMounted(async () => {
           :active="editorStore.sideBarOpen"
           active-color="primarySoft"
           @click="toggleSidebarAndfitView"
-          icon="split">
+          icon="mdi-view-split-vertical">
         </v-btn>
 
         <v-btn 
           title="editor options"
-          icon="options">
+          icon="mdi-dots-horizontal">
         </v-btn>
       </v-container>
     </Panel>

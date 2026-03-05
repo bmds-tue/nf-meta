@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre'
-import { Position, useVueFlow, type Node, type Edge } from '@vue-flow/core'
+import { Position, useVueFlow, type Node, type Edge, type GraphEdge } from '@vue-flow/core'
 import { ref } from 'vue'
-import type { APINodeData } from './types'
+import type { APINodeData, APIEdgeData } from './types'
 
 
 export function useLayout() {
@@ -16,7 +16,8 @@ export function useLayout() {
   const previousDirection = ref(layoutOptions.horizontal)
 
 
-  function layout(nodes: Node<APINodeData>[], edges: Edge[], direction: string) {
+  function layout(nodes: Node<APINodeData>[], edges: GraphEdge<APIEdgeData>[], direction: string): Node<APINodeData>[] {
+    console.log("[INFO] Calculating node layout")
     // we create a new graph instance, in case some nodes/edges were removed, otherwise dagre would act as if they were still there
     const dagreGraph = new dagre.graphlib.Graph()
 
@@ -33,7 +34,7 @@ export function useLayout() {
       // if you need width+height of nodes for your layout, you can use the dimensions property of the internal node (`GraphNode` type)
       const graphNode = findNode(node.id)
 
-      dagreGraph.setNode(node.id, { width: graphNode?.dimensions.width || 350, height: graphNode?.dimensions.height || 100 })
+      dagreGraph.setNode(node.id, { width: graphNode?.dimensions.width || 250, height: graphNode?.dimensions.height || 50 })
     }
 
     for (const edge of edges) {
@@ -48,9 +49,9 @@ export function useLayout() {
 
       node.targetPosition = isHorizontal ? Position.Left : Position.Top
       node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom
-      node.position = { x: nodeWithPosition.x, y: nodeWithPosition.y }
-      return node as Node<APINodeData>
-    })
+      node.position = { x: nodeWithPosition.x as number, y: nodeWithPosition.y as number }
+      return node
+    }) as Node<APINodeData>[]
   }
 
   return { layoutOptions, graph, layout, previousDirection }

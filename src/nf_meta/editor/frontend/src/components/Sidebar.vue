@@ -97,17 +97,17 @@ onBeforeUnmount(stopDrag)
         </v-container>
       </v-tabs-window-item>
 
-      <v-tabs-window-item value="params" class="d-flex flex-column fill-height">
-        <v-container v-if="editorStore.sideBarNodes.length > 0 " class="d-flex flex-column flex-grow-1">
+      <v-tabs-window-item value="params" class="d-flex flex-column fill-height" transition="none">
+        <v-container v-if="editorStore.sideBarNodes.length > 0 " class="d-flex flex-column flex-grow-1 pa-1">
           <v-card class="pa-0 mb-1 mt-0 flex-grow-1 d-flex flex-column">
             <v-card-title>
-              <v-tabs v-model="editorStore.sideBarActiveDetailId" class="flex-grow-0">
+              <v-tabs v-model="editorStore.sideBarActiveDetailId" class="flex-grow-0" show-arrows>
                 <v-tab v-for="detail of editorStore.sideBarNodes" :value="detail.id">
                   {{ detail.detailData.name ?? "New Workflow" }}
                   <template v-slot:append props="{{ detail }}">
                     <v-btn
                       title="close params detail"
-                      icon="close"
+                      icon="mdi-close"
                       size="small"
                       density="compact"
                       variant="plain"

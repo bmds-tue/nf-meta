@@ -1,13 +1,13 @@
-import { createApp,h  } from 'vue'
+import { createApp, } from 'vue'
 import { createPinia } from 'pinia'
+import { mdi } from 'vuetify/iconsets/mdi'
 import App from './App.vue'
 
 import { usePipelineStore } from './store'
 
-import Icon from './components/Icon.vue'
-
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
+import '@mdi/font/css/materialdesignicons.css'
 import './style.css'
 
 // Vuetify
@@ -49,12 +49,8 @@ const vuetify = createVuetify({
     }
   },
   icons: {
-    defaultSet: "custom",
-    sets: {
-      custom: {
-        component: (props: any) => h(Icon, { name: props.icon })
-      }
-    }
+    defaultSet: "mdi",
+    sets: { mdi }
   },
   components,
   directives,

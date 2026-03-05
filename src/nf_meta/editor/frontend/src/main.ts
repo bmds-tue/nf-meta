@@ -7,6 +7,7 @@ import { usePipelineStore } from './store'
 import Icon from './components/Icon.vue'
 
 import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
 import './style.css'
 
 // Vuetify

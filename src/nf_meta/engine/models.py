@@ -36,6 +36,7 @@ class Workflow(BaseModel):
     url: Optional[str] = None
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
+    params_file: Optional[Path] = None
 
     @computed_field
     @property
@@ -50,6 +51,17 @@ class Workflow(BaseModel):
             (wf for wf in nfcore_pipelines if wf.get("name") == name),
             None)
         return nfcore_info
+
+    @field_validator("params_file", mode="after")
+    @classmethod
+    def validate_params_file(cls, path: Optional[Path], info: ValidationInfo):
+        if not path:
+            return None
+
+        if not path.exists():
+            raise ValueError("Path does not exist")
+
+        return path
 
     @field_validator("url", mode="after")
     @classmethod
@@ -89,11 +101,11 @@ class Workflow(BaseModel):
         return self
 
     def model_dump_config(self) -> dict:
-        fields = {"id", "name", "version", "url"}
+        fields = {"id", "name", "version", "url", "params_file"}
         return self.model_dump(include=fields, exclude_none=True)
     
     def model_dump_display(self) -> dict:
-        fields = {"id", "name", "version", "url",
+        fields = {"id", "name", "version", "url", "params_file",
                   "description", "is_nfcore", "position"}
         return self.model_dump(include=fields, exclude_none=False)
     

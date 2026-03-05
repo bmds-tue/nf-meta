@@ -36,8 +36,7 @@ export const useEditorStore = defineStore("editor", () => {
     const _sideBarOpen = ref(localStorage.getItem("showSideBar") == "true")
     const sideBarOpen = computed(() => _sideBarOpen.value)
 
-    const _sideBarActiveDetailId = ref(0)
-    const sideBarActiveDetailId = computed(() => _sideBarActiveDetailId.value)
+    const sideBarActiveDetailId = ref(0)
     const _nextSideBarId = ref(1)
     const _sideBarNodes = ref<SideBarDetail<APINodeData>[]>([])
     const sideBarNodes = computed(() => _sideBarNodes.value)
@@ -72,7 +71,7 @@ export const useEditorStore = defineStore("editor", () => {
     }
 
     function setActiveSidebarDetailId(id: number) {
-        _sideBarActiveDetailId.value = id
+        sideBarActiveDetailId.value = id
     }
 
     function createSideBarDetailWithId<T>(detailData: T): SideBarDetail<T> {
@@ -103,9 +102,9 @@ export const useEditorStore = defineStore("editor", () => {
     }
 
     function collapseSidebarDetail(id: number) {
-        if (id == _sideBarActiveDetailId.value) {
+        if (id == sideBarActiveDetailId.value) {
             console.log("Active Status changing!")
-            _sideBarActiveDetailId.value = 0            
+            sideBarActiveDetailId.value = 0            
         }
     }
 

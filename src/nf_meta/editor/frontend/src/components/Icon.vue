@@ -39,7 +39,7 @@ defineProps({
   </svg>
 
   <svg v-else-if="name === 'add'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M11 5h2v14h-2zM5 11h14v2H5z" fill="currentColor" />
+    <path d="M11 5h2v14h-2zM5 11h14v2H5z" fill="currentColor" />
   </svg>
 
   <svg v-else-if="name === 'save'" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

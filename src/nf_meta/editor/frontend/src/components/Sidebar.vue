@@ -3,12 +3,15 @@ import NodeDetail from "./SidebarNodeDetail.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
 import { useEditorStore } from "../store"
+import YamlEditor from "./YamlEditor.vue"
 
 const editorStore = useEditorStore()
 
 const { fitView } = useVueFlow()
 
 const props = defineProps(["resized"])
+
+const tab = ref('nodes')
 
 const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
 
@@ -63,16 +66,80 @@ const startDrag = (e: MouseEvent) => {
     window.addEventListener("pointerup", stopDrag)
 }
 
+const closeDetail = (detailId: number) => {
+  editorStore.removeSidebarDetail(detailId)
+}
+
 onBeforeUnmount(stopDrag)
 </script>
 
 <template>
   <v-container class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
-    <div class="description">Node Details</div>
-    
-    <v-container class="content">
-      <NodeDetail v-for="sbDetail in editorStore.sideBarNodes" :id="sbDetail.id" :detail-data="sbDetail.detailData"> </NodeDetail>
+    <v-container class="pa-0 mb-1">
+      <v-tabs v-model="tab">
+        <v-tab value="nodes">Node Details</v-tab>
+        <v-tab value="params">Params</v-tab>
+      </v-tabs>
     </v-container>
+    <v-tabs-window v-model="tab" class="d-flex flex-column fill-height">
+      <v-tabs-window-item value="nodes">
+        <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
+          <NodeDetail 
+            v-for="sbDetail in editorStore.sideBarNodes" 
+            :id="sbDetail.id" 
+            :detail-data="sbDetail.detailData"> 
+          </NodeDetail>
+        </v-container>
+        <v-container v-if="editorStore.sideBarNodes.length == 0" class="content">
+          <v-card
+            text="Double click nodes to show detail"
+          ></v-card>
+        </v-container>
+      </v-tabs-window-item>
+
+      <v-tabs-window-item value="params" class="d-flex flex-column fill-height">
+        <v-container v-if="editorStore.sideBarNodes.length > 0 " class="d-flex flex-column flex-grow-1">
+          <v-card class="pa-0 mb-1 mt-0 flex-grow-1 d-flex flex-column">
+            <v-card-title>
+              <v-tabs v-model="editorStore.sideBarActiveDetailId" class="flex-grow-0">
+                <v-tab v-for="detail of editorStore.sideBarNodes" :value="detail.id">
+                  {{ detail.detailData.name ?? "New Workflow" }}
+                  <template v-slot:append props="{{ detail }}">
+                    <v-btn
+                      title="close params detail"
+                      icon="close"
+                      size="small"
+                      density="compact"
+                      variant="plain"
+                      rounded="circle"
+                      @click.stop="closeDetail(detail.id)">
+                    </v-btn>
+                  </template>
+                </v-tab>
+              </v-tabs>
+            </v-card-title>
+            <v-card-text>
+
+              <v-tabs-window v-model="editorStore.sideBarActiveDetailId" class="flex-grow-1 d-flex flex-column  mt-1" style="height: 100%;">
+                <v-tabs-window-item v-for="detail of editorStore.sideBarNodes" :value="detail.id" class="flex-grow-1 d-flex flex-column min-h-0" style="height:100%">
+                  <YamlEditor></YamlEditor>
+                </v-tabs-window-item>
+              </v-tabs-window>
+            </v-card-text>
+            <v-card-actions class="flex-grow-0">
+              <v-btn>
+                Save changes
+              </v-btn>
+            </v-card-actions>
+          </v-card> 
+        </v-container>
+        <v-container v-else class="content">
+          <v-card
+            text="Double click nodes to show detail"
+          ></v-card>
+        </v-container>
+      </v-tabs-window-item>
+    </v-tabs-window>
 
     <div
       class="resize-handle"
@@ -88,14 +155,13 @@ onBeforeUnmount(stopDrag)
 .split-pane {
     position: relative;
     flex-shrink: 0;
-    height: 100%;
 
     display: flex;
     flex-direction:column;
     gap:5px;
 
     padding:10px;
-    margin-top: 16px; 
+    margin-top: 16px;
 
     -webkit-box-shadow:0px 5px 10px 0px rgba(0,0,0,.3);
     box-shadow:0 5px 10px #0000004d;
@@ -142,5 +208,4 @@ onBeforeUnmount(stopDrag)
 .split-pane.dragging {
     border-left: 2px solid #4a5568;
 }
-
 </style>

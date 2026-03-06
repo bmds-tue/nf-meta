@@ -1,34 +1,43 @@
-<script setup>
-import { ref, watch } from "vue"
+<script setup lang="ts">
+import { ref, computed } from "vue"
 import { Codemirror } from "vue-codemirror"
-import { yaml } from "@codemirror/lang-yaml"
+import { yaml as langyaml } from "@codemirror/lang-yaml"
+import YAML from "yaml"
 import { EditorView } from "@codemirror/view"
 import { oneDark } from "@codemirror/theme-one-dark"
+import { useGraphStore } from "../store"
+import type { APINodeData } from "../types"
 
+const graphStore = useGraphStore()
+const props = defineProps<{nodeData: APINodeData}>()
 
-const props = defineProps({
-    modelValue: String
-})
-
-const emit = defineEmits(["update:modelValue"])
-
-const code = ref(props.modelValue || "")
+const paramsString = YAML.stringify(props.nodeData.params)
+const code = ref(paramsString || "")
 
 const fullHeightTheme = EditorView.theme({
   "&": { height: "99%" },
   ".cm-scroller": { overflow: "auto" }
 })
 
-watch(code, v => emit("update:modelValue", v))
-watch(() => props.modelValue, v => code.value = v)
+function save() {
+    const params = YAML.parse(code.value)
+    const nodeUpdate = props.nodeData
+    nodeUpdate.params = params
+    graphStore.saveNode(nodeUpdate)
+}
 </script>
 
 <template>
     <Codemirror
         v-model="code"
-        :extensions="[yaml(), fullHeightTheme, oneDark]"
+        :extensions="[langyaml(), fullHeightTheme, oneDark]"
     />
     <small> Params defined here do not change your params_file </small>
+    <v-btn 
+        @click="save"
+    >
+        Save changes
+    </v-btn>
 </template>
 
 <style scoped>

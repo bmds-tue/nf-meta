@@ -122,15 +122,15 @@ onBeforeUnmount(stopDrag)
 
               <v-tabs-window v-model="editorStore.sideBarActiveDetailId" class="flex-grow-1 d-flex flex-column  mt-1" style="height: 100%;">
                 <v-tabs-window-item v-for="detail of editorStore.sideBarNodes" :value="detail.id" class="flex-grow-1 d-flex flex-column min-h-0" style="height:100%">
-                  <YamlEditor></YamlEditor>
+                  <YamlEditor :node-data="detail.detailData"></YamlEditor>
                 </v-tabs-window-item>
               </v-tabs-window>
             </v-card-text>
-            <v-card-actions class="flex-grow-0">
+            <!-- <v-card-actions class="flex-grow-0">
               <v-btn>
                 Save changes
               </v-btn>
-            </v-card-actions>
+            </v-card-actions> -->
           </v-card> 
         </v-container>
         <v-container v-else class="content">

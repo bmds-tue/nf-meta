@@ -84,9 +84,9 @@ class MetaworkflowGraph:
     def update_workflow(self, wf: Workflow):
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
         try:
-            old_wf_data = self.G.nodes[wf.id]
+            old_wf = Workflow(**self.G.nodes[wf.id])
             self.G.nodes[wf.id].update(wf.model_dump(exclude_none=False))
-            self._emit(WorkflowUpdated(old_workflow=Workflow(**old_wf_data), new_workflow=wf))
+            self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))
         except KeyError as e:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
 

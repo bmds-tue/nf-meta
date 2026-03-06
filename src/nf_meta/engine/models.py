@@ -30,7 +30,7 @@ class Workflow(BaseModel):
     Workflow representation for internal use 
     """
 
-    id: str = Field(default_factory=create_id)
+    id: str = Field(default_factory=lambda: "n" + create_id())
     name: str
     version: str
     url: Optional[str] = None
@@ -127,7 +127,7 @@ class WorkflowOptions(BaseModel):
 
 
 class Transition(BaseModel):
-    id: str = Field(default_factory=create_id)
+    id: str = Field(default_factory=lambda: "e" + create_id())
     target: str
     source: str
     params_file: Optional[Path] = Field(default=None, alias="params-file")

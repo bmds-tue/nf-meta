@@ -37,6 +37,7 @@ class Workflow(BaseModel):
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
     params_file: Optional[Path] = None
+    params: Optional[dict[str, Any]] = None
 
     @computed_field
     @property
@@ -60,6 +61,12 @@ class Workflow(BaseModel):
 
         if not path.exists():
             raise ValueError("Path does not exist")
+
+        if not path.is_file():
+            raise ValueError("Path must be a file")
+        
+        if not path.name.endswith("yaml") or path.name.endswith("yml"):
+            raise ValueError("Path must be .yaml or yml")
 
         return path
 
@@ -101,11 +108,11 @@ class Workflow(BaseModel):
         return self
 
     def model_dump_config(self) -> dict:
-        fields = {"id", "name", "version", "url", "params_file"}
+        fields = {"id", "name", "version", "url", "params_file", "params"}
         return self.model_dump(include=fields, exclude_none=True)
     
     def model_dump_display(self) -> dict:
-        fields = {"id", "name", "version", "url", "params_file",
+        fields = {"id", "name", "version", "url", "params_file", "params",
                   "description", "is_nfcore", "position"}
         return self.model_dump(include=fields, exclude_none=False)
     

@@ -9,7 +9,6 @@ import Footer from './components/Footer.vue'
 import Snackbar from './components/Snackbar.vue'
 import { useEditorStore, useGraphStore } from './store'
 import type { APINodeData } from './types'
-import { useEditorHotkeys } from './hotkeys'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 
@@ -75,8 +74,6 @@ const onRedo = () => {
 onMounted(async () => {
   console.log("[INFO] Updating graph")
   graphStore.getAndUpdateGraph()
-  // TODO: Where does this have to go? Produces warnings
-  useEditorHotkeys()
 })
 
 </script>

@@ -4,6 +4,7 @@ import { mdi } from 'vuetify/iconsets/mdi'
 import App from './App.vue'
 
 import { usePipelineStore } from './store'
+import { useEditorHotkeys } from './hotkeys'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -65,3 +66,6 @@ app.mount("#app")
 // Prepopulate data in the pipeline store
 const pipelineStore = usePipelineStore()
 pipelineStore.initialize()
+
+// Initialize hotkey listeners
+useEditorHotkeys()

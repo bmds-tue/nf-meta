@@ -38,6 +38,7 @@ class Workflow(BaseModel):
     position: Optional[Position] = Field(default=Position(x=0, y=0))
     params_file: Optional[Path] = None
     params: Optional[dict[str, Any]] = None
+    config_file: Optional[Path] = None
 
     @computed_field
     @property
@@ -66,10 +67,28 @@ class Workflow(BaseModel):
             raise ValueError("Path must be a file")
         
         if not path.name.endswith("yaml") or path.name.endswith("yml"):
-            raise ValueError("Path must be .yaml or yml")
+            raise ValueError("Path must end with .yaml or yml")
 
         return path
 
+
+    @field_validator("config_file", mode="after")
+    @classmethod
+    def validate_config_file(cls, config: Optional[Path], info: ValidationInfo):
+        if not config:
+            return None
+
+        if not config.exists():
+            raise ValueError("Path does not exist")
+
+        if not config.is_file():
+            raise ValueError("Path must be a file")
+        
+        if not config.name.endswith(".config"):
+            raise ValueError("Path must end with .config")
+
+        return config
+    
     @field_validator("url", mode="after")
     @classmethod
     def validate_url(cls, value: Optional[str], info: ValidationInfo):
@@ -108,12 +127,12 @@ class Workflow(BaseModel):
         return self
 
     def model_dump_config(self) -> dict:
-        fields = {"id", "name", "version", "url", "params_file", "params"}
+        fields = {"id", "name", "version", "url", "params_file", "config_file", "params"}
         return self.model_dump(include=fields, exclude_none=True)
     
     def model_dump_display(self) -> dict:
         fields = {"id", "name", "version", "url", "params_file", "params",
-                  "description", "is_nfcore", "position"}
+                  "description", "is_nfcore", "position", "config_file"}
         return self.model_dump(include=fields, exclude_none=False)
     
     def model_dump(self, **kwargs: Any):

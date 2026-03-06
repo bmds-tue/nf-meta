@@ -28,6 +28,7 @@ export type APINodeData = {
     version?: string,
     position?: XYPosition,
     is_nfcore?: boolean,
+    config_file?: string,
     params_file?: string,
     params?: object
 }

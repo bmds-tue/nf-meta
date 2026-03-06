@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useEditorStore, useGraphStore, usePipelineStore } from '../store';
 import type { APINodeData, SideBarDetail } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
+import CustomFileInput from './CustomFileInput.vue';
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -11,7 +12,6 @@ const pipelineStore = usePipelineStore()
 const props = defineProps<SideBarDetail<APINodeData>>()
 const form = ref<APINodeData>({ ...props.detailData })
 const errors = ref<Record<string, string[]>>({})
-const params_file = ref<File>()
 
 const isActive = computed(() => editorStore.sideBarActiveDetailId == props.id)
 const isNew = computed(() => Boolean(!props.detailData?.id) )
@@ -45,13 +45,6 @@ function submitForm(e: SubmitEventPromise) {
   e.then(value => {
     if (value.valid) {
       errors.value = {}
-
-      // Manually add the params_file to the form,
-      // converting File -> filename (string)
-      if (params_file.value) {
-        console.log(params_file.value)
-        form.value.params_file = params_file.value.name
-      }
 
       graphStore.saveNode(form.value)
         .then(result => {
@@ -224,29 +217,19 @@ function editDetail() {
         :readonly="form.is_nfcore">
       </v-textarea>
 
-      <div v-if="form.params_file && !params_file" class="mb-2">
-        Current file: {{ form.params_file }}
-
-        <v-btn
-          size="small"
-          variant="text"
-          color="error"
-          class="ml-2"
-          @click="form.params_file = undefined"
-        >
-          Remove / Replace
-        </v-btn>
-      </div>
-
-      <v-file-input
-        v-if="!form.params_file || params_file"
-        v-model="params_file"
+      <CustomFileInput
+        v-model="form.params_file"
         label="Params File"
-        variant="outlined"
-        density="compact"
-        clearable
         :error-messages="errors.params_file"
-      />
+        >
+      </CustomFileInput>
+
+      <CustomFileInput
+        v-model="form.config_file"
+        label="Nextflow Config File"
+        :error-messages="errors.config_file"
+        >
+      </CustomFileInput>
 
       <v-card-actions>
         <v-btn

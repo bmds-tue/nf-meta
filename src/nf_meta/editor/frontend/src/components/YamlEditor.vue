@@ -8,7 +8,7 @@ import { oneDark } from "@codemirror/theme-one-dark"
 
 const props = defineProps<{
     modelValue?: object
-    hint: string | undefined
+    hint?: string
 }>()
 
 const emit = defineEmits<{

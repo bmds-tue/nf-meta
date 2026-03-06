@@ -167,6 +167,7 @@ function editDetail() {
   <v-card-text v-show="isActive && isEditing" class="content">
     <v-form @submit.prevent="submitForm">
       <v-checkbox
+        density="compact"
         label="nf-core pipeline" 
         v-model="form.is_nfcore">
       </v-checkbox>
@@ -175,6 +176,7 @@ function editDetail() {
         v-model="form.name"
         label="Pipeline name"
         variant="outlined"
+        density="compact"
         :error-messages="errors.name">
       </v-text-field>
       <v-text-field
@@ -182,6 +184,7 @@ function editDetail() {
         v-model="form.url"
         label="Pipeline URL"
         variant="outlined"
+        density="compact"
         :error-messages="errors.url">
       </v-text-field>
       <v-text-field
@@ -189,6 +192,7 @@ function editDetail() {
         label="Version"
         v-model="form.version"
         variant="outlined"
+        density="compact"
         :error-messages="errors.version">
       </v-text-field>
 
@@ -198,6 +202,7 @@ function editDetail() {
         v-model="form.name"
         :items="nfCorePipelines"
         variant="outlined"
+        density="compact"
         @update:modelValue="handleUpdatePipeline"
         :error-messages="errors.name">
       </v-autocomplete>
@@ -207,6 +212,7 @@ function editDetail() {
         v-model="form.version"
         :items="selectedPipelineVersions"
         variant="outlined"
+        density="compact"
         :error-messages="errors.version">
       </v-autocomplete>
 
@@ -214,6 +220,7 @@ function editDetail() {
         :label="form.is_nfcore ? 'Pipeline Description (autofilled from nf-core)' : 'Pipeline Description'"
         v-model="form.description"
         variant="outlined"
+        density="compact"
         :readonly="form.is_nfcore">
       </v-textarea>
 
@@ -236,6 +243,7 @@ function editDetail() {
         v-model="params_file"
         label="Params File"
         variant="outlined"
+        density="compact"
         clearable
         :error-messages="errors.params_file"
       />

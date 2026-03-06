@@ -8,6 +8,7 @@ import { oneDark } from "@codemirror/theme-one-dark"
 
 const props = defineProps<{
     modelValue?: object
+    hint: string | undefined
 }>()
 
 const emit = defineEmits<{
@@ -48,7 +49,7 @@ function save() {
         v-model="code"
         :extensions="[langyaml(), fullHeightTheme, oneDark]"
     />
-    <small> Params defined here do not change your params_file </small>
+    <small> {{ hint }} </small>
     <v-btn 
         @click="save"
     >

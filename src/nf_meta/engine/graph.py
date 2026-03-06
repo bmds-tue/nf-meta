@@ -84,7 +84,7 @@ class MetaworkflowGraph:
     def update_workflow(self, wf: Workflow):
         try:
             old_wf_data = self.G.nodes[wf.id]
-            self.G.nodes[wf.id].update(wf.model_dump())
+            self.G.nodes[wf.id].update(wf.model_dump(exclude_none=False))
             self._emit(WorkflowUpdated(old_workflow=Workflow(**old_wf_data), new_workflow=wf))
         except KeyError as e:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")

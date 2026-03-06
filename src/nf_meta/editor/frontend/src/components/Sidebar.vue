@@ -2,9 +2,10 @@
 import NodeDetail from "./SidebarNodeDetail.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
-import { useEditorStore } from "../store"
+import { useEditorStore, useGraphStore } from "../store"
 import YamlEditor from "./YamlEditor.vue"
 
+const graphStore = useGraphStore()
 const editorStore = useEditorStore()
 
 const { fitView } = useVueFlow()
@@ -122,7 +123,10 @@ onBeforeUnmount(stopDrag)
 
               <v-tabs-window v-model="editorStore.sideBarActiveDetailId" class="flex-grow-1 d-flex flex-column  mt-1" style="height: 100%;">
                 <v-tabs-window-item v-for="detail of editorStore.sideBarNodes" :value="detail.id" class="flex-grow-1 d-flex flex-column min-h-0" style="height:100%">
-                  <YamlEditor :node-data="detail.detailData"></YamlEditor>
+                  <YamlEditor 
+                    v-model="detail.detailData.params"
+                    @save="graphStore.saveNode(detail.detailData)"
+                  ></YamlEditor>
                 </v-tabs-window-item>
               </v-tabs-window>
             </v-card-text>

@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { ref, computed } from "vue"
+import { ref } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
 import { EditorView } from "@codemirror/view"
 import { oneDark } from "@codemirror/theme-one-dark"
-import { useGraphStore } from "../store"
-import type { APINodeData } from "../types"
 
-const graphStore = useGraphStore()
-const props = defineProps<{nodeData: APINodeData}>()
+const props = defineProps<{
+    modelValue?: object
+}>()
 
-const paramsString = YAML.stringify(props.nodeData.params)
+const emit = defineEmits<{
+    (e: "update:modelValue", value: object | undefined): void
+    (e: "save"): void
+}>()
+
+const paramsString = YAML.stringify(props.modelValue)
 const code = ref(paramsString || "")
 const error = ref<string>("")
 
@@ -24,9 +28,8 @@ function save() {
     try {
         error.value = ""
         const params = YAML.parse(code.value)
-        const nodeUpdate = props.nodeData
-        nodeUpdate.params = params
-        graphStore.saveNode(nodeUpdate)
+        emit("update:modelValue", params)
+        emit("save")
     } catch (err: unknown) {
         if (err instanceof YAMLParseError) {
             error.value = err.message
@@ -38,7 +41,7 @@ function save() {
 </script>
 
 <template>
-    <p v-if="error" style="color: rgb(var(--v-theme-error))">
+    <p v-show="error" style="color: rgb(var(--v-theme-error))">
         {{ error }}
     </p>    
     <Codemirror

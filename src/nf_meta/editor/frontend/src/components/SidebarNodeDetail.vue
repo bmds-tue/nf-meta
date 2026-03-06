@@ -11,6 +11,7 @@ const pipelineStore = usePipelineStore()
 const props = defineProps<SideBarDetail<APINodeData>>()
 const form = ref<APINodeData>({ ...props.detailData })
 const errors = ref<Record<string, string[]>>({})
+const params_file = ref<File>()
 
 const isActive = computed(() => editorStore.sideBarActiveDetailId == props.id)
 const isNew = computed(() => Boolean(!props.detailData?.id) )
@@ -44,6 +45,14 @@ function submitForm(e: SubmitEventPromise) {
   e.then(value => {
     if (value.valid) {
       errors.value = {}
+
+      // Manually add the params_file to the form,
+      // converting File -> filename (string)
+      if (params_file.value) {
+        console.log(params_file.value)
+        form.value.params_file = params_file.value.name
+      }
+
       graphStore.saveNode(form.value)
         .then(result => {
           if (!result.ok) {
@@ -59,6 +68,7 @@ function submitForm(e: SubmitEventPromise) {
 }
 
 function handleReset() {
+  errors.value = {}
   form.value = props.detailData
   isEditing.value = false
 }
@@ -119,6 +129,11 @@ function editDetail() {
   </v-card-title>
 
   <v-card-text v-show="isActive && !isEditing" class="content">
+    <p v-show="!!form.description">
+      <strong >
+        Description: {{ form.description }}
+      </strong>
+    </p>
     <div class="d-flex flex-row align-center">
       Pipeline Location:
       <v-btn
@@ -130,10 +145,11 @@ function editDetail() {
         {{ form.url }} 
       </v-btn>
     </div>
-    <p>
-      <strong v-show="!!form.description">
-        Description: {{ form.description }}
-      </strong>
+    <p v-show="form.params_file">
+      Params File: 
+      <code>
+        {{ form.params_file }} 
+      </code>
     </p>
     <v-card-actions>
       <v-btn 
@@ -200,6 +216,29 @@ function editDetail() {
         variant="outlined"
         :readonly="form.is_nfcore">
       </v-textarea>
+
+      <div v-if="form.params_file && !params_file" class="mb-2">
+        Current file: {{ form.params_file }}
+
+        <v-btn
+          size="small"
+          variant="text"
+          color="error"
+          class="ml-2"
+          @click="form.params_file = undefined"
+        >
+          Remove / Replace
+        </v-btn>
+      </div>
+
+      <v-file-input
+        v-if="!form.params_file || params_file"
+        v-model="params_file"
+        label="Params File"
+        variant="outlined"
+        clearable
+        :error-messages="errors.params_file"
+      />
 
       <v-card-actions>
         <v-btn

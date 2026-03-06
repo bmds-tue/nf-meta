@@ -28,6 +28,8 @@ export type APINodeData = {
     version?: string,
     position?: XYPosition,
     is_nfcore?: boolean,
+    params_file?: string,
+    params?: object
 }
 
 export type APIGraph = {

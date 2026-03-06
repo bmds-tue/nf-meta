@@ -24,16 +24,11 @@ watch(() => props.modelValue, v => code.value = v)
 </script>
 
 <template>
-    <v-container class="ma-0 mt-2 pa-0">
-        <v-text-field 
-            label="Params File"
-            variant="outlined">
-        </v-text-field>
-    </v-container>
     <Codemirror
         v-model="code"
         :extensions="[yaml(), fullHeightTheme, oneDark]"
     />
+    <small> Params defined here do not change your params_file </small>
 </template>
 
 <style scoped>

@@ -82,6 +82,7 @@ class MetaworkflowGraph:
         self._emit(WorkflowAdded(wf))
 
     def update_workflow(self, wf: Workflow):
+        # TODO: Skip update if node unchanged? -> adds junk to history otherwise
         try:
             old_wf_data = self.G.nodes[wf.id]
             self.G.nodes[wf.id].update(wf.model_dump(exclude_none=False))

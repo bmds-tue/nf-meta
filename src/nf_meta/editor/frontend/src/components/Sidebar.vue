@@ -4,6 +4,7 @@ import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
 import { useEditorStore, useGraphStore } from "../store"
 import YamlEditor from "./YamlEditor.vue"
+import GlobalConfig from "./GlobalConfig.vue"
 
 const graphStore = useGraphStore()
 const editorStore = useEditorStore()
@@ -79,7 +80,8 @@ onBeforeUnmount(stopDrag)
     <v-container class="pa-0 mb-1">
       <v-tabs v-model="tab">
         <v-tab value="nodes">Node Details</v-tab>
-        <v-tab value="params">Params</v-tab>
+        <v-tab value="params">Node Params</v-tab>
+        <v-tab value="globals">Globals</v-tab>
       </v-tabs>
     </v-container>
     <v-tabs-window v-model="tab" class="d-flex flex-column fill-height">
@@ -131,11 +133,6 @@ onBeforeUnmount(stopDrag)
                 </v-tabs-window-item>
               </v-tabs-window>
             </v-card-text>
-            <!-- <v-card-actions class="flex-grow-0">
-              <v-btn>
-                Save changes
-              </v-btn>
-            </v-card-actions> -->
           </v-card> 
         </v-container>
         <v-container v-else class="content">
@@ -144,8 +141,14 @@ onBeforeUnmount(stopDrag)
           ></v-card>
         </v-container>
       </v-tabs-window-item>
+  
+      <v-tabs-window-item value="globals" class="d-flex flex-cloumn fill-height">
+        <v-container class="d-flex flex-column flex-grow-1 pa-1">
+          <GlobalConfig></GlobalConfig>
+        </v-container>
+      </v-tabs-window-item>
+    
     </v-tabs-window>
-
     <div
       class="resize-handle"
       :class="{'dragging': isDragging}"

@@ -1,4 +1,4 @@
-import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type Selection, type SideBarDetail, type NfCorePipelineInfo  } from './types'
+import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type Selection, type SideBarDetail, type NfCorePipelineInfo, type APIGlobalOptions  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
@@ -131,6 +131,12 @@ export const useGraphStore = defineStore('graph', () => {
 
     const nodes = computed(() => {
         return _nodes.value
+    })
+
+    const globalOptions = ref<APIGlobalOptions>({
+        nf_params: {},
+        nf_config_file: "",
+        nf_profile: "",
     })
 
     const _filename = ref<string>()
@@ -273,18 +279,24 @@ export const useGraphStore = defineStore('graph', () => {
                     _undoable.value = response.data.undoable
                     _redoable.value = response.data.redoable
                     _filename.value = response.data.filename
+                    globalOptions.value = response.data.globals
                 }
             })
     }
 
-    async function saveEdge(edgeData: APIEdgeData) {
+    async function addOrUpdateEdge(edgeData: APIEdgeData) {
         const endpoint = edgeData?.id ? '/api/edge/update/' : '/api/edge/add/'
         return addOrUpdate<APIEdgeData>(endpoint, edgeData)
     }
 
-    async function saveNode(nodeData: APINodeData) {
+    async function addOrUpdateNode(nodeData: APINodeData) {
         const endpoint = nodeData?.id ? '/api/node/update/' : '/api/node/add/'
         return await addOrUpdate<APINodeData>(endpoint, nodeData)
+    }
+
+    async function updateGlobalOptions(globals: APIGlobalOptions) {
+        const endpoint = "/api/globals/update/"
+        return await addOrUpdate<APIGlobalOptions>(endpoint, globals)
     }
 
     async function removeEdgeById(edgeId: string) {
@@ -384,10 +396,10 @@ export const useGraphStore = defineStore('graph', () => {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
-        saveNode, saveEdge,
+        saveNode: addOrUpdateNode, saveEdge: addOrUpdateEdge, updateGlobalOptions,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, redoable, undoable, 
-        loadConfig, save, saveAs, filename,
+        loadConfig, save, saveAs, filename, globalOptions
     } 
 })
 

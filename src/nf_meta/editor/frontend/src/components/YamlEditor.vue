@@ -16,8 +16,8 @@ const emit = defineEmits<{
     (e: "save"): void
 }>()
 
-const paramsString = YAML.stringify(props.modelValue)
-const code = ref(paramsString || "")
+const paramsString = props.modelValue ? YAML.stringify(props.modelValue) : ""
+const code = ref(paramsString)
 const error = ref<string>("")
 
 const fullHeightTheme = EditorView.theme({

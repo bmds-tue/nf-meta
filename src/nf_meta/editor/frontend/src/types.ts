@@ -33,12 +33,19 @@ export type APINodeData = {
     params?: object
 }
 
+export type APIGlobalOptions = {
+  nf_profile?: string,
+  nf_config_file?: string,
+  nf_params?: object
+}
+
 export type APIGraph = {
   redoable: boolean,
   undoable: boolean,
   filename: string,
   nodes: Node<APINodeData>[],
-  transitions: Edge<APIEdgeData>[]
+  transitions: Edge<APIEdgeData>[],
+  globals: APIGlobalOptions
 }
 
 export type NfCorePipelineReleaseInfo = {

@@ -8,8 +8,7 @@ from nf_meta.editor import start_editor_backend
 
 @click.group()
 def cli() -> None:
-    print("Hello from metaflow!")
-
+    return
 
 @click.command("editor")
 @click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
@@ -35,9 +34,10 @@ def validate_config(config, verbose):
 @click.argument("config", type=click.Path())
 @click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
 @click.option("--runner", "-r", prompt=True, type=click.Choice([e.value for e in Runners]), default=Runners.PYTHON.value)
-def run(config, verbose, runner):
+@click.option("--resume", is_flag=True, help="Resume a previous run")
+def run(config, verbose, runner, resume):
     g = MetaworkflowGraph.from_file(config)
-    run_metapipeline(g, SimplePythonRunner())
+    run_metapipeline(g, SimplePythonRunner(), resume=resume)
 
 
 cli.add_command(edit_browser)

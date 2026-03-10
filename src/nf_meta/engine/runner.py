@@ -1,7 +1,12 @@
 import logging
+import os
 import shutil
 import subprocess
+import sys
 import uuid
+import time
+from collections import deque
+from contextlib import contextmanager
 from enum import StrEnum
 from typing import Optional, Protocol
 from pathlib import Path
@@ -9,13 +14,23 @@ from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.engine.models import Workflow, GlobalOptions
 import yaml
 
+import click
+from rich.live import Live
+from rich.spinner import Spinner
+from rich.text import Text
+from rich.panel import Panel
+from rich.console import Console, Group
+
+# TODO: Use logging everywhere
 logger = logging.getLogger()
+console = Console()
 
 class Runners(StrEnum):
     PYTHON = "python"
     PLATFORM = "platform"
     DAISY_CHAIN = "daisy_chain"
     NEXTFLOW_MONO = "nextflow_mono"
+
 
 class Runner(Protocol):
 
@@ -24,9 +39,9 @@ class Runner(Protocol):
     def resume(self, graph) -> None: ...
 
 
-# ToDO: Receive a Metawf_graph
 def run_metapipeline(g: MetaworkflowGraph, runner: Runners, resume=False) -> None:
     logger.info("Started runner")
+    # TODO: don't take runner instance but runner name as argument
     if resume:
         runner.resume(g)
     else:
@@ -38,6 +53,8 @@ class SimplePythonRunner:
     Simple default runner for Metapipelines.
     Executes workflows in dag order from this Python runtime.
     """
+    OUT_FILE = "OUT.txt"
+    ERROR_FILE = "ERROR.txt"
 
     def __init__(self, tempdir=".nf-meta-cache"):
         self.tempdir = Path(tempdir)
@@ -45,12 +62,27 @@ class SimplePythonRunner:
             self.tempdir.mkdir(exist_ok=True)
 
         self.executable = self.check_nextflow()
+    
+    @contextmanager
+    def chdir_context(self, path: Path):
+        origin = Path()
+        try:
+            if not path.exists():
+                path.mkdir()
+            os.chdir(path)
+            yield
+        finally:
+            os.chdir(origin)
 
     def check_nextflow(self):
         executable = shutil.which("nextflow")
         if executable is None:
             raise RuntimeError("No nextflow installation found")
         return executable
+    
+    def check_run_success(self, run_dir: Path = Path(".")):
+        return Path(run_dir / self.OUT_FILE).exists() \
+            and not Path(run_dir / self.ERROR_FILE).exists()
 
     def merge_params(self, specific_params: dict, default_params: dict):
         merged_params = default_params
@@ -65,10 +97,39 @@ class SimplePythonRunner:
         with open(filename, "w") as f:
             f.write(yaml.dump(params))
 
-        return filename
+        return Path(filename)
+
+    def run_cmd_tail(self, cmd: list[str], output_lines=10) -> tuple[int, str, str]:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+    
+        last_lines = deque(maxlen=output_lines)
+
+        with Live(console=console, refresh_per_second=4) as live:
+            for line in process.stdout:
+                last_lines.append(line.rstrip())
+                live.update(Group(
+                    Panel("\n".join(last_lines), title="Workflow Output"),
+                    Spinner("dots", text="[SimplePythonRunner] Running Workflow ...")
+                ))
+
+            process.wait()
+            error = process.stderr.read()
+            out = process.stdout.read()
+
+            if process.returncode > 0:
+                live.update(Panel(error, title="Errors"))
+            else:
+                live.update(Text("[SimplePythonRunner] Running Workflow ... Done"))
+
+        return (process.returncode, out, error)
 
     def run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions]):
-        cmd = [self.executable, "run", "-resume"]
+        cmd = [self.executable, "run", "-resume", "-ansi-log", "false"]
         wf_params = wf.params
 
         if globals is not None:
@@ -82,28 +143,43 @@ class SimplePythonRunner:
                 cmd += ["-c", nf_cfg.absolute()]
 
             if globals.nf_params is not None:
-                wf_params = self.merge_params()
+                wf_params = self.merge_params(wf_params, globals.nf_params)
         
         if wf_params:
-            params_file: Path = self.create_params_file(wf_params)
+            params_file = self.create_params_file(wf_params, Path("params.yaml"))
             cmd += ["-params-file", params_file.absolute()]
 
         cmd.append(wf.url)
         cmd += ["-r", wf.version, "-latest"]
 
-        print(f"[INFO] Nextflow command for {wf.name}:{wf.version} ({wf.id}): {cmd}")
-        # TODO: Capture stdout, print stderr
-        subprocess.run(cmd)
+        print(f"[INFO] Nextflow command: {cmd}")
+        exit_code, out, err = self.run_cmd_tail(cmd)
 
-    def run(self, graph: MetaworkflowGraph):
+        with Path(self.OUT_FILE).open("w") as f:
+            f.write(out)
+
+        if exit_code != 0:
+            print(f"[Error] Command exited with error code {exit_code}")
+            with Path(self.ERROR_FILE).open("w") as f:
+                f.write(err)
+        
+        return exit_code == 0
+
+    def run(self, graph: MetaworkflowGraph, resume=False):
         workflows = graph.get_workflows_sorted()
 
         for i, wf in enumerate(workflows):
-            print(f"[DefaultRunner]: Step {i}/{len(workflows)} - {wf.name}")
-            self.run_workflow(wf, graph.global_options)
-            # TODO: Add checkpoint to tempdir
+            wf_dir = Path(f"{wf.name.replace("/", "_")}_{wf.version}_{wf.hash()}")
+            with self.chdir_context(self.tempdir / wf_dir):
+                if resume and self.check_run_success():
+                    continue
+
+                print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}")
+                if not self.run_workflow(wf, graph.global_options):
+                    print("[SimplePythonRunner] Workflow completed with errors!")
+                    return
+
+        print("[SimplePythonRunner] All workflows completed")
 
     def resume(self, graph: MetaworkflowGraph):
-        # TODO: Check checkpoints in tempdir
-        # TODO: Skip workflows where checkpoint is reached.
-        pass
+        self.run(graph, resume=True)

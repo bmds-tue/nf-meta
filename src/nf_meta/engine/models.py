@@ -4,6 +4,8 @@ from typing import Optional, Dict, List, Any
 import logging
 import re
 import uuid
+import hashlib
+import json
 
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator, ValidationInfo
 import yaml
@@ -125,6 +127,14 @@ class Workflow(BaseModel):
             self.description = nfcore_wf_info.get("description", "")
         
         return self
+
+    def hash(self):
+        data = f"{self.url}{self.version}"
+        data += str(self.config_file.absolute()) if self.config_file else ""
+        data += str(self.params_file.absolute()) if self.params_file else ""
+        data += json.dumps(self.params, sort_keys=True, default=str)
+        hashed = hashlib.sha256(data.encode()).hexdigest()[:8]
+        return hashed
 
     def model_dump_config(self) -> dict:
         fields = {"id", "name", "version", "url", "params_file", "config_file", "params"}

@@ -1,6 +1,6 @@
 import click
 from functools import wraps
-from nf_meta.engine.runner import Runners, run
+from nf_meta.engine.runner import SimplePythonRunner, run_metapipeline, Runners
 from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.engine.session import start_session
 from nf_meta.editor import start_editor_backend
@@ -37,7 +37,7 @@ def validate_config(config, verbose):
 @click.option("--runner", "-r", prompt=True, type=click.Choice([e.value for e in Runners]), default=Runners.PYTHON.value)
 def run(config, verbose, runner):
     g = MetaworkflowGraph.from_file(config)
-    run(g, runner)
+    run_metapipeline(g, SimplePythonRunner())
 
 
 cli.add_command(edit_browser)

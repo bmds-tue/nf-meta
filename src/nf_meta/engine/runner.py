@@ -39,13 +39,21 @@ class Runner(Protocol):
     def resume(self, graph) -> None: ...
 
 
-def run_metapipeline(g: MetaworkflowGraph, runner: Runners, resume=False) -> None:
+def run_metapipeline(g: MetaworkflowGraph, runner_name: Runners, resume=False, verbose=True) -> None:
     logger.info("Started runner")
-    # TODO: don't take runner instance but runner name as argument
-    if resume:
-        runner.resume(g)
-    else:
-        runner.run(g)
+
+    runner = None
+    match runner_name:
+        case Runners.PYTHON:
+            runner = SimplePythonRunner()
+        case _:
+            raise NotImplementedError("Requested runner not implemented yet")
+    
+    if runner:
+        if resume:
+            runner.resume(g)
+        else:
+            runner.run(g)
 
 
 class SimplePythonRunner:

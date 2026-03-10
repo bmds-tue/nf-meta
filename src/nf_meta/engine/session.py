@@ -1,7 +1,7 @@
 from .events import Command
 from .history import History
 from .graph import MetaworkflowGraph
-from .models import Workflow, Transition, WorkflowOptions, MetaworkflowConfig
+from .models import Workflow, Transition, GlobalOptions, MetaworkflowConfig
 from pathlib import Path
 
 

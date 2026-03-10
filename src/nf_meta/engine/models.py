@@ -151,6 +151,8 @@ class GlobalOptions(BaseModel):
         if not profile:
             return None
 
+        return profile.replace(" ", "")
+
     @field_validator("nf_config_file", mode="after")
     @classmethod
     def validate_config_file(cls, config: Optional[Path], info: ValidationInfo):

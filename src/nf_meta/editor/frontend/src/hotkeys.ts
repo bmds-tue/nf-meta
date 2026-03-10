@@ -5,7 +5,7 @@ import { useVueFlow } from '@vue-flow/core'
 export function useEditorHotkeys() {
   const graphStore = useGraphStore()
   const editorStore = useEditorStore()
-  const { getSelectedNodes, getSelectedEdges } = useVueFlow()
+  const { getSelectedNodes, getSelectedEdges } = useVueFlow({id: "main-flow"})
 
   function deleteSelection() {
     const nodeIds = getSelectedNodes.value.map(n => n.id)

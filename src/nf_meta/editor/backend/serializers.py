@@ -19,7 +19,8 @@ def serialize_state(session: EditorSession) -> dict:
         "undoable": session.history.undoable(),
         "redoable": session.history.redoable(),
         "nodes": cfg.workflows,
-        "transitions": cfg.transitions
+        "transitions": cfg.transitions,
+        "globals": cfg.globals
     }
     return d
 

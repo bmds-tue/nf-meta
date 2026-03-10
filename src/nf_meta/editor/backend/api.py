@@ -5,11 +5,11 @@ from .serializers import serialize_state, Selection
 
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
-from nf_meta.engine.models import Workflow, Transition
+from nf_meta.engine.models import Workflow, Transition, GlobalOptions
 from nf_meta.engine.events import (AddTransition, AddWorkflow, 
                                     RemoveWorkflow, RemoveTransition,
                                     EditWorkflow, EditTransition,
-                                    Transaction)
+                                    Transaction, UpdateGlobalOptions)
 
 from fastapi import FastAPI, APIRouter, Body
 from fastapi.staticfiles import StaticFiles
@@ -64,6 +64,12 @@ def undo_most_recent():
 def redo_most_recent():
     SESSION.handle_redo()
     return JSONResponse(dict())
+
+
+@api_router.post("/globals/update/")
+def update_global_config(globals: GlobalOptions):
+    SESSION.handle_command(UpdateGlobalOptions(globals))
+    pass
 
 
 @api_router.post("/node/add/")

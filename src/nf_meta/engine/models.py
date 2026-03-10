@@ -141,8 +141,32 @@ class Workflow(BaseModel):
         return super().model_dump(**kwargs)
 
 
-class WorkflowOptions(BaseModel):
-    wf_opts: str
+class GlobalOptions(BaseModel):
+    nf_profile: Optional[str] = None
+    nf_config_file: Optional[Path] = None
+    nf_params: Optional[dict[str, Any]] = None
+
+    @field_validator("nf_profile", mode="after")
+    def validate_profile(cls, profile: Optional[str], info: ValidationInfo):
+        if not profile:
+            return None
+
+    @field_validator("nf_config_file", mode="after")
+    @classmethod
+    def validate_config_file(cls, config: Optional[Path], info: ValidationInfo):
+        if not config:
+            return None
+
+        if not config.exists():
+            raise ValueError("Path does not exist")
+
+        if not config.is_file():
+            raise ValueError("Path must be a file")
+        
+        if not config.name.endswith(".config"):
+            raise ValueError("Path must end with .config")
+
+        return config
 
 
 class Transition(BaseModel):
@@ -161,8 +185,7 @@ class Transition(BaseModel):
 class MetaworkflowConfig(BaseModel):
     config_version: str
     workflows: List[Workflow]
-    workflow_opts: Optional[WorkflowOptions] = None
-    workflow_opts_custom: Optional[WorkflowOptions] = None
+    globals: Optional[GlobalOptions] = None
     transitions: List[Transition]
 
     # ------------------------------
@@ -204,9 +227,8 @@ def load_config(path: Path) -> MetaworkflowConfig:
 def dump_config(config: MetaworkflowConfig, path: Path):
     config_dict = {
         "config_version": config.config_version,
+        "globals": config.globals.model_dump(exclude_none=True) if config.globals else None,
         "workflows": [w.model_dump_config() for w in config.workflows],
-        "workflow_opts": config.workflow_opts.model_dump(exclude_none=True) if config.workflow_opts else None,
-        "workflow_opts_custom": config.workflow_opts_custom.model_dump(exclude_none=True) if config.workflow_opts_custom else None,
         "transitions": [t.model_dump(by_alias=True, exclude_none=True) for t in config.transitions],
     }
     with open(path, "w") as fh:

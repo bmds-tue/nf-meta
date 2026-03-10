@@ -2,7 +2,7 @@ from typing import Protocol
 from dataclasses import dataclass
 from enum import StrEnum
 
-from .models import Workflow, Transition
+from .models import Workflow, Transition, GlobalOptions
 
 
 # TODO: Is this needed
@@ -33,6 +33,8 @@ class GraphEventHandler(Protocol):
     def remove_transition(self, t: Transition) -> None: ...
 
     def update_transition(self, t: Transition) -> None: ...
+
+    def update_global_options(self, g: GlobalOptions) -> None: ...
 
 
 # ------------------------------------------
@@ -91,6 +93,15 @@ class TransitionUpdated:
 
     def get_undo_cmd(self):
         return EditTransition(transition=self.old_transition)
+
+
+@dataclass(frozen=True)
+class GlobalOptionsUpdated:
+    new_globals: GlobalOptions
+    old_globals: GlobalOptions
+
+    def get_undo_cmd(self):
+        return UpdateGlobalOptions(globals=self.old_globals)
 
 
 # ------------------------------------------
@@ -159,3 +170,11 @@ class EditTransition:
 
     def apply(self, g: GraphEventHandler):
         g.update_workflow(self.transition)
+
+
+@dataclass(frozen=True)
+class UpdateGlobalOptions:
+    globals: GlobalOptions
+
+    def apply(self, g: GraphEventHandler):
+        g.update_global_options(self.globals)

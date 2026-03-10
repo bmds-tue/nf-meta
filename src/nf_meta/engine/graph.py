@@ -5,8 +5,8 @@ import logging
 
 import networkx as nx
 
-from .models import MetaworkflowConfig, Workflow, WorkflowOptions, Transition, dump_config, CONFIG_VERSION_MAX
-from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionUpdated, TransitionRemoved
+from .models import MetaworkflowConfig, Workflow, GlobalOptions, Transition, dump_config, CONFIG_VERSION_MAX
+from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
 
 logger = logging.getLogger()
 
@@ -21,8 +21,7 @@ class MetaworkflowGraph:
 
     def __init__(self):
         self.G: nx.DiGraph = nx.DiGraph()
-        self.workflow_opts: Optional[WorkflowOptions] = None
-        self.workflow_opts_custom: Optional[WorkflowOptions] = None
+        self.global_options: Optional[GlobalOptions] = None
         self.config_version: str = CONFIG_VERSION_MAX
         self._events: list[Event] = []
 
@@ -68,8 +67,7 @@ class MetaworkflowGraph:
                 # TODO: Be more specific with keys once they are stable-ish
                 obj.G.add_edge(src, tgt, **t.model_dump())
 
-        obj.workflow_opts = cfg.workflow_opts
-        obj.workflow_opts_custom = cfg.workflow_opts_custom
+        obj.global_options = cfg.globals or GlobalOptions()
         obj.config_version = cfg.config_version
 
         # Run graph validation
@@ -128,6 +126,11 @@ class MetaworkflowGraph:
         self.G.remove_edge(*edge)
         self._emit(TransitionRemoved(Transition(**edge_data)))
 
+    def update_global_options(self, glob: GlobalOptions):
+        old_globals = self.global_options
+        self.global_options = glob
+        self._emit(GlobalOptionsUpdated(new_globals=glob, old_globals=old_globals))
+
     # ===========================
     #        VALIDATION
     # ===========================
@@ -154,10 +157,10 @@ class MetaworkflowGraph:
         workflows = self.get_workflows()
         transitions = self.get_transitions()
 
+        print("TOCONFIG: ", self.global_options)
         return MetaworkflowConfig.model_validate({
             "config_version": self.config_version,
-            "workflow_opts": self.workflow_opts,
-            "workflow_opts_custom": self.workflow_opts_custom,
+            "globals": self.global_options,
             "workflows": workflows,
             "transitions": transitions,
         })

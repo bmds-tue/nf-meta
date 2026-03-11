@@ -148,7 +148,7 @@ class SimplePythonRunner:
                 nf_cfg = Path(globals.nf_config_file)
                 if not nf_cfg.exists():
                     raise RuntimeError(f"Nextflow config file does not exist: {nf_cfg}")
-                cmd += ["-c", nf_cfg.absolute()]
+                cmd += ["-c", str(nf_cfg.absolute())]
 
             if globals.nf_params is not None:
                 wf_params = self.merge_params(wf_params, globals.nf_params)
@@ -156,6 +156,11 @@ class SimplePythonRunner:
         if wf_params:
             params_file = self.create_params_file(wf_params, Path("params.yaml"))
             cmd += ["-params-file", params_file.absolute()]
+
+        if wf.config_file:
+            if not wf.config_file.exists():
+                raise RuntimeError(f"Nexflow config file does not exists: {wf.config_file}")
+            cmd += ["-c", str(wf.config_file.absolute())]
 
         cmd.append(wf.url)
         cmd += ["-r", wf.version, "-latest"]
@@ -167,7 +172,7 @@ class SimplePythonRunner:
             f.write(out)
 
         if exit_code != 0:
-            print(f"[Error] Command exited with error code {exit_code}")
+            print(f"[Error] Command exited with error code {exit_code}. Workdir: {Path(".").absolute()}")
             with Path(self.ERROR_FILE).open("w") as f:
                 f.write(err)
         
@@ -180,6 +185,7 @@ class SimplePythonRunner:
             wf_dir = Path(f"{wf.name.replace("/", "_")}_{wf.version}_{wf.hash()}")
             with self.chdir_context(self.tempdir / wf_dir):
                 if resume and self.check_run_success():
+                    print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}: Skipping")
                     continue
 
                 print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}")

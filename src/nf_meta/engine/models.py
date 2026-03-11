@@ -1,6 +1,6 @@
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, Dict, List, Any, Annotated
+from typing import Optional, Dict, List, Any, Annotated, TypeAlias
 import logging
 import re
 import uuid
@@ -9,7 +9,7 @@ import json
 
 from pydantic import (BaseModel, Field, computed_field,
                         field_validator, model_validator, ValidationInfo,
-                        AfterValidator)
+                        BeforeValidator)
 import yaml
 
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines, url_exists
@@ -20,7 +20,27 @@ CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
 
 
-AbsolutePath = Annotated[Path, AfterValidator(lambda p: p.resolve())]
+def is_existing_file_abs(path: Optional[str | Path] = None, allowed_extensions: Optional[tuple[str]] = None) -> Optional[Path]:
+    if not path:
+        return None
+
+    path = Path(path).resolve()
+    if not path.exists():
+        raise ValueError("Path does not exist")
+
+    if not path.is_file():
+        raise ValueError("Path must be a file")
+    
+    if allowed_extensions is not None:
+        if not path.suffix in allowed_extensions:
+            raise ValueError(f"Path must end with {allowed_extensions}")
+    
+    return path
+
+
+ExistingAbsoluteFile = Annotated[Optional[Path], BeforeValidator(lambda v: is_existing_file_abs(v))]
+ExistingYamlFile = Annotated[Optional[Path], BeforeValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml")))]
+ExistingNfConfigFile = Annotated[Optional[Path], BeforeValidator(lambda v: is_existing_file_abs(v, (".config")))]
 
 
 def create_id():
@@ -43,9 +63,9 @@ class Workflow(BaseModel):
     url: Optional[str] = None
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
-    params_file: Optional[AbsolutePath] = None
+    params_file: Optional[ExistingYamlFile] = None
     params: Optional[dict[str, Any]] = None
-    config_file: Optional[AbsolutePath] = None
+    config_file: Optional[ExistingNfConfigFile] = None
 
     @computed_field
     @property
@@ -60,41 +80,6 @@ class Workflow(BaseModel):
             (wf for wf in nfcore_pipelines if wf.get("name") == name),
             None)
         return nfcore_info
-
-    @field_validator("params_file", mode="after")
-    @classmethod
-    def validate_params_file(cls, path: Optional[Path], info: ValidationInfo):
-        if not path:
-            return None
-
-        if not path.exists():
-            raise ValueError("Path does not exist")
-
-        if not path.is_file():
-            raise ValueError("Path must be a file")
-        
-        if not path.name.endswith("yaml") or path.name.endswith("yml"):
-            raise ValueError("Path must end with .yaml or yml")
-
-        return path
-
-
-    @field_validator("config_file", mode="after")
-    @classmethod
-    def validate_config_file(cls, config: Optional[Path], info: ValidationInfo):
-        if not config:
-            return None
-
-        if not config.exists():
-            raise ValueError("Path does not exist")
-
-        if not config.is_file():
-            raise ValueError("Path must be a file")
-        
-        if not config.name.endswith(".config"):
-            raise ValueError("Path must end with .config")
-
-        return config
     
     @field_validator("url", mode="after")
     @classmethod
@@ -158,7 +143,7 @@ class Workflow(BaseModel):
 
 class GlobalOptions(BaseModel):
     nf_profile: Optional[str] = None
-    nf_config_file: Optional[AbsolutePath] = None
+    nf_config_file: Optional[ExistingNfConfigFile] = None
     nf_params: Optional[dict[str, Any]] = None
 
     @field_validator("nf_profile", mode="after")
@@ -167,23 +152,6 @@ class GlobalOptions(BaseModel):
             return None
 
         return profile.replace(" ", "")
-
-    @field_validator("nf_config_file", mode="after")
-    @classmethod
-    def validate_config_file(cls, config: Optional[Path], info: ValidationInfo):
-        if not config:
-            return None
-
-        if not config.exists():
-            raise ValueError("Path does not exist")
-
-        if not config.is_file():
-            raise ValueError("Path must be a file")
-        
-        if not config.name.endswith(".config"):
-            raise ValueError("Path must end with .config")
-
-        return config
 
 
 class Transition(BaseModel):

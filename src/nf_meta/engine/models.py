@@ -1,13 +1,15 @@
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Annotated
 import logging
 import re
 import uuid
 import hashlib
 import json
 
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator, ValidationInfo
+from pydantic import (BaseModel, Field, computed_field,
+                        field_validator, model_validator, ValidationInfo,
+                        AfterValidator)
 import yaml
 
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines, url_exists
@@ -16,6 +18,9 @@ logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
+
+
+AbsolutePath = Annotated[Path, AfterValidator(lambda p: p.resolve())]
 
 
 def create_id():
@@ -38,9 +43,9 @@ class Workflow(BaseModel):
     url: Optional[str] = None
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
-    params_file: Optional[Path] = None
+    params_file: Optional[AbsolutePath] = None
     params: Optional[dict[str, Any]] = None
-    config_file: Optional[Path] = None
+    config_file: Optional[AbsolutePath] = None
 
     @computed_field
     @property
@@ -153,7 +158,7 @@ class Workflow(BaseModel):
 
 class GlobalOptions(BaseModel):
     nf_profile: Optional[str] = None
-    nf_config_file: Optional[Path] = None
+    nf_config_file: Optional[AbsolutePath] = None
     nf_params: Optional[dict[str, Any]] = None
 
     @field_validator("nf_profile", mode="after")

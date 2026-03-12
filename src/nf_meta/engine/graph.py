@@ -37,7 +37,10 @@ class MetaworkflowGraph:
     def from_file(cls, cfg_file: Path) -> "MetaworkflowGraph":
         with open(cfg_file) as fh:
             data = yaml.safe_load(fh)
-        
+
+        if not data:
+            raise ValueError(f"No config data loaded from {cfg_file}")
+    
         return cls.from_config(data)
 
     @classmethod

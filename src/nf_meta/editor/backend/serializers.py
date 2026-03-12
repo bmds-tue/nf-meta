@@ -13,14 +13,13 @@ class Selection(BaseModel):
 
 
 def serialize_state(session: EditorSession) -> dict:
-    cfg = session.graph.to_config()
     d = {
         "filename": session.config_file or "",
         "undoable": session.history.undoable(),
         "redoable": session.history.redoable(),
-        "nodes": cfg.workflows,
-        "transitions": cfg.transitions,
-        "globals": cfg.globals
+        "nodes": session.graph.get_workflows(),
+        "transitions": session.graph.get_transitions(),
+        "globals": session.graph.global_options
     }
     return d
 

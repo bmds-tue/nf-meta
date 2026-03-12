@@ -36,6 +36,7 @@ export const useEditorStore = defineStore("editor", () => {
     const _sideBarOpen = ref(localStorage.getItem("showSideBar") == "true")
     const sideBarOpen = computed(() => _sideBarOpen.value)
 
+    const sideBarTab = ref('nodes')
     const sideBarActiveDetailId = ref(0)
     const _nextSideBarId = ref(1)
     const _sideBarNodes = ref<SideBarDetail<APINodeData>[]>([])
@@ -111,7 +112,7 @@ export const useEditorStore = defineStore("editor", () => {
     return {
         showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
         sideBarActiveDetailId, setActiveSidebarDetailId,
-        sideBarNodes, addNodeToSideBar,
+        sideBarTab, sideBarNodes, addNodeToSideBar,
         removeSidebarDetail, collapseSidebarDetail,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog

@@ -2,6 +2,7 @@
 import { nextTick, onMounted } from 'vue'
 import type { Node, Connection, NodeMouseEvent } from '@vue-flow/core'
 import { VueFlow, useVueFlow, ConnectionMode, Panel} from '@vue-flow/core'
+import { storeToRefs } from 'pinia'
 import { Background } from '@vue-flow/background'
 import WorkflowNode from './components/WorkflowNode.vue'
 import Sidebar from './components/Sidebar.vue'
@@ -15,6 +16,7 @@ import LoadDialog from './components/LoadDialog.vue'
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
+const { sideBarTab } = storeToRefs(editorStore)
 const { fitView } = useVueFlow({id: "main-flow"})
 
 const toggleSidebarAndfitView = async function() {
@@ -41,6 +43,7 @@ const openNodeDetail = function (node: Node<APINodeData> | null | undefined = nu
 
 const onNodeDbClick = function (event: NodeMouseEvent) {
   openNodeDetail(event.node)
+  sideBarTab.value = "nodes"
 }
 
 const onAddNodeClick = function (_: any) {

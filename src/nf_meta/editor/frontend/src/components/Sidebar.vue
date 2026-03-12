@@ -2,6 +2,7 @@
 import NodeDetail from "./SidebarNodeDetail.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
+import { storeToRefs } from 'pinia'
 import { useEditorStore, useGraphStore } from "../store"
 import YamlEditor from "./YamlEditor.vue"
 import GlobalConfig from "./GlobalConfig.vue"
@@ -10,10 +11,10 @@ const graphStore = useGraphStore()
 const editorStore = useEditorStore()
 
 const { fitView } = useVueFlow()
+const { sideBarTab } = storeToRefs(editorStore)
 
 const props = defineProps(["resized"])
 
-const tab = ref('nodes')
 
 const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
 
@@ -78,13 +79,13 @@ onBeforeUnmount(stopDrag)
 <template>
   <v-container class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
     <v-container class="pa-0 mb-1">
-      <v-tabs v-model="tab">
+      <v-tabs v-model="sideBarTab">
         <v-tab value="nodes">Node Details</v-tab>
         <v-tab value="params">Node Params</v-tab>
         <v-tab value="globals">Globals</v-tab>
       </v-tabs>
     </v-container>
-    <v-tabs-window v-model="tab" class="d-flex flex-column fill-height">
+    <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height">
       <v-tabs-window-item value="nodes">
         <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
           <NodeDetail 

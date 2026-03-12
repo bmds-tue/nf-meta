@@ -11,6 +11,10 @@ from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, Wo
 logger = logging.getLogger()
 
 
+class GraphValidationError(Exception):
+    pass
+
+
 class MetaworkflowGraph:
     """
     A wrapper around networkx.DiGraph that provides:
@@ -135,24 +139,39 @@ class MetaworkflowGraph:
         # Detect cycles
         if not nx.is_directed_acyclic_graph(self.G):
             cycle = nx.find_cycle(self.G)
-            raise ValueError(f"Workflow graph contains a cycle: {cycle}")
+            raise GraphValidationError(f"Workflow graph contains a cycle: {cycle}")
 
         # Detect missing workflow nodes
         for src, tgt in self.G.edges():
             if src not in self.G or tgt not in self.G:
-                raise ValueError(f"Edge refers to nonexistent node: {src}->{tgt}")
+                raise GraphValidationError(f"Edge refers to nonexistent node: {src}->{tgt}")
 
         # Ensure workflow IDs are valid (non-empty)
         for n in self.G.nodes:
             if not isinstance(n, str) or not n:
-                raise ValueError("Workflow id must be a non-empty string.")
+                raise GraphValidationError("Workflow id must be a non-empty string.")
 
-        # TODO: Validate field references like ${wf_id:params:field:name}
-        # for each node and each reference:
-        #   1. Does wf_id exist in their predecessors?
-        #   2. Does field:name exist in params?
         for n in self.G.nodes:
-            pass
+            wf = self.get_workflow_by_id(n)
+            for ref in wf.field_refs:
+                if ref[0] not in self.G.nodes:
+                    raise GraphValidationError(f"Reference to unknown workflow: {ref[0]}")
+                
+                if ref[0] not in self.predecessors(wf):
+                    raise GraphValidationError(f"Reference to workflow {ref[0]} that is not a predecessor of {wf.id}")
+                
+                referenced_wf = self.get_workflow_by_id(ref[0])
+                d = referenced_wf.params
+                if not d:
+                    raise GraphValidationError(f"No referencable params in workflow {referenced_wf.id}")
+                
+                if not ref[1]:
+                    raise GraphValidationError(f"No param reference named in {ref}")
+
+                for key in ref[1].split(":"):
+                    d = d.get(key, None)
+                    if not d:
+                        raise GraphValidationError(f"Reference to unresolvable param: {ref[1]}")
 
     # ===========================
     #   EXPORT BACK TO CONFIG

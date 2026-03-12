@@ -74,11 +74,13 @@ class MetaworkflowGraph:
         return obj
 
     def add_workflow(self, wf: Workflow):
+        # TODO: Check new field references
         self.G.add_node(wf.id, workflow=wf.model_copy())
         self._emit(WorkflowAdded(wf))
 
     def update_workflow(self, wf: Workflow):
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
+        # TODO: Check new / updated field references
         try:
             old_wf = self.get_workflow_by_id(wf.id)
             self.G.nodes[wf.id]["workflow"] = wf.model_copy()

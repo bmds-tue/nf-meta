@@ -150,6 +150,11 @@ class MetaworkflowGraph:
             if not isinstance(n, str) or not n:
                 raise ValueError("Workflow id must be a non-empty string.")
 
+        # TODO: Validate field references like ${wf_id:params:field:name}
+        # for each node and each reference:
+        #   1. Does wf_id exist in their predecessors?
+        #   2. Does field:name exist in params?
+        
     # ===========================
     #   EXPORT BACK TO CONFIG
     # ===========================

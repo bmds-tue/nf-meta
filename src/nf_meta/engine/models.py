@@ -6,6 +6,7 @@ import re
 import uuid
 import hashlib
 import json
+import re
 
 from pydantic import (BaseModel, Field, computed_field,
                         field_validator, model_validator, ValidationInfo,
@@ -72,6 +73,23 @@ class Workflow(BaseModel):
     def is_nfcore(self) -> bool:
         nfcore_pipelines = get_nfcore_pipelines()
         return any(p.get("name") == self.name for p in nfcore_pipelines)
+    
+    @computed_field
+    @property
+    def field_refs(self) -> list[tuple[str, str]]:
+        if not self.params:
+            return []
+
+        pattern = re.compile(r'\$\{([^}]+)\}')
+        matches = pattern.findall(json.dumps(self.params))
+
+        refs = []
+        for m in matches:
+            wf_id = m[:m.find(":")]
+            ref = m.lstrip(m + "path:")
+            refs.append((wf_id, ref))
+        
+        return refs
 
     @classmethod
     def get_nfcore_info(cls, name: str) -> Optional[dict]:

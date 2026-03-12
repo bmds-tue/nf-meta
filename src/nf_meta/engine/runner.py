@@ -189,6 +189,7 @@ class SimplePythonRunner:
                     continue
 
                 print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}")
+                # TODO: resolve field references to params in predecessor workflows!
                 if not self.run_workflow(wf, graph.global_options):
                     print("[SimplePythonRunner] Workflow completed with errors!")
                     return

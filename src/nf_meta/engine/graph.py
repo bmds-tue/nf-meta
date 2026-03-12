@@ -52,23 +52,11 @@ class MetaworkflowGraph:
 
         # Add workflow nodes
         for wf in cfg.workflows:
-            obj.G.add_node(wf.id, **wf.model_dump())
+            obj.add_workflow(wf)
 
         # Add transition metadata
         for t in cfg.transitions:
-            src = t.source
-            tgt = t.target
-
-            if tgt not in obj.G.nodes:
-                raise ValueError(f"Unknown node {tgt} found in transition {src}->{tgt}")
-
-            if src not in obj.G.nodes:
-                raise ValueError(f"Unknown node {src} found in transition {src}->{tgt}")
-
-            if not obj.G.has_edge(src, tgt):
-                # Transition not declared in metalayout → auto-add
-                # TODO: Be more specific with keys once they are stable-ish
-                obj.G.add_edge(src, tgt, **t.model_dump())
+            obj.add_transition(t)
 
         obj.global_options = cfg.globals or GlobalOptions()
         obj.config_version = cfg.config_version
@@ -76,17 +64,20 @@ class MetaworkflowGraph:
         # Run graph validation
         obj.validate()
 
+        # Reset Events added by add_workflow and add_transition methods
+        obj._events = []
+
         return obj
 
     def add_workflow(self, wf: Workflow):
-        self.G.add_node(wf.id, **wf.model_dump())
+        self.G.add_node(wf.id, workflow=wf.model_copy())
         self._emit(WorkflowAdded(wf))
 
     def update_workflow(self, wf: Workflow):
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
         try:
-            old_wf = Workflow(**self.G.nodes[wf.id])
-            self.G.nodes[wf.id].update(wf.model_dump(exclude_none=False))
+            old_wf = self.get_workflow_by_id(wf.id)
+            self.G.nodes[wf.id]["workflow"] = wf.model_copy()
             self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))
         except KeyError as e:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
@@ -107,11 +98,19 @@ class MetaworkflowGraph:
 
         node_data = self.G.nodes[wf_id]
         self.G.remove_node(wf_id)
-        self._emit(WorkflowRemoved(Workflow(**node_data)))
+        self._emit(WorkflowRemoved(node_data["workflow"]))
 
     def add_transition(self, tr: Transition):
-        assert tr.source in self.G.nodes and tr.target in self.G.nodes
-        self.G.add_edge(tr.source, tr.target, **tr.model_dump())
+        if tr.source not in self.G.nodes:
+            raise ValueError(f"Unknown node {tr.source} found in transition {tr.source}->{tr.target}")
+
+        if tr.target not in self.G.nodes:
+            raise ValueError(f"Unknown node {tr.source} found in transition {tr.source}->{tr.target}")
+
+        if self.G.has_edge(tr.source, tr.target):
+            print("[warning] Edge already exists: {tr.source}->{tr.target}")
+
+        self.G.add_edge(tr.source, tr.target, transition=tr.model_copy())
         self._emit(TransitionAdded(tr))
 
     def update_transition(self, tr: Transition):
@@ -120,14 +119,9 @@ class MetaworkflowGraph:
         pass
 
     def remove_transition(self, tr_id: str, recursive=False):
-        matches = list(filter(lambda edge: self.G.edges[edge].get("id", "") == tr_id, self.G.edges))
-        if len(matches) != 1:
-            raise ValueError("Invalid or ambiguous tr_id")
-
-        edge = matches[0]
-        edge_data = self.G.edges[edge]
-        self.G.remove_edge(*edge)
-        self._emit(TransitionRemoved(Transition(**edge_data)))
+        tr = self.get_transition_by_id(tr_id)
+        self.G.remove_edge((tr.source, tr.target))
+        self._emit(TransitionRemoved(tr))
 
     def update_global_options(self, glob: GlobalOptions):
         old_globals = self.global_options
@@ -138,17 +132,17 @@ class MetaworkflowGraph:
     #        VALIDATION
     # ===========================
     def validate(self):
-        # 1. Detect cycles
+        # Detect cycles
         if not nx.is_directed_acyclic_graph(self.G):
             cycle = nx.find_cycle(self.G)
             raise ValueError(f"Workflow graph contains a cycle: {cycle}")
 
-        # 2. Detect missing workflow nodes
+        # Detect missing workflow nodes
         for src, tgt in self.G.edges():
             if src not in self.G or tgt not in self.G:
                 raise ValueError(f"Edge refers to nonexistent node: {src}->{tgt}")
 
-        # 3. Ensure workflow IDs are valid (non-empty)
+        # Ensure workflow IDs are valid (non-empty)
         for n in self.G.nodes:
             if not isinstance(n, str) or not n:
                 raise ValueError("Workflow id must be a non-empty string.")
@@ -157,7 +151,9 @@ class MetaworkflowGraph:
         # for each node and each reference:
         #   1. Does wf_id exist in their predecessors?
         #   2. Does field:name exist in params?
-        
+        for n in self.G.nodes:
+            pass
+
     # ===========================
     #   EXPORT BACK TO CONFIG
     # ===========================
@@ -179,22 +175,30 @@ class MetaworkflowGraph:
     # ===========================
     #        UTILITIES
     # ===========================
-    def get_workflow_by_id(self, id) -> Workflow:
-        pass
+    def get_workflow_by_id(self, id: str) -> Workflow:
+        return self.G.nodes[id].get("workflow")
 
-    def get_transition_by_id(self, id) -> Transition:
-        pass
+    def get_transition_by_id(self, id: str) -> Transition:
+        try:
+            # tuple unpacking trick ;)
+            match, = filter(lambda edge: self.get_transition(*edge).id == id, self.G.edges)
+        except ValueError:
+            raise ValueError("Invalid or ambiguous tr_id")
+        return match
+
+    def get_transition(self, source: str, target: str) -> Transition:
+        return self.G.edges[(source, target)].get("transition")
 
     def get_transitions(self) -> list[Transition]:
-        return [Transition(**self.G.edges[e]) for e in self.G.edges]
+        return [self.get_transition(*e) for e in self.G.edges]
 
     def get_workflows(self) -> list[Workflow]:
-        return [Workflow(**self.G.nodes[n]) for n in self.G.nodes]
+        return [self.get_workflow_by_id(n) for n in self.G.nodes]
 
     def get_workflows_sorted(self) -> list[Workflow]:
         """Returns workflows in valid execution order."""
         nodes_sorted = list(nx.topological_sort(self.G))
-        workflows = [Workflow(**self.G.nodes[n]) for n in nodes_sorted]
+        workflows = [self.get_workflow_by_id(n) for n in nodes_sorted]
         return workflows
 
     def get_start_workflow(self) -> Optional[Workflow]:
@@ -208,7 +212,7 @@ class MetaworkflowGraph:
             return workflows_sorted[0]
 
     def successors(self, wf: Workflow) -> list[Workflow]:
-        return [Workflow(**self.G.nodes[n]) for n in self.G.successors(wf.id)]
+        return [self.get_workflow_by_id(n) for n in self.G.successors(wf.id)]
 
     def predecessors(self, wf: Workflow) -> list[Workflow]:
-        return [Workflow(**self.G.nodes[n]) for n in self.G.predecessors(wf.id)]
+        return [self.get_workflow_by_id(n) for n in self.G.predecessors(wf.id)]

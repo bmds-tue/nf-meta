@@ -10,7 +10,9 @@ import re
 
 from pydantic import (BaseModel, Field, computed_field,
                         field_validator, model_validator, ValidationInfo,
-                        BeforeValidator)
+                        AfterValidator)
+from pydantic.functional_serializers import PlainSerializer
+
 import yaml
 
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines, url_exists
@@ -21,7 +23,7 @@ CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
 
 
-def is_existing_file_abs(path: Optional[str | Path] = None, allowed_extensions: Optional[tuple[str]] = None) -> Optional[Path]:
+def is_existing_file_abs(path: Optional[Path] = None, allowed_extensions: Optional[tuple[str]] = None) -> Optional[Path]:
     if not path:
         return None
 
@@ -39,9 +41,16 @@ def is_existing_file_abs(path: Optional[str | Path] = None, allowed_extensions: 
     return path
 
 
-ExistingAbsoluteFile = Annotated[Optional[Path], BeforeValidator(lambda v: is_existing_file_abs(v))]
-ExistingYamlFile = Annotated[Optional[Path], BeforeValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml")))]
-ExistingNfConfigFile = Annotated[Optional[Path], BeforeValidator(lambda v: is_existing_file_abs(v, (".config")))]
+SerializeToStr = PlainSerializer(lambda v: str(v) if v else None, return_type=Optional[str])
+ExistingAbsoluteFile = Annotated[Optional[Path], 
+                                 AfterValidator(lambda v: is_existing_file_abs(v)),
+                                 SerializeToStr]
+ExistingYamlFile = Annotated[Optional[Path], 
+                             AfterValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml"))),
+                             SerializeToStr]
+ExistingNfConfigFile = Annotated[Optional[Path], 
+                                 AfterValidator(lambda v: is_existing_file_abs(v, (".config"))),
+                                 SerializeToStr]
 
 
 def create_id():

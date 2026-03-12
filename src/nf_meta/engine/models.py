@@ -95,7 +95,7 @@ class Workflow(BaseModel):
         refs = []
         for m in matches:
             wf_id = m[:m.find(":")]
-            ref = m.lstrip(m + "path:")
+            ref = m.lstrip(wf_id + "path:")
             refs.append((wf_id, ref))
         
         return refs

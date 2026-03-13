@@ -121,9 +121,11 @@ class Workflow(BaseModel):
         if not value:
             if not is_nfcore:
                 raise ValueError("Workflows from outside nf-core must specify a repository!") 
-            return nfcore_wf_info.get("url")
+            return nfcore_wf_info.get("repository_url")
         
-        if is_nfcore and value != nfcore_wf_info.get("url"):
+        if is_nfcore and value != nfcore_wf_info.get("repository_url"):
+            print("URL:" , value)
+            print("NF-CORE URLS:", nfcore_wf_info.get("repository_url"))
             raise ValueError("Nf-core workflow referenced, but url does not match!")
         
         if (not is_nfcore 

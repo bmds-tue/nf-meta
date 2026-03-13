@@ -93,18 +93,18 @@ class MetaworkflowGraph:
             raise ValueError("Invalid wf_id")
         
         for edge in list(self.G.in_edges(wf_id)):
-            edge_data = self.G.edges[edge]
+            transition = self.get_transition(*edge)
             self.G.remove_edge(*edge)
-            self._emit(TransitionRemoved(Transition(**edge_data)))
+            self._emit(TransitionRemoved(transition))
 
         for edge in list(self.G.out_edges(wf_id)):
-            edge_data = self.G.edges[edge]
+            transition = self.get_transition(edge)
             self.G.remove_edge(*edge)
-            self._emit(TransitionRemoved(Transition(**edge_data)))
+            self._emit(TransitionRemoved(transition))
 
-        node_data = self.G.nodes[wf_id]
+        removed_wf = self.get_workflow_by_id(wf_id)
         self.G.remove_node(wf_id)
-        self._emit(WorkflowRemoved(node_data["workflow"]))
+        self._emit(WorkflowRemoved(removed_wf))
 
     def add_transition(self, tr: Transition):
         if tr.source not in self.G.nodes:

@@ -93,14 +93,12 @@ class MetaworkflowGraph:
             raise ValueError("Invalid wf_id")
         
         for edge in list(self.G.in_edges(wf_id)):
-            transition = self.get_transition(*edge)
-            self.G.remove_edge(*edge)
-            self._emit(TransitionRemoved(transition))
+            tr = self.get_transition(*edge)
+            self.remove_transition(tr.id)
 
         for edge in list(self.G.out_edges(wf_id)):
-            transition = self.get_transition(edge)
-            self.G.remove_edge(*edge)
-            self._emit(TransitionRemoved(transition))
+            tr = self.get_transition(*edge)
+            self.remove_transition(tr.id)
 
         removed_wf = self.get_workflow_by_id(wf_id)
         self.G.remove_node(wf_id)
@@ -119,14 +117,9 @@ class MetaworkflowGraph:
         self.G.add_edge(tr.source, tr.target, transition=tr.model_copy())
         self._emit(TransitionAdded(tr))
 
-    def update_transition(self, tr: Transition):
-        # TODO: Add update
-        # TODO: Think about nodes without a predecessor!
-        pass
-
     def remove_transition(self, tr_id: str, recursive=False):
         tr = self.get_transition_by_id(tr_id)
-        self.G.remove_edge((tr.source, tr.target))
+        self.G.remove_edge(tr.source, tr.target)
         self._emit(TransitionRemoved(tr))
 
     def update_global_options(self, glob: GlobalOptions):
@@ -202,10 +195,10 @@ class MetaworkflowGraph:
     def get_transition_by_id(self, id: str) -> Transition:
         try:
             # tuple unpacking trick ;)
-            match, = filter(lambda edge: self.get_transition(*edge).id == id, self.G.edges)
+            matching_edge, = filter(lambda edge: self.get_transition(*edge).id == id, self.G.edges)
+            return self.get_transition(*matching_edge)
         except ValueError:
             raise ValueError("Invalid or ambiguous tr_id")
-        return match
 
     def get_transition(self, source: str, target: str) -> Transition:
         return self.G.edges[(source, target)].get("transition")

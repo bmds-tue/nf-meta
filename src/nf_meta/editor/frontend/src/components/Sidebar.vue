@@ -85,7 +85,7 @@ onBeforeUnmount(stopDrag)
         <v-tab value="globals">Globals</v-tab>
       </v-tabs>
     </v-container>
-    <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height">
+    <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
       <v-tabs-window-item value="nodes">
         <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
           <NodeDetail 

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from packaging.version import Version
 from typing import Optional, Dict, List, Any, Annotated, TypeAlias
@@ -62,6 +63,15 @@ class Position(BaseModel):
     y: int
 
 
+@dataclass
+class ParamsReference:
+    reference_name: str
+    source_wf_id: str
+    source_key: str
+    referenced_wf_id: str
+    referenced_key: str
+
+
 class Workflow(BaseModel):
     """
     Workflow representation for internal use 
@@ -74,7 +84,7 @@ class Workflow(BaseModel):
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
     params_file: Optional[ExistingYamlFile] = None
-    params: Optional[dict[str, Any]] = None
+    params: Optional[dict[str, str]] = None
     config_file: Optional[ExistingNfConfigFile] = None
 
     @computed_field
@@ -85,19 +95,23 @@ class Workflow(BaseModel):
     
     @computed_field
     @property
-    def field_refs(self) -> list[tuple[str, str]]:
+    def field_refs(self) -> list[ParamsReference]:
         if not self.params:
             return []
 
-        pattern = re.compile(r'\$\{([^}]+)\}')
-        matches = pattern.findall(json.dumps(self.params))
+        pattern = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
 
         refs = []
-        for m in matches:
-            wf_id = m[:m.find(":")]
-            ref = m.lstrip(wf_id + ":params:")
-            refs.append((wf_id, ref))
-        
+        for k, v in self.params.items():
+            match = pattern.search(str(v))
+            if match:
+                refs.append(
+                    ParamsReference(reference_name=match.group(0),
+                                    source_wf_id=self.id,
+                                    source_key=k,
+                                    referenced_wf_id=match.group(1),
+                                    referenced_key=match.group(2))
+                )
         return refs
 
     @classmethod

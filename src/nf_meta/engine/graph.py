@@ -149,24 +149,24 @@ class MetaworkflowGraph:
         for n in self.G.nodes:
             wf = self.get_workflow_by_id(n)
             for ref in wf.field_refs:
-                if ref[0] not in self.G.nodes:
-                    raise GraphValidationError(f"Reference to unknown workflow: {ref[0]}")
+                if ref.referenced_wf_id not in self.G.nodes:
+                    raise GraphValidationError(f"Reference to unknown workflow: {ref.referenced_wf_id}")
                 
-                if ref[0] not in self.predecessors(wf):
-                    raise GraphValidationError(f"Reference to workflow {ref[0]} that is not a predecessor of {wf.id}")
+                if ref.referenced_wf_id not in self.predecessors(wf):
+                    raise GraphValidationError(f"Reference to workflow {ref.referenced_wf_id} that is not a predecessor of {wf.id}")
                 
-                referenced_wf = self.get_workflow_by_id(ref[0])
+                referenced_wf = self.get_workflow_by_id(ref.referenced_wf_id)
                 d = referenced_wf.params
                 if not d:
                     raise GraphValidationError(f"No referencable params in workflow {referenced_wf.id}")
                 
-                if not ref[1]:
-                    raise GraphValidationError(f"No param reference named in {ref}")
+                if not ref.referenced_key:
+                    raise GraphValidationError(f"No param reference named in {ref.referenced_key}")
 
-                for key in ref[1].split(":"):
-                    d = d.get(key, None)
-                    if not d:
-                        raise GraphValidationError(f"Reference to unresolvable param: {ref[1]}")
+                d = d.get(ref.referenced_key, None)
+                if not d:
+                    raise GraphValidationError(f"Reference to unresolvable param: {ref.referenced_key}")
+
 
     # ===========================
     #   EXPORT BACK TO CONFIG

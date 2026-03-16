@@ -56,7 +56,7 @@ class MetaworkflowGraph:
 
         # Add workflow nodes
         for wf in cfg.workflows:
-            obj.add_workflow(wf)
+            obj.add_workflow(wf, skip_param_validation=True)
 
         # Add transition metadata
         for t in cfg.transitions:
@@ -73,14 +73,18 @@ class MetaworkflowGraph:
 
         return obj
 
-    def add_workflow(self, wf: Workflow):
-        # TODO: Check new field references
+    def add_workflow(self, wf: Workflow, skip_param_validation=False):
+        if wf.params and not skip_param_validation:
+            self.validate_param_references(wf)
+
         self.G.add_node(wf.id, workflow=wf.model_copy())
         self._emit(WorkflowAdded(wf))
 
     def update_workflow(self, wf: Workflow):
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
-        # TODO: Check new / updated field references
+        if wf.params:
+            self.validate_param_references(wf)
+
         try:
             old_wf = self.get_workflow_by_id(wf.id)
             self.G.nodes[wf.id]["workflow"] = wf.model_copy()
@@ -130,6 +134,26 @@ class MetaworkflowGraph:
     # ===========================
     #        VALIDATION
     # ===========================
+    def validate_param_references(self, wf: Workflow):
+        for ref in wf.field_refs:
+            if ref.referenced_wf_id not in self.G.nodes:
+                raise GraphValidationError(f"Reference to unknown workflow: {ref.referenced_wf_id}")
+            
+            if ref.referenced_wf_id not in self.predecessors(wf):
+                raise GraphValidationError(f"Reference to workflow {ref.referenced_wf_id} that is not a predecessor of {wf.id}")
+            
+            referenced_wf = self.get_workflow_by_id(ref.referenced_wf_id)
+            d = referenced_wf.params
+            if not d:
+                raise GraphValidationError(f"No referencable params in workflow {referenced_wf.id}")
+            
+            if not ref.referenced_key:
+                raise GraphValidationError(f"No param reference named in {ref.referenced_key}")
+
+            d = d.get(ref.referenced_key, None)
+            if not d:
+                raise GraphValidationError(f"Reference to unresolvable param: {ref.referenced_key}")
+
     def validate(self):
         # Detect cycles
         if not nx.is_directed_acyclic_graph(self.G):
@@ -148,24 +172,7 @@ class MetaworkflowGraph:
 
         for n in self.G.nodes:
             wf = self.get_workflow_by_id(n)
-            for ref in wf.field_refs:
-                if ref.referenced_wf_id not in self.G.nodes:
-                    raise GraphValidationError(f"Reference to unknown workflow: {ref.referenced_wf_id}")
-                
-                if ref.referenced_wf_id not in self.predecessors(wf):
-                    raise GraphValidationError(f"Reference to workflow {ref.referenced_wf_id} that is not a predecessor of {wf.id}")
-                
-                referenced_wf = self.get_workflow_by_id(ref.referenced_wf_id)
-                d = referenced_wf.params
-                if not d:
-                    raise GraphValidationError(f"No referencable params in workflow {referenced_wf.id}")
-                
-                if not ref.referenced_key:
-                    raise GraphValidationError(f"No param reference named in {ref.referenced_key}")
-
-                d = d.get(ref.referenced_key, None)
-                if not d:
-                    raise GraphValidationError(f"Reference to unresolvable param: {ref.referenced_key}")
+            self.validate_param_references(wf)
 
 
     # ===========================

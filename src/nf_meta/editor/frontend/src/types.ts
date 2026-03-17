@@ -57,6 +57,6 @@ export type NfCorePipelineReleaseInfo = {
 export type NfCorePipelineInfo = {
   name: string
   description: string,
-  url: string,
+  repository_url: string,
   releases: NfCorePipelineReleaseInfo[]
 }

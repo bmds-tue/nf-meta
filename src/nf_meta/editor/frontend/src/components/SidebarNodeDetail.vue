@@ -37,7 +37,7 @@ const selectedPipelineVersions = computed(() => {
 function handleUpdatePipeline() {
   if(form.value.name && selectedPipeline.value?.description) {
     form.value.description = selectedPipeline.value.description
-    form.value.url = selectedPipeline.value.url
+    form.value.url = selectedPipeline.value.repository_url
   }
 }
 

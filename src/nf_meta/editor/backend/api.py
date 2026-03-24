@@ -93,7 +93,7 @@ def remove_node(selection: Selection):
     for node_id in selection.nodes:
         cmds.append(RemoveWorkflow(node_id))
 
-    SESSION.handle_command(Transaction(cmds))
+    SESSION.handle_command(Transaction(tuple(cmds)))
     return JSONResponse(dict())
 
 

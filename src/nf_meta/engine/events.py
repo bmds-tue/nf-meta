@@ -116,7 +116,7 @@ class Command(Protocol):
 
 @dataclass(frozen=True)
 class Transaction:
-    commands: list[Command]
+    commands: tuple[Command]
 
     def apply(self, graph: GraphEventHandler):
         # TODO: Handle errors?

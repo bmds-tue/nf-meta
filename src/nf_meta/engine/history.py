@@ -23,7 +23,7 @@ class History:
         commands = []
         for event in reversed(events):
             commands.append(event.get_undo_cmd())
-        return Transaction(commands)
+        return Transaction(tuple(commands))
 
     def undo(self, graph: GraphEventHandler) -> tuple[Event]:
         events = self.undo_stack.pop()

@@ -4,7 +4,6 @@ from enum import StrEnum
 
 from .models import Workflow, Transition, GlobalOptions
 
-
 # TODO: Is this needed
 class EventTypes(StrEnum):
     AddWorkflow = "add_workflow"
@@ -35,6 +34,8 @@ class GraphEventHandler(Protocol):
     def update_transition(self, t: Transition) -> None: ...
 
     def update_global_options(self, g: GlobalOptions) -> None: ...
+
+    def deferred_validation(self) -> None: ...
 
 
 # ------------------------------------------
@@ -119,8 +120,9 @@ class Transaction:
 
     def apply(self, graph: GraphEventHandler):
         # TODO: Handle errors?
-        for cmd in self.commands:
-            cmd.apply(graph)
+        with graph.deferred_validation():
+            for cmd in self.commands:
+                cmd.apply(graph)
 
 
 @dataclass(frozen=True)

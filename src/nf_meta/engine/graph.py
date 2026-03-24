@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Dict, Any, Optional
 from pathlib import Path
 import yaml
@@ -5,7 +6,7 @@ import logging
 
 import networkx as nx
 
-from .models import MetaworkflowConfig, Workflow, GlobalOptions, Transition, dump_config, CONFIG_VERSION_MAX
+from .models import MetaworkflowConfig, Workflow, GlobalOptions, Transition, load_config, dump_config, CONFIG_VERSION_MAX
 from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
 
 logger = logging.getLogger()
@@ -28,6 +29,7 @@ class MetaworkflowGraph:
         self.global_options: Optional[GlobalOptions] = None
         self.config_version: str = CONFIG_VERSION_MAX
         self._events: list[Event] = []
+        self._validation_suspended = False
 
     def _emit(self, event: Event):
         self._events.append(event)
@@ -39,58 +41,57 @@ class MetaworkflowGraph:
 
     @classmethod
     def from_file(cls, cfg_file: Path) -> "MetaworkflowGraph":
-        with open(cfg_file) as fh:
-            data = yaml.safe_load(fh)
+        cfg = load_config(cfg_file)
 
-        if not data:
+        if not cfg:
             raise ValueError(f"No config data loaded from {cfg_file}")
     
-        return cls.from_config(data)
+        return cls.from_config(cfg)
 
     @classmethod
-    def from_config(cls, cfg_dict: Dict[str, Any]) -> "MetaworkflowGraph":
-        # Validate config structure using Pydantic
-        cfg = MetaworkflowConfig(**cfg_dict)
-
+    def from_config(cls, cfg: MetaworkflowConfig) -> "MetaworkflowGraph":
         obj = cls()
 
-        # Add workflow nodes
-        for wf in cfg.workflows:
-            obj.add_workflow(wf, skip_param_validation=True)
+        with obj.deferred_validation():
+            # Add workflow nodes
+            for wf in cfg.workflows:
+                obj.add_workflow(wf)
 
-        # Add transition metadata
-        for t in cfg.transitions:
-            obj.add_transition(t)
+            # Add transition metadata
+            for t in cfg.transitions:
+                obj.add_transition(t)
 
-        obj.global_options = cfg.globals or GlobalOptions()
-        obj.config_version = cfg.config_version
-
-        # Run graph validation
-        obj.validate()
+            obj.global_options = cfg.globals or GlobalOptions()
+            obj.config_version = cfg.config_version
 
         # Reset Events added by add_workflow and add_transition methods
         obj._events = []
 
         return obj
 
-    def add_workflow(self, wf: Workflow, skip_param_validation=False):
-        if wf.params and not skip_param_validation:
-            self.validate_param_references(wf)
+    def add_workflow(self, wf: Workflow):
 
         self.G.add_node(wf.id, workflow=wf.model_copy())
-        self._emit(WorkflowAdded(wf))
+
+        try:
+            if wf.params and not self._validation_suspended:
+                self.validate_param_references(wf)
+            self._emit(WorkflowAdded(wf))
+        except GraphValidationError as e:
+            self.G.remove_node(wf.id)
+            raise e
 
     def update_workflow(self, wf: Workflow):
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
-        if wf.params:
+        if wf.params and not self._validation_suspended:
             self.validate_param_references(wf)
 
-        try:
-            old_wf = self.get_workflow_by_id(wf.id)
-            self.G.nodes[wf.id]["workflow"] = wf.model_copy()
-            self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))
-        except KeyError as e:
+        if not wf.id in self.G.nodes:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
+
+        old_wf = self.get_workflow_by_id(wf.id)
+        self.G.nodes[wf.id]["workflow"] = wf.model_copy()
+        self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))
 
     def remove_workflow(self, wf_id: str, recursive=False):
         if wf_id not in self.G.nodes:
@@ -121,8 +122,11 @@ class MetaworkflowGraph:
         self.G.add_edge(tr.source, tr.target, transition=tr.model_copy())
         self._emit(TransitionAdded(tr))
 
-    def remove_transition(self, tr_id: str, recursive=False):
+    def remove_transition(self, tr_id: str):
         tr = self.get_transition_by_id(tr_id)
+        if not tr:
+            return
+
         self.G.remove_edge(tr.source, tr.target)
         self._emit(TransitionRemoved(tr))
 
@@ -139,7 +143,7 @@ class MetaworkflowGraph:
             if ref.referenced_wf_id not in self.G.nodes:
                 raise GraphValidationError(f"Reference to unknown workflow: {ref.referenced_wf_id}")
             
-            if ref.referenced_wf_id not in self.predecessors(wf):
+            if ref.referenced_wf_id not in [w.id for w in self.predecessors(wf)]:
                 raise GraphValidationError(f"Reference to workflow {ref.referenced_wf_id} that is not a predecessor of {wf.id}")
             
             referenced_wf = self.get_workflow_by_id(ref.referenced_wf_id)
@@ -174,7 +178,6 @@ class MetaworkflowGraph:
             wf = self.get_workflow_by_id(n)
             self.validate_param_references(wf)
 
-
     # ===========================
     #   EXPORT BACK TO CONFIG
     # ===========================
@@ -197,7 +200,10 @@ class MetaworkflowGraph:
     #        UTILITIES
     # ===========================
     def get_workflow_by_id(self, id: str) -> Workflow:
-        return self.G.nodes[id].get("workflow")
+        try:
+            return self.G.nodes[id].get("workflow")
+        except KeyError:
+            return None
 
     def get_transition_by_id(self, id: str) -> Transition:
         try:
@@ -208,7 +214,10 @@ class MetaworkflowGraph:
             raise ValueError("Invalid or ambiguous tr_id")
 
     def get_transition(self, source: str, target: str) -> Transition:
-        return self.G.edges[(source, target)].get("transition")
+        try:
+            return self.G.edges[(source, target)].get("transition")
+        except KeyError:
+            return None
 
     def get_transitions(self) -> list[Transition]:
         return [self.get_transition(*e) for e in self.G.edges]
@@ -237,3 +246,15 @@ class MetaworkflowGraph:
 
     def predecessors(self, wf: Workflow) -> list[Workflow]:
         return [self.get_workflow_by_id(n) for n in self.G.predecessors(wf.id)]
+
+    @contextmanager
+    def deferred_validation(self):
+        """
+        Suspend per-operation vaidation; run a full graph validation on exit
+        """
+        self._validation_suspended = True
+        try:
+            yield self
+        finally:
+            self._validation_suspended = False
+            self.validate()

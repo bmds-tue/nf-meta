@@ -51,7 +51,11 @@ def get_nfcore_pipelines() -> list[dict]:
                 "name": p.get("full_name", ""),
                 "url": p.get("repository_url", ""),
                 "description": p.get("description", ""),
-                "releases": p.get("releases", [])
+                "releases": [{
+                        "tag_name": r.get("tag_name"),
+                        "tag_sha": r.get("tag_sha"),
+                        "published_at": r.get("published_at")
+                    } for r in p.get("releases", [])]
             } for p in repos]
 
 @functools.cache

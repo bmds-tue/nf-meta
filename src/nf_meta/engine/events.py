@@ -4,22 +4,11 @@ from enum import StrEnum
 
 from .models import Workflow, Transition, GlobalOptions
 
-# TODO: Is this needed
-class EventTypes(StrEnum):
-    AddWorkflow = "add_workflow"
-    RemoveWorkflow = "remove_workflow"
-    AddTransition = "add_transition"
-    RemoveTransition = "remove_transition"
-
 
 # Event Handler
 class GraphEventHandler(Protocol):
 
     def pop_events(self) -> tuple["Event"]: ...
-
-    def get_workflow_by_id(self, id: str) -> Workflow: ...
-
-    def get_transition_by_id(self, id: str) -> Transition: ...
 
     def add_workflow(self, w: Workflow) -> None: ...
 
@@ -30,8 +19,6 @@ class GraphEventHandler(Protocol):
     def add_transition(self, t: Transition) -> None: ...
 
     def remove_transition(self, t: Transition) -> None: ...
-
-    def update_transition(self, t: Transition) -> None: ...
 
     def update_global_options(self, g: GlobalOptions) -> None: ...
 

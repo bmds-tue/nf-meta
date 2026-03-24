@@ -13,6 +13,7 @@ from pydantic import (BaseModel, Field, computed_field,
                         field_validator, model_validator, ValidationInfo,
                         AfterValidator)
 from pydantic.functional_serializers import PlainSerializer
+from pydantic_core import InitErrorDetails, PydanticCustomError, ValidationError
 
 import yaml
 
@@ -80,7 +81,7 @@ class Workflow(BaseModel):
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str
     version: str
-    url: Optional[str] = None
+    url: str = "FOO"
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
     params_file: Optional[ExistingYamlFile] = None
@@ -135,12 +136,10 @@ class Workflow(BaseModel):
         if not value:
             if not is_nfcore:
                 raise ValueError("Workflows from outside nf-core must specify a repository!") 
-            return nfcore_wf_info.get("repository_url")
+            return nfcore_wf_info.get("url")
         
-        if is_nfcore and value != nfcore_wf_info.get("repository_url"):
-            print("URL:" , value)
-            print("NF-CORE URLS:", nfcore_wf_info.get("repository_url"))
-            raise ValueError("Nf-core workflow referenced, but url does not match!")
+        if is_nfcore and value != nfcore_wf_info.get("url"):
+            raise ValueError("nf-core workflow referenced, but url does not match!")
         
         if (not is_nfcore 
             and not value.startswith("http")):
@@ -151,15 +150,27 @@ class Workflow(BaseModel):
 
         return value
 
-    @model_validator(mode="after")
-    def populate_nfcore_fields(self):
-        nfcore_wf_info = self.get_nfcore_info(self.name)
-        is_nfcore = bool(nfcore_wf_info)
-
-        if is_nfcore:
-            self.description = nfcore_wf_info.get("description", "")
+    @model_validator(mode="before")
+    @classmethod
+    def populate_nfcore_fields(cls, data: dict) -> dict:
         
-        return self
+        # For non nf-core workflows: Explicitly mark url as provided
+        # (even if None) so the field_validator is not skipped!
+        data.setdefault("url", None)
+        
+        name = data.get("name")
+        if not name:
+            return data
+
+        nfcore_info = cls.get_nfcore_info(name)
+
+        if nfcore_info:
+            if not data.get("url"):
+                data["url"] = nfcore_info["url"]
+            if not data.get("description"):
+                data["description"] = nfcore_info.get("description", "")
+
+        return data
 
     def hash(self):
         data = f"{self.url}{self.version}"

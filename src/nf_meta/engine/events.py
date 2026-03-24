@@ -6,6 +6,7 @@ from .models import Workflow, Transition, GlobalOptions
 
 
 # Event Handler
+# TODO: Test that Metaworkflow implements GraphEventHandler: isinstance(graph, GraphEventHandler)
 class GraphEventHandler(Protocol):
 
     def pop_events(self) -> tuple["Event"]: ...

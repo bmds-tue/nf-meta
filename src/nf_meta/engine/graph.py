@@ -114,10 +114,14 @@ class MetaworkflowGraph:
             raise ValueError(f"Unknown node {tr.source} found in transition {tr.source}->{tr.target}")
 
         if self.G.has_edge(tr.source, tr.target):
-            print("[warning] Edge already exists: {tr.source}->{tr.target}")
+            print(f"[warning] Edge already exists: {tr.source}->{tr.target}")
 
         self.G.add_edge(tr.source, tr.target, transition=tr.model_copy())
         self._emit(TransitionAdded(tr))
+
+        # can only be validated after-the-fact with the node in the graph
+        if not self._validation_suspended:
+            self.validate_graph_topology()
 
     def remove_transition(self, tr_id: str):
         tr = self.get_transition_by_id(tr_id)
@@ -157,16 +161,22 @@ class MetaworkflowGraph:
         if errors:
             raise WorkflowReferenceErrors(errors)
 
-    def validate(self):
+    def validate_graph_topology(self):
         # Detect cycles
         if not nx.is_directed_acyclic_graph(self.G):
             cycle = nx.find_cycle(self.G)
             raise GraphValidationError(f"Workflow graph contains a cycle: {cycle}")
 
+    def validate_edge(self, src, tgt):
+        if src not in self.G or tgt not in self.G:
+            raise GraphValidationError(f"Edge refers to nonexistent node: {src}->{tgt}")
+
+    def validate(self):
+        self.validate_graph_topology()
+
         # Detect missing workflow nodes
         for src, tgt in self.G.edges():
-            if src not in self.G or tgt not in self.G:
-                raise GraphValidationError(f"Edge refers to nonexistent node: {src}->{tgt}")
+            self.validate_edge(src, tgt)
 
         # Ensure workflow IDs are valid (non-empty)
         for n in self.G.nodes:

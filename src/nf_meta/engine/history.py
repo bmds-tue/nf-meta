@@ -13,7 +13,19 @@ class History:
         return len(self.redo_stack) > 0
 
     def execute(self, command: Command, graph: GraphEventHandler) -> tuple[Event]:
-        command.apply(graph)
+        try:
+            command.apply(graph)
+        except Exception as e:
+            events = graph.pop_events()
+            inverse = self._get_inverse_command(events)
+
+            # TODO: Logging!!
+            print(f"[!] Error Caught while running {command}")
+            print(f"... {e}")
+            print(f"... Attempting to undo the completed events: {events}")
+            inverse.apply(graph)
+            raise e
+
         events = graph.pop_events()
         self.undo_stack.append(events)
         self.redo_stack.clear()

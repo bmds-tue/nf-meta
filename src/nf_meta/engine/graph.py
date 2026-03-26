@@ -131,6 +131,10 @@ class MetaworkflowGraph:
         self.G.remove_edge(tr.source, tr.target)
         self._emit(TransitionRemoved(tr))
 
+        if not self._validation_suspended:
+            source_wf = self.get_workflow_by_id(tr.source)
+            self.validate_param_references(source_wf)
+
     def update_global_options(self, glob: GlobalOptions):
         old_globals = self.global_options
         self.global_options = glob

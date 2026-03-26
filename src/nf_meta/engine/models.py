@@ -112,7 +112,7 @@ class Workflow(BaseModel):
             match = pattern.search(str(v))
             if match:
                 refs.append(
-                    ParamsReference(reference_name=match.group(0),
+                    ParamsReference(name=match.group(0),
                                     source_wf_id=self.id,
                                     source_key=k,
                                     target_wf_id=match.group(1),

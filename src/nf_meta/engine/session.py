@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+from .errors import GraphValidationError, SessionCommandError
 from .events import Command
 from .history import History
 from .graph import MetaworkflowGraph
@@ -14,6 +17,7 @@ class EditorSession:
 
     def load_config(self, config: Path):
         self.start(config)
+        self.history = History()
 
     def start(self, config: Path):
 
@@ -26,7 +30,10 @@ class EditorSession:
         self.history = History()
 
     def handle_command(self, c: Command):
-        events = self.history.execute(c, self.graph)
+        try:
+            events = self.history.execute(c, self.graph)
+        except (GraphValidationError) as e:
+            raise SessionCommandError.from_exception(e)
 
     def handle_undo(self):
         events = self.history.undo(self.graph)

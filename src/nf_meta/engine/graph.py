@@ -8,12 +8,9 @@ import networkx as nx
 
 from .models import MetaworkflowConfig, Workflow, GlobalOptions, Transition, load_config, dump_config, CONFIG_VERSION_MAX
 from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
+from .errors import GraphValidationError, WorkflowReferenceError, WorkflowReferenceErrors
 
 logger = logging.getLogger()
-
-
-class GraphValidationError(Exception):
-    pass
 
 
 class MetaworkflowGraph:
@@ -139,24 +136,26 @@ class MetaworkflowGraph:
     #        VALIDATION
     # ===========================
     def validate_param_references(self, wf: Workflow):
+        errors = []
         for ref in wf.field_refs:
-            if ref.referenced_wf_id not in self.G.nodes:
-                raise GraphValidationError(f"Reference to unknown workflow: {ref.referenced_wf_id}")
+            if ref.target_wf_id not in self.G.nodes:
+                errors.append(WorkflowReferenceError(ref, f"Reference to unknown workflow: {ref.target_wf_id}"))
+                continue
             
-            if ref.referenced_wf_id not in [w.id for w in self.predecessors(wf)]:
-                raise GraphValidationError(f"Reference to workflow {ref.referenced_wf_id} that is not a predecessor of {wf.id}")
-            
-            referenced_wf = self.get_workflow_by_id(ref.referenced_wf_id)
-            d = referenced_wf.params
-            if not d:
-                raise GraphValidationError(f"No referencable params in workflow {referenced_wf.id}")
-            
-            if not ref.referenced_key:
-                raise GraphValidationError(f"No param reference named in {ref.referenced_key}")
+            if ref.target_wf_id not in [w.id for w in self.predecessors(wf)]:
+                errors.append(WorkflowReferenceError(ref, f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}"))
+                continue
 
-            d = d.get(ref.referenced_key, None)
-            if not d:
-                raise GraphValidationError(f"Reference to unresolvable param: {ref.referenced_key}")
+            referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
+            if not referenced_wf.params or not ref.target_key:
+                errors.append(WorkflowReferenceError(ref, f"No referencable params in workflow {referenced_wf.id}"))
+                continue
+       
+            if not referenced_wf.params.get(ref.target_key):
+                errors.append(WorkflowReferenceError(ref, f"Reference to unresolvable param: {ref.target_key}"))
+        
+        if errors:
+            raise WorkflowReferenceErrors(errors)
 
     def validate(self):
         # Detect cycles

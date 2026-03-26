@@ -65,12 +65,17 @@ class Position(BaseModel):
 
 
 @dataclass
-class ParamsReference:
-    reference_name: str
+class Reference:
+    name: Optional[str]
     source_wf_id: str
+    target_wf_id: str
+
+
+@dataclass
+class ParamsReference(Reference):
+    name: str
     source_key: str
-    referenced_wf_id: str
-    referenced_key: str
+    target_key: str
 
 
 class Workflow(BaseModel):
@@ -110,8 +115,8 @@ class Workflow(BaseModel):
                     ParamsReference(reference_name=match.group(0),
                                     source_wf_id=self.id,
                                     source_key=k,
-                                    referenced_wf_id=match.group(1),
-                                    referenced_key=match.group(2))
+                                    target_wf_id=match.group(1),
+                                    target_key=match.group(2))
                 )
         return refs
 

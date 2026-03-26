@@ -3,6 +3,7 @@ from typing import Annotated
 
 from .serializers import serialize_state, Selection
 
+from nf_meta.engine.errors import SessionCommandError
 from nf_meta.engine.session import SESSION
 from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
 from nf_meta.engine.models import Workflow, Transition, GlobalOptions
@@ -11,7 +12,8 @@ from nf_meta.engine.events import (AddTransition, AddWorkflow,
                                     EditWorkflow, EditTransition,
                                     Transaction, UpdateGlobalOptions)
 
-from fastapi import FastAPI, APIRouter, Body
+from fastapi import FastAPI, APIRouter, Body, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pathlib import Path
@@ -28,6 +30,32 @@ api_router = APIRouter()
 
 # serve static files for deployment through fastapi
 app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
+
+
+@app.exception_handler(SessionCommandError)
+def handle_session_error(request: Request, exc: SessionCommandError):
+    return JSONResponse(
+        status_code=422,
+        content=exc.to_dict()
+    )
+
+
+@app.exception_handler(RequestValidationError)
+def handle_request_validation(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "field_errors": [
+                {
+                    "workflow_id": None,  # frontend infers from context
+                    "field": ".".join(str(l) for l in err["loc"] if l != "body"),
+                    "message": err["msg"],
+                }
+                for err in exc.errors()
+            ],
+            "graph_errors": []
+        }
+    )
 
 
 @app.api_route("/")

@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import ValidationError
 
 
-class GraphValidationError(BaseException):
+class GraphValidationError(Exception):
     pass
 
 

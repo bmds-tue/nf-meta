@@ -21,14 +21,13 @@ class WorkflowReferenceErrors(GraphValidationError):
 
 
 @dataclass
-class FieldError:
-    workflow_id: str
-    field: str
-    message: str
-
-
-@dataclass
 class SessionCommandError(Exception):
+    @dataclass
+    class FieldError:
+        workflow_id: str
+        field: str
+        message: str
+
     field_errors: list[FieldError]
     graph_errors: list[str]
 
@@ -39,7 +38,7 @@ class SessionCommandError(Exception):
         if isinstance(e, WorkflowReferenceErrors):
             return cls(
                 field_errors=[
-                    FieldError(
+                    cls.FieldError(
                         workflow_id=ref_error.reference.source_wf_id,
                         field="params",  # TODO: For now ok. Think about more finegrained errors for Workflow output/input references
                         message=ref_error.message

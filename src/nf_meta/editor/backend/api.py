@@ -45,12 +45,11 @@ def handle_request_validation(request: Request, exc: RequestValidationError):
     err = SessionCommandError(
                 graph_errors=[],
                 field_errors=[
-                    {
-                        "workflow_id": None,  # frontend infers from context
-                        "field": ".".join(str(l) for l in err["loc"] if l != "body"),
-                        "message": err["msg"],
-                    }
-                    for err in exc.errors()
+                    SessionCommandError.FieldError(
+                        workflow_id=None,  # frontend infers from context
+                        field=".".join(str(l) for l in err["loc"] if l != "body"),
+                        message=err["msg"],
+                    ) for err in exc.errors()
                 ])
     return JSONResponse(
         status_code=422,

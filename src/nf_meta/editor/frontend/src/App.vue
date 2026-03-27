@@ -40,13 +40,17 @@ const openNodeDetail = function (node: Node<APINodeData> | null | undefined = nu
     return
   }
   
-  if (!editorStore.sideBarOpen) { editorStore.toggleSidebar() }
+  if (!editorStore.sideBarOpen) { 
+    editorStore.toggleSidebar() 
+  }
+  if (!node || !["nodes", "params"].includes(editorStore.sideBarTab)) {
+    editorStore.sideBarTab = "nodes" 
+  }
   editorStore.addNodeToSideBar(node?.data ?? {})
 }
 
 const onNodeDbClick = function (event: NodeMouseEvent) {
   openNodeDetail(event.node)
-  sideBarTab.value = "nodes"
 }
 
 const onAddNodeClick = function (_: any) {

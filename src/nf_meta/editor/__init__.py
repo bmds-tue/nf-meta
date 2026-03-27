@@ -47,9 +47,9 @@ def start_editor_backend(host: str, port: int|None):
         editor_port = port
 
     thread = threading.Thread(
-        target=open_browser_when_ready(host, editor_port),
+        target=open_browser_when_ready,
         args=(host, editor_port),
-        daemon=False
+        daemon=True
     )
 
     thread.start()
@@ -63,5 +63,4 @@ def start_editor_backend(host: str, port: int|None):
 
     print(f"Starting editor on: http://{host}:{editor_port}/")
     server = uvicorn.Server(config)
-
     server.run()

@@ -2,6 +2,7 @@ from .models import Reference
 from dataclasses import dataclass
 from typing import Optional
 
+import click
 from pydantic import ValidationError
 
 
@@ -56,3 +57,22 @@ class SessionCommandError(Exception):
             "graph_errors": self.graph_errors
         }
     
+
+def format_errors_for_cli(e: WorkflowReferenceError | WorkflowReferenceErrors | GraphValidationError | ValidationError) -> str:
+    lines = []
+    if isinstance(e, WorkflowReferenceError):
+        e = WorkflowReferenceErrors([e])
+    if isinstance(e, WorkflowReferenceErrors):
+        lines.append(click.style("Reference errors:", fg="red", bold=True))
+        for ref_err in e.errors:
+            wf = click.style(f"Workflow {ref_err.reference.source_wf_id}", fg="yellow")
+            lines.append(f" {wf}: {ref_err.message}")
+    elif isinstance(e, GraphValidationError):
+        lines.append(click.style("Graph validation error:", fg="red", bold=True))
+        lines.append(f" {str(e)}")
+    elif isinstance(e, ValidationError):
+        lines.append(click.style("Validation failed:", fg="red", bold=True))
+        for err in e.errors():
+            field = ".".join(str(l) for l in err["loc"])
+            lines.append(f" {click.style(field, fg="yellow")}: {err["msg"]}")
+    return "\n".join(lines)

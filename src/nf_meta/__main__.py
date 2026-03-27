@@ -1,10 +1,10 @@
 import click
 from functools import wraps
+from nf_meta.engine.errors import GraphValidationError, ValidationError, format_errors_for_cli
 from nf_meta.engine.runner import run_metapipeline, Runners
 from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.engine.session import start_session
 from nf_meta.editor import start_editor_backend
-
 
 @click.group()
 def cli() -> None:
@@ -27,7 +27,14 @@ def edit_browser(config, verbose, host, port):
 @click.argument("config", type=click.Path())
 @click.option('--verbose', '-v', is_flag=True, help="Enables verbose mode")
 def validate_config(config, verbose):
-    g = MetaworkflowGraph.from_file(config)
+    try:
+        g = MetaworkflowGraph.from_file(config)
+        click.echo(click.style("✓ Config is valid", fg="green"))
+    except (GraphValidationError, ValidationError) as e:
+        click.echo(format_errors_for_cli(e))
+        raise SystemExit(1)
+
+
 
 
 @click.command("run")
@@ -36,7 +43,11 @@ def validate_config(config, verbose):
 @click.option("--runner", "-r", prompt=True, type=click.Choice([e.value for e in Runners]), default=Runners.PYTHON.value)
 @click.option("--resume", is_flag=True, help="Resume a previous run")
 def run(config, verbose, runner, resume):
-    g = MetaworkflowGraph.from_file(config)
+    try:
+        g = MetaworkflowGraph.from_file(config)
+    except (GraphValidationError, ValidationError) as e:
+        click.echo(format_errors_for_cli(e))
+        raise SystemExit(1)
     run_metapipeline(g, runner_name=runner, resume=resume, verbose=verbose)
 
 

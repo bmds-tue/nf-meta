@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted } from 'vue'
+import { nextTick, onMounted, watch } from 'vue'
 import type { Node, Connection, NodeMouseEvent } from '@vue-flow/core'
 import { VueFlow, useVueFlow, ConnectionMode, Panel} from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
@@ -12,12 +12,14 @@ import { useEditorStore, useGraphStore } from './store'
 import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
+import { useLayout } from './layout_graph'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
 const { sideBarTab } = storeToRefs(editorStore)
-const { fitView } = useVueFlow({id: "main-flow"})
+const { setNodes, getNodes, getEdges, onNodesInitialized, fitView } = useVueFlow({id: "main-flow"})
+const { layout } = useLayout()
 
 const toggleSidebarAndfitView = async function() {
   editorStore.toggleSidebar()
@@ -28,6 +30,7 @@ const toggleSidebarAndfitView = async function() {
 
 const toggleLayoutAndFitView = async function() {
   graphStore.switchLayout()
+  applyLayout()
   nextTick(fitView)
 }
 
@@ -73,6 +76,29 @@ const onUndo = () => {
 const onRedo = () => {
   graphStore.redo()
 }
+
+
+function applyLayout() {
+    setNodes(layout(getNodes.value, getEdges.value, graphStore.layoutDirection))
+}
+
+// First Render
+onNodesInitialized(() => {
+    // Real dimensions now available — refine positions without re-fetching from backend
+    applyLayout()
+    nextTick(fitView)
+})
+
+// Subsequent backend-driven changes — watch the store refs
+// nextTick ensures VueFlow has processed the new nodes before we read dimensions
+watch(
+    [() => graphStore.nodes, () => graphStore.edges],
+    async () => {
+        await nextTick()
+        applyLayout()
+    }
+)
+
 
 onMounted(async () => {
   console.log("[INFO] Updating graph")

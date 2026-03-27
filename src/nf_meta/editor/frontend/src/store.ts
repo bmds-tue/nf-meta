@@ -1,5 +1,5 @@
 import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type Selection, type SideBarDetail, type NfCorePipelineInfo, type APIGlobalOptions  } from './types'
-import type { Node, Edge } from '@vue-flow/core'
+import type { Node, Edge, XYPosition } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
@@ -121,7 +121,7 @@ export const useEditorStore = defineStore("editor", () => {
 
 export const useGraphStore = defineStore('graph', () => {
 
-    const { layout, layoutOptions } = useLayout()
+    const { layoutOptions } = useLayout()
     const messageStore = useMessageStore()
     const _edges = ref<Edge<APIEdgeData>[]>([])
     const _nodes = ref<Node<APINodeData>[]>([])
@@ -155,11 +155,10 @@ export const useGraphStore = defineStore('graph', () => {
     async function switchLayout() {
         _isHorizontalLayout.value = !_isHorizontalLayout.value
         localStorage.setItem("isHorizontalLayout", String(isHorizontalLayout.value))
-        // recalculate node positions in new Layout
-        _nodes.value = layout(_nodes.value, _edges.value, layoutDirection.value) as Node<APINodeData>[]
     }
 
     function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {
+        console.log("createNodeWithDefaults: Setting id:", nodeData?.id)
         return {
             data: nodeData,
             label: nodeData.name,
@@ -278,14 +277,8 @@ export const useGraphStore = defineStore('graph', () => {
                     _edges.value = []
                     _nodes.value = []
                 } else {
-                    _edges.value = response.data.transitions.map(edgeData => createEdgeWithDefaults(edgeData as any) as any)
-    
-                    _nodes.value = layout(
-                        response.data.nodes.map(nodeData => createNodeWithDefaults(nodeData)),
-                        _edges.value,
-                        layoutDirection.value
-                        )
-                    
+                    _edges.value = response.data.transitions.map(createEdgeWithDefaults)
+                    _nodes.value = response.data.nodes.map(createNodeWithDefaults)
                     _undoable.value = response.data.undoable
                     _redoable.value = response.data.redoable
                     _filename.value = response.data.filename

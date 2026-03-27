@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import type { APINodeData } from '../types.ts'
+
+const copyIcon = ref("mdi-content-copy")
 
 const props = defineProps<NodeProps<APINodeData>>()
     
@@ -10,6 +12,16 @@ const horizLayout = computed(() => {
     return props.targetPosition == Position.Left && 
         props.sourcePosition == Position.Right
 }) 
+
+async function copyToClipboard() {
+    try {
+        await navigator.clipboard.writeText(props.id)
+        copyIcon.value = 'mdi-check'
+        setTimeout(() => (copyIcon.value = 'mdi-content-copy'), 2000)
+    } catch (e) {
+        console.error('Clipboard write failed:', e)
+    }
+}
 
 </script>
 
@@ -20,14 +32,30 @@ const horizLayout = computed(() => {
             type="target" 
             :position="targetPosition"
             />
-        <strong>
-            {{ data.name }}
-        </strong> 
-        <v-chip 
-            v-if="data.version" 
-            class="ml-2">
-            {{ data.version }}
-        </v-chip>
+    <div class="d-flex flex-column">
+        <div class="d-flex flex-row align-center">
+            <strong>
+                {{ data.name }}
+            </strong>
+            <v-chip 
+                v-if="data.version" 
+                class="ml-2">
+                {{ data.version }}
+            </v-chip>
+        </div>
+        <div class="d-flex flex-row align-center">
+            <small> {{ data.id }} </small>
+            <v-btn 
+                :icon="copyIcon"
+                @click="copyToClipboard"
+                @dbclick.stop
+                size="x-small"
+                variant="text"
+                :ripple="false"
+                flat>
+            </v-btn>
+        </div>
+    </div>
     <Handle class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout}"
             type="source" 

@@ -40,4 +40,8 @@ export function useEditorHotkeys() {
   useHotkey('meta+o', () => {
     editorStore.openLoadDialog()
   })
+
+  useHotkey('meta+b', () => {
+    editorStore.toggleSidebar()
+  })
 }

@@ -13,7 +13,7 @@ function save() {
         .then(result => {
             if (!result.ok) {
                 if (result?.fieldErrors) {
-                    errors.value = result.fieldErrors
+                    errors.value = graphStore.extractFieldErrors(result.fieldErrors, "")
                 }
             }
         })

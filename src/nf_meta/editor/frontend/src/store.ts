@@ -1,4 +1,4 @@
-import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type Selection, type SideBarDetail, type NfCorePipelineInfo, type APIGlobalOptions  } from './types'
+import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, APIGlobalOptions, FieldError  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
@@ -215,6 +215,15 @@ export const useGraphStore = defineStore('graph', () => {
         }
     }
 
+    function extractFieldErrors(fieldErrors: FieldError[], workflowId: string): Record<string, string[]> {
+        const result: Record<string, string[]> = {}
+        for (const err of fieldErrors.filter(e => e.workflow_id === workflowId || e.workflow_id === null)) {
+            if (!result[err.field]) result[err.field] = []
+            result[err.field]!.push(err.message)
+        }
+        return result
+    }
+
     async function handleErrors<T>(result: ApiResult<T>) {
         if (!result.ok) {
             // TODO: Persist these errors somewhere in a status bar?
@@ -402,7 +411,8 @@ export const useGraphStore = defineStore('graph', () => {
         saveNode: addOrUpdateNode, saveEdge: addOrUpdateEdge, updateGlobalOptions,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, redoable, undoable, 
-        loadConfig, save, saveAs, filename, globalOptions
+        loadConfig, save, saveAs, filename, globalOptions,
+        extractFieldErrors
     } 
 })
 

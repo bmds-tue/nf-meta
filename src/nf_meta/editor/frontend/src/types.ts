@@ -5,9 +5,15 @@ export type Selection = {
   edges: string[]
 }
 
-export type ApiResult<T> = 
+export type FieldError = {
+    workflow_id: string | null
+    field: string
+    message: string
+}
+
+export type ApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; message: string; fieldErrors?: Record<string, string[]> }
+  | { ok: false; status: number; message: string; fieldErrors?: FieldError[]; graphErrors?: string[] }
 
 export type SideBarDetail<T> = {
   id: number,

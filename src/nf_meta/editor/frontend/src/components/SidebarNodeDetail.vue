@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useEditorStore, useGraphStore, usePipelineStore } from '../store';
-import type { APINodeData, SideBarDetail } from '../types';
+import type { FieldError, APINodeData, SideBarDetail } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import CustomFileInput from './CustomFileInput.vue';
 
@@ -41,6 +41,15 @@ function handleUpdatePipeline() {
   }
 }
 
+function extractFieldErrors(fieldErrors: FieldError[], workflowId: string): Record<string, string[]> {
+    const result: Record<string, string[]> = {}
+    for (const err of fieldErrors.filter(e => e.workflow_id === workflowId || e.workflow_id === null)) {
+        if (!result[err.field]) result[err.field] = []
+        result[err.field]!.push(err.message)
+    }
+    return result
+}
+
 function submitForm(e: SubmitEventPromise) {
   e.then(value => {
     if (value.valid) {
@@ -50,13 +59,13 @@ function submitForm(e: SubmitEventPromise) {
         .then(result => {
           if (!result.ok) {
             if (result?.fieldErrors) {
-              errors.value = result.fieldErrors
+              errors.value = extractFieldErrors(result.fieldErrors, form.value.id ?? "")
             }
           } else {
             removeDetail()
           }
         })
-    }
+      }
   })
 }
 

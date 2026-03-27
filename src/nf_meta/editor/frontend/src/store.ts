@@ -182,30 +182,19 @@ export const useGraphStore = defineStore('graph', () => {
             markerEnd: MarkerType.ArrowClosed
         }
     }
-    
-    function mapPydanticErrors(detail: any[]): Record<string, string[]> {
-        const errors: Record<string, string[]> = {}
-
-        for (const err of detail) {
-            const field = err.loc[err.loc.length - 1]
-            if (!errors[field]) errors[field] = []
-            errors[field].push(err.msg)
-        }
-
-        return errors
-        }
 
     async function apiRequest<T>(endpoint: string, options: RequestInit): Promise<ApiResult<T>> {
         try {
             const response = await fetch(endpoint, { headers: { 'Content-Type': 'application/json' }, ...options})
             const data = await response.json()
             if (!response.ok) {
-                if (response.status === 422 && data.detail) {
+                if (response.status === 422) {
                     return {
                         ok: false,
                         status: 422,
                         message: "Validation error",
-                        fieldErrors: mapPydanticErrors(data.detail)
+                        fieldErrors: data.field_errors ?? [],
+                        graphErrors: data.graph_errors ?? []
                     }
                 }
 
@@ -227,6 +216,29 @@ export const useGraphStore = defineStore('graph', () => {
         }
     }
 
+    async function handleErrors<T>(result: ApiResult<T>) {
+        if (!result.ok) {
+            // TODO: Persist these errors somewhere in a status bar?
+            if (result.status == 422) {
+                // Validation erros can be printed right in the form
+                if (result.status == 422 && result.graphErrors) {
+                    for (var err of result.graphErrors) {
+                        messageStore.add(err, "error")
+                    }
+                }
+                if (result.status == 422 && result.fieldErrors) {
+                    // TODO: Display these errors in graph?
+                    for (var fieldErr of result.fieldErrors) {
+                        if (fieldErr.workflow_id) {
+                            messageStore.add(`Error in ${fieldErr.workflow_id}: ${fieldErr.message}`, "error")
+                        }
+                    }
+                }
+            }
+        }
+        return result
+    }
+
     async function addOrUpdate<T>(endpoint: string, data: T) {
         const result = await apiRequest(endpoint, {
             method: "POST",
@@ -234,10 +246,7 @@ export const useGraphStore = defineStore('graph', () => {
         })
 
         if (!result.ok) {
-            // Validation erros can be printed right in the form
-            if (result.status != 422) {
-                messageStore.add(result.message, "error")
-            }
+            handleErrors(result)
         } else {
             await getAndUpdateGraph()
         }
@@ -251,7 +260,7 @@ export const useGraphStore = defineStore('graph', () => {
         })
 
         if (!result.ok) {
-            messageStore.add(`Delete failed: ${result.message}`, "error")
+            handleErrors(result)
         } else {
             await getAndUpdateGraph()
         }

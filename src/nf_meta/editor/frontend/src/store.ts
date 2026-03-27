@@ -1,5 +1,5 @@
 import { type ApiResult, type APINodeData, type APIEdgeData, type APIGraph, type Selection, type SideBarDetail, type NfCorePipelineInfo, type APIGlobalOptions  } from './types'
-import type { Node, Edge, XYPosition } from '@vue-flow/core'
+import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'

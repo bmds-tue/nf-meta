@@ -16,6 +16,7 @@ class History:
         try:
             command.apply(graph)
         except Exception as e:
+            # attempt rollback
             events = graph.pop_events()
             inverse = self._get_inverse_command(events)
 
@@ -24,6 +25,9 @@ class History:
             print(f"... {e}")
             print(f"... Attempting to undo the completed events: {events}")
             inverse.apply(graph)
+
+            # Clear emitted events
+            _ = graph.pop_events()
             raise e
 
         events = graph.pop_events()

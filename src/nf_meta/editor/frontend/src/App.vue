@@ -17,16 +17,9 @@ import { useLayout } from './layout_graph'
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
-const { sideBarTab } = storeToRefs(editorStore)
+const { sideBarTab, sideBarOpen } = storeToRefs(editorStore)
 const { setNodes, getNodes, getEdges, onNodesInitialized, fitView } = useVueFlow({id: "main-flow"})
 const { layout } = useLayout()
-
-const toggleSidebarAndfitView = async function() {
-  editorStore.toggleSidebar()
-  nextTick(() => {
-    setTimeout(fitView, 1)
-  })
-}
 
 const toggleLayoutAndFitView = async function() {
   graphStore.switchLayout()
@@ -43,8 +36,8 @@ const openNodeDetail = function (node: Node<APINodeData> | null | undefined = nu
   if (!editorStore.sideBarOpen) { 
     editorStore.toggleSidebar() 
   }
-  if (!node || !["nodes", "params"].includes(editorStore.sideBarTab)) {
-    editorStore.sideBarTab = "nodes" 
+  if (!node || !["nodes", "params"].includes(sideBarTab.value)) {
+    sideBarTab.value = "nodes" 
   }
   editorStore.addNodeToSideBar(node?.data ?? {})
 }
@@ -103,6 +96,14 @@ watch(
     }
 )
 
+watch(
+  sideBarOpen,
+  async () => {
+    nextTick(() => {
+      setTimeout(fitView, 1)
+    })
+  }
+)
 
 onMounted(async () => {
   console.log("[INFO] Updating graph")
@@ -158,7 +159,7 @@ onMounted(async () => {
           title="toggle sidebar" 
           :active="editorStore.sideBarOpen"
           active-color="primarySoft"
-          @click="toggleSidebarAndfitView"
+          @click="editorStore.toggleSidebar"
           icon="mdi-view-split-vertical">
         </v-btn>
 

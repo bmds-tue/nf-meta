@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useEditorStore, useGraphStore, usePipelineStore } from '../store';
-import type { FieldError, APINodeData, SideBarDetail } from '../types';
+import type { APINodeData, SideBarDetail } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import CustomFileInput from './CustomFileInput.vue';
 

@@ -77,10 +77,10 @@ class SimplePythonRunner:
     def __init__(self, tempdir=".nf-meta-cache"):
         self.tempdir = Path(tempdir)
         self.tempdir.mkdir(parents=True, exist_ok=True)
-        self.executable = self.check_nextflow()
+        self.executable = self._check_nextflow()
     
     @contextmanager
-    def chdir_context(self, path: Path):
+    def _chdir(self, path: Path):
         origin = Path()
         try:
             path.mkdir(parents=True, exist_ok=True)
@@ -89,20 +89,20 @@ class SimplePythonRunner:
         finally:
             os.chdir(origin)
 
-    def check_nextflow(self):
+    def _check_nextflow(self):
         executable = shutil.which("nextflow")
         if executable is None:
             raise NfMetaRunnerError("No nextflow installation found")
         return executable
     
-    def check_run_success(self, run_dir: Path = Path(".")):
+    def _check_run_success(self, run_dir: Path = Path(".")):
         return Path(run_dir / self.OUT_FILE).exists() \
             and not Path(run_dir / self.ERROR_FILE).exists()
 
-    def merge_params(self, specific_params: dict, default_params: dict):
+    def _merge_params(self, specific_params: dict, default_params: dict):
         return {**default_params, **specific_params}
 
-    def create_params_file(self, params: dict, filename: Optional[Path] = None) -> Path:
+    def _create_params_file(self, params: dict, filename: Optional[Path] = None) -> Path:
         if filename is None:
             params_file = f"params-{uuid.uuid4()}.yaml"
             filename = Path(self.tempdir / params_file)
@@ -112,14 +112,14 @@ class SimplePythonRunner:
 
         return Path(filename)
 
-    def create_workdir_names(self, workflows: list[Workflow]) -> dict[str, Path]:
-        dirs = dict()
-        for wf in workflows:
-            wf_dir = Path(self.tempdir) / Path(f"{wf.name.replace("/", "_")}_{wf.version}_{wf.hash()}")
-            dirs[wf.id] = wf_dir.resolve()
-        return dirs
+    def _workdir_for(self, wf: Workflow) -> Path:
+        safe_name = wf.name.replace("/", "_")
+        return (self.tempdir / f"{safe_name}_{wf.version}_{wf.hash()}").resolve()
 
-    def resolve_param_references(self, 
+    def _create_workdir_map(self, workflows: list[Workflow]) -> dict[str, Path]:
+        return {wf.id: self._workdir_for(wf) for wf in workflows}
+
+    def _resolve_param_references(self, 
                                  wf: Workflow, 
                                  graph: MetaworkflowGraph, 
                                  work_directories: Optional[dict[str, str]]
@@ -148,7 +148,7 @@ class SimplePythonRunner:
         
         return wf_resolved
 
-    def stream_proc_out(
+    def _stream_proc_out(
                 self,
                 cmd: list[str],
                 output_lines=10
@@ -197,7 +197,7 @@ class SimplePythonRunner:
 
         return (process.returncode, stdout, stderr)
 
-    def run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions]):
+    def _run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions]):
         cmd = [self.executable, "run", "-resume", "-ansi-log", "false"]
         wf_params = dict(wf.params or {})
 
@@ -212,10 +212,10 @@ class SimplePythonRunner:
                 cmd += ["-c", str(nf_cfg)]
 
             if globals.nf_params:
-                wf_params = self.merge_params(wf_params, globals.nf_params)
+                wf_params = self._merge_params(wf_params, globals.nf_params)
 
         if wf_params:
-            params_file = self.create_params_file(wf_params, Path("params.yaml"))
+            params_file = self._create_params_file(wf_params, Path("params.yaml"))
             cmd += ["-params-file", str(params_file)]
 
         if wf.config_file:
@@ -226,7 +226,7 @@ class SimplePythonRunner:
         cmd += [wf.url, "-r", wf.version, "-latest"]
 
         print(f"[INFO] Nextflow command: {cmd}")
-        exit_code, out, err = self.stream_proc_out(cmd)
+        exit_code, out, err = self._stream_proc_out(cmd)
 
         with Path(self.OUT_FILE).open("w") as f:
             f.write(out)
@@ -240,17 +240,17 @@ class SimplePythonRunner:
 
     def run(self, graph: MetaworkflowGraph, resume=False):
         workflows = graph.get_workflows_sorted()
-        workdirs = self.create_workdir_names(workflows)
+        workdirs = self._create_workdir_map(workflows)
 
         for i, wf in enumerate(workflows):
-            wf = self.resolve_param_references(wf, graph, work_directories=workdirs)
-            with self.chdir_context(workdirs[wf.id]):
-                if resume and self.check_run_success():
+            wf = self._resolve_param_references(wf, graph, work_directories=workdirs)
+            with self._chdir(workdirs[wf.id]):
+                if resume and self._check_run_success():
                     print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}: Skipping")
                     continue
 
                 print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}")
-                if not self.run_workflow(wf, graph.global_options):
+                if not self._run_workflow(wf, graph.global_options):
                     print("[SimplePythonRunner] Workflow completed with errors!")
                     return
 

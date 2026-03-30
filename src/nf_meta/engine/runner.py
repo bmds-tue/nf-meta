@@ -126,8 +126,9 @@ class SimplePythonRunner:
                                  graph: MetaworkflowGraph, 
                                  work_directories: Optional[dict[str, str]]
                                  ) -> Workflow:
-        wf_resolved = wf.model_copy()
-        for ref in wf_resolved.field_refs:
+        wf_resolved = wf.model_copy(deep=True)
+        refs = wf_resolved.field_refs
+        for ref in refs:
             wf_ref = graph.get_workflow_by_id(ref.target_wf_id)
             ref_value = wf_ref.params.get(ref.target_key)
             source_value = wf_resolved.params.get(ref.source_key)

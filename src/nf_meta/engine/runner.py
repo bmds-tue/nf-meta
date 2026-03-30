@@ -7,6 +7,7 @@ import uuid
 import time
 from collections import deque
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional, Protocol
 from pathlib import Path
@@ -56,6 +57,11 @@ def run_metapipeline(g: MetaworkflowGraph, runner_name: Runners, resume=False, v
             runner.run(g)
 
 
+@dataclass
+class NfMetaRunnerError(Exception):
+    message: str
+
+
 class SimplePythonRunner:
     """
     Simple default runner for Metapipelines.
@@ -85,7 +91,7 @@ class SimplePythonRunner:
     def check_nextflow(self):
         executable = shutil.which("nextflow")
         if executable is None:
-            raise RuntimeError("No nextflow installation found")
+            raise NfMetaRunnerError("No nextflow installation found")
         return executable
     
     def check_run_success(self, run_dir: Path = Path(".")):
@@ -106,6 +112,41 @@ class SimplePythonRunner:
             f.write(yaml.dump(params))
 
         return Path(filename)
+
+    def create_workdir_names(self, workflows: list[Workflow]) -> dict[str, Path]:
+        dirs = dict()
+        for wf in workflows:
+            wf_dir = Path(self.tempdir) / Path(f"{wf.name.replace("/", "_")}_{wf.version}_{wf.hash()}")
+            dirs[wf.id] = wf_dir.resolve()
+        return dirs
+
+    def resolve_param_references(self, 
+                                 wf: Workflow, 
+                                 graph: MetaworkflowGraph, 
+                                 work_directories: Optional[dict[str, str]]
+                                 ) -> Workflow:
+        wf_resolved = wf.model_copy()
+        for ref in wf_resolved.field_refs:
+            wf_ref = graph.get_workflow_by_id(ref.target_wf_id)
+            ref_value = wf_ref.params.get(ref.target_key)
+            source_value = wf_resolved.params.get(ref.source_key)
+
+            if not ref_value:
+                raise ValueError(f"Resolving param reference {ref.name} failed: "
+                                 + f"Referenced key {ref.target_key} not found "
+                                 + f"in workflow {ref.target_wf_id}")
+            
+            if not source_value:
+                raise ValueError(f"Resolving param reference {ref.reference_name} failed: "
+                                 + f"Source key {ref.source_key} not found "
+                                 + f"in workflow {ref.source_wf_id}")
+            
+            resolved_value = source_value.replace(ref.name, ref_value)
+            if work_directories:
+                resolved_value = str(work_directories[ref.target_wf_id] / resolved_value)
+            wf_resolved.params[ref.source_key] = resolved_value
+        
+        return wf_resolved
 
     def run_cmd_tail(self, cmd: list[str], output_lines=10) -> tuple[int, str, str]:
         process = subprocess.Popen(
@@ -147,20 +188,20 @@ class SimplePythonRunner:
             if globals.nf_config_file is not None:
                 nf_cfg = Path(globals.nf_config_file)
                 if not nf_cfg.exists():
-                    raise RuntimeError(f"Nextflow config file does not exist: {nf_cfg}")
-                cmd += ["-c", str(nf_cfg.absolute())]
+                    raise NfMetaRunnerError(f"Global config file does not exist: {nf_cfg}")
+                cmd += ["-c", str(nf_cfg)]
 
             if globals.nf_params is not None:
                 wf_params = self.merge_params(wf_params, globals.nf_params)
         
         if wf_params:
             params_file = self.create_params_file(wf_params, Path("params.yaml"))
-            cmd += ["-params-file", params_file.absolute()]
+            cmd += ["-params-file", str(params_file)]
 
         if wf.config_file:
             if not wf.config_file.exists():
-                raise RuntimeError(f"Nexflow config file does not exists: {wf.config_file}")
-            cmd += ["-c", str(wf.config_file.absolute())]
+                raise NfMetaRunnerError(f"Config file referenced by workflow {wf.id} does not exists: {wf.config_file}")
+            cmd += ["-c", str(wf.config_file)]
 
         cmd.append(wf.url)
         cmd += ["-r", wf.version, "-latest"]
@@ -180,16 +221,16 @@ class SimplePythonRunner:
 
     def run(self, graph: MetaworkflowGraph, resume=False):
         workflows = graph.get_workflows_sorted()
+        workdirs = self.create_workdir_names(workflows)
 
         for i, wf in enumerate(workflows):
-            wf_dir = Path(f"{wf.name.replace("/", "_")}_{wf.version}_{wf.hash()}")
-            with self.chdir_context(self.tempdir / wf_dir):
+            wf = self.resolve_param_references(wf, graph, work_directories=workdirs)
+            with self.chdir_context(workdirs[wf.id]):
                 if resume and self.check_run_success():
                     print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}: Skipping")
                     continue
 
                 print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}")
-                # TODO: resolve field references to params in predecessor workflows!
                 if not self.run_workflow(wf, graph.global_options):
                     print("[SimplePythonRunner] Workflow completed with errors!")
                     return

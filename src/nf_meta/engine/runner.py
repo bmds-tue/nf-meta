@@ -77,17 +77,14 @@ class SimplePythonRunner:
 
     def __init__(self, tempdir=".nf-meta-cache"):
         self.tempdir = Path(tempdir)
-        if not self.tempdir.exists():
-            self.tempdir.mkdir(exist_ok=True)
-
+        self.tempdir.mkdir(parents=True, exist_ok=True)
         self.executable = self.check_nextflow()
     
     @contextmanager
     def chdir_context(self, path: Path):
         origin = Path()
         try:
-            if not path.exists():
-                path.mkdir()
+            path.mkdir(parents=True, exist_ok=True)
             os.chdir(path)
             yield
         finally:

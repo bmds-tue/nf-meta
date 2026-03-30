@@ -2,9 +2,8 @@ import logging
 import os
 import shutil
 import subprocess
-import sys
 import uuid
-import time
+import threading
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -150,7 +149,11 @@ class SimplePythonRunner:
         
         return wf_resolved
 
-    def run_cmd_tail(self, cmd: list[str], output_lines=10) -> tuple[int, str, str]:
+    def stream_proc_out(
+                self,
+                cmd: list[str],
+                output_lines=10
+            ) -> tuple[int, str, str]:
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -158,44 +161,60 @@ class SimplePythonRunner:
             text=True
         )
     
-        last_lines = deque(maxlen=output_lines)
+        tail = deque(maxlen=output_lines)
+        stdout_lines: list[str] = []
+        stderr_lines: list[str] = []
 
+        # Read stderr in a background thread so it never blocks the process.
+        def _collect_stderr() -> None:
+            assert process.stderr is not None
+            print(process)
+            for line in process.stderr:
+                print(line)
+                stderr_lines.append(line)
+
+        stderr_thread = threading.Thread(target=_collect_stderr, daemon=True)
+        stderr_thread.start()
+
+        assert process.stdout is not None
         with Live(console=console, refresh_per_second=4) as live:
-            for line in process.stdout:
-                last_lines.append(line.rstrip())
+            for raw_line in process.stdout:
+                stdout_lines.append(raw_line)
+                tail.append(raw_line.strip())
                 live.update(Group(
-                    Panel("\n".join(last_lines), title="Workflow Output"),
+                    Panel("\n".join(tail), title="Workflow Output"),
                     Spinner("dots", text="[SimplePythonRunner] Running Workflow ...")
                 ))
 
             process.wait()
-            error = process.stderr.read()
-            out = process.stdout.read()
+            stderr_thread.join()
+            stderr = "".join(stderr_lines)
+            stdout = "".join(stdout_lines)
 
             if process.returncode > 0:
-                live.update(Panel(error, title="Errors"))
+                live.update(Panel(stderr, title="Errors"))
             else:
                 live.update(Text("[SimplePythonRunner] Running Workflow ... Done"))
 
-        return (process.returncode, out, error)
+        return (process.returncode, stdout, stderr)
 
     def run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions]):
         cmd = [self.executable, "run", "-resume", "-ansi-log", "false"]
-        wf_params = wf.params
+        wf_params = dict(wf.params or {})
 
         if globals is not None:
-            if globals.nf_profile is not None:
+            if globals.nf_profile:
                 cmd += ["-profile", globals.nf_profile]
-            
+
             if globals.nf_config_file is not None:
                 nf_cfg = Path(globals.nf_config_file)
                 if not nf_cfg.exists():
                     raise NfMetaRunnerError(f"Global config file does not exist: {nf_cfg}")
                 cmd += ["-c", str(nf_cfg)]
 
-            if globals.nf_params is not None:
+            if globals.nf_params:
                 wf_params = self.merge_params(wf_params, globals.nf_params)
-        
+
         if wf_params:
             params_file = self.create_params_file(wf_params, Path("params.yaml"))
             cmd += ["-params-file", str(params_file)]
@@ -205,11 +224,10 @@ class SimplePythonRunner:
                 raise NfMetaRunnerError(f"Config file referenced by workflow {wf.id} does not exists: {wf.config_file}")
             cmd += ["-c", str(wf.config_file)]
 
-        cmd.append(wf.url)
-        cmd += ["-r", wf.version, "-latest"]
+        cmd += [wf.url, "-r", wf.version, "-latest"]
 
         print(f"[INFO] Nextflow command: {cmd}")
-        exit_code, out, err = self.run_cmd_tail(cmd)
+        exit_code, out, err = self.stream_proc_out(cmd)
 
         with Path(self.OUT_FILE).open("w") as f:
             f.write(out)

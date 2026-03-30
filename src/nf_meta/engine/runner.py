@@ -100,9 +100,7 @@ class SimplePythonRunner:
             and not Path(run_dir / self.ERROR_FILE).exists()
 
     def merge_params(self, specific_params: dict, default_params: dict):
-        merged_params = default_params
-        merged_params.update(specific_params)
-        return merged_params
+        return {**default_params, **specific_params}
 
     def create_params_file(self, params: dict, filename: Optional[Path] = None) -> Path:
         if filename is None:

@@ -13,9 +13,9 @@ from typing import Optional, Protocol
 from pathlib import Path
 from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.engine.models import Workflow, GlobalOptions
-import yaml
 
 import click
+import yaml
 from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
@@ -34,13 +34,16 @@ class Runners(StrEnum):
 
 
 class Runner(Protocol):
-
     def run(self, graph) -> None: ...
-
     def resume(self, graph) -> None: ...
 
 
-def run_metapipeline(g: MetaworkflowGraph, runner_name: Runners, resume=False, verbose=True) -> None:
+def run_metapipeline(
+        g: MetaworkflowGraph,
+        runner_name: Runners,
+        resume=False,
+        verbose=True
+    ) -> None:
     logger.info("Started runner")
 
     runner = None
@@ -50,16 +53,18 @@ def run_metapipeline(g: MetaworkflowGraph, runner_name: Runners, resume=False, v
         case _:
             raise NotImplementedError("Requested runner not implemented yet")
     
-    if runner:
-        if resume:
-            runner.resume(g)
-        else:
-            runner.run(g)
+    if resume:
+        runner.resume(g)
+    else:
+        runner.run(g)
 
 
 @dataclass
 class NfMetaRunnerError(Exception):
     message: str
+   
+    def __str__(self) -> str:
+        return self.message
 
 
 class SimplePythonRunner:

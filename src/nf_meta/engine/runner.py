@@ -21,8 +21,7 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console, Group
 
-# TODO: Use logging everywhere
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 console = Console()
 
 class Runners(StrEnum):
@@ -167,9 +166,7 @@ class SimplePythonRunner:
         # Read stderr in a background thread so it never blocks the process.
         def _collect_stderr() -> None:
             assert process.stderr is not None
-            print(process)
             for line in process.stderr:
-                print(line)
                 stderr_lines.append(line)
 
         stderr_thread = threading.Thread(target=_collect_stderr, daemon=True)
@@ -225,14 +222,14 @@ class SimplePythonRunner:
 
         cmd += [wf.url, "-r", wf.version, "-latest"]
 
-        print(f"[INFO] Nextflow command: {cmd}")
+        logger.info(f"Running nextflow command: {cmd}")
         exit_code, out, err = self._stream_proc_out(cmd)
 
         with Path(self.OUT_FILE).open("w") as f:
             f.write(out)
 
         if exit_code != 0:
-            print(f"[Error] Command exited with error code {exit_code}. Workdir: {Path(".").absolute()}")
+            logger.error(f"Command exited with code {exit_code}. Workdir: {Path(".").absolute()}")
             with Path(self.ERROR_FILE).open("w") as f:
                 f.write(err)
         
@@ -243,18 +240,29 @@ class SimplePythonRunner:
         workdirs = self._create_workdir_map(workflows)
 
         for i, wf in enumerate(workflows):
+            step_label = f"Step {i}/{len(workflows)} - {wf.name}"
+
             wf = self._resolve_param_references(wf, graph, work_directories=workdirs)
+            logger.debug(f"Resolved workflow {wf.id}")
+            logger.debug(f"Work directory: {workdirs[wf.id]}")
+
             with self._chdir(workdirs[wf.id]):
                 if resume and self._check_run_success():
-                    print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}: Skipping")
+                    logger.info(f"{step_label}: Skipping (already succseded)")
+                    console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
                     continue
 
-                print(f"[SimplePythonRunner] Step {i+1}/{len(workflows)} - {wf.name}")
-                if not self._run_workflow(wf, graph.global_options):
-                    print("[SimplePythonRunner] Workflow completed with errors!")
-                    return
+                console.print(f"[bold blue]▶[/bold blue] {step_label}")
+                success = self._run_workflow(wf, graph.global_options)
 
-        print("[SimplePythonRunner] All workflows completed")
+                if not success:
+                    console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")
+                    logging.error(f"{step_label} failed! Aborting Meta-pipeline.")
+                    return
+                console.print(f"[green]✓[/green] {step_label}: Done")
+
+        console.print("[bold green]All workflows completed successfully[/bold green]")
+        logger.info("All workflows completed")
 
     def resume(self, graph: MetaworkflowGraph):
         self.run(graph, resume=True)

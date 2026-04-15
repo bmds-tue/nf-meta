@@ -76,6 +76,17 @@ Start and monitor locally, call and poll a Platform instance with run parameters
 compile config into new monolithic nextflow project, that imports required workflows to achieve most efficient orchestration + graceful errors handling
 
 
+## Install from PyPI
+
+The released version of this package can be installed from the [Python Package Index](https://pypi.org/project/nf-meta/)
+```
+# with pip
+pip install nf-meta
+
+# with uv 
+uv add nf-meta
+```
+
 ## Install and run the Development Setup
 
 Install and run the frontend

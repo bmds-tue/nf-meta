@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import shutil
@@ -13,7 +14,6 @@ from pathlib import Path
 from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.engine.models import Workflow, GlobalOptions
 
-import click
 import yaml
 from rich.live import Live
 from rich.spinner import Spinner
@@ -111,17 +111,14 @@ class SimplePythonRunner:
 
         return Path(filename)
 
-    def _workdir_for(self, wf: Workflow) -> Path:
+    def _workflow_dir(self, wf: Workflow) -> Path:
         safe_name = wf.name.replace("/", "_")
         return (self.tempdir / f"{safe_name}_{wf.version}_{wf.hash()}").resolve()
-
-    def _create_workdir_map(self, workflows: list[Workflow]) -> dict[str, Path]:
-        return {wf.id: self._workdir_for(wf) for wf in workflows}
 
     def _resolve_param_references(self, 
                                  wf: Workflow, 
                                  graph: MetaworkflowGraph, 
-                                 work_directories: Optional[dict[str, str]]
+                                 work_directories: Optional[dict[str, str]] = None
                                  ) -> Workflow:
         wf_resolved = wf.model_copy(deep=True)
         refs = wf_resolved.field_refs
@@ -179,7 +176,7 @@ class SimplePythonRunner:
                 tail.append(raw_line.strip())
                 live.update(Group(
                     Panel("\n".join(tail), title="Workflow Output"),
-                    Spinner("dots", text="[SimplePythonRunner] Running Workflow ...")
+                    Spinner("dots", text="Running Workflow ...")
                 ))
 
             process.wait()
@@ -187,14 +184,17 @@ class SimplePythonRunner:
             stderr = "".join(stderr_lines)
             stdout = "".join(stdout_lines)
 
-            if process.returncode > 0:
+            if process.returncode > 0 and stderr:
                 live.update(Panel(stderr, title="Errors"))
             else:
-                live.update(Text("[SimplePythonRunner] Running Workflow ... Done"))
+                live.update(Text("Running Workflow ... Done"))
 
         return (process.returncode, stdout, stderr)
 
-    def _run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions]):
+    def _run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions] = None):
+        wf_dir = Path(self._workflow_dir(wf))
+        wf_dir.mkdir(exist_ok=True, parents=True)
+
         cmd = [self.executable, "run", "-resume", "-ansi-log", "false"]
         wf_params = dict(wf.params or {})
 
@@ -212,7 +212,7 @@ class SimplePythonRunner:
                 wf_params = self._merge_params(wf_params, globals.nf_params)
 
         if wf_params:
-            params_file = self._create_params_file(wf_params, Path("params.yaml"))
+            params_file = self._create_params_file(wf_params, wf_dir / "params.yaml")
             cmd += ["-params-file", str(params_file)]
 
         if wf.config_file:
@@ -225,41 +225,44 @@ class SimplePythonRunner:
         logger.info(f"Running nextflow command: {cmd}")
         exit_code, out, err = self._stream_proc_out(cmd)
 
-        with Path(self.OUT_FILE).open("w") as f:
+        with (wf_dir / self.OUT_FILE).open("w") as f:
             f.write(out)
 
         if exit_code != 0:
-            logger.error(f"Command exited with code {exit_code}. Workdir: {Path(".").absolute()}")
-            with Path(self.ERROR_FILE).open("w") as f:
+            logger.error(f"Command exited with code {exit_code}. Workflow dir: {wf_dir.absolute()}")
+            with (wf_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
+        else:
+            (wf_dir / self.ERROR_FILE).unlink(missing_ok=True)
         
         return exit_code == 0
 
+    def _hash_graph(self, graph: MetaworkflowGraph) -> str:
+        config_str = str(graph.to_config())
+        hash = hashlib.sha256(config_str.encode()).hexdigest()[:8]
+        return hash
+
     def run(self, graph: MetaworkflowGraph, resume=False):
         workflows = graph.get_workflows_sorted()
-        workdirs = self._create_workdir_map(workflows)
 
         for i, wf in enumerate(workflows):
-            step_label = f"Step {i}/{len(workflows)} - {wf.name}"
+            step_label = f"Step {i+1}/{len(workflows)} - {wf.name}"
 
-            wf = self._resolve_param_references(wf, graph, work_directories=workdirs)
+            wf = self._resolve_param_references(wf, graph)
             logger.debug(f"Resolved workflow {wf.id}")
-            logger.debug(f"Work directory: {workdirs[wf.id]}")
 
-            with self._chdir(workdirs[wf.id]):
-                if resume and self._check_run_success():
-                    logger.info(f"{step_label}: Skipping (already succseded)")
-                    console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
-                    continue
+            if resume and self._check_run_success(run_dir=self._workflow_dir(wf)):
+                logger.info(f"{step_label}: Skipping (already succseded)")
+                console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
+                continue
 
-                console.print(f"[bold blue]▶[/bold blue] {step_label}")
-                success = self._run_workflow(wf, graph.global_options)
+            console.print(f"[bold blue]▶[/bold blue] {step_label}")
+            success = self._run_workflow(wf, graph.global_options)
 
-                if not success:
-                    console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")
-                    logging.error(f"{step_label} failed! Aborting Meta-pipeline.")
-                    return
-                console.print(f"[green]✓[/green] {step_label}: Done")
+            if not success:
+                console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")
+                return
+            console.print(f"[green]✓[/green] {step_label}: Done")
 
         console.print("[bold green]All workflows completed successfully[/bold green]")
         logger.info("All workflows completed")

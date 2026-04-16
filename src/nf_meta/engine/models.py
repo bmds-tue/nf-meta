@@ -217,10 +217,6 @@ class Transition(BaseModel):
     id: str = Field(default_factory=lambda: "e" + create_id())
     target: str
     source: str
-    params_file: Optional[Path] = Field(default=None, alias="params-file")
-    config_file: Optional[Path] = Field(default=None, alias="config-file")
-    adapter: Optional[str] = None
-    params: Optional[List[Dict[str, Any]]] = None
 
     def model_dump_display(self) -> dict:
         return self.model_dump(exclude_none=False)

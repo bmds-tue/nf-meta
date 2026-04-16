@@ -1,0 +1,1 @@
+recursive-exclude src/nf_meta/editor/frontend/ *

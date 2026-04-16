@@ -7,11 +7,13 @@ where = ["src"]
 namespaces = false
 
 [tool.setuptools.package-data]
-"*" = ["*.html", "*.css", "*.js", "*.ts", "*.json", "*.yaml", "*.yml"]
+"nf_meta.editor" = [
+    "frontend_dist/**/*",
+]
 
 [project]
 name = "nf-meta"
-version = "0.1.2"
+version = "0.1.3"
 description = "nf-meta is a cli tool for building, validating and running meta-pipelines based on the Nextflow workflow language"
 readme = "README.md"
 authors = [

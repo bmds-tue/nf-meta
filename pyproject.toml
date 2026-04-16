@@ -1,3 +1,14 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=68", "wheel"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.package-data]
+"*" = ["*.html", "*.css", "*.js", "*.ts", "*.json", "*.yaml", "*.yml"]
+
 [project]
 name = "nf-meta"
 version = "0.1.0"
@@ -21,7 +32,6 @@ dependencies = [
     "uvicorn>=0.40.0",
 ]
 license = "Apache-2.0"
-license-file = "LICENSE"
 
 [project.urls]
 Homepage = "https://github.com/bmds-tue/nf-meta"
@@ -29,10 +39,6 @@ Issues = "https://github.com/bmds-tue/nf-meta/issues"
 
 [project.scripts]
 nf-meta = "nf_meta.__main__:cli"
-
-[build-system]
-requires = ["uv_build>=0.8.13,<0.9.0"]
-build-backend = "uv_build"
 
 [dependency-groups]
 dev = [

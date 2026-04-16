@@ -35,7 +35,7 @@ jobs:
     needs: build
     environment: pypi
     permissions:
-      id-token: write  # required for trusted publishing
+      id-token: write
 
     steps:
       - name: Download build artifacts
@@ -46,3 +46,6 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.PYPI_API_TOKEN }}

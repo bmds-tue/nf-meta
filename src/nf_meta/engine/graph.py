@@ -198,7 +198,6 @@ class MetaworkflowGraph:
         workflows = self.get_workflows()
         transitions = self.get_transitions()
 
-        print("TOCONFIG: ", self.global_options)
         return MetaworkflowConfig.model_validate({
             "config_version": self.config_version,
             "globals": self.global_options,

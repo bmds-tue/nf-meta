@@ -1,7 +1,7 @@
 import click
 from functools import wraps
 from nf_meta.engine.errors import GraphValidationError, ValidationError, format_errors_for_cli
-from nf_meta.engine.runner import run_metapipeline, Runners
+from nf_meta.engine.runner import run_metapipeline, Runners, NfMetaRunnerError
 from nf_meta.engine.graph import MetaworkflowGraph
 from nf_meta.engine.session import start_session
 from nf_meta.editor import start_editor_backend
@@ -45,11 +45,14 @@ def validate_config(config, verbose):
 def run(config, verbose, runner, resume):
     try:
         g = MetaworkflowGraph.from_file(config)
+        run_metapipeline(g, runner_name=runner, resume=resume, verbose=verbose)
     except (GraphValidationError, ValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)
-    run_metapipeline(g, runner_name=runner, resume=resume, verbose=verbose)
-
+    except NfMetaRunnerError as e:
+        click.echo(click.style(e.message, fg="red"))
+        raise SystemExit(1)
+    
 
 cli.add_command(edit_browser)
 cli.add_command(validate_config)

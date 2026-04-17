@@ -199,7 +199,7 @@ class SimplePythonRunner:
         wf_params = dict(wf.params or {})
 
         if globals is not None:
-            if globals.profile:
+            if globals.profile and not wf.profile:
                 cmd += ["-profile", globals.profile]
 
             if globals.config_file is not None:
@@ -210,6 +210,9 @@ class SimplePythonRunner:
 
             if globals.params:
                 wf_params = self._merge_params(wf_params, globals.params)
+
+        if wf.profile:
+            cmd += ["-profile", wf.profile]
 
         if wf_params:
             params_file = self._create_params_file(wf_params, wf_dir / "params.yaml")

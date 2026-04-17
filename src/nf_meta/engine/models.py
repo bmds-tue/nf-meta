@@ -201,11 +201,11 @@ class Workflow(BaseModel):
 
 
 class GlobalOptions(BaseModel):
-    nf_profile: Optional[str] = None
-    nf_config_file: Optional[ExistingNfConfigFile] = None
-    nf_params: Optional[dict[str, Any]] = None
+    profile: Optional[str] = None
+    config_file: Optional[ExistingNfConfigFile] = None
+    params: Optional[dict[str, Any]] = None
 
-    @field_validator("nf_profile", mode="after")
+    @field_validator("profile", mode="after")
     def validate_profile(cls, profile: Optional[str], info: ValidationInfo):
         if not profile:
             return None

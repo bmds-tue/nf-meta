@@ -199,17 +199,17 @@ class SimplePythonRunner:
         wf_params = dict(wf.params or {})
 
         if globals is not None:
-            if globals.nf_profile:
-                cmd += ["-profile", globals.nf_profile]
+            if globals.profile:
+                cmd += ["-profile", globals.profile]
 
-            if globals.nf_config_file is not None:
-                nf_cfg = Path(globals.nf_config_file)
+            if globals.config_file is not None:
+                nf_cfg = Path(globals.config_file)
                 if not nf_cfg.exists():
                     raise NfMetaRunnerError(f"Global config file does not exist: {nf_cfg}")
                 cmd += ["-c", str(nf_cfg)]
 
-            if globals.nf_params:
-                wf_params = self._merge_params(wf_params, globals.nf_params)
+            if globals.params:
+                wf_params = self._merge_params(wf_params, globals.params)
 
         if wf_params:
             params_file = self._create_params_file(wf_params, wf_dir / "params.yaml")

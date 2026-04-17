@@ -13,7 +13,7 @@ namespaces = false
 
 [project]
 name = "nf-meta"
-version = "0.1.3"
+version = "0.1.4"
 description = "nf-meta is a cli tool for building, validating and running meta-pipelines based on the Nextflow workflow language"
 readme = "README.md"
 authors = [

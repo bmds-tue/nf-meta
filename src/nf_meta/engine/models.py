@@ -92,6 +92,7 @@ class Workflow(BaseModel):
     params_file: Optional[ExistingYamlFile] = None
     params: Optional[dict[str, str]] = None
     config_file: Optional[ExistingNfConfigFile] = None
+    profile: Optional[str] = None
 
     @computed_field
     @property
@@ -186,12 +187,12 @@ class Workflow(BaseModel):
         return hashed
 
     def model_dump_config(self) -> dict:
-        fields = {"id", "name", "version", "url", "params_file", "config_file", "params"}
+        fields = {"id", "name", "version", "url", "params_file", "config_file", "params", "profile"}
         return self.model_dump(include=fields, exclude_none=True)
     
     def model_dump_display(self) -> dict:
         fields = {"id", "name", "version", "url", "params_file", "params",
-                  "description", "is_nfcore", "position", "config_file"}
+                  "description", "is_nfcore", "position", "config_file", "profile"}
         return self.model_dump(include=fields, exclude_none=False)
     
     def model_dump(self, **kwargs: Any):
@@ -201,11 +202,11 @@ class Workflow(BaseModel):
 
 
 class GlobalOptions(BaseModel):
-    nf_profile: Optional[str] = None
-    nf_config_file: Optional[ExistingNfConfigFile] = None
-    nf_params: Optional[dict[str, Any]] = None
+    profile: Optional[str] = None
+    config_file: Optional[ExistingNfConfigFile] = None
+    params: Optional[dict[str, Any]] = None
 
-    @field_validator("nf_profile", mode="after")
+    @field_validator("profile", mode="after")
     def validate_profile(cls, profile: Optional[str], info: ValidationInfo):
         if not profile:
             return None

@@ -20,7 +20,7 @@ where transitions or Groovy glue code is described.
 ```{yaml}
 config_version: 0.0.1
 globals:
-  nf_profile: docker
+  profile: docker
 workflows:
 - id: n02
   name: nf-core/rnaseq

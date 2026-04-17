@@ -33,8 +33,9 @@ def validate_config(config, verbose):
     except (GraphValidationError, ValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)
-
-
+    except FileNotFoundError as e:
+        click.echo(click.style(e, fg="red"))
+        raise SystemExit(1)
 
 
 @click.command("run")
@@ -52,7 +53,9 @@ def run(config, verbose, runner, resume):
     except NfMetaRunnerError as e:
         click.echo(click.style(e.message, fg="red"))
         raise SystemExit(1)
-    
+    except FileNotFoundError as e:
+        click.echo(click.style(e, fg="red"))
+        raise SystemExit(1)
 
 cli.add_command(edit_browser)
 cli.add_command(validate_config)

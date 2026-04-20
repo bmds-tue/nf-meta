@@ -191,11 +191,15 @@ class SimplePythonRunner:
 
         return (process.returncode, stdout, stderr)
 
-    def _run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions] = None):
+    def _run_workflow(self, wf: Workflow, globals: Optional[GlobalOptions] = None, resume: bool = True):
         wf_dir = Path(self._workflow_dir(wf))
         wf_dir.mkdir(exist_ok=True, parents=True)
 
-        cmd = [self.executable, "run", "-resume", "-ansi-log", "false"]
+        cmd = [self.executable, "run", "-ansi-log", "false"]
+
+        if resume:
+            cmd += ["-resume"]
+
         wf_params = dict(wf.params or {})
 
         if globals is not None:
@@ -260,7 +264,7 @@ class SimplePythonRunner:
                 continue
 
             console.print(f"[bold blue]▶[/bold blue] {step_label}")
-            success = self._run_workflow(wf, graph.global_options)
+            success = self._run_workflow(wf, graph.global_options, resume=resume)
 
             if not success:
                 console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")

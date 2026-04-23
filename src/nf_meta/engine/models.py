@@ -156,6 +156,26 @@ class Workflow(BaseModel):
 
         return value
 
+    @field_validator("params", mode="before")
+    @classmethod
+    def coerce_params_to_str(cls, v: Any) -> Optional[dict[str, str]]:
+        if v is None:
+            return None
+        
+        COERCIBLE = (str, int, float, bool)
+        coerced = {}
+        errors = []
+        for key, value in v.items():
+            if not isinstance(value, COERCIBLE):
+                errors.append(f"\tParam '{key}' has unsupported type {type(value).__name__}")
+            else:
+                coerced[key] = str(value)
+        
+        if errors:
+            raise ValueError("\n" + "\n".join(errors))
+        
+        return coerced
+
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:

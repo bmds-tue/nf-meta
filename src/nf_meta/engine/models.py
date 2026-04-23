@@ -11,7 +11,7 @@ import re
 
 from pydantic import (BaseModel, Field, computed_field,
                         field_validator, model_validator, ValidationInfo,
-                        AfterValidator)
+                        AfterValidator, BeforeValidator)
 from pydantic.functional_serializers import PlainSerializer
 from pydantic_core import InitErrorDetails, PydanticCustomError, ValidationError
 
@@ -55,6 +55,31 @@ ExistingNfConfigFile = Annotated[Optional[Path],
                                  SerializeToStr]
 
 
+def coerce_param_values_to_str(v: Any) -> Optional[dict[str, str]]:
+    if v is None:
+        return None
+    
+    COERCIBLE = (str, int, float, bool)
+    coerced = {}
+    errors = []
+    for key, value in v.items():
+        if not isinstance(value, COERCIBLE):
+            errors.append(f"\tParam '{key}' has unsupported type {type(value).__name__}")
+        else:
+            coerced[key] = str(value)
+    
+    if errors:
+        raise ValueError("\n" + "\n".join(errors))
+    
+    return coerced
+
+
+CoercedParams = Annotated[
+    Optional[dict[str, str]],
+    BeforeValidator(coerce_param_values_to_str)
+]
+
+
 def create_id():
     return str(uuid.uuid4())[:8]
 
@@ -90,7 +115,7 @@ class Workflow(BaseModel):
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
     params_file: Optional[ExistingYamlFile] = None
-    params: Optional[dict[str, str]] = None
+    params: Optional[CoercedParams] = None
     config_file: Optional[ExistingNfConfigFile] = None
     profile: Optional[str] = None
 
@@ -156,26 +181,6 @@ class Workflow(BaseModel):
 
         return value
 
-    @field_validator("params", mode="before")
-    @classmethod
-    def coerce_params_to_str(cls, v: Any) -> Optional[dict[str, str]]:
-        if v is None:
-            return None
-        
-        COERCIBLE = (str, int, float, bool)
-        coerced = {}
-        errors = []
-        for key, value in v.items():
-            if not isinstance(value, COERCIBLE):
-                errors.append(f"\tParam '{key}' has unsupported type {type(value).__name__}")
-            else:
-                coerced[key] = str(value)
-        
-        if errors:
-            raise ValueError("\n" + "\n".join(errors))
-        
-        return coerced
-
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:
@@ -224,7 +229,7 @@ class Workflow(BaseModel):
 class GlobalOptions(BaseModel):
     profile: Optional[str] = None
     config_file: Optional[ExistingNfConfigFile] = None
-    params: Optional[dict[str, Any]] = None
+    params: Optional[CoercedParams] = None
 
     @field_validator("profile", mode="after")
     def validate_profile(cls, profile: Optional[str], info: ValidationInfo):

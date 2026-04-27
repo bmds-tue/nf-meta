@@ -129,6 +129,7 @@ onBeforeUnmount(stopDrag)
                   <YamlEditor 
                     v-model="detail.detailData.params"
                     @save="graphStore.saveNode(detail.detailData)"
+                    :node-id="detail.detailData.id ?? ''"
                     hint="Params defined here do not change your params_file"
                   ></YamlEditor>
                 </v-tabs-window-item>

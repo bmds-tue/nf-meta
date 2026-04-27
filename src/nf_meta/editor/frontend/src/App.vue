@@ -116,7 +116,7 @@ onMounted(async () => {
 <v-app class="editor">
     <Panel class="process-panel" position="top-left">
       <v-container class="layout-panel">
-          <h1>MetaFlow v2</h1>
+          <h1>nf-meta</h1>
         <v-btn 
           title="add a workflow node" 
           icon="mdi-plus"

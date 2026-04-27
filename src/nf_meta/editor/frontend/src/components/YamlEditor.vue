@@ -3,6 +3,7 @@ import { ref } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
+import { linter, type Diagnostic } from "@codemirror/lint"
 import { EditorView, keymap, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view"
 import { Prec, RangeSetBuilder } from "@codemirror/state"
 import { oneDark } from "@codemirror/theme-one-dark"
@@ -238,6 +239,77 @@ const smartBackspaceKeymap = Prec.high(
   ])
 )
 
+
+// ==== Linter: validate all ${nodeId:params:key} references =================
+
+const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
+  const diagnostics: Diagnostic[] = []
+
+  let predecessors: { id: string }[]
+  try {
+    predecessors = await graphStore.getPredecessors(props.nodeId) as { id: string }[]
+  } catch {
+    return []  // can't validate without predecessor list
+  }
+  const validNodeIds = new Set(predecessors.map((n) => n.id))
+
+  // Matches complete references only: ${nodeId}  or  ${nodeId:params:key}
+  const pattern = /(?<!\\)\$\{([^:}]*)(?::params:([^}]*))?\}/g
+  const text    = code.value  // read from the ref, not the view, to stay reactive
+
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(text)) !== null) {
+    const nodeId   = match[1] ?? ""
+    const paramKey = match[2] ?? ""  // undefined if no :params: section
+    const from     = match.index
+    const to       = from + match[0].length
+
+    if (nodeId) {
+      if (!validNodeIds.has(nodeId)) {
+        diagnostics.push({
+          from,
+          to,
+          severity: "error",
+          message:  `Referenced node is not a predecessor: "${nodeId}"`,
+        })
+      }
+    } else {
+      diagnostics.push({
+        from,
+        to,
+        severity: "error",
+        message: "Node reference missing"
+      })
+    }
+
+    if (paramKey) {
+      let params: Record<string, unknown>
+      try {
+        params = await graphStore.getParams(nodeId) as Record<string, unknown>
+      } catch {
+        continue
+      }
+      if (!Object.prototype.hasOwnProperty.call(params ?? {}, paramKey)) {
+        diagnostics.push({
+          from,
+          to,
+          severity: "error",
+          message:  `Node "${nodeId}" has no param "${paramKey}"`,
+        })
+      }
+    } else {
+      diagnostics.push({
+        from,
+        to,
+        severity: "error",
+        message: "Param key missing"
+      })
+    }
+  }
+
+  return diagnostics
+})
+
 // ─── Combined extensions ──────────────────────────────────────────────────────
 
 
@@ -247,6 +319,7 @@ const extensions = [
   oneDark,
   referenceHighlighter,
   referenceHighlightTheme,
+  referenceLinter,
   autocompletion({ override: [referenceCompletionSource] }),
   completionTriggerKeymap,
   smartBackspaceKeymap,

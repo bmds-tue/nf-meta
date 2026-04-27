@@ -358,6 +358,10 @@ export const useGraphStore = defineStore('graph', () => {
             })
     }
 
+    async function updatePageTitle(filename: string | undefined) {
+        document.title = filename ? `nf-meta - ${filename}` : "nf-meta"
+    }
+
     async function save() {
         if (!filename.value) {
             messageStore.add("No save destination specified!", "error")
@@ -374,6 +378,7 @@ export const useGraphStore = defineStore('graph', () => {
                 if (!response.ok) {
                     messageStore.add(`Saving failed: ${response.message}`, "error")
                 } else {
+                    updatePageTitle(filename.value)
                     messageStore.add("Saved", "success")
                 }
             })
@@ -400,6 +405,7 @@ export const useGraphStore = defineStore('graph', () => {
                     .then(() => {
                         if (response.ok) {
                             messageStore.add(`Config Loaded`, "success")
+                            updatePageTitle(filename)
                         }})
             })
     }
@@ -413,7 +419,7 @@ export const useGraphStore = defineStore('graph', () => {
         undo, redo, redoable, undoable, 
         loadConfig, save, saveAs, filename, globalOptions,
         extractFieldErrors
-    } 
+    }
 })
 
 export const usePipelineStore = defineStore("pipeline", () => {

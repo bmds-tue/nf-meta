@@ -3,8 +3,8 @@ import { ref } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
-import { EditorView, keymap } from "@codemirror/view"
-import { Prec } from "@codemirror/state"
+import { EditorView, keymap, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view"
+import { Prec, RangeSetBuilder } from "@codemirror/state"
 import { oneDark } from "@codemirror/theme-one-dark"
 import {
   autocompletion,
@@ -31,9 +31,97 @@ const paramsString = props.modelValue ? YAML.stringify(props.modelValue) : ""
 const code = ref(paramsString)
 const error = ref<string>("")
 
+
+// ==== THEMES ================================================
 const fullHeightTheme = EditorView.theme({
   "&": { height: "99%" },
   ".cm-scroller": { overflow: "auto" },
+})
+
+
+// ==== REFERENCE SYNTAX HIGHLIGHTING =========================
+// Colors are from the oneDark palette so they blend naturally.
+
+const refMark = {
+  delimiter: Decoration.mark({ class: "cm-ref-delimiter" }),  // ${ and }
+  nodeId:    Decoration.mark({ class: "cm-ref-node" }),       // n01
+  params:    Decoration.mark({ class: "cm-ref-params" }),     // :params:
+  paramKey:  Decoration.mark({ class: "cm-ref-paramkey" }),   // outdir
+}
+
+// Matches: ${nodeId}  or  ${nodeId:params:key}  (not preceded by \)
+const REF_PATTERN = /(?<!\\)\$\{([^:}]*)(?:(:params:)([^}]*))?(\})?/g
+
+const referenceHighlighter = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+
+    constructor(view: EditorView) {
+      this.decorations = this.build(view)
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged)
+        this.decorations = this.build(update.view)
+    }
+
+    build(view: EditorView): DecorationSet {
+      const builder = new RangeSetBuilder<Decoration>()
+
+      for (const { from, to } of view.visibleRanges) {
+        const text = view.state.doc.sliceString(from, to)
+        REF_PATTERN.lastIndex = 0
+
+        let match: RegExpExecArray | null
+        while ((match = REF_PATTERN.exec(text)) !== null) {
+          const base      = from + match.index
+          const nodeId    = match[1] ?? ""  // may be empty string
+          const paramsSep = match[2]  // ":params:" or undefined
+          const paramKey  = match[3]  // may be empty string or undefined
+          const closing   = match[4]  // "}" or undefined
+
+          let cursor = base
+
+          // "${" — 2 chars
+          builder.add(cursor, cursor + 2, refMark.delimiter)
+          cursor += 2
+
+          // node id
+          if (nodeId.length > 0) {
+            builder.add(cursor, cursor + nodeId.length, refMark.nodeId)
+          }
+          cursor += nodeId.length
+
+          // ":params:"
+          if (paramsSep) {
+            builder.add(cursor, cursor + paramsSep.length, refMark.params)
+            cursor += paramsSep.length
+
+            // param key
+            if (paramKey && paramKey.length > 0) {
+              builder.add(cursor, cursor + paramKey.length, refMark.paramKey)
+              cursor += paramKey.length
+            }
+          }
+
+          // "}"
+          if (closing) {
+            builder.add(cursor, cursor + 1, refMark.delimiter)
+          }
+        }
+      }
+
+      return builder.finish()
+    }
+  },
+  { decorations: (v) => v.decorations }
+)
+
+const referenceHighlightTheme = EditorView.baseTheme({
+  ".cm-ref-delimiter": { color: "#abb2bf", },
+  ".cm-ref-params":    { color: "#5a6478", fontStyle: "italic" },
+  ".cm-ref-node":      { color: "#61afef" },
+  ".cm-ref-paramkey":  { color: "#61afef" },
 })
 
 // ==== AUTOCOMPLETION ==============================
@@ -152,10 +240,13 @@ const smartBackspaceKeymap = Prec.high(
 
 // ─── Combined extensions ──────────────────────────────────────────────────────
 
+
 const extensions = [
   langyaml(),
   fullHeightTheme,
   oneDark,
+  referenceHighlighter,
+  referenceHighlightTheme,
   autocompletion({ override: [referenceCompletionSource] }),
   completionTriggerKeymap,
   smartBackspaceKeymap,

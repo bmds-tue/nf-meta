@@ -40,9 +40,9 @@ export type APINodeData = {
 }
 
 export type APIGlobalOptions = {
-  nf_profile?: string,
-  nf_config_file?: string,
-  nf_params?: object
+  profile?: string,
+  config_file?: string,
+  params?: object
 }
 
 export type APIGraph = {

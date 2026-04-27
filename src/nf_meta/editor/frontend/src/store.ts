@@ -135,9 +135,9 @@ export const useGraphStore = defineStore('graph', () => {
     })
 
     const globalOptions = ref<APIGlobalOptions>({
-        nf_params: {},
-        nf_config_file: "",
-        nf_profile: "",
+        params: {},
+        config_file: "",
+        profile: "",
     })
 
     const _filename = ref<string>()

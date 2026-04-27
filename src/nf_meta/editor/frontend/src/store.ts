@@ -291,7 +291,7 @@ export const useGraphStore = defineStore('graph', () => {
                     _undoable.value = response.data.undoable
                     _redoable.value = response.data.redoable
                     _filename.value = response.data.filename
-                    globalOptions.value = response.data.globals
+                    globalOptions.value = response.data.globals ?? {params: null, config_file: null, profile: null}
                 }
             })
     }

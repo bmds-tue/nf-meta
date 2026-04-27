@@ -7,6 +7,7 @@ from nf_meta.engine.session import start_session
 from nf_meta.editor import start_editor_backend
 
 @click.group()
+@click.version_option()
 def cli() -> None:
     return
 

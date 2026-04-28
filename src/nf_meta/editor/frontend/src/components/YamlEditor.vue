@@ -14,6 +14,7 @@ import {
   type CompletionResult,
 } from "@codemirror/autocomplete"
 import { useGraphStore } from "../store"
+import type { APINodeData } from "../types"
 
 const props = defineProps<{
   modelValue?: object
@@ -156,9 +157,9 @@ async function referenceCompletionSource(
     const partial = nodeMatch[1] ?? ""
     const from = context.pos - partial.length
     try {
-      const predecessors = await graphStore.getPredecessors(props.nodeId) as { id: string }[]
+      const predecessors = await graphStore.getPredecessors(props.nodeId) as APINodeData[]
       const options = predecessors.map((node) => ({
-        label: node.id,
+        label: `${node.id} (${node.name})`,
         apply: node.id + ":params:",
       }))
       return { from, options, validFor: /^[^:}]*$/ }
@@ -245,9 +246,9 @@ const smartBackspaceKeymap = Prec.high(
 const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
   const diagnostics: Diagnostic[] = []
 
-  let predecessors: { id: string }[]
+  let predecessors: APINodeData[]
   try {
-    predecessors = graphStore.getPredecessors(props.nodeId) as { id: string }[]
+    predecessors = graphStore.getPredecessors(props.nodeId) as APINodeData[]
   } catch {
     return []  // can't validate without predecessor list
   }

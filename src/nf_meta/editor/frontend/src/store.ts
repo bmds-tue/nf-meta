@@ -341,9 +341,11 @@ export const useGraphStore = defineStore('graph', () => {
             return []
         }
 
-        return _edgeData.value
+        const predecessorIds = _edgeData.value
             .filter(e => e.target === nodeId)
-            .map(e => ({id: e.source}) )
+            .map(e => e.source)
+        
+        return _nodeData.value.filter(n => predecessorIds.includes(n.id ?? ""))
     }
 
     async function getParams(nodeId: string | undefined | null) {

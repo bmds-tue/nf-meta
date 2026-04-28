@@ -123,6 +123,13 @@ export const useGraphStore = defineStore('graph', () => {
 
     const { layoutOptions } = useLayout()
     const messageStore = useMessageStore()
+
+    // Track the API retruned Data for internal use
+    // to avoid buggy resolution of the 
+    // deep Node and Edge types from VueFlow
+    const _edgeData = ref<APIEdgeData[]>([])
+    const _nodeData = ref<APINodeData[]>([])
+
     const _edges = ref<Edge<APIEdgeData>[]>([])
     const _nodes = ref<Node<APINodeData>[]>([])
 
@@ -230,13 +237,13 @@ export const useGraphStore = defineStore('graph', () => {
             if (result.status == 422) {
                 // Validation erros can be printed right in the form
                 if (result.status == 422 && result.graphErrors) {
-                    for (var err of result.graphErrors) {
+                    for (const err of result.graphErrors) {
                         messageStore.add(err, "error")
                     }
                 }
                 if (result.status == 422 && result.fieldErrors) {
                     // TODO: Display these errors in graph?
-                    for (var fieldErr of result.fieldErrors) {
+                    for (const fieldErr of result.fieldErrors) {
                         if (fieldErr.workflow_id) {
                             messageStore.add(`Error in ${fieldErr.workflow_id}: ${fieldErr.message}`, "error")
                         }
@@ -285,7 +292,11 @@ export const useGraphStore = defineStore('graph', () => {
                     messageStore.add("Unable to fetch Graph Data", "error")
                     _edges.value = []
                     _nodes.value = []
+                    _edgeData.value = []
+                    _nodeData.value = []
                 } else {
+                    _edgeData.value = response.data.transitions
+                    _nodeData.value = response.data.nodes
                     _edges.value = response.data.transitions.map(createEdgeWithDefaults)
                     _nodes.value = response.data.nodes.map(createNodeWithDefaults)
                     _undoable.value = response.data.undoable
@@ -322,6 +333,24 @@ export const useGraphStore = defineStore('graph', () => {
     async function removeSelectionById(selection: Selection) {
         const endpoint = "/api/delete/"
         return await remove(endpoint, selection)
+    }
+
+    function getPredecessors(nodeId: string | undefined | null) {
+        if (!nodeId) {
+            return []
+        }
+
+        return _edgeData.value
+            .filter(e => e.target === nodeId)
+            .map(e => ({id: e.source}) )
+    }
+
+    async function getParams(nodeId: string | undefined | null) {
+        if (!nodeId) {
+            return {}
+        }
+        const node = _nodeData.value.find(n => n.id === nodeId)
+        return node?.params ?? {}
     }
 
     async function undo() {
@@ -414,6 +443,7 @@ export const useGraphStore = defineStore('graph', () => {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
+        getPredecessors, getParams,
         saveNode: addOrUpdateNode, saveEdge: addOrUpdateEdge, updateGlobalOptions,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, redoable, undoable, 

@@ -24,6 +24,9 @@ logger = logging.getLogger()
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.9.9"
 
+_VALID_PARAM_REF_PATTERN = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
+_ANY_BRACE_PATTERN = re.compile(r'\$\{[^}]*\}')
+
 
 def is_existing_file_abs(path: Optional[Path] = None, allowed_extensions: Optional[tuple[str]] = None) -> Optional[Path]:
     if not path:
@@ -131,14 +134,9 @@ class Workflow(BaseModel):
         if not self.params:
             return []
 
-        pattern = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
-        
-        # TODO: Check and fail for all other '${}' expressions
-        # that do not satisfy the pattern
-
         refs = []
         for k, v in self.params.items():
-            match = pattern.search(str(v))
+            match = _VALID_PARAM_REF_PATTERN.search(str(v))
             if match:
                 refs.append(
                     ParamsReference(name=match.group(0),
@@ -205,6 +203,20 @@ class Workflow(BaseModel):
                 data["description"] = nfcore_info.get("description", "")
 
         return data
+    
+    @model_validator(mode='after')
+    def warn_malformed_refs(self) -> "Workflow":
+        if not self.params:
+            return self
+        for k, v in self.params.items():
+            for token in _ANY_BRACE_PATTERN.findall(str(v)):
+                if not _VALID_PARAM_REF_PATTERN.search(token):
+                    logger.warning(
+                        "Potentially invalid param reference in workflow %s, "
+                        "param '%s': %s — expected ${<wf_id>:params:<key>}",
+                        self.id, k, token
+                    )
+        return self
 
     def hash(self):
         data = f"{self.url}{self.version}"

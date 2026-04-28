@@ -4,7 +4,7 @@ import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
 import { linter, type Diagnostic } from "@codemirror/lint"
-import { EditorView, keymap, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view"
+import { EditorView, keymap, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate, placeholder } from "@codemirror/view"
 import { Prec, RangeSetBuilder } from "@codemirror/state"
 import { oneDark } from "@codemirror/theme-one-dark"
 import {
@@ -329,8 +329,13 @@ if (props.nodeId) {
     completionTriggerKeymap,
     smartBackspaceKeymap,
     autocompletion({ override: [referenceCompletionSource] }),
+    placeholder("Define Workflow Params here as yaml. \n\nThey overwrite global params \nand complement a params-file. \n\nUse '${}' to reference \npredecessor nodes' params, \ne.g. ${n01:params:outdir}")
   ]
   extensions.push(nodeRefExtensions)
+} else {
+  extensions.push(
+    placeholder("Define global params here as yaml. \n\nThey are applied to all workflows.")
+  )
 }
 
 // ─── Save ─────────────────────────────────────────────────────────────────────

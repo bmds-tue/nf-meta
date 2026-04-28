@@ -18,7 +18,7 @@ import { useGraphStore } from "../store"
 const props = defineProps<{
   modelValue?: object
   hint?: string
-  nodeId: string
+  nodeId?: string
 }>()
 
 const emit = defineEmits<{
@@ -247,7 +247,7 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
 
   let predecessors: { id: string }[]
   try {
-    predecessors = await graphStore.getPredecessors(props.nodeId) as { id: string }[]
+    predecessors = graphStore.getPredecessors(props.nodeId) as { id: string }[]
   } catch {
     return []  // can't validate without predecessor list
   }
@@ -312,18 +312,25 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
 
 // ─── Combined extensions ──────────────────────────────────────────────────────
 
-
 const extensions = [
   langyaml(),
   fullHeightTheme,
   oneDark,
-  referenceHighlighter,
-  referenceHighlightTheme,
-  referenceLinter,
-  autocompletion({ override: [referenceCompletionSource] }),
-  completionTriggerKeymap,
-  smartBackspaceKeymap,
 ]
+
+// Only add the node references features,
+// if YAML-Editor is used in node-details
+if (props.nodeId) {
+  const nodeRefExtensions = [
+    referenceHighlighter,
+    referenceHighlightTheme,
+    referenceLinter,
+    completionTriggerKeymap,
+    smartBackspaceKeymap,
+    autocompletion({ override: [referenceCompletionSource] }),
+  ]
+  extensions.push(nodeRefExtensions)
+}
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
 

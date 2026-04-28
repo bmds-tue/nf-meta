@@ -213,7 +213,8 @@ export const useGraphStore = defineStore('graph', () => {
 
             return { ok: true, data: data }
 
-        } catch (err) {
+        } catch (e) {
+            console.error(e)
             return {
                 ok: false,
                 status: 0,

@@ -114,7 +114,7 @@ class Workflow(BaseModel):
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str
     version: str
-    url: str = "FOO"
+    url: str
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
     params_file: Optional[ExistingYamlFile] = None

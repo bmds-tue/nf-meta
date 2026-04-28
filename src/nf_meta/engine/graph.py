@@ -150,7 +150,7 @@ class MetaworkflowGraph:
                 errors.append(WorkflowReferenceError(ref, f"Reference to unknown workflow: {ref.target_wf_id}"))
                 continue
             
-            if ref.target_wf_id not in list(nx.predecessor(self.G, wf.id)):
+            if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
                 errors.append(WorkflowReferenceError(ref, f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}"))
                 continue
 

@@ -132,6 +132,9 @@ class Workflow(BaseModel):
             return []
 
         pattern = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
+        
+        # TODO: Check and fail for all other '${}' expressions
+        # that do not satisfy the pattern
 
         refs = []
         for k, v in self.params.items():

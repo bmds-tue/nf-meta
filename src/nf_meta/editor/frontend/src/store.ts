@@ -1,7 +1,7 @@
 import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, APIGlobalOptions, FieldError  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { useLayout } from './layout_graph.ts'
@@ -149,6 +149,7 @@ export const useGraphStore = defineStore('graph', () => {
 
     const _filename = ref<string>()
     const filename = computed(() => _filename.value)
+    watch(_filename, updatePageTitle)
 
     const _redoable = ref<boolean>(false)
     const redoable = computed(() => _redoable.value)
@@ -162,6 +163,10 @@ export const useGraphStore = defineStore('graph', () => {
     async function switchLayout() {
         _isHorizontalLayout.value = !_isHorizontalLayout.value
         localStorage.setItem("isHorizontalLayout", String(isHorizontalLayout.value))
+    }
+
+    async function updatePageTitle() {
+        document.title = _filename.value ? `nf-meta - ${_filename.value}` : "nf-meta"
     }
 
     function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {
@@ -390,10 +395,6 @@ export const useGraphStore = defineStore('graph', () => {
             })
     }
 
-    async function updatePageTitle(filename: string | undefined) {
-        document.title = filename ? `nf-meta - ${filename}` : "nf-meta"
-    }
-
     async function save() {
         if (!filename.value) {
             messageStore.add("No save destination specified!", "error")
@@ -410,7 +411,6 @@ export const useGraphStore = defineStore('graph', () => {
                 if (!response.ok) {
                     messageStore.add(`Saving failed: ${response.message}`, "error")
                 } else {
-                    updatePageTitle(filename.value)
                     messageStore.add("Saved", "success")
                 }
             })
@@ -437,7 +437,6 @@ export const useGraphStore = defineStore('graph', () => {
                     .then(() => {
                         if (response.ok) {
                             messageStore.add(`Config Loaded`, "success")
-                            updatePageTitle(filename)
                         }})
             })
     }

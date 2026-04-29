@@ -22,7 +22,7 @@ from nf_meta.engine.nf_core_utils import get_nfcore_pipelines, url_exists
 logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.9.9"
+CONFIG_VERSION_MAX = "0.1.0"
 
 _VALID_PARAM_REF_PATTERN = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
 _ANY_BRACE_PATTERN = re.compile(r'\$\{[^}]*\}')
@@ -269,6 +269,23 @@ class MetaworkflowConfig(BaseModel):
     globals: Optional[GlobalOptions] = None
     transitions: List[Transition]
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_dict_to_list(cls, data: dict) -> dict:
+        """
+        Accept either list format (legacy) or dict format (new), where
+        dict keys become the `id` field of each item.
+        """
+        value = data.get("workflows")
+        if isinstance(value, dict):
+            items = []
+            for key, item in value.items():
+                if not isinstance(item, dict):
+                    raise ValueError(f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{str(item)}' instead")
+                items.append({"id": key, **item})
+            data["workflows"] = items
+        return data
+
     # ------------------------------
     # Validation: transitions refer to real workflow IDs
     # ------------------------------
@@ -309,7 +326,10 @@ def dump_config(config: MetaworkflowConfig, path: Path):
     config_dict = {
         "config_version": config.config_version,
         "globals": config.globals.model_dump(exclude_none=True) if config.globals else None,
-        "workflows": [w.model_dump_config() for w in config.workflows],
+        "workflows": {
+            w.id: { k: v for k,v in w.model_dump_config().items() }
+            for w in config.workflows
+        },
         "transitions": [t.model_dump(by_alias=True, exclude_none=True) for t in config.transitions],
     }
     with open(path, "w") as fh:

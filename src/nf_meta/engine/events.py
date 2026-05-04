@@ -146,14 +146,6 @@ class EditWorkflow:
 
 
 @dataclass(frozen=True)
-class EditTransition:
-    transition: Transition
-
-    def apply(self, g: GraphEventHandler):
-        g.update_workflow(self.transition)
-
-
-@dataclass(frozen=True)
 class UpdateGlobalOptions:
     globals: GlobalOptions
 

@@ -76,15 +76,6 @@ class TransitionRemoved:
 
 
 @dataclass(frozen=True)
-class TransitionUpdated:
-    new_transition: Transition
-    old_transition: Transition
-
-    def get_undo_cmd(self):
-        return EditTransition(transition=self.old_transition)
-
-
-@dataclass(frozen=True)
 class GlobalOptionsUpdated:
     new_globals: GlobalOptions
     old_globals: GlobalOptions

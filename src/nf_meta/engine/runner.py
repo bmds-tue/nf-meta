@@ -41,14 +41,15 @@ def run_metapipeline(
         g: MetaworkflowGraph,
         runner_name: Runners,
         resume=False,
-        verbose=True
+        verbose=True,
+        output_lines=20
     ) -> None:
     logger.info("Started runner")
 
     runner = None
     match runner_name:
         case Runners.PYTHON:
-            runner = SimplePythonRunner()
+            runner = SimplePythonRunner(output_window_size=output_lines)
         case _:
             raise NotImplementedError("Requested runner not implemented yet")
     
@@ -74,10 +75,11 @@ class SimplePythonRunner:
     OUT_FILE = "OUT.txt"
     ERROR_FILE = "ERROR.txt"
 
-    def __init__(self, tempdir=".nf-meta-cache"):
+    def __init__(self, tempdir=".nf-meta-cache", output_window_size=20):
         self.tempdir = Path(tempdir)
         self.tempdir.mkdir(parents=True, exist_ok=True)
         self.executable = self._check_nextflow()
+        self.output_window_size = output_window_size
     
     @contextmanager
     def _chdir(self, path: Path):
@@ -213,7 +215,6 @@ class SimplePythonRunner:
     def _stream_proc_out(
                 self,
                 cmd: list[str],
-                output_lines=10
             ) -> tuple[int, str, str]:
         process = subprocess.Popen(
             cmd,
@@ -222,7 +223,7 @@ class SimplePythonRunner:
             text=True
         )
     
-        tail = deque(maxlen=output_lines)
+        tail = deque(maxlen=self.output_window_size)
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
 

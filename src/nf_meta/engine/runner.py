@@ -44,7 +44,8 @@ def run_metapipeline(
         verbose = True,
         output_lines = 20,
         start: str = None,
-        target: str = None
+        target: str = None,
+        profile: str = None
     ) -> None:
     logger.info("Started runner")
 
@@ -67,7 +68,7 @@ def run_metapipeline(
     runner = None
     match runner_name:
         case Runners.PYTHON:
-            runner = SimplePythonRunner(output_window_size=output_lines, start=start, target=target)
+            runner = SimplePythonRunner(output_window_size=output_lines, start=start, target=target, extra_profile=profile)
         case _:
             raise NotImplementedError("Requested runner not implemented yet")
     
@@ -97,13 +98,15 @@ class SimplePythonRunner:
                  tempdir = ".nf-meta-cache",
                  output_window_size = 20,
                  start: Optional[str] = None,
-                 target: Optional[str] = None):
+                 target: Optional[str] = None,
+                 extra_profile: Optional[str] = None):
         self.tempdir = Path(tempdir)
         self.tempdir.mkdir(parents=True, exist_ok=True)
         self.executable = self._check_nextflow()
         self.output_window_size = output_window_size
         self.start_wf_id = start
         self.target_wf_id = target
+        self.extra_profile = extra_profile.replace(" ", "") if extra_profile else ""
     
     @contextmanager
     def _chdir(self, path: Path):
@@ -292,11 +295,8 @@ class SimplePythonRunner:
             cmd += ["-resume"]
 
         wf_params = dict(wf.params or {})
-
+        profiles = []
         if globals is not None:
-            if globals.profile and not wf.profile:
-                cmd += ["-profile", globals.profile]
-
             if globals.config_file is not None:
                 nf_cfg = Path(globals.config_file)
                 if not nf_cfg.exists():
@@ -306,8 +306,17 @@ class SimplePythonRunner:
             if globals.params:
                 wf_params = self._merge_params(wf_params, globals.params)
 
+            if globals.profile and not wf.profile:
+                profiles.append(globals.profile)
+
         if wf.profile:
-            cmd += ["-profile", wf.profile]
+            profiles.append(wf.profiles)
+        
+        if self.extra_profile:
+            profiles.append(self.extra_profile)
+        
+        cmd += ["-profile", ",".join(profiles)]
+        logger.info(f"Profiles added: {cmd[-1]}")
 
         if wf_params:
             params_file = self._create_params_file(wf_params, wf_dir / "params.yaml")

@@ -245,13 +245,61 @@ class GlobalOptions(BaseModel):
     profile: Optional[str] = None
     config_file: Optional[ExistingNfConfigFile] = None
     params: Optional[CoercedParams] = None
+    nextflow_version: Optional[tuple[int, int, int, int]] = None
 
     @field_validator("profile", mode="after")
+    @classmethod
     def validate_profile(cls, profile: Optional[str], info: ValidationInfo):
         if not profile:
             return None
 
         return profile.replace(" ", "")
+    
+    @field_validator("nextflow_version", mode="before")
+    @classmethod
+    def extract_nextflow_tuple(cls, v: any) -> Optional[tuple[int, int, int, int]]:
+        if v is None:
+            return v
+        
+        if isinstance(v, (tuple, list)):
+            if len(v) == 4 and all(isinstance(x, int) for x in v):
+                return tuple(v)
+            raise ValueError(
+                f"nextflow_version tuple must have exactly 4 int elements, got {v!r}."
+            )
+
+        if isinstance(v, (int, float)):
+            v = str(v)
+
+        if not isinstance(v, str):
+            raise ValueError(
+                f"nextflow_version must be a string or 4-tuple of ints, got {type(v).__name__!r}."
+            )
+        
+        edge_flag = 1 if v.endswith("-edge") else 0
+        numeric_part = v.removesuffix("-edge")
+
+        raw_parts = numeric_part.split(".")
+        if not 1 <= len(raw_parts) <= 3:
+            raise ValueError(
+                f"Invalid nextflow_version '{v}'. "
+                "Expected 1–3 dot-separated integers with an optional '-edge' suffix, "
+                "e.g. '25', '25.10', '25.10.4-edge'."
+            )
+
+        try:
+            numeric = [int(p) for p in raw_parts]
+        except ValueError:
+            raise ValueError(
+                f"Non-integer component in nextflow_version '{v}'."
+            )
+
+        # Pad minor and patch with zeros if omitted, append edge flag
+        major = numeric[0]
+        minor = numeric[1] if len(numeric) > 1 else 0
+        patch = numeric[2] if len(numeric) > 2 else 0
+
+        return (major, minor, patch, edge_flag)
 
 
 class Transition(BaseModel):

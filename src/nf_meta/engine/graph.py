@@ -233,6 +233,27 @@ class MetaworkflowGraph:
         workflows = [self.get_workflow_by_id(n) for n in nodes_sorted]
         return workflows
 
+    def subset_workflows(self,
+                         start: Optional[str] = None,
+                         target: Optional[str] = None,
+                         workflows: Optional[list[Workflow]] = None):
+
+        if workflows is None:
+            workflows = self.get_workflows_sorted()
+
+        if not len(workflows):
+            return []
+
+        if start:
+            fw_reachable = nx.descendants(self.G, start) | {start}
+            workflows = [wf for wf in workflows if wf.id in fw_reachable]
+
+        if target:
+            bw_reachable = nx.ancestors(self.G, target) | {target}
+            workflows = [wf for wf in workflows if wf.id in bw_reachable]
+
+        return workflows
+
     def get_start_workflow(self) -> Optional[Workflow]:
         """
         Return the first order in topological sorting or None if no nodes exist

@@ -39,17 +39,35 @@ class Runner(Protocol):
 
 def run_metapipeline(
         g: MetaworkflowGraph,
-        runner_name: Runners,
-        resume=False,
-        verbose=True,
-        output_lines=20
+        runner_name: Runners = Runners.PYTHON,
+        resume = False,
+        verbose = True,
+        output_lines = 20,
+        start: str = None,
+        target: str = None
     ) -> None:
     logger.info("Started runner")
+
+    errors = []
+    if start:
+        if not g.get_workflow_by_id(start):
+            errors.append(f"Starting workflow {start} is not a valid workflow id!")
+        else:
+            logger.info(f"Starting workflow: {start}")
+        
+    if target:
+        if not g.get_workflow_by_id(target):
+            errors.append(f"Target workflow {target} is not a valid workflow id!")
+        else:
+            logger.info(f"Target workflow: {target}")
+    
+    if errors:
+        raise NfMetaRunnerError("\n".join(errors))
 
     runner = None
     match runner_name:
         case Runners.PYTHON:
-            runner = SimplePythonRunner(output_window_size=output_lines)
+            runner = SimplePythonRunner(output_window_size=output_lines, start=start, target=target)
         case _:
             raise NotImplementedError("Requested runner not implemented yet")
     
@@ -75,11 +93,17 @@ class SimplePythonRunner:
     OUT_FILE = "OUT.txt"
     ERROR_FILE = "ERROR.txt"
 
-    def __init__(self, tempdir=".nf-meta-cache", output_window_size=20):
+    def __init__(self, 
+                 tempdir = ".nf-meta-cache",
+                 output_window_size = 20,
+                 start: Optional[str] = None,
+                 target: Optional[str] = None):
         self.tempdir = Path(tempdir)
         self.tempdir.mkdir(parents=True, exist_ok=True)
         self.executable = self._check_nextflow()
         self.output_window_size = output_window_size
+        self.start_wf_id = start
+        self.target_wf_id = target
     
     @contextmanager
     def _chdir(self, path: Path):
@@ -319,6 +343,10 @@ class SimplePythonRunner:
     def run(self, graph: MetaworkflowGraph, resume=False):
         self._check_nextflow_version(graph.global_options.nextflow_version)
         workflows = graph.get_workflows_sorted()
+        if self.start_wf_id or self.target_wf_id:
+            logger.info(f"Calculating subset of graph from workflow {self.start_wf_id} to {self.target_wf_id}")
+            workflows = graph.subset_workflows(self.start_wf_id, self.target_wf_id, workflows)
+            logger.info(f"Subset workflow DAG: {" -> ".join([f'{wf.name} ({wf.id})' for wf in workflows])}")
 
         for i, wf in enumerate(workflows):
             step_label = f"Step {i+1}/{len(workflows)} - {wf.name}"

@@ -52,10 +52,12 @@ def validate_config(config, verbose):
 @click.option("--runner", "-r", prompt=True, type=click.Choice([e.value for e in Runners]), default=Runners.PYTHON.value)
 @click.option("--resume", is_flag=True, help="Resume a previous run")
 @click.option("--output-lines", "-l", type=int, help="Number of lines of workflow output to stream to output window (Only for Python Runner!)")
-def run(config, verbose, runner, resume, output_lines):
+@click.option("--start", "-s", type=str, help="ID of workflow to start from")
+@click.option("--target", "-t", type=str, help="ID of workflow to run until")
+def run(config, verbose, runner, resume, output_lines, start, target):
     try:
         g = MetaworkflowGraph.from_file(config)
-        run_metapipeline(g, runner_name=runner, resume=resume, verbose=verbose, output_lines=output_lines)
+        run_metapipeline(g, runner_name=runner, resume=resume, verbose=verbose, output_lines=output_lines, start=start, target=target)
     except (GraphValidationError, ValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)

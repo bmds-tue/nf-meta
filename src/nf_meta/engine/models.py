@@ -331,7 +331,6 @@ def load_config(path: Path) -> MetaworkflowConfig:
 def dump_config(config: MetaworkflowConfig, path: Path):
     config_dict = {
         "config_version": config.config_version,
-        # TODO: Fix: This introduces an empty dict {} to the config
         "globals": config.globals.model_dump(exclude_none=True) if config.globals else None,
         "workflows": {
             w.id: { k: v for k,v in w.model_dump_config().items() }
@@ -339,5 +338,8 @@ def dump_config(config: MetaworkflowConfig, path: Path):
         },
         "transitions": [t.model_dump() for t in config.transitions],
     }
+    if not config_dict["globals"]:
+        del(config_dict["globals"])
+
     with open(path, "w") as fh:
         yaml.safe_dump(config_dict, fh, sort_keys=False)

@@ -95,12 +95,10 @@ class MetaworkflowGraph:
             raise ValueError("Invalid wf_id")
         
         for edge in list(self.G.in_edges(wf_id)):
-            tr = self.get_transition(*edge)
-            self.remove_transition(tr.id)
+            self.remove_transition(*edge)
 
         for edge in list(self.G.out_edges(wf_id)):
-            tr = self.get_transition(*edge)
-            self.remove_transition(tr.id)
+            self.remove_transition(*edge)
 
         removed_wf = self.get_workflow_by_id(wf_id)
         self.G.remove_node(wf_id)
@@ -123,16 +121,16 @@ class MetaworkflowGraph:
         if not self._validation_suspended:
             self.validate_graph_topology()
 
-    def remove_transition(self, tr_id: str):
-        tr = self.get_transition_by_id(tr_id)
+    def remove_transition(self, source: str, target: str):
+        tr = self.get_transition(source, target)
         if not tr:
             return
 
-        self.G.remove_edge(tr.source, tr.target)
+        self.G.remove_edge(source, target)
         self._emit(TransitionRemoved(tr))
 
         if not self._validation_suspended:
-            source_wf = self.get_workflow_by_id(tr.source)
+            source_wf = self.get_workflow_by_id(source)
             self.validate_param_references(source_wf)
 
     def update_global_options(self, glob: GlobalOptions):
@@ -216,14 +214,6 @@ class MetaworkflowGraph:
             return self.G.nodes[id].get("workflow")
         except KeyError:
             return None
-
-    def get_transition_by_id(self, id: str) -> Transition:
-        try:
-            # tuple unpacking trick ;)
-            matching_edge, = filter(lambda edge: self.get_transition(*edge).id == id, self.G.edges)
-            return self.get_transition(*matching_edge)
-        except ValueError:
-            raise ValueError("Invalid or ambiguous tr_id")
 
     def get_transition(self, source: str, target: str) -> Transition:
         try:

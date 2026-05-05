@@ -13,13 +13,13 @@ class GraphEventHandler(Protocol):
 
     def add_workflow(self, w: Workflow) -> None: ...
 
-    def remove_workflow(self, w: Workflow) -> None: ...
+    def remove_workflow(self, wf_id: str) -> None: ...
 
     def update_workflow(self, w: Workflow) -> None: ...
 
     def add_transition(self, t: Transition) -> None: ...
 
-    def remove_transition(self, t: Transition) -> None: ...
+    def remove_transition(self, source: str, target: str) -> None: ...
 
     def update_global_options(self, g: GlobalOptions) -> None: ...
 
@@ -64,7 +64,7 @@ class TransitionAdded:
     transition: Transition
 
     def get_undo_cmd(self):
-        return RemoveTransition(self.transition.id)
+        return RemoveTransition(self.transition.source, self.transition.target)
 
 
 @dataclass(frozen=True)
@@ -131,10 +131,11 @@ class AddTransition:
 
 @dataclass(frozen=True)
 class RemoveTransition:
-    transition_id: str
+    source: str
+    target: str
 
     def apply(self, g: GraphEventHandler):
-        g.remove_transition(self.transition_id)
+        g.remove_transition(self.source, self.target)
 
 
 @dataclass(frozen=True)

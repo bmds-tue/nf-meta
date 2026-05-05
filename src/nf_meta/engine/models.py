@@ -255,12 +255,18 @@ class GlobalOptions(BaseModel):
 
 
 class Transition(BaseModel):
-    id: str = Field(default_factory=lambda: "e" + create_id())
     target: str
     source: str
 
-    def model_dump_display(self) -> dict:
-        return self.model_dump(exclude_none=False)
+    @computed_field
+    @property
+    def id(self) -> str:
+        return f"{self.source}->{self.target}"
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        fields = {"target", "source"}
+        kwargs.setdefault("include", fields)
+        return super().model_dump(*args, **kwargs)
 
 
 class MetaworkflowConfig(BaseModel):
@@ -325,12 +331,13 @@ def load_config(path: Path) -> MetaworkflowConfig:
 def dump_config(config: MetaworkflowConfig, path: Path):
     config_dict = {
         "config_version": config.config_version,
+        # TODO: Fix: This introduces an empty dict {} to the config
         "globals": config.globals.model_dump(exclude_none=True) if config.globals else None,
         "workflows": {
             w.id: { k: v for k,v in w.model_dump_config().items() }
             for w in config.workflows
         },
-        "transitions": [t.model_dump(by_alias=True, exclude_none=True) for t in config.transitions],
+        "transitions": [t.model_dump() for t in config.transitions],
     }
     with open(path, "w") as fh:
         yaml.safe_dump(config_dict, fh, sort_keys=False)

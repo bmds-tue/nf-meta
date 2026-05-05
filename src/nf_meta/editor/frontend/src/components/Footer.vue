@@ -18,10 +18,9 @@
 <script setup lang="ts">
 const year = new Date().getFullYear()
 
-// replace with import.meta.env if you inject version
-const version = "0.0.1"
+const version = "0.2.0"
 
-const github = "https://github.com/JulianFlesch/mp-builder-2"
+const github = "https://github.com/bmds-tue/nf-meta"
 </script>
 
 <style scoped>

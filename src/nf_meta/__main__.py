@@ -17,12 +17,19 @@ def cli() -> None:
 @click.option("--port", help="Port to use for running the editor ui")
 @click.argument("config", required=False, type=click.Path())
 def edit_browser(config, verbose, host, port):
-    # start engine
-    start_session(config)
+    try:
+        # start engine
+        start_session(config)
 
-    # start api and open editor in browser
-    start_editor_backend(host, port)
+        # start api and open editor in browser
+        start_editor_backend(host, port)
 
+    except (GraphValidationError, ValidationError) as e:
+        click.echo(format_errors_for_cli(e))
+        raise SystemExit(1)
+    except FileNotFoundError as e:
+        click.echo(click.style(e, fg="red"))
+        raise SystemExit(1)
 
 @click.command("validate")
 @click.argument("config", type=click.Path())

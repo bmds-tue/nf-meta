@@ -2,8 +2,9 @@
 
 This project features a reproducible representation for meta-pipelines, featuring an interactive editor running locally in a browser, as well as a cli based validator and runner.
 
-**This is a development/alpha version: Things can be unstable and change**
+**This is a beta version: Things can be unstable and change**
 
+Find a growing collection of examples in our dedicated [showcase repository](https://github.com/bmds-tue/nf-meta-showcases/tree/main).
 
 ## Representation
 
@@ -18,28 +19,28 @@ More sections could follow, potentially starting with a sort of `adapter` key,
 where transitions or Groovy glue code is described.
 
 ```{yaml}
-config_version: 0.0.1
+config_version: 0.1.0
 globals:
-  profile: docker
+  nextflow_version: 25
 workflows:
-- id: n02
-  name: nf-core/rnaseq
-  version: dev
-  params:
-    outdir: rnaseq-out
-    input: fetchngs_out/samplesheet/samplesheet.csv
-- id: n01
-  name: nf-core/fetchngs
-  version: dev
-  url: https://api.github.com/repos/nf-core/fetchngs
-  params:
-    outdir: fetchngs_out
-    input: /path/to/ids/acc_ids.csv
-    nf_core_rnaseq_strandedness: true
+  n01:
+    name: nf-core/fetchngs
+    version: dev
+    params:
+      input: fetchngs-ids.csv
+      outdir: out_fetchngs
+      nf_core_pipeline: rnaseq
+      nf_core_rnaseq_strandedness: auto
+  n02:
+    name: nf-core/rnaseq
+    version: dev
+    params:
+      input: ${n01:params:outdir}/samplesheet/samplesheet.csv
+      genome: EB1
+      outdir: out_rnaseq
 transitions:
-- id: c49f
+- source: n01
   target: n02
-  source: n01
 ```
 
 This project features at it core validation logic for these sort of `.yml` representations.

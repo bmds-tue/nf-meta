@@ -1,7 +1,7 @@
 import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, APIGlobalOptions, FieldError  } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { useLayout } from './layout_graph.ts'
@@ -123,6 +123,13 @@ export const useGraphStore = defineStore('graph', () => {
 
     const { layoutOptions } = useLayout()
     const messageStore = useMessageStore()
+
+    // Track the API retruned Data for internal use
+    // to avoid buggy resolution of the 
+    // deep Node and Edge types from VueFlow
+    const _edgeData = ref<APIEdgeData[]>([])
+    const _nodeData = ref<APINodeData[]>([])
+
     const _edges = ref<Edge<APIEdgeData>[]>([])
     const _nodes = ref<Node<APINodeData>[]>([])
 
@@ -135,13 +142,14 @@ export const useGraphStore = defineStore('graph', () => {
     })
 
     const globalOptions = ref<APIGlobalOptions>({
-        nf_params: {},
-        nf_config_file: "",
-        nf_profile: "",
+        params: {},
+        config_file: "",
+        profile: "",
     })
 
     const _filename = ref<string>()
     const filename = computed(() => _filename.value)
+    watch(_filename, updatePageTitle)
 
     const _redoable = ref<boolean>(false)
     const redoable = computed(() => _redoable.value)
@@ -155,6 +163,10 @@ export const useGraphStore = defineStore('graph', () => {
     async function switchLayout() {
         _isHorizontalLayout.value = !_isHorizontalLayout.value
         localStorage.setItem("isHorizontalLayout", String(isHorizontalLayout.value))
+    }
+
+    async function updatePageTitle() {
+        document.title = _filename.value ? `nf-meta - ${_filename.value}` : "nf-meta"
     }
 
     function createNodeWithDefaults(nodeData: APINodeData): Node<APINodeData> {
@@ -206,7 +218,8 @@ export const useGraphStore = defineStore('graph', () => {
 
             return { ok: true, data: data }
 
-        } catch (err) {
+        } catch (e) {
+            console.error(e)
             return {
                 ok: false,
                 status: 0,
@@ -230,13 +243,13 @@ export const useGraphStore = defineStore('graph', () => {
             if (result.status == 422) {
                 // Validation erros can be printed right in the form
                 if (result.status == 422 && result.graphErrors) {
-                    for (var err of result.graphErrors) {
+                    for (const err of result.graphErrors) {
                         messageStore.add(err, "error")
                     }
                 }
                 if (result.status == 422 && result.fieldErrors) {
                     // TODO: Display these errors in graph?
-                    for (var fieldErr of result.fieldErrors) {
+                    for (const fieldErr of result.fieldErrors) {
                         if (fieldErr.workflow_id) {
                             messageStore.add(`Error in ${fieldErr.workflow_id}: ${fieldErr.message}`, "error")
                         }
@@ -285,13 +298,17 @@ export const useGraphStore = defineStore('graph', () => {
                     messageStore.add("Unable to fetch Graph Data", "error")
                     _edges.value = []
                     _nodes.value = []
+                    _edgeData.value = []
+                    _nodeData.value = []
                 } else {
+                    _edgeData.value = response.data.transitions
+                    _nodeData.value = response.data.nodes
                     _edges.value = response.data.transitions.map(createEdgeWithDefaults)
                     _nodes.value = response.data.nodes.map(createNodeWithDefaults)
                     _undoable.value = response.data.undoable
                     _redoable.value = response.data.redoable
                     _filename.value = response.data.filename
-                    globalOptions.value = response.data.globals
+                    globalOptions.value = response.data.globals ?? {params: null, config_file: null, profile: null}
                 }
             })
     }
@@ -322,6 +339,26 @@ export const useGraphStore = defineStore('graph', () => {
     async function removeSelectionById(selection: Selection) {
         const endpoint = "/api/delete/"
         return await remove(endpoint, selection)
+    }
+
+    function getPredecessors(nodeId: string | undefined | null) {
+        if (!nodeId) {
+            return []
+        }
+
+        const predecessorIds = _edgeData.value
+            .filter(e => e.target === nodeId)
+            .map(e => e.source)
+        
+        return _nodeData.value.filter(n => predecessorIds.includes(n.id ?? ""))
+    }
+
+    async function getParams(nodeId: string | undefined | null) {
+        if (!nodeId) {
+            return {}
+        }
+        const node = _nodeData.value.find(n => n.id === nodeId)
+        return node?.params ?? {}
     }
 
     async function undo() {
@@ -408,12 +445,13 @@ export const useGraphStore = defineStore('graph', () => {
         nodes, edges,
         isHorizontalLayout, layoutDirection, switchLayout,
         getAndUpdateGraph,
+        getPredecessors, getParams,
         saveNode: addOrUpdateNode, saveEdge: addOrUpdateEdge, updateGlobalOptions,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, redoable, undoable, 
         loadConfig, save, saveAs, filename, globalOptions,
         extractFieldErrors
-    } 
+    }
 })
 
 export const usePipelineStore = defineStore("pipeline", () => {

@@ -16,12 +16,13 @@
 </template>
 
 <script setup lang="ts">
+import { APP_VERSION } from '../version'
+
 const year = new Date().getFullYear()
 
-// replace with import.meta.env if you inject version
-const version = "0.0.1"
+const version = APP_VERSION
 
-const github = "https://github.com/JulianFlesch/mp-builder-2"
+const github = "https://github.com/bmds-tue/nf-meta"
 </script>
 
 <style scoped>

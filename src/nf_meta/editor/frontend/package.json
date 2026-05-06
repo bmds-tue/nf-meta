@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5173",
-    "build": "vue-tsc -b && vite build",
+    "dev": "node scripts/extract-version.js && vite --port 5173",
+    "build": "node scripts/extract-version.js && vue-tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -29,7 +29,12 @@
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/tsconfig": "^0.8.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-vue": "^10.9.0",
+    "globals": "^17.5.0",
+    "jiti": "^2.6.1",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.59.1",
     "vite": "^7.2.4",
     "vue-tsc": "^3.1.4"
   }

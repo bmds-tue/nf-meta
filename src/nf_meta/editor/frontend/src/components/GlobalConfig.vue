@@ -30,7 +30,7 @@ function save() {
         <v-card-text class="flex-grow-1 d-flex flex-column h-100 min-h-100">
             <v-text-field
                 label="Global Nextflow profile(s)"
-                v-model="graphStore.globalOptions.nf_profile"
+                v-model="graphStore.globalOptions.profile"
                 :error-messages="errors.nf_profile"
                 variant="outlined"
                 density="compact">
@@ -38,13 +38,14 @@ function save() {
             <CustomFileInput
                 label="Global Nextflow Config File"
                 :error-messages="errors.nf_config_file"
-                v-model="graphStore.globalOptions.nf_config_file">
+                v-model="graphStore.globalOptions.config_file">
             </CustomFileInput>
             <strong>
                 Global Params:
             </strong>
             <YamlEditor
-                v-model="graphStore.globalOptions.nf_params"
+                v-model="graphStore.globalOptions.params"
+                node-id=""
                 @save="save">
             </YamlEditor>
         </v-card-text>

@@ -1,13 +1,12 @@
 from contextlib import contextmanager
 from typing import Dict, Any, Optional
 from pathlib import Path
-import yaml
 import logging
 
 import networkx as nx
 
 from .models import MetaworkflowConfig, Workflow, GlobalOptions, Transition, load_config, dump_config, CONFIG_VERSION_MAX
-from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
+from .events import Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
 from .errors import GraphValidationError, WorkflowReferenceError, WorkflowReferenceErrors
 
 logger = logging.getLogger()
@@ -95,12 +94,10 @@ class MetaworkflowGraph:
             raise ValueError("Invalid wf_id")
         
         for edge in list(self.G.in_edges(wf_id)):
-            tr = self.get_transition(*edge)
-            self.remove_transition(tr.id)
+            self.remove_transition(*edge)
 
         for edge in list(self.G.out_edges(wf_id)):
-            tr = self.get_transition(*edge)
-            self.remove_transition(tr.id)
+            self.remove_transition(*edge)
 
         removed_wf = self.get_workflow_by_id(wf_id)
         self.G.remove_node(wf_id)
@@ -123,16 +120,16 @@ class MetaworkflowGraph:
         if not self._validation_suspended:
             self.validate_graph_topology()
 
-    def remove_transition(self, tr_id: str):
-        tr = self.get_transition_by_id(tr_id)
+    def remove_transition(self, source: str, target: str):
+        tr = self.get_transition(source, target)
         if not tr:
             return
 
-        self.G.remove_edge(tr.source, tr.target)
+        self.G.remove_edge(source, target)
         self._emit(TransitionRemoved(tr))
 
         if not self._validation_suspended:
-            source_wf = self.get_workflow_by_id(tr.source)
+            source_wf = self.get_workflow_by_id(source)
             self.validate_param_references(source_wf)
 
     def update_global_options(self, glob: GlobalOptions):
@@ -150,7 +147,7 @@ class MetaworkflowGraph:
                 errors.append(WorkflowReferenceError(ref, f"Reference to unknown workflow: {ref.target_wf_id}"))
                 continue
             
-            if ref.target_wf_id not in [n for n in nx.ancestors(self.G, wf.id)]:
+            if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
                 errors.append(WorkflowReferenceError(ref, f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}"))
                 continue
 
@@ -217,14 +214,6 @@ class MetaworkflowGraph:
         except KeyError:
             return None
 
-    def get_transition_by_id(self, id: str) -> Transition:
-        try:
-            # tuple unpacking trick ;)
-            matching_edge, = filter(lambda edge: self.get_transition(*edge).id == id, self.G.edges)
-            return self.get_transition(*matching_edge)
-        except ValueError:
-            raise ValueError("Invalid or ambiguous tr_id")
-
     def get_transition(self, source: str, target: str) -> Transition:
         try:
             return self.G.edges[(source, target)].get("transition")
@@ -241,6 +230,27 @@ class MetaworkflowGraph:
         """Returns workflows in valid execution order."""
         nodes_sorted = list(nx.topological_sort(self.G))
         workflows = [self.get_workflow_by_id(n) for n in nodes_sorted]
+        return workflows
+
+    def subset_workflows(self,
+                         start: Optional[str] = None,
+                         target: Optional[str] = None,
+                         workflows: Optional[list[Workflow]] = None):
+
+        if workflows is None:
+            workflows = self.get_workflows_sorted()
+
+        if not len(workflows):
+            return []
+
+        if start:
+            fw_reachable = nx.descendants(self.G, start) | {start}
+            workflows = [wf for wf in workflows if wf.id in fw_reachable]
+
+        if target:
+            bw_reachable = nx.ancestors(self.G, target) | {target}
+            workflows = [wf for wf in workflows if wf.id in bw_reachable]
+
         return workflows
 
     def get_start_workflow(self) -> Optional[Workflow]:

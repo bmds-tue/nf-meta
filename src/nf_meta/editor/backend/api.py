@@ -3,13 +3,12 @@ from typing import Annotated
 
 from .serializers import serialize_state, Selection
 
-from nf_meta.engine.errors import SessionCommandError
-from nf_meta.engine.session import SESSION
-from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
-from nf_meta.engine.models import Workflow, Transition, GlobalOptions
-from nf_meta.engine.events import (AddTransition, AddWorkflow, 
+from nf_meta.core.errors import SessionCommandError
+from nf_meta.core.session import SESSION
+from nf_meta.core.nf_core_utils import get_nfcore_pipelines
+from nf_meta.core.models import Workflow, Transition, GlobalOptions
+from nf_meta.core.events import (AddTransition, AddWorkflow, EditWorkflow,
                                     RemoveWorkflow, RemoveTransition,
-                                    EditWorkflow, EditTransition,
                                     Transaction, UpdateGlobalOptions)
 
 from fastapi import FastAPI, APIRouter, Body, Request
@@ -112,10 +111,13 @@ def update_node(wf: Workflow):
 
 
 @api_router.delete("/delete/")
-def remove_node(selection: Selection):
+def remove(selection: Selection):
     cmds = []
     for edge_id in selection.edges:
-        cmds.append(RemoveTransition(edge_id))
+        # TODO: Change representation in frontend? 
+        # Or rely on the ids being created there and containing "->"?
+        src, tgt = edge_id.split("->")
+        cmds.append(RemoveTransition(src, tgt))
 
     for node_id in selection.nodes:
         cmds.append(RemoveWorkflow(node_id))
@@ -129,11 +131,6 @@ def add_edge(tr: Transition):
     SESSION.handle_command(AddTransition(tr))
     return JSONResponse(dict())
 
-
-@api_router.post("/edge/update/")
-def update_edge(tr: Transition):
-    SESSION.handle_command(EditTransition(transition=tr))
-    return JSONResponse(dict())
 
 
 @api_router.get("/nfcore/pipelines/")

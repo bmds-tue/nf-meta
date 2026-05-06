@@ -34,6 +34,9 @@ class EditorSession:
             events = self.history.execute(c, self.graph)
         except (GraphValidationError) as e:
             raise SessionCommandError.from_exception(e)
+        
+        # Save to config after every command
+        self.save_to_config(self.config_file)
 
     def handle_undo(self):
         events = self.history.undo(self.graph)

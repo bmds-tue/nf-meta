@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, Dict, List, Any, Annotated, TypeAlias
+from typing import Optional, List, Any, Annotated
 import logging
 import re
 import uuid
@@ -13,16 +13,17 @@ from pydantic import (BaseModel, Field, computed_field,
                         field_validator, model_validator, ValidationInfo,
                         AfterValidator, BeforeValidator)
 from pydantic.functional_serializers import PlainSerializer
-from pydantic_core import InitErrorDetails, PydanticCustomError, ValidationError
-
 import yaml
 
-from nf_meta.engine.nf_core_utils import get_nfcore_pipelines, url_exists
+from nf_meta.core.nf_core_utils import get_nfcore_pipelines, url_exists
 
 logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.9.9"
+CONFIG_VERSION_MAX = "0.1.0"
+
+_VALID_PARAM_REF_PATTERN = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
+_ANY_BRACE_PATTERN = re.compile(r'\$\{[^}]*\}')
 
 
 def is_existing_file_abs(path: Optional[Path] = None, allowed_extensions: Optional[tuple[str]] = None) -> Optional[Path]:
@@ -111,7 +112,7 @@ class Workflow(BaseModel):
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str
     version: str
-    url: str = "FOO"
+    url: str
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
     params_file: Optional[ExistingYamlFile] = None
@@ -131,11 +132,9 @@ class Workflow(BaseModel):
         if not self.params:
             return []
 
-        pattern = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
-
         refs = []
         for k, v in self.params.items():
-            match = pattern.search(str(v))
+            match = _VALID_PARAM_REF_PATTERN.search(str(v))
             if match:
                 refs.append(
                     ParamsReference(name=match.group(0),
@@ -202,6 +201,20 @@ class Workflow(BaseModel):
                 data["description"] = nfcore_info.get("description", "")
 
         return data
+    
+    @model_validator(mode='after')
+    def warn_malformed_refs(self) -> "Workflow":
+        if not self.params:
+            return self
+        for k, v in self.params.items():
+            for token in _ANY_BRACE_PATTERN.findall(str(v)):
+                if not _VALID_PARAM_REF_PATTERN.search(token):
+                    logger.warning(
+                        "Potentially invalid param reference in workflow %s, "
+                        "param '%s': %s — expected ${<wf_id>:params:<key>}",
+                        self.id, k, token
+                    )
+        return self
 
     def hash(self):
         data = f"{self.url}{self.version}"
@@ -230,22 +243,76 @@ class GlobalOptions(BaseModel):
     profile: Optional[str] = None
     config_file: Optional[ExistingNfConfigFile] = None
     params: Optional[CoercedParams] = None
+    nextflow_version: Optional[tuple[int, int, int, int]] = None
 
     @field_validator("profile", mode="after")
+    @classmethod
     def validate_profile(cls, profile: Optional[str], info: ValidationInfo):
         if not profile:
             return None
 
         return profile.replace(" ", "")
+    
+    @field_validator("nextflow_version", mode="before")
+    @classmethod
+    def extract_nextflow_tuple(cls, v: any) -> Optional[tuple[int, int, int, int]]:
+        if v is None:
+            return v
+        
+        if isinstance(v, (tuple, list)):
+            if len(v) == 4 and all(isinstance(x, int) for x in v):
+                return tuple(v)
+            raise ValueError(
+                f"nextflow_version tuple must have exactly 4 int elements, got {v!r}."
+            )
+
+        if isinstance(v, (int, float)):
+            v = str(v)
+
+        if not isinstance(v, str):
+            raise ValueError(
+                f"nextflow_version must be a string or 4-tuple of ints, got {type(v).__name__!r}."
+            )
+        
+        edge_flag = 1 if v.endswith("-edge") else 0
+        numeric_part = v.removesuffix("-edge")
+
+        raw_parts = numeric_part.split(".")
+        if not 1 <= len(raw_parts) <= 3:
+            raise ValueError(
+                f"Invalid nextflow_version '{v}'. "
+                "Expected 1–3 dot-separated integers with an optional '-edge' suffix, "
+                "e.g. '25', '25.10', '25.10.4-edge'."
+            )
+
+        try:
+            numeric = [int(p) for p in raw_parts]
+        except ValueError:
+            raise ValueError(
+                f"Non-integer component in nextflow_version '{v}'."
+            )
+
+        # Pad minor and patch with zeros if omitted, append edge flag
+        major = numeric[0]
+        minor = numeric[1] if len(numeric) > 1 else 0
+        patch = numeric[2] if len(numeric) > 2 else 0
+
+        return (major, minor, patch, edge_flag)
 
 
 class Transition(BaseModel):
-    id: str = Field(default_factory=lambda: "e" + create_id())
     target: str
     source: str
 
-    def model_dump_display(self) -> dict:
-        return self.model_dump(exclude_none=False)
+    @computed_field
+    @property
+    def id(self) -> str:
+        return f"{self.source}->{self.target}"
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        fields = {"target", "source"}
+        kwargs.setdefault("include", fields)
+        return super().model_dump(*args, **kwargs)
 
 
 class MetaworkflowConfig(BaseModel):
@@ -253,6 +320,23 @@ class MetaworkflowConfig(BaseModel):
     workflows: List[Workflow]
     globals: Optional[GlobalOptions] = None
     transitions: List[Transition]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_dict_to_list(cls, data: dict) -> dict:
+        """
+        Accept either list format (legacy) or dict format (new), where
+        dict keys become the `id` field of each item.
+        """
+        value = data.get("workflows")
+        if isinstance(value, dict):
+            items = []
+            for key, item in value.items():
+                if not isinstance(item, dict):
+                    raise ValueError(f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{str(item)}' instead")
+                items.append({"id": key, **item})
+            data["workflows"] = items
+        return data
 
     # ------------------------------
     # Validation: transitions refer to real workflow IDs
@@ -294,8 +378,14 @@ def dump_config(config: MetaworkflowConfig, path: Path):
     config_dict = {
         "config_version": config.config_version,
         "globals": config.globals.model_dump(exclude_none=True) if config.globals else None,
-        "workflows": [w.model_dump_config() for w in config.workflows],
-        "transitions": [t.model_dump(by_alias=True, exclude_none=True) for t in config.transitions],
+        "workflows": {
+            w.id: { k: v for k,v in w.model_dump_config().items() }
+            for w in config.workflows
+        },
+        "transitions": [t.model_dump() for t in config.transitions],
     }
+    if not config_dict["globals"]:
+        del(config_dict["globals"])
+
     with open(path, "w") as fh:
         yaml.safe_dump(config_dict, fh, sort_keys=False)

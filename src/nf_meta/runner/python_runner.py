@@ -1,18 +1,15 @@
 import hashlib
 import logging
 import os
+import re
 import shutil
 import subprocess
 import uuid
 import threading
 from collections import deque
 from contextlib import contextmanager
-from dataclasses import dataclass
-from enum import StrEnum
-from typing import Optional, Protocol
+from typing import Optional
 from pathlib import Path
-from nf_meta.engine.graph import MetaworkflowGraph
-from nf_meta.engine.models import Workflow, GlobalOptions
 
 import yaml
 from rich.live import Live
@@ -21,48 +18,14 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console, Group
 
+from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.models import Workflow, GlobalOptions
+from .errors import NfMetaRunnerError
+from .utils import check_nextflow, check_nextflow_version
+
+
 logger = logging.getLogger(__name__)
 console = Console()
-
-class Runners(StrEnum):
-    PYTHON = "python"
-    PLATFORM = "platform"
-    DAISY_CHAIN = "daisy_chain"
-    NEXTFLOW_MONO = "nextflow_mono"
-
-
-class Runner(Protocol):
-    def run(self, graph) -> None: ...
-    def resume(self, graph) -> None: ...
-
-
-def run_metapipeline(
-        g: MetaworkflowGraph,
-        runner_name: Runners,
-        resume=False,
-        verbose=True
-    ) -> None:
-    logger.info("Started runner")
-
-    runner = None
-    match runner_name:
-        case Runners.PYTHON:
-            runner = SimplePythonRunner()
-        case _:
-            raise NotImplementedError("Requested runner not implemented yet")
-    
-    if resume:
-        runner.resume(g)
-    else:
-        runner.run(g)
-
-
-@dataclass
-class NfMetaRunnerError(Exception):
-    message: str
-   
-    def __str__(self) -> str:
-        return self.message
 
 
 class SimplePythonRunner:
@@ -73,10 +36,19 @@ class SimplePythonRunner:
     OUT_FILE = "OUT.txt"
     ERROR_FILE = "ERROR.txt"
 
-    def __init__(self, tempdir=".nf-meta-cache"):
+    def __init__(self, 
+                 tempdir = ".nf-meta-cache",
+                 output_window_size = 20,
+                 start: Optional[str] = None,
+                 target: Optional[str] = None,
+                 extra_profile: Optional[str] = None):
         self.tempdir = Path(tempdir)
         self.tempdir.mkdir(parents=True, exist_ok=True)
-        self.executable = self._check_nextflow()
+        self.executable = check_nextflow()
+        self.output_window_size = output_window_size
+        self.start_wf_id = start
+        self.target_wf_id = target
+        self.extra_profile = extra_profile.replace(" ", "") if extra_profile else ""
     
     @contextmanager
     def _chdir(self, path: Path):
@@ -87,12 +59,6 @@ class SimplePythonRunner:
             yield
         finally:
             os.chdir(origin)
-
-    def _check_nextflow(self):
-        executable = shutil.which("nextflow")
-        if executable is None:
-            raise NfMetaRunnerError("No nextflow installation found")
-        return executable
     
     def _check_run_success(self, run_dir: Path = Path(".")):
         return Path(run_dir / self.OUT_FILE).exists() \
@@ -147,7 +113,6 @@ class SimplePythonRunner:
     def _stream_proc_out(
                 self,
                 cmd: list[str],
-                output_lines=10
             ) -> tuple[int, str, str]:
         process = subprocess.Popen(
             cmd,
@@ -156,7 +121,7 @@ class SimplePythonRunner:
             text=True
         )
     
-        tail = deque(maxlen=output_lines)
+        tail = deque(maxlen=self.output_window_size)
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
 
@@ -201,11 +166,8 @@ class SimplePythonRunner:
             cmd += ["-resume"]
 
         wf_params = dict(wf.params or {})
-
+        profiles = []
         if globals is not None:
-            if globals.profile and not wf.profile:
-                cmd += ["-profile", globals.profile]
-
             if globals.config_file is not None:
                 nf_cfg = Path(globals.config_file)
                 if not nf_cfg.exists():
@@ -215,8 +177,17 @@ class SimplePythonRunner:
             if globals.params:
                 wf_params = self._merge_params(wf_params, globals.params)
 
+            if globals.profile and not wf.profile:
+                profiles.append(globals.profile)
+
         if wf.profile:
-            cmd += ["-profile", wf.profile]
+            profiles.append(wf.profiles)
+        
+        if self.extra_profile:
+            profiles.append(self.extra_profile)
+        
+        cmd += ["-profile", ",".join(profiles)]
+        logger.info(f"Profiles added: {cmd[-1]}")
 
         if wf_params:
             params_file = self._create_params_file(wf_params, wf_dir / "params.yaml")
@@ -250,7 +221,14 @@ class SimplePythonRunner:
         return hash
 
     def run(self, graph: MetaworkflowGraph, resume=False):
+        if graph.global_options.nextflow_version:
+            _ = check_nextflow_version(graph.global_options.nextflow_version)
+
         workflows = graph.get_workflows_sorted()
+        if self.start_wf_id or self.target_wf_id:
+            logger.info(f"Calculating subset of graph from workflow {self.start_wf_id} to {self.target_wf_id}")
+            workflows = graph.subset_workflows(self.start_wf_id, self.target_wf_id, workflows)
+            logger.info(f"Subset workflow DAG: {" -> ".join([f'{wf.name} ({wf.id})' for wf in workflows])}")
 
         for i, wf in enumerate(workflows):
             step_label = f"Step {i+1}/{len(workflows)} - {wf.name}"

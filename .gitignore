@@ -1,3 +1,7 @@
+# Test files
+test_run/
+metapipeline_test.yaml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -5,6 +9,9 @@ __pycache__/
 
 # C extensions
 *.so
+
+# Devcontainer
+.devcontainer/devcontainer-lock.json
 
 # Distribution / packaging
 .Python

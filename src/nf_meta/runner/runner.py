@@ -5,8 +5,8 @@ from .errors import NfMetaRunnerError
 import logging
 from enum import StrEnum
 from typing import Protocol
-from nf_meta.engine.graph import MetaworkflowGraph
-from nf_meta.engine.models import Workflow, GlobalOptions
+from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.models import Workflow, GlobalOptions
 
 
 logger = logging.getLogger(__name__)

@@ -16,9 +16,11 @@
 </template>
 
 <script setup lang="ts">
+import { APP_VERSION } from '../version'
+
 const year = new Date().getFullYear()
 
-const version = "0.2.1"
+const version = APP_VERSION
 
 const github = "https://github.com/bmds-tue/nf-meta"
 </script>

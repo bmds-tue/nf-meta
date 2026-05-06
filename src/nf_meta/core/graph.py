@@ -1,13 +1,12 @@
 from contextlib import contextmanager
 from typing import Dict, Any, Optional
 from pathlib import Path
-import yaml
 import logging
 
 import networkx as nx
 
 from .models import MetaworkflowConfig, Workflow, GlobalOptions, Transition, load_config, dump_config, CONFIG_VERSION_MAX
-from .events import GraphEventHandler, Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
+from .events import Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
 from .errors import GraphValidationError, WorkflowReferenceError, WorkflowReferenceErrors
 
 logger = logging.getLogger()

@@ -1,10 +1,7 @@
-from pathlib import Path
-from nf_meta.engine.session import EditorSession
-from nf_meta.engine.models import Workflow, Transition
-
-from nf_meta.engine.events import Event
-
 from pydantic import BaseModel
+
+from nf_meta.core.session import EditorSession
+from nf_meta.core.events import Event
 
 
 class Selection(BaseModel):

@@ -1,9 +1,9 @@
 import click
 from functools import wraps
-from nf_meta.engine.errors import GraphValidationError, ValidationError, format_errors_for_cli
+from nf_meta.core.errors import GraphValidationError, ValidationError, format_errors_for_cli
 from nf_meta.runner import run_metapipeline, Runners, NfMetaRunnerError
-from nf_meta.engine.graph import MetaworkflowGraph
-from nf_meta.engine.session import start_session
+from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.session import start_session
 from nf_meta.editor import start_editor_backend
 
 @click.group()

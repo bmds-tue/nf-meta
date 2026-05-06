@@ -3,11 +3,11 @@ from typing import Annotated
 
 from .serializers import serialize_state, Selection
 
-from nf_meta.engine.errors import SessionCommandError
-from nf_meta.engine.session import SESSION
-from nf_meta.engine.nf_core_utils import get_nfcore_pipelines
-from nf_meta.engine.models import Workflow, Transition, GlobalOptions
-from nf_meta.engine.events import (AddTransition, AddWorkflow, EditWorkflow,
+from nf_meta.core.errors import SessionCommandError
+from nf_meta.core.session import SESSION
+from nf_meta.core.nf_core_utils import get_nfcore_pipelines
+from nf_meta.core.models import Workflow, Transition, GlobalOptions
+from nf_meta.core.events import (AddTransition, AddWorkflow, EditWorkflow,
                                     RemoveWorkflow, RemoveTransition,
                                     Transaction, UpdateGlobalOptions)
 

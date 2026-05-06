@@ -18,8 +18,8 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console, Group
 
-from nf_meta.engine.graph import MetaworkflowGraph
-from nf_meta.engine.models import Workflow, GlobalOptions
+from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.models import Workflow, GlobalOptions
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow, check_nextflow_version
 

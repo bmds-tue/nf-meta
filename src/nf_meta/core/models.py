@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, Dict, List, Any, Annotated, TypeAlias
+from typing import Optional, List, Any, Annotated
 import logging
 import re
 import uuid
@@ -13,11 +13,9 @@ from pydantic import (BaseModel, Field, computed_field,
                         field_validator, model_validator, ValidationInfo,
                         AfterValidator, BeforeValidator)
 from pydantic.functional_serializers import PlainSerializer
-from pydantic_core import InitErrorDetails, PydanticCustomError, ValidationError
-
 import yaml
 
-from nf_meta.engine.nf_core_utils import get_nfcore_pipelines, url_exists
+from nf_meta.core.nf_core_utils import get_nfcore_pipelines, url_exists
 
 logger = logging.getLogger()
 

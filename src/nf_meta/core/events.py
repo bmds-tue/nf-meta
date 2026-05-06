@@ -1,6 +1,5 @@
 from typing import Protocol
 from dataclasses import dataclass
-from enum import StrEnum
 
 from .models import Workflow, Transition, GlobalOptions
 

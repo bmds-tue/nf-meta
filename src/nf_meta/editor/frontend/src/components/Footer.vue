@@ -18,7 +18,7 @@
 <script setup lang="ts">
 const year = new Date().getFullYear()
 
-const version = "0.2.0"
+const version = "0.2.1"
 
 const github = "https://github.com/bmds-tue/nf-meta"
 </script>

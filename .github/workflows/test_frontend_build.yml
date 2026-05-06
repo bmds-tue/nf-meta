@@ -1,0 +1,27 @@
+name: Test Frontend Build
+
+on:
+  workflow_dispatch
+
+jobs:
+    build-frontend:
+        name: Build Frontend
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+        - uses: actions/checkout@v4
+
+        - name: Set up Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: '18'
+
+        - name: Install frontend dependencies
+          working-directory: src/nf_meta/editor/frontend
+          run: npm ci
+
+        - name: Build frontend
+          working-directory: src/nf_meta/editor/frontend
+          run: npm run build

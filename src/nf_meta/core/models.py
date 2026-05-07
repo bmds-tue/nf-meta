@@ -135,14 +135,14 @@ class Workflow(BaseModel):
     config_file: Optional[ExistingNfConfigFile] = None
     profile: Optional[str] = None
 
-    @computed_field
     @property
+    @computed_field
     def is_nfcore(self) -> bool:
         nfcore_pipelines = get_nfcore_pipelines()
         return any(p.get("name") == self.name for p in nfcore_pipelines)
 
-    @computed_field
     @property
+    @computed_field
     def field_refs(self) -> list[ParamsReference]:
         if not self.params:
             return []
@@ -185,9 +185,9 @@ class Workflow(BaseModel):
                 raise ValueError(
                     "Workflows from outside nf-core must specify a repository!"
                 )
-            return nfcore_wf_info.get("url")
+            return nfcore_wf_info.get("url")  # type: ignore
 
-        if is_nfcore and value != nfcore_wf_info.get("url"):
+        if is_nfcore and value != nfcore_wf_info.get("url"):  # type: ignore
             raise ValueError("nf-core workflow referenced, but url does not match!")
 
         if not is_nfcore and not value.startswith("http"):
@@ -295,7 +295,7 @@ class GlobalOptions(BaseModel):
 
     @field_validator("nextflow_version", mode="before")
     @classmethod
-    def extract_nextflow_tuple(cls, v: any) -> Optional[tuple[int, int, int, int]]:
+    def extract_nextflow_tuple(cls, v: Any) -> Optional[tuple[int, int, int, int]]:
         if v is None:
             return v
 
@@ -321,7 +321,7 @@ class GlobalOptions(BaseModel):
         if not 1 <= len(raw_parts) <= 3:
             raise ValueError(
                 f"Invalid nextflow_version '{v}'. "
-                "Expected 1–3 dot-separated integers with an optional '-edge' suffix, "
+                "Expected 1-3 dot-separated integers with an optional '-edge' suffix, "
                 "e.g. '25', '25.10', '25.10.4-edge'."
             )
 
@@ -342,8 +342,8 @@ class Transition(BaseModel):
     target: str
     source: str
 
-    @computed_field
     @property
+    @computed_field
     def id(self) -> str:
         return f"{self.source}->{self.target}"
 

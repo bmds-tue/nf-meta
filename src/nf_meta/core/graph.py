@@ -1,13 +1,33 @@
 from contextlib import contextmanager
-from typing import Dict, Any, Optional
+from typing import Optional
 from pathlib import Path
 import logging
 
 import networkx as nx
 
-from .models import MetaworkflowConfig, Workflow, GlobalOptions, Transition, load_config, dump_config, CONFIG_VERSION_MAX
-from .events import Event, WorkflowAdded, WorkflowRemoved, WorkflowUpdated, TransitionAdded, TransitionRemoved, GlobalOptionsUpdated
-from .errors import GraphValidationError, WorkflowReferenceError, WorkflowReferenceErrors
+from .models import (
+    MetaworkflowConfig,
+    Workflow,
+    GlobalOptions,
+    Transition,
+    load_config,
+    dump_config,
+    CONFIG_VERSION_MAX,
+)
+from .events import (
+    Event,
+    WorkflowAdded,
+    WorkflowRemoved,
+    WorkflowUpdated,
+    TransitionAdded,
+    TransitionRemoved,
+    GlobalOptionsUpdated,
+)
+from .errors import (
+    GraphValidationError,
+    WorkflowReferenceError,
+    WorkflowReferenceErrors,
+)
 
 logger = logging.getLogger()
 
@@ -22,7 +42,7 @@ class MetaworkflowGraph:
 
     def __init__(self):
         self.G: nx.DiGraph = nx.DiGraph()
-        self.global_options: Optional[GlobalOptions] = None
+        self.global_options = GlobalOptions()
         self.config_version: str = CONFIG_VERSION_MAX
         self._events: list[Event] = []
         self._validation_suspended = False
@@ -41,7 +61,7 @@ class MetaworkflowGraph:
 
         if not cfg:
             raise ValueError(f"No config data loaded from {cfg_file}")
-    
+
         return cls.from_config(cfg)
 
     @classmethod
@@ -82,17 +102,17 @@ class MetaworkflowGraph:
         if wf.params and not self._validation_suspended:
             self.validate_param_references(wf)
 
-        if not wf.id in self.G.nodes:
+        if wf.id not in self.G.nodes:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
 
         old_wf = self.get_workflow_by_id(wf.id)
         self.G.nodes[wf.id]["workflow"] = wf.model_copy()
-        self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))
+        self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))  # type: ignore
 
     def remove_workflow(self, wf_id: str, recursive=False):
         if wf_id not in self.G.nodes:
             raise ValueError("Invalid wf_id")
-        
+
         for edge in list(self.G.in_edges(wf_id)):
             self.remove_transition(*edge)
 
@@ -101,14 +121,18 @@ class MetaworkflowGraph:
 
         removed_wf = self.get_workflow_by_id(wf_id)
         self.G.remove_node(wf_id)
-        self._emit(WorkflowRemoved(removed_wf))
+        self._emit(WorkflowRemoved(removed_wf))  # type: ignore
 
     def add_transition(self, tr: Transition):
         if tr.source not in self.G.nodes:
-            raise ValueError(f"Unknown node {tr.source} found in transition {tr.source}->{tr.target}")
+            raise ValueError(
+                f"Unknown node {tr.source} found in transition {tr.source}->{tr.target}"
+            )
 
         if tr.target not in self.G.nodes:
-            raise ValueError(f"Unknown node {tr.source} found in transition {tr.source}->{tr.target}")
+            raise ValueError(
+                f"Unknown node {tr.source} found in transition {tr.source}->{tr.target}"
+            )
 
         if self.G.has_edge(tr.source, tr.target):
             print(f"[warning] Edge already exists: {tr.source}->{tr.target}")
@@ -130,7 +154,7 @@ class MetaworkflowGraph:
 
         if not self._validation_suspended:
             source_wf = self.get_workflow_by_id(source)
-            self.validate_param_references(source_wf)
+            self.validate_param_references(source_wf)  # type: ignore
 
     def update_global_options(self, glob: GlobalOptions):
         old_globals = self.global_options
@@ -143,22 +167,39 @@ class MetaworkflowGraph:
     def validate_param_references(self, wf: Workflow):
         errors = []
         for ref in wf.field_refs:
-            if ref.target_wf_id not in self.G.nodes:
-                errors.append(WorkflowReferenceError(ref, f"Reference to unknown workflow: {ref.target_wf_id}"))
-                continue
-            
-            if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
-                errors.append(WorkflowReferenceError(ref, f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}"))
+            referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
+            if not referenced_wf:
+                errors.append(
+                    WorkflowReferenceError(
+                        ref, f"Reference to unknown workflow: {ref.target_wf_id}"
+                    )
+                )
                 continue
 
-            referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
-            if not referenced_wf.params or not ref.target_key:
-                errors.append(WorkflowReferenceError(ref, f"No referencable params in workflow {referenced_wf.id}"))
+            if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
+                errors.append(
+                    WorkflowReferenceError(
+                        ref,
+                        f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}",
+                    )
+                )
                 continue
-       
+
+            if not referenced_wf.params or not ref.target_key:
+                errors.append(
+                    WorkflowReferenceError(
+                        ref, f"No referencable params in workflow {referenced_wf.id}"
+                    )
+                )
+                continue
+
             if not referenced_wf.params.get(ref.target_key):
-                errors.append(WorkflowReferenceError(ref, f"Reference to unresolvable param: {ref.target_key}"))
-        
+                errors.append(
+                    WorkflowReferenceError(
+                        ref, f"Reference to unresolvable param: {ref.target_key}"
+                    )
+                )
+
         if errors:
             raise WorkflowReferenceErrors(errors)
 
@@ -191,51 +232,55 @@ class MetaworkflowGraph:
     # ===========================
     #   EXPORT BACK TO CONFIG
     # ===========================
-    def to_config(self) -> Dict[str, Any]:
+    def to_config(self) -> MetaworkflowConfig:
         workflows = self.get_workflows()
         transitions = self.get_transitions()
 
-        return MetaworkflowConfig.model_validate({
-            "config_version": self.config_version,
-            "globals": self.global_options,
-            "workflows": workflows,
-            "transitions": transitions,
-        })
+        return MetaworkflowConfig.model_validate(
+            {
+                "config_version": self.config_version,
+                "globals": self.global_options,
+                "workflows": workflows,
+                "transitions": transitions,
+            }
+        )
 
-    def to_file(self, file: Path|str) -> None:
+    def to_file(self, file: Path | str) -> None:
         dump_config(self.to_config(), Path(file))
 
     # ===========================
     #        UTILITIES
     # ===========================
-    def get_workflow_by_id(self, id: str) -> Workflow:
+    def get_workflow_by_id(self, id: str) -> Optional[Workflow]:
         try:
             return self.G.nodes[id].get("workflow")
         except KeyError:
             return None
 
-    def get_transition(self, source: str, target: str) -> Transition:
+    def get_transition(self, source: str, target: str) -> Optional[Transition]:
         try:
             return self.G.edges[(source, target)].get("transition")
         except KeyError:
             return None
 
     def get_transitions(self) -> list[Transition]:
-        return [self.get_transition(*e) for e in self.G.edges]
+        return [self.get_transition(*e) for e in self.G.edges]  # type: ignore
 
     def get_workflows(self) -> list[Workflow]:
-        return [self.get_workflow_by_id(n) for n in self.G.nodes]
+        return [self.get_workflow_by_id(n) for n in self.G.nodes]  # type: ignore
 
     def get_workflows_sorted(self) -> list[Workflow]:
         """Returns workflows in valid execution order."""
         nodes_sorted = list(nx.topological_sort(self.G))
         workflows = [self.get_workflow_by_id(n) for n in nodes_sorted]
-        return workflows
+        return workflows  # type: ignore
 
-    def subset_workflows(self,
-                         start: Optional[str] = None,
-                         target: Optional[str] = None,
-                         workflows: Optional[list[Workflow]] = None):
+    def subset_workflows(
+        self,
+        start: Optional[str] = None,
+        target: Optional[str] = None,
+        workflows: Optional[list[Workflow]] = None,
+    ):
 
         if workflows is None:
             workflows = self.get_workflows_sorted()
@@ -264,10 +309,10 @@ class MetaworkflowGraph:
             return workflows_sorted[0]
 
     def successors(self, wf: Workflow) -> list[Workflow]:
-        return [self.get_workflow_by_id(n) for n in self.G.successors(wf.id)]
+        return [self.get_workflow_by_id(n) for n in self.G.successors(wf.id)]  # type: ignore
 
     def predecessors(self, wf: Workflow) -> list[Workflow]:
-        return [self.get_workflow_by_id(n) for n in self.G.predecessors(wf.id)]
+        return [self.get_workflow_by_id(n) for n in self.G.predecessors(wf.id)]  # type: ignore
 
     @contextmanager
     def deferred_validation(self):

@@ -7,11 +7,17 @@ import re
 import uuid
 import hashlib
 import json
-import re
 
-from pydantic import (BaseModel, Field, computed_field,
-                        field_validator, model_validator, ValidationInfo,
-                        AfterValidator, BeforeValidator)
+from pydantic import (
+    BaseModel,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+    ValidationInfo,
+    AfterValidator,
+    BeforeValidator,
+)
 from pydantic.functional_serializers import PlainSerializer
 import yaml
 
@@ -22,11 +28,13 @@ logger = logging.getLogger()
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.1.0"
 
-_VALID_PARAM_REF_PATTERN = re.compile(r'\$\{([^}]+):params:([^}]+)\}')
-_ANY_BRACE_PATTERN = re.compile(r'\$\{[^}]*\}')
+_VALID_PARAM_REF_PATTERN = re.compile(r"\$\{([^}]+):params:([^}]+)\}")
+_ANY_BRACE_PATTERN = re.compile(r"\$\{[^}]*\}")
 
 
-def is_existing_file_abs(path: Optional[Path] = None, allowed_extensions: Optional[tuple[str]] = None) -> Optional[Path]:
+def is_existing_file_abs(
+    path: Optional[Path] = None, allowed_extensions: Optional[tuple[str]] = None
+) -> Optional[Path]:
     if not path:
         return None
 
@@ -36,48 +44,55 @@ def is_existing_file_abs(path: Optional[Path] = None, allowed_extensions: Option
 
     if not path.is_file():
         raise ValueError("Path must be a file")
-    
+
     if allowed_extensions is not None:
-        if not path.suffix in allowed_extensions:
+        if path.suffix not in allowed_extensions:
             raise ValueError(f"Path must end with {allowed_extensions}")
-    
+
     return path
 
 
-SerializeToStr = PlainSerializer(lambda v: str(v) if v else None, return_type=Optional[str])
-ExistingAbsoluteFile = Annotated[Optional[Path], 
-                                 AfterValidator(lambda v: is_existing_file_abs(v)),
-                                 SerializeToStr]
-ExistingYamlFile = Annotated[Optional[Path], 
-                             AfterValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml"))),
-                             SerializeToStr]
-ExistingNfConfigFile = Annotated[Optional[Path], 
-                                 AfterValidator(lambda v: is_existing_file_abs(v, (".config"))),
-                                 SerializeToStr]
+SerializeToStr = PlainSerializer(
+    lambda v: str(v) if v else None, return_type=Optional[str]
+)
+ExistingAbsoluteFile = Annotated[
+    Optional[Path], AfterValidator(lambda v: is_existing_file_abs(v)), SerializeToStr
+]
+ExistingYamlFile = Annotated[
+    Optional[Path],
+    AfterValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml"))),
+    SerializeToStr,
+]
+ExistingNfConfigFile = Annotated[
+    Optional[Path],
+    AfterValidator(lambda v: is_existing_file_abs(v, (".config"))),
+    SerializeToStr,
+]
 
 
 def coerce_param_values_to_str(v: Any) -> Optional[dict[str, str]]:
     if v is None:
         return None
-    
+
     COERCIBLE = (str, int, float, bool)
     coerced = {}
     errors = []
     for key, value in v.items():
         if not isinstance(value, COERCIBLE):
-            errors.append(f"\tParam '{key}' has unsupported type {type(value).__name__}")
+            errors.append(
+                f"\tParam '{key}' has unsupported type {type(value).__name__}"
+            )
         else:
             coerced[key] = str(value)
-    
+
     if errors:
         raise ValueError("\n" + "\n".join(errors))
-    
+
     return coerced
 
 
 CoercedParams = Annotated[
-    Optional[dict[str, str]],
-    BeforeValidator(coerce_param_values_to_str)
+    Optional[dict[str, str]], BeforeValidator(coerce_param_values_to_str)
 ]
 
 
@@ -106,7 +121,7 @@ class ParamsReference(Reference):
 
 class Workflow(BaseModel):
     """
-    Workflow representation for internal use 
+    Workflow representation for internal use
     """
 
     id: str = Field(default_factory=lambda: "n" + create_id())
@@ -120,13 +135,13 @@ class Workflow(BaseModel):
     config_file: Optional[ExistingNfConfigFile] = None
     profile: Optional[str] = None
 
-    @computed_field
+    @computed_field  # type: ignore[misc]
     @property
     def is_nfcore(self) -> bool:
         nfcore_pipelines = get_nfcore_pipelines()
         return any(p.get("name") == self.name for p in nfcore_pipelines)
-    
-    @computed_field
+
+    @computed_field  # type: ignore[misc]
     @property
     def field_refs(self) -> list[ParamsReference]:
         if not self.params:
@@ -137,11 +152,13 @@ class Workflow(BaseModel):
             match = _VALID_PARAM_REF_PATTERN.search(str(v))
             if match:
                 refs.append(
-                    ParamsReference(name=match.group(0),
-                                    source_wf_id=self.id,
-                                    source_key=k,
-                                    target_wf_id=match.group(1),
-                                    target_key=match.group(2))
+                    ParamsReference(
+                        name=match.group(0),
+                        source_wf_id=self.id,
+                        source_key=k,
+                        target_wf_id=match.group(1),
+                        target_key=match.group(2),
+                    )
                 )
         return refs
 
@@ -149,30 +166,31 @@ class Workflow(BaseModel):
     def get_nfcore_info(cls, name: str) -> Optional[dict]:
         nfcore_pipelines = get_nfcore_pipelines()
         nfcore_info = next(
-            (wf for wf in nfcore_pipelines if wf.get("name") == name),
-            None)
+            (wf for wf in nfcore_pipelines if wf.get("name") == name), None
+        )
         return nfcore_info
-    
+
     @field_validator("url", mode="after")
     @classmethod
     def validate_url(cls, value: Optional[str], info: ValidationInfo):
         name = info.data.get("name")
         if not name:
             return value
-        
+
         nfcore_wf_info = cls.get_nfcore_info(name)
         is_nfcore = bool(nfcore_wf_info)
 
         if not value:
             if not is_nfcore:
-                raise ValueError("Workflows from outside nf-core must specify a repository!") 
-            return nfcore_wf_info.get("url")
-        
-        if is_nfcore and value != nfcore_wf_info.get("url"):
+                raise ValueError(
+                    "Workflows from outside nf-core must specify a repository!"
+                )
+            return nfcore_wf_info.get("url")  # type: ignore
+
+        if is_nfcore and value != nfcore_wf_info.get("url"):  # type: ignore
             raise ValueError("nf-core workflow referenced, but url does not match!")
-        
-        if (not is_nfcore 
-            and not value.startswith("http")):
+
+        if not is_nfcore and not value.startswith("http"):
             raise ValueError("Url should start with https://")
 
         if not is_nfcore and not url_exists(value):
@@ -183,11 +201,11 @@ class Workflow(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:
-        
+
         # For non nf-core workflows: Explicitly mark url as provided
         # (even if None) so the field_validator is not skipped!
         data.setdefault("url", None)
-        
+
         name = data.get("name")
         if not name:
             return data
@@ -201,8 +219,8 @@ class Workflow(BaseModel):
                 data["description"] = nfcore_info.get("description", "")
 
         return data
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def warn_malformed_refs(self) -> "Workflow":
         if not self.params:
             return self
@@ -212,7 +230,9 @@ class Workflow(BaseModel):
                     logger.warning(
                         "Potentially invalid param reference in workflow %s, "
                         "param '%s': %s — expected ${<wf_id>:params:<key>}",
-                        self.id, k, token
+                        self.id,
+                        k,
+                        token,
                     )
         return self
 
@@ -225,14 +245,34 @@ class Workflow(BaseModel):
         return hashed
 
     def model_dump_config(self) -> dict:
-        fields = {"id", "name", "version", "url", "params_file", "config_file", "params", "profile"}
+        fields = {
+            "id",
+            "name",
+            "version",
+            "url",
+            "params_file",
+            "config_file",
+            "params",
+            "profile",
+        }
         return self.model_dump(include=fields, exclude_none=True)
-    
+
     def model_dump_display(self) -> dict:
-        fields = {"id", "name", "version", "url", "params_file", "params",
-                  "description", "is_nfcore", "position", "config_file", "profile"}
+        fields = {
+            "id",
+            "name",
+            "version",
+            "url",
+            "params_file",
+            "params",
+            "description",
+            "is_nfcore",
+            "position",
+            "config_file",
+            "profile",
+        }
         return self.model_dump(include=fields, exclude_none=False)
-    
+
     def model_dump(self, **kwargs: Any):
         # overwrite default serialization behavior
         kwargs.setdefault("exclude_none", True)
@@ -252,13 +292,13 @@ class GlobalOptions(BaseModel):
             return None
 
         return profile.replace(" ", "")
-    
+
     @field_validator("nextflow_version", mode="before")
     @classmethod
-    def extract_nextflow_tuple(cls, v: any) -> Optional[tuple[int, int, int, int]]:
+    def extract_nextflow_tuple(cls, v: Any) -> Optional[tuple[int, int, int, int]]:
         if v is None:
             return v
-        
+
         if isinstance(v, (tuple, list)):
             if len(v) == 4 and all(isinstance(x, int) for x in v):
                 return tuple(v)
@@ -273,7 +313,7 @@ class GlobalOptions(BaseModel):
             raise ValueError(
                 f"nextflow_version must be a string or 4-tuple of ints, got {type(v).__name__!r}."
             )
-        
+
         edge_flag = 1 if v.endswith("-edge") else 0
         numeric_part = v.removesuffix("-edge")
 
@@ -281,16 +321,14 @@ class GlobalOptions(BaseModel):
         if not 1 <= len(raw_parts) <= 3:
             raise ValueError(
                 f"Invalid nextflow_version '{v}'. "
-                "Expected 1–3 dot-separated integers with an optional '-edge' suffix, "
+                "Expected 1-3 dot-separated integers with an optional '-edge' suffix, "
                 "e.g. '25', '25.10', '25.10.4-edge'."
             )
 
         try:
             numeric = [int(p) for p in raw_parts]
         except ValueError:
-            raise ValueError(
-                f"Non-integer component in nextflow_version '{v}'."
-            )
+            raise ValueError(f"Non-integer component in nextflow_version '{v}'.")
 
         # Pad minor and patch with zeros if omitted, append edge flag
         major = numeric[0]
@@ -304,7 +342,7 @@ class Transition(BaseModel):
     target: str
     source: str
 
-    @computed_field
+    @computed_field  # type: ignore[misc]
     @property
     def id(self) -> str:
         return f"{self.source}->{self.target}"
@@ -333,7 +371,9 @@ class MetaworkflowConfig(BaseModel):
             items = []
             for key, item in value.items():
                 if not isinstance(item, dict):
-                    raise ValueError(f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{str(item)}' instead")
+                    raise ValueError(
+                        f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{str(item)}' instead"
+                    )
                 items.append({"id": key, **item})
             data["workflows"] = items
         return data
@@ -346,9 +386,13 @@ class MetaworkflowConfig(BaseModel):
         all_ids = {w.id for w in self.workflows}
         for tr in self.transitions:
             if tr.target not in all_ids:
-                raise ValueError(f"transition 'target' references unknown workflow id: {tr.target}")
+                raise ValueError(
+                    f"transition 'target' references unknown workflow id: {tr.target}"
+                )
             if tr.source and tr.source not in all_ids:
-                raise ValueError(f"transition 'source' references unknown workflow id: {tr.source}")
+                raise ValueError(
+                    f"transition 'source' references unknown workflow id: {tr.source}"
+                )
         return self
 
     @field_validator("config_version")
@@ -357,13 +401,17 @@ class MetaworkflowConfig(BaseModel):
         result = re.match(r"^\d+\.\d+\.\d$", config_version)
         if not result:
             raise ValueError(f"Invalid config version: {config_version}")
-        
+
         version = Version(result.string)
         if version < Version(CONFIG_VERSION_MIN):
-            raise ValueError(f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}")
+            raise ValueError(
+                f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}"
+            )
 
         if version > Version(CONFIG_VERSION_MAX):
-            raise ValueError(f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}")
+            raise ValueError(
+                f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}"
+            )
 
         return str(version)
 
@@ -377,15 +425,17 @@ def load_config(path: Path) -> MetaworkflowConfig:
 def dump_config(config: MetaworkflowConfig, path: Path):
     config_dict = {
         "config_version": config.config_version,
-        "globals": config.globals.model_dump(exclude_none=True) if config.globals else None,
+        "globals": config.globals.model_dump(exclude_none=True)
+        if config.globals
+        else None,
         "workflows": {
-            w.id: { k: v for k,v in w.model_dump_config().items() }
+            w.id: {k: v for k, v in w.model_dump_config().items()}
             for w in config.workflows
         },
         "transitions": [t.model_dump() for t in config.transitions],
     }
     if not config_dict["globals"]:
-        del(config_dict["globals"])
+        del config_dict["globals"]
 
     with open(path, "w") as fh:
         yaml.safe_dump(config_dict, fh, sort_keys=False)

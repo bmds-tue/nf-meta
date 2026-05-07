@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from .errors import GraphValidationError, SessionCommandError
 from .events import Command
 from .history import History
@@ -8,7 +6,6 @@ from pathlib import Path
 
 
 class EditorSession:
-
     def __init__(self, config_file=None):
 
         self.config_file: Path = config_file
@@ -31,21 +28,21 @@ class EditorSession:
 
     def handle_command(self, c: Command):
         try:
-            events = self.history.execute(c, self.graph)
-        except (GraphValidationError) as e:
+            _ = self.history.execute(c, self.graph)
+        except (GraphValidationError, ValueError) as e:
             raise SessionCommandError.from_exception(e)
-        
+
         # Save to config after every command
         self.save_to_config(self.config_file)
 
     def handle_undo(self):
-        events = self.history.undo(self.graph)
+        _ = self.history.undo(self.graph)
 
     def handle_redo(self):
-        events = self.history.redo(self.graph)
+        _ = self.history.redo(self.graph)
 
-    def save_to_config(self, config: Path|None):
-        if not (config or self.config):
+    def save_to_config(self, config: Path | None):
+        if not (config or self.config_file):
             raise ValueError("No config file to write to specified")
 
         if config:

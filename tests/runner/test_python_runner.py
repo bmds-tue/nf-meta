@@ -73,14 +73,6 @@ class TestHelpers:
         assert runner._check_run_success(run_dir) is False
 
 
-# ---------------------------------------------------------------------------
-# _resolve_param_references
-# NOTE: python_runner.py:102 references ref.reference_name which does not exist
-# on ParamsReference — should be ref.name. The test below describes correct
-# behaviour and will pass once that attribute name is fixed.
-# ---------------------------------------------------------------------------
-
-
 class TestResolveParamReferences:
     def test_resolves_reference(self, runner, wf_rnaseq, wf_fetchngs):
         fetchngs_with_params = wf_fetchngs.model_copy(
@@ -106,12 +98,6 @@ class TestResolveParamReferences:
         resolved = runner._resolve_param_references(wf_rnaseq, graph_two)
         assert resolved.params == wf_rnaseq.params
 
-
-# ---------------------------------------------------------------------------
-# _run_workflow command construction
-# NOTE: python_runner.py:184 uses wf.profiles (wrong) instead of wf.profile.
-# The profile-related tests will pass only after that typo is fixed.
-# ---------------------------------------------------------------------------
 
 
 class TestRunWorkflow:

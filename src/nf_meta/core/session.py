@@ -29,7 +29,7 @@ class EditorSession:
     def handle_command(self, c: Command):
         try:
             _ = self.history.execute(c, self.graph)
-        except GraphValidationError as e:
+        except (GraphValidationError, ValueError) as e:
             raise SessionCommandError.from_exception(e)
 
         # Save to config after every command

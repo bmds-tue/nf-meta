@@ -1,7 +1,5 @@
-import json
 import functools
 import logging
-from dataclasses import dataclass
 
 import requests
 
@@ -11,7 +9,6 @@ logger = logging.getLogger()
 
 @functools.cache
 def get_nfcore_pipelines() -> list[dict]:
-
     """
     Adapted from nf-core/tools `nf_core.pipelines.list.Workflows:get_remote_workflows` method
     """
@@ -23,24 +20,31 @@ def get_nfcore_pipelines() -> list[dict]:
     except ConnectionError as e:
         logger.warning(f"Error while attempting to access {nfcore_url}", e)
         return []
-    
+
     if response.status_code != 200:
         return []
     else:
         repos = response.json()["remote_workflows"]
-        return [{
+        return [
+            {
                 "name": p.get("full_name", ""),
                 "url": p.get("repository_url", ""),
                 "description": p.get("description", ""),
-                "releases": [{
+                "releases": [
+                    {
                         "tag_name": r.get("tag_name"),
                         "tag_sha": r.get("tag_sha"),
-                        "published_at": r.get("published_at")
-                    } for r in p.get("releases", [])]
-            } for p in repos]
+                        "published_at": r.get("published_at"),
+                    }
+                    for r in p.get("releases", [])
+                ],
+            }
+            for p in repos
+        ]
+
 
 @functools.cache
-def url_exists(url: str, timeout: float=10) -> bool:
+def url_exists(url: str, timeout: float = 10) -> bool:
     """
     Check whether a URL exists by making a lightweight HTTP request.
 

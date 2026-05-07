@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def check_nextflow():
     """Checks for a local installation of nextflow.
-    
+
     Raises:
         NfMetaRunnerError when nextflow is not installed
 
@@ -24,7 +24,7 @@ def check_nextflow():
     return executable
 
 
-def get_installed_nextflow_version(self):
+def get_installed_nextflow_version():
     """Call `nextflow -version` and parse the version into a comparable tuple.
 
     Returns:
@@ -70,7 +70,7 @@ def get_installed_nextflow_version(self):
     return (int(major), int(minor), int(patch), is_edge)
 
 
-def check_nextflow_version(required_version: tuple[int,int,int,int]) -> bool:
+def check_nextflow_version(required_version: tuple[int, int, int, int]) -> bool:
     """Validate the installed Nextflow version against a required version.
 
     Args:
@@ -91,7 +91,7 @@ def check_nextflow_version(required_version: tuple[int,int,int,int]) -> bool:
 
         required_str = ".".join([str(e) for e in required_version])
         installed_str = ".".join([str(e) for e in installed_version])
-        msg = (f"Nextflow version mismatch. Required from config: '{required_str}', Installed: '{installed_str}'.")
+        msg = f"Nextflow version mismatch. Required from config: '{required_str}', Installed: '{installed_str}'."
         if i == 0:
             raise NfMetaRunnerError(msg)
         else:

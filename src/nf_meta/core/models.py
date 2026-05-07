@@ -135,14 +135,14 @@ class Workflow(BaseModel):
     config_file: Optional[ExistingNfConfigFile] = None
     profile: Optional[str] = None
 
+    @computed_field  # type: ignore[misc]
     @property
-    @computed_field
     def is_nfcore(self) -> bool:
         nfcore_pipelines = get_nfcore_pipelines()
         return any(p.get("name") == self.name for p in nfcore_pipelines)
 
+    @computed_field  # type: ignore[misc]
     @property
-    @computed_field
     def field_refs(self) -> list[ParamsReference]:
         if not self.params:
             return []
@@ -342,8 +342,8 @@ class Transition(BaseModel):
     target: str
     source: str
 
+    @computed_field  # type: ignore[misc]
     @property
-    @computed_field
     def id(self) -> str:
         return f"{self.source}->{self.target}"
 

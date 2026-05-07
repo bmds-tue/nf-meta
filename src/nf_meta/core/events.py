@@ -7,7 +7,6 @@ from .models import Workflow, Transition, GlobalOptions
 # Event Handler
 # TODO: Test that Metaworkflow implements GraphEventHandler: isinstance(graph, GraphEventHandler)
 class GraphEventHandler(Protocol):
-
     def pop_events(self) -> tuple["Event"]: ...
 
     def add_workflow(self, w: Workflow) -> None: ...
@@ -22,12 +21,13 @@ class GraphEventHandler(Protocol):
 
     def update_global_options(self, g: GlobalOptions) -> None: ...
 
-    def deferred_validation(self) -> None: ...
+    def deferred_validation(self): ...
 
 
 # ------------------------------------------
 # ----- Events: State Changes --------------
 # ------------------------------------------
+
 
 class Event(Protocol):
     def get_undo_cmd(self) -> "Command": ...
@@ -87,8 +87,8 @@ class GlobalOptionsUpdated:
 # ----- COMMANDS: State Change Intents -----
 # ------------------------------------------
 
-class Command(Protocol):
 
+class Command(Protocol):
     def apply(self, graph: GraphEventHandler) -> None: ...
 
 

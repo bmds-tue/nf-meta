@@ -98,12 +98,17 @@ class TestWorkflowHash:
 class TestWorkflowDump:
     def test_model_dump_config_has_correct_fields(self, wf_rnaseq):
         d = wf_rnaseq.model_dump_config()
-        assert "id" in d
+        assert "id" not in d
         assert "name" in d
         assert "version" in d
-        assert "url" in d
+        assert "url" not in d
         assert "position" not in d
         assert "description" not in d
+
+    def test_model_dump_config_includes_url_for_non_nfcore(self, wf_custom):
+        d = wf_custom.model_dump_config()
+        assert "url" in d
+        assert "id" not in d
 
     def test_model_dump_display_has_display_fields(self, wf_rnaseq):
         d = wf_rnaseq.model_dump_display()

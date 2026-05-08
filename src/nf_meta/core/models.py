@@ -246,7 +246,6 @@ class Workflow(BaseModel):
 
     def model_dump_config(self) -> dict:
         fields = {
-            "id",
             "name",
             "version",
             "url",
@@ -255,7 +254,10 @@ class Workflow(BaseModel):
             "params",
             "profile",
         }
-        return self.model_dump(include=fields, exclude_none=True)
+        result = self.model_dump(include=fields, exclude_none=True)
+        if self.is_nfcore:
+            result.pop("url", None)
+        return result
 
     def model_dump_display(self) -> dict:
         fields = {

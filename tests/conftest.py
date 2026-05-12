@@ -75,6 +75,11 @@ def wf_fetchngs():
 
 
 @pytest.fixture
+def wf_sarek():
+    return Workflow(name="nf-core/sarek", version="3.4.0")
+
+
+@pytest.fixture
 def wf_custom():
     """A non-nf-core workflow with an explicit URL."""
     return Workflow(

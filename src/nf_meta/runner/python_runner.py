@@ -18,6 +18,7 @@ from rich.console import Console, Group
 
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import Workflow, GlobalOptions
+from nf_meta.core.errors import WorkflowReferenceError
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow, check_nextflow_version
 
@@ -86,10 +87,25 @@ class SimplePythonRunner:
         safe_name = wf.name.replace("/", "_")
         return (self.tempdir / f"{safe_name}_{wf.version}_{wf.hash()}").resolve()
 
+    def _resolved_params_path(self, wf: Workflow) -> Path:
+        return self.tempdir / f"{wf.id}_{wf.hash()}_resolved.yaml"
+
+    def _write_resolved_params(self, raw_wf: Workflow, params: dict) -> None:
+        with open(self._resolved_params_path(raw_wf), "w") as f:
+            yaml.dump(params, f)
+
+    def _load_resolved_params(self, wf: Workflow) -> Optional[dict]:
+        path = self._resolved_params_path(wf)
+        if not path.exists():
+            return None
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+
     def _resolve_param_references(
         self,
         wf: Workflow,
         graph: MetaworkflowGraph,
+        resolved_params: Optional[dict[str, dict]] = None,
         work_directories: Optional[dict[str, Path]] = None,
     ) -> Workflow:
         wf_resolved = wf.model_copy(deep=True)
@@ -103,13 +119,18 @@ class SimplePythonRunner:
                     f"Referenced workflow {ref.target_wf_id} does not exist"
                 )
 
-            if not (wf_ref.params and wf_resolved.params):
+            # Prefer already-resolved params (from prior steps or cache) over raw config values
+            params_source = (resolved_params or {}).get(ref.target_wf_id)
+            if params_source is None:
+                params_source = wf_ref.params or {}
+
+            if not (params_source and wf_resolved.params):
                 raise ValueError(
                     f"Resolving param reference {ref.name} failed: "
                     f"Referenced ({wf_ref.id}) or referencing ({wf_resolved.id}) workflow do not define params!"
                 )
 
-            ref_value = wf_ref.params.get(ref.target_key)
+            ref_value = params_source.get(ref.target_key)
             source_value = wf_resolved.params.get(ref.source_key)
 
             if not ref_value:
@@ -134,6 +155,33 @@ class SimplePythonRunner:
             wf_resolved.params[ref.source_key] = resolved_value
 
         return wf_resolved
+
+    def _validate_cross_boundary_refs(
+        self,
+        graph: MetaworkflowGraph,
+        subset_workflows: list[Workflow],
+        subset_ids: set[str],
+    ) -> None:
+        errors = []
+        for wf in subset_workflows:
+            for ref in wf.field_refs:
+                if ref.target_wf_id in subset_ids:
+                    continue
+                ref_wf = graph.get_workflow_by_id(ref.target_wf_id)
+                if not ref_wf:
+                    raise WorkflowReferenceError(
+                        ref, f"Reference to unknown workflow: {ref.target_wf_id}"
+                    )
+                if not self._resolved_params_path(ref_wf).exists():
+                    errors.append(
+                        f"  '{wf.id}' → '{ref.target_wf_id}' (param '{ref.target_key}'): "
+                        f"no successful cached run of '{ref.target_wf_id}' found"
+                    )
+        if errors:
+            raise NfMetaRunnerError(
+                "Cannot resolve cross-boundary references — run the excluded workflows first:\n"
+                + "\n".join(errors)
+            )
 
     def _stream_proc_out(
         self,
@@ -268,14 +316,36 @@ class SimplePythonRunner:
                 f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}"
             )
 
+        subset_ids = {wf.id for wf in workflows}
+
+        # Fail early if any cross-boundary reference cannot be resolved from cache
+        self._validate_cross_boundary_refs(graph, workflows, subset_ids)
+
+        # Pre-load resolved params for excluded workflows from their cache files
+        resolved_params: dict[str, dict] = {}
+        for wf in graph.get_workflows():
+            if wf.id not in subset_ids:
+                cached = self._load_resolved_params(wf)
+                if cached is not None:
+                    resolved_params[wf.id] = cached
+
         for i, wf in enumerate(workflows):
             step_label = f"Step {i + 1}/{len(workflows)} - {wf.name}"
 
-            wf = self._resolve_param_references(wf, graph)
+            raw_wf = wf
+            wf = self._resolve_param_references(
+                wf, graph, resolved_params=resolved_params
+            )
             logger.debug(f"Resolved workflow {wf.id}")
 
+            # Accumulate resolved params so downstream workflows in this run can use them
+            resolved_params[wf.id] = wf.params or {}
+
+            # Persist resolved params to cache
+            self._write_resolved_params(raw_wf, wf.params or {})
+
             if resume and self._check_run_success(run_dir=self._workflow_dir(wf)):
-                logger.info(f"{step_label}: Skipping (already succseded)")
+                logger.info(f"{step_label}: Skipping (already succeeded)")
                 console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
                 continue
 
@@ -285,6 +355,7 @@ class SimplePythonRunner:
             if not success:
                 console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")
                 return
+
             console.print(f"[green]✓[/green] {step_label}: Done")
 
         console.print("[bold green]All workflows completed successfully[/bold green]")

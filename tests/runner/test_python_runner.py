@@ -98,6 +98,122 @@ class TestResolveParamReferences:
         resolved = runner._resolve_param_references(wf_rnaseq, graph_two)
         assert resolved.params == wf_rnaseq.params
 
+    def test_resolved_params_preferred_over_raw(self, runner, wf_rnaseq, wf_fetchngs):
+        """resolved_params dict wins over raw workflow params."""
+        fetchngs_with_raw = wf_fetchngs.model_copy(
+            update={"params": {"outdir": "raw_value"}}
+        )
+        rnaseq_with_ref = wf_rnaseq.model_copy(
+            update={
+                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}
+            }
+        )
+        g = MetaworkflowGraph()
+        with g.deferred_validation():
+            g.add_workflow(fetchngs_with_raw)
+            g.add_workflow(rnaseq_with_ref)
+            g.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
+        g.pop_events()
+
+        resolved = runner._resolve_param_references(
+            rnaseq_with_ref,
+            g,
+            resolved_params={wf_fetchngs.id: {"outdir": "resolved_value"}},
+        )
+        assert resolved.params["input"] == "resolved_value/file.csv"
+
+    def test_chain_resolution_via_resolved_params(
+        self, runner, wf_fetchngs, wf_rnaseq, wf_sarek
+    ):
+        """C references B's param; B's param was itself resolved from A — chain works."""
+        a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data/raw"}})
+        b = wf_rnaseq.model_copy(
+            update={
+                "params": {"outdir": f"${{{wf_fetchngs.id}:params:outdir}}/processed"}
+            }
+        )
+        c = wf_sarek.model_copy(
+            update={
+                "params": {"input": f"${{{wf_rnaseq.id}:params:outdir}}/samples.csv"}
+            }
+        )
+        g = MetaworkflowGraph()
+        with g.deferred_validation():
+            g.add_workflow(a)
+            g.add_workflow(b)
+            g.add_workflow(c)
+            g.add_transition(Transition(source=a.id, target=b.id))
+            g.add_transition(Transition(source=b.id, target=c.id))
+        g._events = []
+
+        # Simulate B having already been resolved
+        b_resolved_params = {b.id: {"outdir": "/data/raw/processed"}}
+        resolved_c = runner._resolve_param_references(
+            c, g, resolved_params=b_resolved_params
+        )
+        assert resolved_c.params["input"] == "/data/raw/processed/samples.csv"
+
+
+class TestResolvedParamsCache:
+    def test_write_and_load_resolved_params(self, runner, wf_rnaseq):
+        wf = wf_rnaseq.model_copy(update={"params": {"outdir": "/results"}})
+        runner._write_resolved_params(wf, {"outdir": "/results"})
+        loaded = runner._load_resolved_params(wf)
+        assert loaded == {"outdir": "/results"}
+
+    def test_load_resolved_params_returns_none_when_missing(self, runner, wf_rnaseq):
+        assert runner._load_resolved_params(wf_rnaseq) is None
+
+    def test_different_params_produce_different_cache_paths(self, runner, wf_rnaseq):
+        wf_a = wf_rnaseq.model_copy(update={"params": {"outdir": "/v1"}})
+        wf_b = wf_rnaseq.model_copy(update={"params": {"outdir": "/v2"}})
+        assert runner._resolved_params_path(wf_a) != runner._resolved_params_path(wf_b)
+
+    def test_changed_version_produces_different_cache_path(self, runner, wf_rnaseq):
+        wf_a = wf_rnaseq.model_copy(update={"version": "3.14.0"})
+        wf_b = wf_rnaseq.model_copy(update={"version": "3.15.0"})
+        assert runner._resolved_params_path(wf_a) != runner._resolved_params_path(wf_b)
+
+
+class TestValidateCrossBoundaryRefs:
+    def _graph_with_ref(self, wf_fetchngs, wf_rnaseq):
+        """fetchngs → rnaseq where rnaseq references fetchngs.outdir."""
+        a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
+        b = wf_rnaseq.model_copy(
+            update={
+                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
+            }
+        )
+        g = MetaworkflowGraph()
+        with g.deferred_validation():
+            g.add_workflow(a)
+            g.add_workflow(b)
+            g.add_transition(Transition(source=a.id, target=b.id))
+        g.pop_events()
+        return g, a, b
+
+    def test_raises_when_cross_boundary_cache_missing(
+        self, runner, wf_fetchngs, wf_rnaseq
+    ):
+        g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
+        subset = [b]
+        subset_ids = {b.id}
+        with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
+            runner._validate_cross_boundary_refs(g, subset, subset_ids)
+
+    def test_passes_when_cross_boundary_cache_exists(
+        self, runner, wf_fetchngs, wf_rnaseq
+    ):
+        g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
+        runner._write_resolved_params(a, {"outdir": "/data"})
+        subset = [b]
+        subset_ids = {b.id}
+        runner._validate_cross_boundary_refs(g, subset, subset_ids)  # no raise
+
+    def test_no_error_when_all_refs_in_subset(self, runner, wf_fetchngs, wf_rnaseq):
+        g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
+        subset_ids = {a.id, b.id}
+        runner._validate_cross_boundary_refs(g, [a, b], subset_ids)  # no raise
 
 
 class TestRunWorkflow:
@@ -229,3 +345,73 @@ class TestRun:
         runner.run(graph_two)
         assert wf_fetchngs.id not in call_ids
         assert wf_rnaseq.id in call_ids
+
+    def test_run_writes_resolved_params(self, runner, wf_fetchngs, wf_rnaseq):
+        """Successful run writes _resolved.yaml for each workflow."""
+        a = wf_fetchngs.model_copy(update={"params": {"outdir": "/results"}})
+        b = wf_rnaseq.model_copy(update={"params": {"input": "samples.csv"}})
+        g = MetaworkflowGraph()
+        with g.deferred_validation():
+            g.add_workflow(a)
+            g.add_workflow(b)
+            g.add_transition(Transition(source=a.id, target=b.id))
+        g.pop_events()
+
+        runner._run_workflow = MagicMock(return_value=True)
+        runner.run(g)
+
+        assert runner._load_resolved_params(a) == {"outdir": "/results"}
+        assert runner._load_resolved_params(b) == {"input": "samples.csv"}
+
+    def test_subset_run_resolves_cross_boundary_ref_from_cache(
+        self, runner, wf_fetchngs, wf_rnaseq
+    ):
+        """--start=B resolves B's reference to A using A's cached resolved params."""
+        a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data/results"}})
+        b = wf_rnaseq.model_copy(
+            update={
+                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
+            }
+        )
+        g = MetaworkflowGraph()
+        with g.deferred_validation():
+            g.add_workflow(a)
+            g.add_workflow(b)
+            g.add_transition(Transition(source=a.id, target=b.id))
+        g.pop_events()
+
+        # Simulate A having been successfully run previously
+        runner._write_resolved_params(a, a.params)
+
+        runner.start_wf_id = b.id
+        resolved_wfs = []
+
+        def fake_run(wf, *args, **kwargs):
+            resolved_wfs.append(wf)
+            return True
+
+        runner._run_workflow = fake_run
+        runner.run(g)
+
+        assert len(resolved_wfs) == 1
+        assert resolved_wfs[0].params["input"] == "/data/results/samples.csv"
+
+    def test_subset_run_fails_when_cross_boundary_cache_missing(
+        self, runner, wf_fetchngs, wf_rnaseq
+    ):
+        a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
+        b = wf_rnaseq.model_copy(
+            update={
+                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
+            }
+        )
+        g = MetaworkflowGraph()
+        with g.deferred_validation():
+            g.add_workflow(a)
+            g.add_workflow(b)
+            g.add_transition(Transition(source=a.id, target=b.id))
+        g.pop_events()
+
+        runner.start_wf_id = b.id
+        with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
+            runner.run(g)

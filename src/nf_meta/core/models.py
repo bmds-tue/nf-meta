@@ -21,12 +21,16 @@ from pydantic import (
 from pydantic.functional_serializers import PlainSerializer
 import yaml
 
-from nf_meta.core.nf_core_utils import get_nfcore_pipelines, url_exists
+from nf_meta.core.nf_core_utils import (
+    get_nfcore_pipelines,
+    url_exists,
+    github_file_exists,
+)
 
 logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.1.0"
+CONFIG_VERSION_MAX = "0.1.1"
 
 _VALID_PARAM_REF_PATTERN = re.compile(r"\$\{([^}]+):params:([^}]+)\}")
 _ANY_BRACE_PATTERN = re.compile(r"\$\{[^}]*\}")
@@ -134,6 +138,7 @@ class Workflow(BaseModel):
     params: Optional[CoercedParams] = None
     config_file: Optional[ExistingNfConfigFile] = None
     profile: Optional[str] = None
+    main_script: Optional[str] = None
 
     @computed_field  # type: ignore[misc]
     @property
@@ -198,6 +203,35 @@ class Workflow(BaseModel):
 
         return value
 
+    @field_validator("main_script", mode="after")
+    @classmethod
+    def validate_main_script(
+        cls, value: Optional[str], info: ValidationInfo
+    ) -> Optional[str]:
+        if value is None:
+            return None
+
+        name = info.data.get("name")
+        if name and cls.get_nfcore_info(name):
+            raise ValueError("main_script cannot be set for nf-core workflows")
+
+        url = info.data.get("url")
+        version = info.data.get("version")
+
+        if url and "github.com" in url and version:
+            if not github_file_exists(url, value, version):
+                raise ValueError(
+                    f"main_script '{value}' not found in repository '{url}' at ref '{version}'"
+                )
+        else:
+            logger.warning(
+                "Cannot validate main_script '%s': '%s' is not a GitHub URL",
+                value,
+                url,
+            )
+
+        return value
+
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:
@@ -241,6 +275,7 @@ class Workflow(BaseModel):
         data += str(self.config_file.absolute()) if self.config_file else ""
         data += str(self.params_file.absolute()) if self.params_file else ""
         data += json.dumps(self.params, sort_keys=True, default=str)
+        data += self.main_script or ""
         hashed = hashlib.sha256(data.encode()).hexdigest()[:8]
         return hashed
 
@@ -253,6 +288,7 @@ class Workflow(BaseModel):
             "config_file",
             "params",
             "profile",
+            "main_script",
         }
         result = self.model_dump(include=fields, exclude_none=True)
         if self.is_nfcore:
@@ -272,6 +308,7 @@ class Workflow(BaseModel):
             "position",
             "config_file",
             "profile",
+            "main_script",
         }
         return self.model_dump(include=fields, exclude_none=False)
 

@@ -6,6 +6,11 @@ import requests
 
 logger = logging.getLogger()
 
+_GITHUB_API_HEADERS = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
 
 @functools.cache
 def get_nfcore_pipelines() -> list[dict]:
@@ -41,6 +46,28 @@ def get_nfcore_pipelines() -> list[dict]:
             }
             for p in repos
         ]
+
+
+@functools.cache
+def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
+    """
+    Check whether a file exists at `path` in a GitHub repository at `ref`
+    using the GitHub Contents API.
+    """
+    try:
+        after_host = repo_url.rstrip("/").split("github.com/", 1)[-1]
+        parts = after_host.split("/")
+        if len(parts) < 2:
+            return False
+        owner, repo = parts[0], parts[1]
+        api_url = (
+            f"https://api.github.com/repos/{owner}/{repo}"
+            f"/contents/{path.lstrip('/')}?ref={ref}"
+        )
+        response = requests.get(api_url, timeout=10, headers=_GITHUB_API_HEADERS)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
 
 
 @functools.cache

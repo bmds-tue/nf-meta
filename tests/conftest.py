@@ -57,6 +57,9 @@ def mock_nfcore(monkeypatch):
         "nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES
     )
     monkeypatch.setattr("nf_meta.core.models.url_exists", lambda url, timeout=10: True)
+    monkeypatch.setattr(
+        "nf_meta.core.models.github_file_exists", lambda url, path, ref: True
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -276,6 +276,9 @@ class SimplePythonRunner:
                 )
             cmd += ["-c", str(wf.config_file)]
 
+        if wf.main_script:
+            cmd += ["-main-script", wf.main_script]
+
         cmd += [wf.url, "-r", wf.version, "-latest"]
 
         logger.info(f"Running nextflow command: {cmd}")

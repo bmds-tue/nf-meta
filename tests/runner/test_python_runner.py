@@ -260,6 +260,31 @@ class TestRunWorkflow:
         runner._run_workflow(wf)
         assert "-params-file" in captured["cmd"]
 
+    def test_run_workflow_with_main_script_adds_flag(self, runner, wf_rnaseq):
+        wf = wf_rnaseq.model_copy(update={"main_script": "workflows/special.nf"})
+        captured = {}
+
+        def capture(cmd):
+            captured["cmd"] = cmd
+            return (0, "out", "")
+
+        runner._stream_proc_out = capture
+        runner._run_workflow(wf)
+        assert "-main-script" in captured["cmd"]
+        idx = captured["cmd"].index("-main-script")
+        assert captured["cmd"][idx + 1] == "workflows/special.nf"
+
+    def test_run_workflow_without_main_script_omits_flag(self, runner, wf_rnaseq):
+        captured = {}
+
+        def capture(cmd):
+            captured["cmd"] = cmd
+            return (0, "out", "")
+
+        runner._stream_proc_out = capture
+        runner._run_workflow(wf_rnaseq)
+        assert "-main-script" not in captured["cmd"]
+
     def test_run_workflow_nonexistent_global_config_raises(
         self, runner, wf_rnaseq, tmp_path
     ):

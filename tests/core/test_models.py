@@ -94,6 +94,44 @@ class TestWorkflowHash:
         wf2 = Workflow(name="nf-core/rnaseq", version="3.13.0")
         assert wf1.hash() != wf2.hash()
 
+    def test_hash_differs_by_main_script(self, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.models.github_file_exists", lambda url, path, ref: True)
+        wf1 = Workflow(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline")
+        wf2 = Workflow(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline", main_script="workflows/special.nf")
+        assert wf1.hash() != wf2.hash()
+
+
+class TestWorkflowMainScript:
+
+    def test_main_script_raises_for_nfcore(self):
+        with pytest.raises(ValidationError, match="nf-core"):
+            Workflow(name="nf-core/rnaseq", version="3.14.0", main_script="workflows/special.nf")
+
+    def test_main_script_raises_when_file_not_found_on_github(self, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.models.github_file_exists", lambda url, path, ref: False)
+        with pytest.raises(ValidationError, match="not found"):
+            Workflow(
+                name="my-org/custom-pipeline",
+                version="1.0.0",
+                url="https://github.com/my-org/custom-pipeline",
+                main_script="workflows/missing.nf",
+            )
+
+    def test_main_script_warns_for_non_github_url(self, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.models.url_exists", lambda url, timeout=10: True)
+        warned = []
+        monkeypatch.setattr(
+            "nf_meta.core.models.logger",
+            type("L", (), {"warning": lambda self, *a, **k: warned.append(a[0]), "debug": lambda *a, **k: None})(),
+        )
+        Workflow(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://gitlab.com/my-org/custom-pipeline",
+            main_script="workflows/special.nf",
+        )
+        assert any("Cannot validate" in w for w in warned)
+
 
 class TestWorkflowDump:
     def test_model_dump_config_has_correct_fields(self, wf_rnaseq):

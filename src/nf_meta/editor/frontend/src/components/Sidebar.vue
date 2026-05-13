@@ -106,7 +106,8 @@ onBeforeUnmount(stopDrag)
           <v-card class="pa-0 mb-1 mt-0 flex-grow-1 d-flex flex-column">
             <v-card-title>
               <v-tabs v-model="editorStore.sideBarActiveDetailId" class="flex-grow-0" show-arrows>
-                <v-tab v-for="detail of editorStore.sideBarNodes" :value="detail.id">
+                <v-tab v-for="detail of editorStore.sideBarNodes" :value="detail.id"
+                  @mouseup.middle.stop.prevent="closeDetail(detail.id)">
                   {{ detail.detailData.name ?? "New Workflow" }}
                   <template v-slot:append props="{{ detail }}">
                     <v-btn

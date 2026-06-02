@@ -78,6 +78,9 @@ def coerce_param_values_to_str(v: Any) -> Optional[dict[str, str]]:
     if v is None:
         return None
 
+    if not isinstance(v, dict):
+        raise ValueError(f"Params must be a key-value mapping, got {type(v).__name__!r}")
+
     COERCIBLE = (str, int, float, bool)
     coerced = {}
     errors = []

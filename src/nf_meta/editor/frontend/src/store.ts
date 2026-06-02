@@ -371,10 +371,13 @@ export const useGraphStore = defineStore('graph', () => {
         await apiRequest(endpoint, options)
             .then((response) => {
                 if (!response.ok) {
-                    messageStore.add(`Undo failed: ${response.message}`, "error")
+                    const detail = response.graphErrors?.length
+                        ? response.graphErrors[0]
+                        : response.message
+                    messageStore.add(`Undo failed: ${detail}`, "error")
                     return
                 }
-                getAndUpdateGraph() 
+                getAndUpdateGraph()
             })
     }
 
@@ -388,10 +391,13 @@ export const useGraphStore = defineStore('graph', () => {
         await apiRequest(endpoint, options)
             .then((response) => {
                 if (!response.ok) {
-                    messageStore.add(`Redo failed: ${response.message}`, "error")
+                    const detail = response.graphErrors?.length
+                        ? response.graphErrors[0]
+                        : response.message
+                    messageStore.add(`Redo failed: ${detail}`, "error")
                     return
                 }
-                getAndUpdateGraph() 
+                getAndUpdateGraph()
             })
     }
 

@@ -241,20 +241,15 @@ export const useGraphStore = defineStore('graph', () => {
         if (!result.ok) {
             // TODO: Persist these errors somewhere in a status bar?
             if (result.status == 422) {
-                // Validation erros can be printed right in the form
-                if (result.status == 422 && result.graphErrors) {
-                    for (const err of result.graphErrors) {
-                        messageStore.add(err, "error")
-                    }
+                for (const err of result.graphErrors ?? []) {
+                    messageStore.add(err, "error")
                 }
-                if (result.status == 422 && result.fieldErrors) {
-                    // TODO: Display these errors in graph?
-                    for (const fieldErr of result.fieldErrors) {
-                        if (fieldErr.workflow_id) {
-                            messageStore.add(`Error in ${fieldErr.workflow_id}: ${fieldErr.message}`, "error")
-                        }
-                    }
+                for (const fieldErr of result.fieldErrors ?? []) {
+                    const location = fieldErr.workflow_id ?? fieldErr.field
+                    messageStore.add(`Error in ${location}: ${fieldErr.message}`, "error")
                 }
+            } else {
+                messageStore.add(result.message ?? "Request failed", "error")
             }
         }
         return result
@@ -270,6 +265,7 @@ export const useGraphStore = defineStore('graph', () => {
             handleErrors(result)
         } else {
             await getAndUpdateGraph()
+            messageStore.add("Saved", "success")
         }
         return result
     }

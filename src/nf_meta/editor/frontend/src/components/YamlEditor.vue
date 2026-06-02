@@ -13,7 +13,7 @@ import {
   type CompletionContext,
   type CompletionResult,
 } from "@codemirror/autocomplete"
-import { useGraphStore } from "../store"
+import { useGraphStore, useEditorStore } from "../store"
 import type { APINodeData } from "../types"
 
 const props = defineProps<{
@@ -28,6 +28,7 @@ const emit = defineEmits<{
     }>()
 
 const graphStore = useGraphStore()
+const editorStore = useEditorStore()
 
 const paramsString = props.modelValue ? YAML.stringify(props.modelValue) : ""
 const code = ref(paramsString)
@@ -311,12 +312,27 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
   return diagnostics
 })
 
+// ─── Global save (Cmd/Ctrl+S) ─────────────────────────────────────────────────
+// useHotkey skips contenteditable targets, so we intercept Cmd+S inside
+// CodeMirror directly. Returning true prevents the browser's Save Page default.
+
+const globalSaveKeymap = Prec.high(keymap.of([{
+  key: "Mod-s",
+  run() {
+    if (save() && !graphStore.filename) {
+      editorStore.openSaveDialog()
+    }
+    return true
+  }
+}]))
+
 // ─── Combined extensions ──────────────────────────────────────────────────────
 
 const extensions = [
   langyaml(),
   fullHeightTheme,
   oneDark,
+  globalSaveKeymap,
 ]
 
 // Only add the node references features,
@@ -340,18 +356,20 @@ if (props.nodeId) {
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
 
-function save() {
+function save(): boolean {
   try {
     error.value = ""
     const params = YAML.parse(code.value)
     emit("update:modelValue", params)
     emit("save")
+    return true
   } catch (err: unknown) {
     if (err instanceof YAMLParseError) {
       error.value = err.message
     } else {
       console.log(err)
     }
+    return false
   }
 }
 </script>
@@ -362,5 +380,4 @@ function save() {
   </p>
   <Codemirror v-model="code" :extensions="extensions" />
   <small>{{ hint }}</small>
-  <v-btn @click="save">Save changes</v-btn>
 </template>

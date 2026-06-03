@@ -1,4 +1,4 @@
-import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, APIGlobalOptions, FieldError  } from './types'
+import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, APIGlobalOptions, FieldError } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed, watch } from 'vue'
@@ -14,7 +14,7 @@ export const useMessageStore = defineStore("message", () => {
     }
     const queue = ref<Message[]>([])
 
-    function add(text: string, color="success") {
+    function add(text: string, color = "success") {
         if (!["success", "error", "warning"].includes(color)) {
             console.warn("Message store: Invalid color received:", color, text)
         }
@@ -41,7 +41,7 @@ export const useEditorStore = defineStore("editor", () => {
     const _nextSideBarId = ref(1)
     const _sideBarNodes = ref<SideBarDetail<APINodeData>[]>([])
     const sideBarNodes = computed(() => _sideBarNodes.value)
-    
+
     const _saveDialogOpen = ref<boolean>(false)
     const saveDialogOpen = computed(() => _saveDialogOpen.value)
 
@@ -76,8 +76,8 @@ export const useEditorStore = defineStore("editor", () => {
     }
 
     function createSideBarDetailWithId<T>(detailData: T): SideBarDetail<T> {
-        _nextSideBarId.value ++
-        return {id: _nextSideBarId.value, detailData: detailData}
+        _nextSideBarId.value++
+        return { id: _nextSideBarId.value, detailData: detailData }
     }
 
     function addNodeToSideBar(node: APINodeData) {
@@ -105,7 +105,7 @@ export const useEditorStore = defineStore("editor", () => {
     function collapseSidebarDetail(id: number) {
         if (id == sideBarActiveDetailId.value) {
             console.log("Active Status changing!")
-            sideBarActiveDetailId.value = 0            
+            sideBarActiveDetailId.value = 0
         }
     }
 
@@ -176,7 +176,7 @@ export const useGraphStore = defineStore('graph', () => {
             label: nodeData.name,
             // required attributes for Node
             id: nodeData?.id || "",
-            position: nodeData?.position ?? {x: 0, y: 0},
+            position: nodeData?.position ?? { x: 0, y: 0 },
             // apply common node attributes (e.g. our custom node type)
             type: "workflow-node"
         } as Node<APINodeData>
@@ -196,7 +196,7 @@ export const useGraphStore = defineStore('graph', () => {
 
     async function apiRequest<T>(endpoint: string, options: RequestInit): Promise<ApiResult<T>> {
         try {
-            const response = await fetch(endpoint, { headers: { 'Content-Type': 'application/json' }, ...options})
+            const response = await fetch(endpoint, { headers: { 'Content-Type': 'application/json' }, ...options })
             const data = await response.json()
             if (!response.ok) {
                 if (response.status === 422) {
@@ -244,10 +244,7 @@ export const useGraphStore = defineStore('graph', () => {
                 for (const err of result.graphErrors ?? []) {
                     messageStore.add(err, "error")
                 }
-                for (const fieldErr of result.fieldErrors ?? []) {
-                    const location = fieldErr.workflow_id ?? fieldErr.field
-                    messageStore.add(`Error in ${location}: ${fieldErr.message}`, "error")
-                }
+
             } else {
                 messageStore.add(result.message ?? "Request failed", "error")
             }
@@ -287,10 +284,10 @@ export const useGraphStore = defineStore('graph', () => {
 
     async function getAndUpdateGraph() {
         const endpoint = "/api/graph/"
-        const requestOptions = { method: "GET"}
+        const requestOptions = { method: "GET" }
         await apiRequest<APIGraph>(endpoint, requestOptions)
             .then((response) => {
-                if (!response.ok) { 
+                if (!response.ok) {
                     messageStore.add("Unable to fetch Graph Data", "error")
                     _edges.value = []
                     _nodes.value = []
@@ -304,7 +301,7 @@ export const useGraphStore = defineStore('graph', () => {
                     _undoable.value = response.data.undoable
                     _redoable.value = response.data.redoable
                     _filename.value = response.data.filename
-                    globalOptions.value = response.data.globals ?? {params: null, config_file: null, profile: null}
+                    globalOptions.value = response.data.globals ?? { params: null, config_file: null, profile: null }
                 }
             })
     }
@@ -325,11 +322,11 @@ export const useGraphStore = defineStore('graph', () => {
     }
 
     async function removeEdgeById(edgeId: string) {
-        await removeSelectionById({edges: [edgeId], nodes: []})
+        await removeSelectionById({ edges: [edgeId], nodes: [] })
     }
 
     async function removeNodeById(nodeId: string) {
-        await removeSelectionById({edges: [], nodes: [nodeId]})
+        await removeSelectionById({ edges: [], nodes: [nodeId] })
     }
 
     async function removeSelectionById(selection: Selection) {
@@ -345,7 +342,7 @@ export const useGraphStore = defineStore('graph', () => {
         const predecessorIds = _edgeData.value
             .filter(e => e.target === nodeId)
             .map(e => e.source)
-        
+
         return _nodeData.value.filter(n => predecessorIds.includes(n.id ?? ""))
     }
 
@@ -406,7 +403,7 @@ export const useGraphStore = defineStore('graph', () => {
         const endpoint = "/api/graph/save/"
         const options = {
             method: "POST",
-            body: JSON.stringify({config: filename.value})
+            body: JSON.stringify({ config: filename.value })
         }
         return await apiRequest(endpoint, options)
             .then((response) => {
@@ -427,7 +424,7 @@ export const useGraphStore = defineStore('graph', () => {
         const endpoint = "/api/graph/load/"
         const options = {
             method: "POST",
-            body: JSON.stringify({config: filename})
+            body: JSON.stringify({ config: filename })
         }
         return await apiRequest(endpoint, options)
             .then((response) => {
@@ -439,7 +436,8 @@ export const useGraphStore = defineStore('graph', () => {
                     .then(() => {
                         if (response.ok) {
                             messageStore.add(`Config Loaded`, "success")
-                        }})
+                        }
+                    })
             })
     }
 
@@ -450,7 +448,7 @@ export const useGraphStore = defineStore('graph', () => {
         getPredecessors, getParams,
         saveNode: addOrUpdateNode, saveEdge: addOrUpdateEdge, updateGlobalOptions,
         removeSelectionById, removeNodeById, removeEdgeById,
-        undo, redo, redoable, undoable, 
+        undo, redo, redoable, undoable,
         loadConfig, save, saveAs, filename, globalOptions,
         extractFieldErrors
     }

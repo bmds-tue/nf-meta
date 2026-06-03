@@ -7,9 +7,15 @@ from nf_meta.core.errors import SessionCommandError
 from nf_meta.core.session import SESSION
 from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 from nf_meta.core.models import Workflow, Transition, GlobalOptions
-from nf_meta.core.events import (AddTransition, AddWorkflow, EditWorkflow,
-                                    RemoveWorkflow, RemoveTransition,
-                                    Transaction, UpdateGlobalOptions)
+from nf_meta.core.events import (
+    AddTransition,
+    AddWorkflow,
+    EditWorkflow,
+    RemoveWorkflow,
+    RemoveTransition,
+    Transaction,
+    UpdateGlobalOptions,
+)
 
 from fastapi import FastAPI, APIRouter, Body, Request
 from fastapi.exceptions import RequestValidationError
@@ -19,7 +25,7 @@ from pathlib import Path
 
 
 DEV_MODE = os.getenv("NF_META_DEVMODE", 0) == "1"
-DEV_HOST = "localhost"
+DEV_HOST = "127.0.0.1"
 DEV_PORT = "8080"
 DEV_VITE_PORT = "5173"
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend_dist"
@@ -33,27 +39,23 @@ app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 
 @app.exception_handler(SessionCommandError)
 def handle_session_error(request: Request, exc: SessionCommandError):
-    return JSONResponse(
-        status_code=422,
-        content=exc.to_dict()
-    )
+    return JSONResponse(status_code=422, content=exc.to_dict())
 
 
 @app.exception_handler(RequestValidationError)
 def handle_request_validation(request: Request, exc: RequestValidationError):
     err = SessionCommandError(
-                graph_errors=[],
-                field_errors=[
-                    SessionCommandError.FieldError(
-                        workflow_id=None,  # frontend infers from context
-                        field=".".join(str(l) for l in err["loc"] if l != "body"),
-                        message=err["msg"],
-                    ) for err in exc.errors()
-                ])
-    return JSONResponse(
-        status_code=422,
-        content=err.to_dict()
+        graph_errors=[],
+        field_errors=[
+            SessionCommandError.FieldError(
+                workflow_id=None,  # frontend infers from context
+                field=".".join(str(l) for l in err["loc"] if l != "body"),
+                message=err["msg"],
+            )
+            for err in exc.errors()
+        ],
     )
+    return JSONResponse(status_code=422, content=err.to_dict())
 
 
 @app.api_route("/")
@@ -114,7 +116,7 @@ def update_node(wf: Workflow):
 def remove(selection: Selection):
     cmds = []
     for edge_id in selection.edges:
-        # TODO: Change representation in frontend? 
+        # TODO: Change representation in frontend?
         # Or rely on the ids being created there and containing "->"?
         src, tgt = edge_id.split("->")
         cmds.append(RemoveTransition(src, tgt))
@@ -130,7 +132,6 @@ def remove(selection: Selection):
 def add_edge(tr: Transition):
     SESSION.handle_command(AddTransition(tr))
     return JSONResponse(dict())
-
 
 
 @api_router.get("/nfcore/pipelines/")

@@ -6,6 +6,7 @@ import { storeToRefs } from 'pinia'
 import { useEditorStore, useGraphStore } from "../store"
 import YamlEditor from "./YamlEditor.vue"
 import GlobalConfig from "./GlobalConfig.vue"
+import type { SideBarDetail, APINodeData } from "../types"
 
 const graphStore = useGraphStore()
 const editorStore = useEditorStore()
@@ -73,6 +74,17 @@ const closeDetail = (detailId: number) => {
   editorStore.removeSidebarDetail(detailId)
 }
 
+const nodeParamErrors = ref<Record<number, string>>({})
+
+async function saveNodeParams(detail: SideBarDetail<APINodeData>) {
+  nodeParamErrors.value[detail.id] = ""
+  const result = await graphStore.saveNode(detail.detailData)
+  if (!result.ok && result.fieldErrors) {
+    const fieldErrors = graphStore.extractFieldErrors(result.fieldErrors, detail.detailData.id ?? "")
+    nodeParamErrors.value[detail.id] = fieldErrors["params"]?.join("; ") ?? ""
+  }
+}
+
 onBeforeUnmount(stopDrag)
 </script>
 
@@ -127,10 +139,11 @@ onBeforeUnmount(stopDrag)
 
               <v-tabs-window v-model="editorStore.sideBarActiveDetailId" class="flex-grow-1 d-flex flex-column  mt-1" style="height: 100%;">
                 <v-tabs-window-item v-for="detail of editorStore.sideBarNodes" :value="detail.id" class="flex-grow-1 d-flex flex-column min-h-0" style="height:100%">
-                  <YamlEditor 
+                  <YamlEditor
                     v-model="detail.detailData.params"
-                    @save="graphStore.saveNode(detail.detailData)"
+                    @save="saveNodeParams(detail)"
                     :node-id="detail.detailData.id ?? ''"
+                    :server-error="nodeParamErrors[detail.id]"
                     hint="Params defined here do not change your params_file"
                   ></YamlEditor>
                 </v-tabs-window-item>

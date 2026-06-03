@@ -46,7 +46,8 @@ function save() {
             <YamlEditor
                 v-model="graphStore.globalOptions.params"
                 node-id=""
-                @save="save">
+                @save="save"
+                :server-error="errors['params']?.join('; ')">
             </YamlEditor>
         </v-card-text>
     </v-form>

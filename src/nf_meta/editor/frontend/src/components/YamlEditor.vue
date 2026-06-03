@@ -20,6 +20,7 @@ const props = defineProps<{
   modelValue?: object
   hint?: string
   nodeId?: string
+  serverError?: string
 }>()
 
 const emit = defineEmits<{
@@ -375,8 +376,8 @@ function save(): boolean {
 </script>
 
 <template>
-  <p v-show="error" style="color: rgb(var(--v-theme-error))">
-    {{ error }}
+  <p v-show="error || serverError" style="color: rgb(var(--v-theme-error))">
+    {{ error || serverError }}
   </p>
   <Codemirror v-model="code" :extensions="extensions" />
   <small>{{ hint }}</small>

@@ -132,8 +132,8 @@ class Workflow(BaseModel):
     """
 
     id: str = Field(default_factory=lambda: "n" + create_id())
-    name: str
-    version: str
+    name: str = Field(min_length=1)
+    version: str = Field(min_length=1)
     url: str
     description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
@@ -182,10 +182,7 @@ class Workflow(BaseModel):
     @classmethod
     def validate_url(cls, value: Optional[str], info: ValidationInfo):
         name = info.data.get("name")
-        if not name:
-            return value
-
-        nfcore_wf_info = cls.get_nfcore_info(name)
+        nfcore_wf_info = cls.get_nfcore_info(name) if name else None
         is_nfcore = bool(nfcore_wf_info)
 
         if not value:

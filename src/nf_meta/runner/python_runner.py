@@ -43,6 +43,7 @@ class SimplePythonRunner:
         start: Optional[str] = None,
         target: Optional[str] = None,
         extra_profile: Optional[str] = None,
+        stub: bool = False,
     ):
         self.tempdir = Path(tempdir)
         self.tempdir.mkdir(parents=True, exist_ok=True)
@@ -51,6 +52,7 @@ class SimplePythonRunner:
         self.start_wf_id = start
         self.target_wf_id = target
         self.extra_profile = extra_profile.replace(" ", "") if extra_profile else ""
+        self.stub = stub
 
     @contextmanager
     def _chdir(self, path: Path):
@@ -238,6 +240,9 @@ class SimplePythonRunner:
 
         if resume:
             cmd += ["-resume"]
+
+        if self.stub:
+            cmd += ["-stub"]
 
         wf_params = dict(wf.params or {})
         profiles = []

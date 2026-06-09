@@ -32,7 +32,8 @@ def run_metapipeline(
         output_lines = 20,
         start: str = None,
         target: str = None,
-        profile: str = None
+        profile: str = None,
+        stub: bool = False,
     ) -> None:
     logger.info("Started runner")
 
@@ -55,7 +56,7 @@ def run_metapipeline(
     runner = None
     match runner_name:
         case Runners.PYTHON:
-            runner = SimplePythonRunner(output_window_size=output_lines, start=start, target=target, extra_profile=profile)
+            runner = SimplePythonRunner(output_window_size=output_lines, start=start, target=target, extra_profile=profile, stub=stub)
         case _:
             raise NotImplementedError("Requested runner not implemented yet")
     

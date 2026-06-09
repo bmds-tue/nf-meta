@@ -81,7 +81,8 @@ def validate_config(config, verbose):
     type=str,
     help="Nextflow profile to apply globally, taking precedent over config values.",
 )
-def run(config, verbose, runner, resume, output_lines, start, target, profile):
+@click.option("--stub", is_flag=True, help="Run all workflows as stub runs (passes -stub to Nextflow)")
+def run(config, verbose, runner, resume, output_lines, start, target, profile, stub):
     try:
         g = MetaworkflowGraph.from_file(config)
         run_metapipeline(
@@ -93,6 +94,7 @@ def run(config, verbose, runner, resume, output_lines, start, target, profile):
             start=start,
             target=target,
             profile=profile,
+            stub=stub,
         )
     except (GraphValidationError, ValidationError) as e:
         click.echo(format_errors_for_cli(e))

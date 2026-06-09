@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 import shutil
@@ -9,6 +10,7 @@ from .errors import NfMetaRunnerError
 logger = logging.getLogger(__name__)
 
 
+@functools.cache
 def check_nextflow():
     """Checks for a local installation of nextflow.
 

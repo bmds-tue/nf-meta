@@ -2,7 +2,6 @@ import hashlib
 import logging
 import os
 import subprocess
-import uuid
 import threading
 from collections import deque
 from contextlib import contextmanager
@@ -20,7 +19,8 @@ from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import Workflow, GlobalOptions
 from nf_meta.core.errors import WorkflowReferenceError
 from .errors import NfMetaRunnerError
-from .utils import check_nextflow, check_nextflow_version
+from .utils import check_nextflow_version
+from .workflow_run import WorkflowRun
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,6 @@ class SimplePythonRunner:
     ):
         self.tempdir = Path(tempdir)
         self.tempdir.mkdir(parents=True, exist_ok=True)
-        self.executable = check_nextflow()
         self.output_window_size = output_window_size
         self.start_wf_id = start
         self.target_wf_id = target
@@ -70,21 +69,6 @@ class SimplePythonRunner:
             and not Path(run_dir / self.ERROR_FILE).exists()
         )
 
-    def _merge_params(self, specific_params: dict, default_params: dict):
-        return {**default_params, **specific_params}
-
-    def _create_params_file(
-        self, params: dict, filename: Optional[Path] = None
-    ) -> Path:
-        if filename is None:
-            params_file = f"params-{uuid.uuid4()}.yaml"
-            filename = Path(self.tempdir / params_file)
-
-        with open(filename, "w") as f:
-            f.write(yaml.dump(params))
-
-        return Path(filename)
-
     def _workflow_dir(self, wf: Workflow) -> Path:
         safe_name = wf.name.replace("/", "_")
         return (self.tempdir / f"{safe_name}_{wf.version}_{wf.hash()}").resolve()
@@ -103,62 +87,58 @@ class SimplePythonRunner:
         with open(path) as f:
             return yaml.safe_load(f) or {}
 
-    def _resolve_param_references(
+    def _resolve_field_refs(
         self,
         wf: Workflow,
         graph: MetaworkflowGraph,
-        resolved_params: Optional[dict[str, dict]] = None,
+        resolved: Optional[dict[str, dict]] = None,
         work_directories: Optional[dict[str, Path]] = None,
     ) -> Workflow:
         wf_resolved = wf.model_copy(deep=True)
-        refs = wf_resolved.field_refs
-        for ref in refs:
+        for ref in wf_resolved.field_refs:
             if ref.namespace != "params":
                 raise NfMetaRunnerError(
                     f"Unsupported reference namespace '{ref.namespace}' in '{ref.name}'. "
                     "Only 'params' references are currently supported."
                 )
             wf_ref = graph.get_workflow_by_id(ref.target_wf_id)
-
             if not wf_ref:
                 raise ValueError(
-                    f"Resolving param reference {ref.name} failed:"
-                    f"Referenced workflow {ref.target_wf_id} does not exist"
+                    f"Resolving reference {ref.name} failed: "
+                    f"referenced workflow '{ref.target_wf_id}' does not exist"
                 )
 
-            # Prefer already-resolved params (from prior steps or cache) over raw config values
-            params_source = (resolved_params or {}).get(ref.target_wf_id)
-            if params_source is None:
-                params_source = wf_ref.params or {}
+            # Prefer already-resolved values (from prior steps or cache) over raw config
+            values_source: dict = (resolved or {}).get(ref.target_wf_id) or (wf_ref.params or {})
 
-            if not (params_source and wf_resolved.params):
+            if not values_source:
                 raise ValueError(
-                    f"Resolving param reference {ref.name} failed: "
-                    f"Referenced ({wf_ref.id}) or referencing ({wf_resolved.id}) workflow do not define params!"
+                    f"Resolving reference {ref.name} failed: "
+                    f"source workflow '{wf_ref.id}' has no resolved values for namespace '{ref.namespace}'"
+                )
+            if not wf_resolved.params:
+                raise ValueError(
+                    f"Resolving reference {ref.name} failed: "
+                    f"referencing workflow '{wf_resolved.id}' has no params to substitute into"
                 )
 
-            ref_value = params_source.get(ref.target_key)
+            ref_value = values_source.get(ref.target_key)
             source_value = wf_resolved.params.get(ref.source_key)
 
             if not ref_value:
                 raise ValueError(
-                    f"Resolving param reference {ref.name} failed: "
-                    + f"Referenced key {ref.target_key} not found "
-                    + f"in workflow {ref.target_wf_id}"
+                    f"Resolving reference {ref.name} failed: "
+                    f"key '{ref.target_key}' not found in workflow '{ref.target_wf_id}' {ref.namespace}"
                 )
-
             if not source_value:
                 raise ValueError(
-                    f"Resolving param reference {ref.name} failed: "
-                    + f"Source key {ref.source_key} not found "
-                    + f"in workflow {ref.source_wf_id}"
+                    f"Resolving reference {ref.name} failed: "
+                    f"source key '{ref.source_key}' not found in workflow '{ref.source_wf_id}' params"
                 )
 
             resolved_value = source_value.replace(ref.name, ref_value)
             if work_directories:
-                resolved_value = str(
-                    work_directories[ref.target_wf_id] / resolved_value
-                )
+                resolved_value = str(work_directories[ref.target_wf_id] / resolved_value)
             wf_resolved.params[ref.source_key] = resolved_value
 
         return wf_resolved
@@ -190,10 +170,7 @@ class SimplePythonRunner:
                 + "\n".join(errors)
             )
 
-    def _stream_proc_out(
-        self,
-        cmd: list[str],
-    ) -> tuple[int, str, str]:
+    def _stream_proc_out(self, cmd: list[str]) -> tuple[int, str, str]:
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
@@ -202,7 +179,6 @@ class SimplePythonRunner:
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
 
-        # Read stderr in a background thread so it never blocks the process.
         def _collect_stderr() -> None:
             assert process.stderr is not None
             for line in process.stderr:
@@ -237,61 +213,21 @@ class SimplePythonRunner:
 
     def _run_workflow(
         self, wf: Workflow, globals: Optional[GlobalOptions] = None, resume: bool = True
-    ):
-        wf_dir = Path(self._workflow_dir(wf))
-        wf_dir.mkdir(exist_ok=True, parents=True)
+    ) -> bool:
+        wf_dir = self._workflow_dir(wf)
 
-        cmd = [self.executable, "run", "-ansi-log", "false"]
+        # Merge global params into wf for this run. This happens after _write_resolved_params
+        # so the cache only holds wf-specific params (used for cross-step reference resolution).
+        if globals and globals.params:
+            merged = {**globals.params, **(wf.params or {})}
+            wf = wf.model_copy(update={"params": merged})
 
-        if resume:
-            cmd += ["-resume"]
+        run = WorkflowRun.for_step(wf, wf_dir, globals, extra_profile=self.extra_profile)
+        run.prepare()
 
-        if self.stub:
-            cmd += ["-stub"]
-
-        wf_params = dict(wf.params or {})
-        profiles = []
-        if globals is not None:
-            if globals.config_file is not None:
-                nf_cfg = Path(globals.config_file)
-                if not nf_cfg.exists():
-                    raise NfMetaRunnerError(
-                        f"Global config file does not exist: {nf_cfg}"
-                    )
-                cmd += ["-c", str(nf_cfg)]
-
-            if globals.params:
-                wf_params = self._merge_params(wf_params, globals.params)
-
-            if globals.profile and not wf.profile:
-                profiles.append(globals.profile)
-
-        if wf.profile:
-            profiles.append(wf.profile)
-
-        if self.extra_profile:
-            profiles.append(self.extra_profile)
-
-        cmd += ["-profile", ",".join(profiles)]
-        logger.info(f"Profiles added: {cmd[-1]}")
-
-        if wf_params:
-            params_file = self._create_params_file(wf_params, wf_dir / "params.yaml")
-            cmd += ["-params-file", str(params_file)]
-
-        if wf.config_file:
-            if not wf.config_file.exists():
-                raise NfMetaRunnerError(
-                    f"Config file referenced by workflow {wf.id} does not exists: {wf.config_file}"
-                )
-            cmd += ["-c", str(wf.config_file)]
-
-        if wf.main_script:
-            cmd += ["-main-script", wf.main_script]
-
-        cmd += [wf.url, "-r", wf.version, "-latest"]
-
+        cmd = run.get_cmd(resume=resume, stub=self.stub)
         logger.info(f"Running nextflow command: {cmd}")
+
         exit_code, out, err = self._stream_proc_out(cmd)
 
         with (wf_dir / self.OUT_FILE).open("w") as f:
@@ -331,30 +267,24 @@ class SimplePythonRunner:
 
         subset_ids = {wf.id for wf in workflows}
 
-        # Fail early if any cross-boundary reference cannot be resolved from cache
         self._validate_cross_boundary_refs(graph, workflows, subset_ids)
 
-        # Pre-load resolved params for excluded workflows from their cache files
-        resolved_params: dict[str, dict] = {}
+        # Cache of resolved field values per workflow id, seeded from excluded-workflow cache files
+        resolved: dict[str, dict] = {}
         for wf in graph.get_workflows():
             if wf.id not in subset_ids:
                 cached = self._load_resolved_params(wf)
                 if cached is not None:
-                    resolved_params[wf.id] = cached
+                    resolved[wf.id] = cached
 
         for i, wf in enumerate(workflows):
             step_label = f"Step {i + 1}/{len(workflows)} - {wf.name}"
 
             raw_wf = wf
-            wf = self._resolve_param_references(
-                wf, graph, resolved_params=resolved_params
-            )
+            wf = self._resolve_field_refs(wf, graph, resolved=resolved)
             logger.debug(f"Resolved workflow {wf.id}")
 
-            # Accumulate resolved params so downstream workflows in this run can use them
-            resolved_params[wf.id] = wf.params or {}
-
-            # Persist resolved params to cache
+            resolved[wf.id] = wf.params or {}
             self._write_resolved_params(raw_wf, wf.params or {})
 
             if resume and self._check_run_success(run_dir=self._workflow_dir(wf)):

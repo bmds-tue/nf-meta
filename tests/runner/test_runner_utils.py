@@ -15,6 +15,12 @@ from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 
 
 class TestCheckNextflow:
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        check_nextflow.cache_clear()
+        yield
+        check_nextflow.cache_clear()
+
     def test_found_returns_path(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.runner.utils.shutil.which", lambda _: "/usr/bin/nextflow"

@@ -163,8 +163,11 @@ def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
 @pytest.fixture
 def mock_nextflow(monkeypatch):
     """Stub out all nextflow binary interactions."""
+    from nf_meta.runner import utils as runner_utils
+
+    runner_utils.check_nextflow.cache_clear()
     monkeypatch.setattr(
-        "nf_meta.runner.python_runner.check_nextflow", lambda: "nextflow"
+        "nf_meta.runner.workflow_run.check_nextflow", lambda: "nextflow"
     )
     monkeypatch.setattr(
         "nf_meta.runner.utils.shutil.which", lambda name: "/usr/bin/nextflow"

@@ -31,24 +31,6 @@ def graph_two(wf_rnaseq, wf_fetchngs):
 
 
 class TestHelpers:
-    def test_merge_params_specific_overrides_default(self, runner):
-        result = runner._merge_params(
-            {"a": "1", "b": "override"}, {"b": "default", "c": "3"}
-        )
-        assert result == {"a": "1", "b": "override", "c": "3"}
-
-    def test_create_params_file_writes_valid_yaml(self, runner, tmp_path):
-        params = {"input": "samples.csv", "outdir": "results"}
-        path = runner._create_params_file(params, tmp_path / "params.yaml")
-        assert path.exists()
-        loaded = yaml.safe_load(path.read_text())
-        assert loaded == params
-
-    def test_create_params_file_auto_names_when_no_path(self, runner):
-        path = runner._create_params_file({"k": "v"})
-        assert path.exists()
-        assert path.suffix == ".yaml"
-
     def test_workflow_dir_contains_name_and_version(self, runner, wf_rnaseq):
         d = runner._workflow_dir(wf_rnaseq)
         assert "rnaseq" in str(d)
@@ -91,15 +73,15 @@ class TestResolveParamReferences:
             g.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
         g._events = []
 
-        resolved = runner._resolve_param_references(rnaseq_with_ref, g)
+        resolved = runner._resolve_field_refs(rnaseq_with_ref, g)
         assert resolved.params["input"] == "results/file.csv"
 
     def test_no_refs_returns_copy_unchanged(self, runner, wf_rnaseq, graph_two):
-        resolved = runner._resolve_param_references(wf_rnaseq, graph_two)
+        resolved = runner._resolve_field_refs(wf_rnaseq, graph_two)
         assert resolved.params == wf_rnaseq.params
 
     def test_resolved_params_preferred_over_raw(self, runner, wf_rnaseq, wf_fetchngs):
-        """resolved_params dict wins over raw workflow params."""
+        """resolved dict wins over raw workflow params."""
         fetchngs_with_raw = wf_fetchngs.model_copy(
             update={"params": {"outdir": "raw_value"}}
         )
@@ -115,10 +97,10 @@ class TestResolveParamReferences:
             g.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
         g.pop_events()
 
-        resolved = runner._resolve_param_references(
+        resolved = runner._resolve_field_refs(
             rnaseq_with_ref,
             g,
-            resolved_params={wf_fetchngs.id: {"outdir": "resolved_value"}},
+            resolved={wf_fetchngs.id: {"outdir": "resolved_value"}},
         )
         assert resolved.params["input"] == "resolved_value/file.csv"
 
@@ -148,8 +130,8 @@ class TestResolveParamReferences:
 
         # Simulate B having already been resolved
         b_resolved_params = {b.id: {"outdir": "/data/raw/processed"}}
-        resolved_c = runner._resolve_param_references(
-            c, g, resolved_params=b_resolved_params
+        resolved_c = runner._resolve_field_refs(
+            c, g, resolved=b_resolved_params
         )
         assert resolved_c.params["input"] == "/data/raw/processed/samples.csv"
 

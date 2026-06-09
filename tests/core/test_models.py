@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from pathlib import Path
 
 from nf_meta.core.models import (
-    Workflow, GlobalOptions, Transition, MetaworkflowConfig,
+    NfPipeline, GlobalOptions, Transition, MetaworkflowConfig,
     load_config, dump_config, Position,
 )
 
@@ -28,11 +28,11 @@ class TestWorkflowConstruction:
 
     def test_custom_workflow_requires_url(self):
         with pytest.raises(ValidationError):
-            Workflow(name="my-org/no-url-pipeline", version="1.0.0")
+            NfPipeline(name="my-org/no-url-pipeline", version="1.0.0")
 
     def test_nfcore_url_mismatch_raises(self):
         with pytest.raises(ValidationError):
-            Workflow(
+            NfPipeline(
                 name="nf-core/rnaseq",
                 version="3.14.0",
                 url="https://github.com/wrong/url",
@@ -48,20 +48,20 @@ class TestWorkflowConstruction:
 
 class TestParamCoercion:
     def test_int_coerced_to_str(self):
-        wf = Workflow(name="nf-core/rnaseq", version="3.14.0", params={"count": 42})
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"count": 42})
         assert wf.params["count"] == "42"
 
     def test_float_coerced_to_str(self):
-        wf = Workflow(name="nf-core/rnaseq", version="3.14.0", params={"threshold": 0.5})
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"threshold": 0.5})
         assert wf.params["threshold"] == "0.5"
 
     def test_bool_coerced_to_str(self):
-        wf = Workflow(name="nf-core/rnaseq", version="3.14.0", params={"flag": True})
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"flag": True})
         assert wf.params["flag"] == "True"
 
     def test_unsupported_type_raises(self):
         with pytest.raises(ValidationError):
-            Workflow(name="nf-core/rnaseq", version="3.14.0", params={"bad": {"nested": "dict"}})
+            NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"bad": {"nested": "dict"}})
 
 
 class TestFieldRefs:
@@ -69,7 +69,7 @@ class TestFieldRefs:
         assert wf_rnaseq.field_refs == []
 
     def test_field_refs_parses_reference(self):
-        wf = Workflow(
+        wf = NfPipeline(
             name="nf-core/rnaseq",
             version="3.14.0",
             params={"input": "${fetch:params:outdir}/samplesheet.csv"},
@@ -81,7 +81,7 @@ class TestFieldRefs:
         assert ref.source_key == "input"
 
     def test_no_refs_without_brace_pattern(self):
-        wf = Workflow(name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"})
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"})
         assert wf.field_refs == []
 
 
@@ -90,14 +90,14 @@ class TestWorkflowHash:
         assert wf_rnaseq.hash() == wf_rnaseq.hash()
 
     def test_hash_differs_by_version(self):
-        wf1 = Workflow(name="nf-core/rnaseq", version="3.14.0")
-        wf2 = Workflow(name="nf-core/rnaseq", version="3.13.0")
+        wf1 = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
+        wf2 = NfPipeline(name="nf-core/rnaseq", version="3.13.0")
         assert wf1.hash() != wf2.hash()
 
     def test_hash_differs_by_main_script(self, monkeypatch):
         monkeypatch.setattr("nf_meta.core.models.github_file_exists", lambda url, path, ref: True)
-        wf1 = Workflow(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline")
-        wf2 = Workflow(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline", main_script="workflows/special.nf")
+        wf1 = NfPipeline(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline")
+        wf2 = NfPipeline(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline", main_script="workflows/special.nf")
         assert wf1.hash() != wf2.hash()
 
 
@@ -105,12 +105,12 @@ class TestWorkflowMainScript:
 
     def test_main_script_raises_for_nfcore(self):
         with pytest.raises(ValidationError, match="nf-core"):
-            Workflow(name="nf-core/rnaseq", version="3.14.0", main_script="workflows/special.nf")
+            NfPipeline(name="nf-core/rnaseq", version="3.14.0", main_script="workflows/special.nf")
 
     def test_main_script_raises_when_file_not_found_on_github(self, monkeypatch):
         monkeypatch.setattr("nf_meta.core.models.github_file_exists", lambda url, path, ref: False)
         with pytest.raises(ValidationError, match="not found"):
-            Workflow(
+            NfPipeline(
                 name="my-org/custom-pipeline",
                 version="1.0.0",
                 url="https://github.com/my-org/custom-pipeline",
@@ -124,7 +124,7 @@ class TestWorkflowMainScript:
             "nf_meta.core.models.logger",
             type("L", (), {"warning": lambda self, *a, **k: warned.append(a[0]), "debug": lambda *a, **k: None})(),
         )
-        Workflow(
+        NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
             url="https://gitlab.com/my-org/custom-pipeline",

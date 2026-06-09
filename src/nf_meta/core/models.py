@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, List, Any, Annotated
+from typing import Optional, List, Any, Annotated, Literal
 import logging
 import re
 import uuid
@@ -32,7 +33,13 @@ logger = logging.getLogger()
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.1.1"
 
-_VALID_PARAM_REF_PATTERN = re.compile(r"\$\{([^}]+):params:([^}]+)\}")
+
+class WorkflowType(StrEnum):
+    NF_PIPELINE = "nf-pipeline"
+    NF_MODULE = "nf-module"
+
+# Captures: ${<wf_id>:<namespace>:<key>}  where namespace is "params" or "outputs"
+_VALID_REF_PATTERN = re.compile(r"\$\{([^}]+):(params|outputs):([^}]+)\}")
 _ANY_BRACE_PATTERN = re.compile(r"\$\{[^}]*\}")
 
 
@@ -120,26 +127,99 @@ class Reference:
 
 
 @dataclass
-class ParamsReference(Reference):
+class WorkflowReference(Reference):
+    """A cross-step parameter or output reference parsed from a param value."""
     name: str
     source_key: str
     target_key: str
+    namespace: str = "params"  # "params" (supported) | "outputs" (future)
+
+
+# ---------------------------------------------------------------------------
+# Base step class
+# ---------------------------------------------------------------------------
 
 
 class Workflow(BaseModel):
     """
-    Workflow representation for internal use
+    Base class for all metapipeline steps.
+    Concrete types: NfPipeline, NfModule.
     """
 
+    type: WorkflowType
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
-    url: str
-    description: Optional[str] = None
     position: Optional[Position] = Field(default=Position(x=0, y=0))
-    params_file: Optional[ExistingYamlFile] = None
     params: Optional[CoercedParams] = None
     config_file: Optional[ExistingNfConfigFile] = None
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def field_refs(self) -> list[WorkflowReference]:
+        if not self.params:
+            return []
+        refs = []
+        for k, v in self.params.items():
+            match = _VALID_REF_PATTERN.search(str(v))
+            if match:
+                refs.append(
+                    WorkflowReference(
+                        name=match.group(0),
+                        source_wf_id=self.id,
+                        source_key=k,
+                        target_wf_id=match.group(1),
+                        namespace=match.group(2),
+                        target_key=match.group(3),
+                    )
+                )
+        return refs
+
+    @model_validator(mode="after")
+    def warn_malformed_refs(self) -> "Workflow":
+        if not self.params:
+            return self
+        for k, v in self.params.items():
+            for token in _ANY_BRACE_PATTERN.findall(str(v)):
+                if not _VALID_REF_PATTERN.search(token):
+                    logger.warning(
+                        "Potentially invalid reference in workflow %s, "
+                        "param '%s': %s — expected ${<wf_id>:(params|outputs):<key>}",
+                        self.id,
+                        k,
+                        token,
+                    )
+        return self
+
+    def hash(self) -> str:
+        data = f"{self.name}{self.version}"
+        data += json.dumps(self.params, sort_keys=True, default=str)
+        data += str(self.config_file.absolute()) if self.config_file else ""
+        return hashlib.sha256(data.encode()).hexdigest()[:8]
+
+    def model_dump_config(self) -> dict:
+        raise NotImplementedError
+
+    def model_dump_display(self) -> dict:
+        raise NotImplementedError
+
+    def model_dump(self, **kwargs: Any):
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# NfPipeline — nextflow run
+# ---------------------------------------------------------------------------
+
+
+class NfPipeline(Workflow):
+    """A Nextflow pipeline step executed with 'nextflow run'."""
+
+    type: Literal[WorkflowType.NF_PIPELINE] = WorkflowType.NF_PIPELINE
+    url: str
+    description: Optional[str] = None
+    params_file: Optional[ExistingYamlFile] = None
     profile: Optional[str] = None
     main_script: Optional[str] = None
 
@@ -149,34 +229,12 @@ class Workflow(BaseModel):
         nfcore_pipelines = get_nfcore_pipelines()
         return any(p.get("name") == self.name for p in nfcore_pipelines)
 
-    @computed_field  # type: ignore[misc]
-    @property
-    def field_refs(self) -> list[ParamsReference]:
-        if not self.params:
-            return []
-
-        refs = []
-        for k, v in self.params.items():
-            match = _VALID_PARAM_REF_PATTERN.search(str(v))
-            if match:
-                refs.append(
-                    ParamsReference(
-                        name=match.group(0),
-                        source_wf_id=self.id,
-                        source_key=k,
-                        target_wf_id=match.group(1),
-                        target_key=match.group(2),
-                    )
-                )
-        return refs
-
     @classmethod
     def get_nfcore_info(cls, name: str) -> Optional[dict]:
         nfcore_pipelines = get_nfcore_pipelines()
-        nfcore_info = next(
+        return next(
             (wf for wf in nfcore_pipelines if wf.get("name") == name), None
         )
-        return nfcore_info
 
     @field_validator("url", mode="after")
     @classmethod
@@ -235,9 +293,6 @@ class Workflow(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:
-
-        # For non nf-core workflows: Explicitly mark url as provided
-        # (even if None) so the field_validator is not skipped!
         data.setdefault("url", None)
 
         name = data.get("name")
@@ -254,30 +309,13 @@ class Workflow(BaseModel):
 
         return data
 
-    @model_validator(mode="after")
-    def warn_malformed_refs(self) -> "Workflow":
-        if not self.params:
-            return self
-        for k, v in self.params.items():
-            for token in _ANY_BRACE_PATTERN.findall(str(v)):
-                if not _VALID_PARAM_REF_PATTERN.search(token):
-                    logger.warning(
-                        "Potentially invalid param reference in workflow %s, "
-                        "param '%s': %s — expected ${<wf_id>:params:<key>}",
-                        self.id,
-                        k,
-                        token,
-                    )
-        return self
-
-    def hash(self):
+    def hash(self) -> str:
         data = f"{self.url}{self.version}"
         data += str(self.config_file.absolute()) if self.config_file else ""
         data += str(self.params_file.absolute()) if self.params_file else ""
         data += json.dumps(self.params, sort_keys=True, default=str)
         data += self.main_script or ""
-        hashed = hashlib.sha256(data.encode()).hexdigest()[:8]
-        return hashed
+        return hashlib.sha256(data.encode()).hexdigest()[:8]
 
     def model_dump_config(self) -> dict:
         fields = {
@@ -293,12 +331,14 @@ class Workflow(BaseModel):
         result = self.model_dump(include=fields, exclude_none=True)
         if self.is_nfcore:
             result.pop("url", None)
+        # type omitted for pipelines — loader defaults to WorkflowType.NF_PIPELINE
         return result
 
     def model_dump_display(self) -> dict:
         fields = {
             "id",
             "name",
+            "type",
             "version",
             "url",
             "params_file",
@@ -312,10 +352,53 @@ class Workflow(BaseModel):
         }
         return self.model_dump(include=fields, exclude_none=False)
 
-    def model_dump(self, **kwargs: Any):
-        # overwrite default serialization behavior
-        kwargs.setdefault("exclude_none", True)
-        return super().model_dump(**kwargs)
+
+# ---------------------------------------------------------------------------
+# NfModule — nextflow module run
+# ---------------------------------------------------------------------------
+
+
+class NfModule(Workflow):
+    """A Nextflow module step executed with 'nextflow module run'."""
+
+    type: Literal[WorkflowType.NF_MODULE] = WorkflowType.NF_MODULE
+    container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = None
+
+    def hash(self) -> str:
+        data = f"{self.name}{self.version}"
+        data += str(self.config_file.absolute()) if self.config_file else ""
+        data += json.dumps(self.params, sort_keys=True, default=str)
+        data += self.container_engine or ""
+        return hashlib.sha256(data.encode()).hexdigest()[:8]
+
+    def model_dump_config(self) -> dict:
+        fields = {"name", "version", "params", "config_file", "container_engine"}
+        result = self.model_dump(include=fields, exclude_none=True)
+        result["type"] = self.type  # always written — required to distinguish from NfPipeline on load
+        return result
+
+    def model_dump_display(self) -> dict:
+        fields = {
+            "id",
+            "name",
+            "type",
+            "version",
+            "params",
+            "position",
+            "config_file",
+            "container_engine",
+        }
+        return self.model_dump(include=fields, exclude_none=False)
+
+
+# Discriminated union used at deserialization boundaries (API, config load).
+# Internal plumbing (graph, events, runner) uses the Workflow base class.
+AnyWorkflow = Annotated[NfPipeline | NfModule, Field(discriminator="type")]
+
+
+# ---------------------------------------------------------------------------
+# GlobalOptions
+# ---------------------------------------------------------------------------
 
 
 class GlobalOptions(BaseModel):
@@ -326,10 +409,9 @@ class GlobalOptions(BaseModel):
 
     @field_validator("profile", mode="after")
     @classmethod
-    def validate_profile(cls, profile: Optional[str], info: ValidationInfo):
+    def validate_profile(cls, profile: Optional[str]):
         if not profile:
             return None
-
         return profile.replace(" ", "")
 
     @field_validator("nextflow_version", mode="before")
@@ -369,12 +451,16 @@ class GlobalOptions(BaseModel):
         except ValueError:
             raise ValueError(f"Non-integer component in nextflow_version '{v}'.")
 
-        # Pad minor and patch with zeros if omitted, append edge flag
         major = numeric[0]
         minor = numeric[1] if len(numeric) > 1 else 0
         patch = numeric[2] if len(numeric) > 2 else 0
 
         return (major, minor, patch, edge_flag)
+
+
+# ---------------------------------------------------------------------------
+# Transition
+# ---------------------------------------------------------------------------
 
 
 class Transition(BaseModel):
@@ -392,9 +478,14 @@ class Transition(BaseModel):
         return super().model_dump(*args, **kwargs)
 
 
+# ---------------------------------------------------------------------------
+# MetaworkflowConfig
+# ---------------------------------------------------------------------------
+
+
 class MetaworkflowConfig(BaseModel):
     config_version: str
-    workflows: List[Workflow]
+    workflows: List[AnyWorkflow]
     globals: Optional[GlobalOptions] = None
     transitions: List[Transition]
 
@@ -404,6 +495,7 @@ class MetaworkflowConfig(BaseModel):
         """
         Accept either list format (legacy) or dict format (new), where
         dict keys become the `id` field of each item.
+        Missing `type` defaults to WorkflowType.NF_PIPELINE for backward compatibility.
         """
         value = data.get("workflows")
         if isinstance(value, dict):
@@ -413,13 +505,15 @@ class MetaworkflowConfig(BaseModel):
                     raise ValueError(
                         f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{str(item)}' instead"
                     )
+                item.setdefault("type", WorkflowType.NF_PIPELINE)
                 items.append({"id": key, **item})
             data["workflows"] = items
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    item.setdefault("type", WorkflowType.NF_PIPELINE)
         return data
 
-    # ------------------------------
-    # Validation: transitions refer to real workflow IDs
-    # ------------------------------
     @model_validator(mode="after")
     def transitions_valid(self):
         all_ids = {w.id for w in self.workflows}
@@ -453,6 +547,11 @@ class MetaworkflowConfig(BaseModel):
             )
 
         return str(version)
+
+
+# ---------------------------------------------------------------------------
+# I/O helpers
+# ---------------------------------------------------------------------------
 
 
 def load_config(path: Path) -> MetaworkflowConfig:

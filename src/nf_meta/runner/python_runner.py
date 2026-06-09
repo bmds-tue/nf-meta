@@ -113,6 +113,11 @@ class SimplePythonRunner:
         wf_resolved = wf.model_copy(deep=True)
         refs = wf_resolved.field_refs
         for ref in refs:
+            if ref.namespace != "params":
+                raise NfMetaRunnerError(
+                    f"Unsupported reference namespace '{ref.namespace}' in '{ref.name}'. "
+                    "Only 'params' references are currently supported."
+                )
             wf_ref = graph.get_workflow_by_id(ref.target_wf_id)
 
             if not wf_ref:

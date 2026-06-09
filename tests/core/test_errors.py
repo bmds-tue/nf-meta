@@ -1,6 +1,6 @@
 import pytest
 
-from nf_meta.core.models import Reference, ParamsReference
+from nf_meta.core.models import Reference, WorkflowReference
 from nf_meta.core.errors import (
     GraphValidationError,
     WorkflowReferenceError,
@@ -11,7 +11,7 @@ from nf_meta.core.errors import (
 
 
 def _make_ref(source_wf_id="wf_a", target_wf_id="wf_b"):
-    return ParamsReference(
+    return WorkflowReference(
         name="${wf_b:params:outdir}",
         source_wf_id=source_wf_id,
         target_wf_id=target_wf_id,

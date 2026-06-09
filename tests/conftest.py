@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nf_meta.core.models import Workflow, Transition  # type: ignore[import]
+from nf_meta.core.models import NfPipeline, NfModule, Transition  # type: ignore[import]
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 
 
@@ -69,27 +69,32 @@ def mock_nfcore(monkeypatch):
 
 @pytest.fixture
 def wf_rnaseq():
-    return Workflow(name="nf-core/rnaseq", version="3.14.0")
+    return NfPipeline(name="nf-core/rnaseq", version="3.14.0")
 
 
 @pytest.fixture
 def wf_fetchngs():
-    return Workflow(name="nf-core/fetchngs", version="1.12.0")
+    return NfPipeline(name="nf-core/fetchngs", version="1.12.0")
 
 
 @pytest.fixture
 def wf_sarek():
-    return Workflow(name="nf-core/sarek", version="3.4.0")
+    return NfPipeline(name="nf-core/sarek", version="3.4.0")
 
 
 @pytest.fixture
 def wf_custom():
     """A non-nf-core workflow with an explicit URL."""
-    return Workflow(
+    return NfPipeline(
         name="my-org/custom-pipeline",
         version="1.0.0",
         url="https://github.com/my-org/custom-pipeline",
     )
+
+
+@pytest.fixture
+def module_fastqc():
+    return NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
 
 
 # ---------------------------------------------------------------------------

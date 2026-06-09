@@ -27,8 +27,8 @@ from pathlib import Path
 
 DEV_MODE = os.getenv("NF_META_DEVMODE", 0) == "1"
 DEV_HOST = "127.0.0.1"
-DEV_PORT = "8080"
-DEV_VITE_PORT = "5173"
+DEV_PORT = 8080
+DEV_VITE_PORT = 5173
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend_dist"
 
 app = FastAPI(title="metapipeline_editor")

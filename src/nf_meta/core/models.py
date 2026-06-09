@@ -31,12 +31,13 @@ from nf_meta.core.nf_core_utils import (
 logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.1.1"
+CONFIG_VERSION_MAX = "0.2.0"
 
 
 class WorkflowType(StrEnum):
     NF_PIPELINE = "nf-pipeline"
     NF_MODULE = "nf-module"
+
 
 # Captures: ${<wf_id>:<namespace>:<key>}  where namespace is "params" or "outputs"
 _VALID_REF_PATTERN = re.compile(r"\$\{([^}]+):(params|outputs):([^}]+)\}")
@@ -86,7 +87,9 @@ def coerce_param_values_to_str(v: Any) -> Optional[dict[str, str]]:
         return None
 
     if not isinstance(v, dict):
-        raise ValueError(f"Params must be a key-value mapping, got {type(v).__name__!r}")
+        raise ValueError(
+            f"Params must be a key-value mapping, got {type(v).__name__!r}"
+        )
 
     COERCIBLE = (str, int, float, bool)
     coerced = {}
@@ -129,6 +132,7 @@ class Reference:
 @dataclass
 class WorkflowReference(Reference):
     """A cross-step parameter or output reference parsed from a param value."""
+
     name: str
     source_key: str
     target_key: str
@@ -232,9 +236,7 @@ class NfPipeline(Workflow):
     @classmethod
     def get_nfcore_info(cls, name: str) -> Optional[dict]:
         nfcore_pipelines = get_nfcore_pipelines()
-        return next(
-            (wf for wf in nfcore_pipelines if wf.get("name") == name), None
-        )
+        return next((wf for wf in nfcore_pipelines if wf.get("name") == name), None)
 
     @field_validator("url", mode="after")
     @classmethod
@@ -362,7 +364,9 @@ class NfModule(Workflow):
     """A Nextflow module step executed with 'nextflow module run'."""
 
     type: Literal[WorkflowType.NF_MODULE] = WorkflowType.NF_MODULE
-    container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = None
+    container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = (
+        None
+    )
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"
@@ -374,7 +378,9 @@ class NfModule(Workflow):
     def model_dump_config(self) -> dict:
         fields = {"name", "version", "params", "config_file", "container_engine"}
         result = self.model_dump(include=fields, exclude_none=True)
-        result["type"] = self.type  # always written — required to distinguish from NfPipeline on load
+        result["type"] = (
+            self.type
+        )  # always written — required to distinguish from NfPipeline on load
         return result
 
     def model_dump_display(self) -> dict:

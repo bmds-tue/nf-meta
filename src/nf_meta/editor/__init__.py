@@ -12,7 +12,7 @@ from .backend import app, DEV_MODE, DEV_PORT, DEV_VITE_PORT
 logger = logging.getLogger()
 
 
-def find_free_port():
+def find_free_port() -> int:
     with socket.socket() as s:
         s.bind(("", 0))
         return s.getsockname()[1]

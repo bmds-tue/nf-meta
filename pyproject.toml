@@ -47,6 +47,7 @@ dev = [
     "twine>=6.2.0",
     "pytest>=9.0.3",
     "pytest-mock>=3.15.1",
+    "mypy>=2.1.0",
     "types-networkx>=3.6.1.20260408",
     "types-pyyaml>=6.0.12.20260408",
     "types-requests>=2.33.0.20260503",

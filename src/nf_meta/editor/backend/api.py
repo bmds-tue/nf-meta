@@ -1,11 +1,15 @@
 import os
-from typing import Annotated
+from typing import Annotated, Optional
 
 from .serializers import serialize_state, Selection
 
 from nf_meta.core.errors import SessionCommandError
 from nf_meta.core.session import SESSION
-from nf_meta.core.nf_core_utils import get_nfcore_pipelines
+from nf_meta.core.nf_core_utils import (
+    get_nfcore_pipelines,
+    get_nfcore_modules,
+    get_nfcore_module_releases,
+)
 from nf_meta.core.models import AnyWorkflow, Transition, GlobalOptions
 from nf_meta.core.events import (
     AddTransition,
@@ -138,6 +142,50 @@ def add_edge(tr: Transition):
 @api_router.get("/nfcore/pipelines/")
 def get_all_nfcore_pipelines():
     return get_nfcore_pipelines()
+
+
+@api_router.get("/nfcore/modules/")
+def get_all_nfcore_modules():
+    return get_nfcore_modules()
+
+
+@api_router.get("/nfcore/modules/{name}/versions/")
+def get_nfcore_module_versions(name: str):
+    releases = get_nfcore_module_releases(name)
+    return [
+        {
+            "version": r["version"],
+            "createdAt": r.get("createdAt"),
+            "status": r.get("status"),
+        }
+        for r in releases
+    ]
+
+
+@api_router.get("/nfcore/modules/{name}/meta/")
+def get_nfcore_module_meta(name: str, version: Optional[str] = None):
+    releases = get_nfcore_module_releases(name)
+    if not releases:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": f"Module '{name}' not found or has no published releases"},
+        )
+
+    if version is not None:
+        release = next((r for r in releases if r["version"] == version), None)
+        if release is None:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"Version '{version}' not found for module '{name}'"},
+            )
+    else:
+        release = max(releases, key=lambda r: r.get("createdAt", ""))
+
+    return {
+        "name": name,
+        "version": release["version"],
+        "metadata": release.get("metadata", {}),
+    }
 
 
 app.include_router(api_router, prefix="/api")

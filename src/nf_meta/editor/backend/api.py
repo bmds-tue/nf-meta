@@ -10,6 +10,7 @@ from nf_meta.core.models import AnyWorkflow, Transition, GlobalOptions
 from nf_meta.core.events import (
     AddTransition,
     AddWorkflow,
+    Command,
     EditWorkflow,
     RemoveWorkflow,
     RemoveTransition,
@@ -114,7 +115,7 @@ def update_node(wf: AnyWorkflow):
 
 @api_router.delete("/delete/")
 def remove(selection: Selection):
-    cmds = []
+    cmds: list[Command] = []
     for edge_id in selection.edges:
         # TODO: Change representation in frontend?
         # Or rely on the ids being created there and containing "->"?

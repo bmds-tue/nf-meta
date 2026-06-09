@@ -4,7 +4,7 @@ from .errors import NfMetaRunnerError
 
 import logging
 from enum import StrEnum
-from typing import Protocol
+from typing import Optional, Protocol
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import Workflow, GlobalOptions
 
@@ -30,9 +30,9 @@ def run_metapipeline(
         resume = False,
         verbose = True,
         output_lines = 20,
-        start: str = None,
-        target: str = None,
-        profile: str = None,
+        start: Optional[str] = None,
+        target: Optional[str] = None,
+        profile: Optional[str] = None,
         stub: bool = False,
     ) -> None:
     logger.info("Started runner")

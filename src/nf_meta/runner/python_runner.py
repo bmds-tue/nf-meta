@@ -34,7 +34,7 @@ class SimplePythonRunner(BaseRunner):
     Executes workflows in dag order from this Python runtime.
     """
 
-    RUNNER_TYPE = "python"
+    RUNNER_NAME = "python"
     OUT_FILE = "OUT.txt"
     ERROR_FILE = "ERROR.txt"
 

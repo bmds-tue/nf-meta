@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import ClassVar
 
 from nf_meta.core.graph import MetaworkflowGraph
@@ -12,11 +11,11 @@ _REGISTRY: dict[str, type["BaseRunner"]] = {}
 class BaseRunner(ABC):
     """Abstract base class for all metapipeline runner backends.
 
-    Subclasses register themselves by defining a ``RUNNER_TYPE`` class
+    Subclasses register themselves by defining a ``RUNNER_NAME`` class
     attribute. The value is the string name used to select the runner::
 
         class MyRunner(BaseRunner):
-            RUNNER_TYPE = "my-runner"
+            RUNNER_NAME = "my-runner"
 
             def run(self, g): ...
             def resume(self, g): ...
@@ -31,18 +30,18 @@ class BaseRunner(ABC):
     are available to every runner without repetition.
     """
 
-    RUNNER_TYPE: ClassVar[str]
+    RUNNER_NAME: ClassVar[str]
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
-        runner_type = cls.__dict__.get("RUNNER_TYPE")
-        if runner_type is not None:
-            _REGISTRY[runner_type] = cls
+        runner_name = cls.__dict__.get("RUNNER_NAME")
+        if runner_name is not None:
+            _REGISTRY[runner_name] = cls
 
     def __init__(self, run_options: RunOptions) -> None:
-        if "RUNNER_TYPE" not in type(self).__dict__:
+        if "RUNNER_NAME" not in type(self).__dict__:
             raise TypeError(
-                f"{type(self).__name__} must define RUNNER_TYPE = '...' as a class attribute"
+                f"{type(self).__name__} must define RUNNER_NAME = '...' as a class attribute"
             )
         self.run_options = run_options
 

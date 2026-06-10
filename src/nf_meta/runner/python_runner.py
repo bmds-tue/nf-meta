@@ -20,6 +20,7 @@ from nf_meta.core.models import Workflow, GlobalOptions
 from nf_meta.core.errors import WorkflowReferenceError
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow_version
+from .base_runner import BaseRunner
 from .workflow_run import WorkflowRun
 
 
@@ -27,31 +28,15 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
-class SimplePythonRunner:
+class SimplePythonRunner(BaseRunner):
     """
     Simple default runner for Metapipelines.
     Executes workflows in dag order from this Python runtime.
     """
 
+    RUNNER_TYPE = "python"
     OUT_FILE = "OUT.txt"
     ERROR_FILE = "ERROR.txt"
-
-    def __init__(
-        self,
-        tempdir=".nf-meta-cache",
-        output_window_size=20,
-        start: Optional[str] = None,
-        target: Optional[str] = None,
-        extra_profile: Optional[str] = None,
-        stub: bool = False,
-    ):
-        self.tempdir = Path(tempdir)
-        self.tempdir.mkdir(parents=True, exist_ok=True)
-        self.output_window_size = output_window_size
-        self.start_wf_id = start
-        self.target_wf_id = target
-        self.extra_profile = extra_profile.replace(" ", "") if extra_profile else ""
-        self.stub = stub
 
     @contextmanager
     def _chdir(self, path: Path):
@@ -71,10 +56,12 @@ class SimplePythonRunner:
 
     def _workflow_dir(self, wf: Workflow) -> Path:
         safe_name = wf.name.replace("/", "_")
-        return (self.tempdir / f"{safe_name}_{wf.version}_{wf.hash()}").resolve()
+        return (
+            self.run_options.tempdir / f"{safe_name}_{wf.version}_{wf.hash()}"
+        ).resolve()
 
     def _resolved_params_path(self, wf: Workflow) -> Path:
-        return self.tempdir / f"{wf.id}_{wf.hash()}_resolved.yaml"
+        return self.run_options.tempdir / f"{wf.id}_{wf.hash()}_resolved.yaml"
 
     def _write_resolved_params(self, raw_wf: Workflow, params: dict) -> None:
         with open(self._resolved_params_path(raw_wf), "w") as f:
@@ -109,7 +96,9 @@ class SimplePythonRunner:
                 )
 
             # Prefer already-resolved values (from prior steps or cache) over raw config
-            values_source: dict = (resolved or {}).get(ref.target_wf_id) or (wf_ref.params or {})
+            values_source: dict = (resolved or {}).get(ref.target_wf_id) or (
+                wf_ref.params or {}
+            )
 
             if not values_source:
                 raise ValueError(
@@ -138,7 +127,9 @@ class SimplePythonRunner:
 
             resolved_value = source_value.replace(ref.name, ref_value)
             if work_directories:
-                resolved_value = str(work_directories[ref.target_wf_id] / resolved_value)
+                resolved_value = str(
+                    work_directories[ref.target_wf_id] / resolved_value
+                )
             wf_resolved.params[ref.source_key] = resolved_value
 
         return wf_resolved
@@ -175,7 +166,7 @@ class SimplePythonRunner:
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
-        tail: deque[str] = deque(maxlen=self.output_window_size)
+        tail: deque[str] = deque(maxlen=self.run_options.output_lines)
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
 
@@ -222,10 +213,12 @@ class SimplePythonRunner:
             merged = {**globals.params, **(wf.params or {})}
             wf = wf.model_copy(update={"params": merged})
 
-        run = WorkflowRun.for_step(wf, wf_dir, globals, extra_profile=self.extra_profile)
+        run = WorkflowRun.for_step(
+            wf, wf_dir, globals, extra_profile=self.run_options.nf_profile or ""
+        )
         run.prepare()
 
-        cmd = run.get_cmd(resume=resume, stub=self.stub)
+        cmd = run.get_cmd(resume=resume, stub=self.run_options.stub)
         logger.info(f"Running nextflow command: {cmd}")
 
         exit_code, out, err = self._stream_proc_out(cmd)
@@ -250,16 +243,20 @@ class SimplePythonRunner:
         return hash
 
     def run(self, graph: MetaworkflowGraph, resume=False):
+
+        self.run_options.tempdir = Path(self.run_options.tempdir)
+        self.run_options.tempdir.mkdir(parents=True, exist_ok=True)
+
         if graph.global_options.nextflow_version:
             _ = check_nextflow_version(graph.global_options.nextflow_version)
 
         workflows = graph.get_workflows_sorted()
-        if self.start_wf_id or self.target_wf_id:
+        if self.run_options.start or self.run_options.target:
             logger.info(
-                f"Calculating subset of graph from workflow {self.start_wf_id} to {self.target_wf_id}"
+                f"Calculating subset of graph from workflow {self.run_options.start} to {self.run_options.target}"
             )
             workflows = graph.subset_workflows(
-                self.start_wf_id, self.target_wf_id, workflows
+                self.run_options.start, self.run_options.target, workflows
             )
             logger.info(
                 f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}"

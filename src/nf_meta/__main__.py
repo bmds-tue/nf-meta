@@ -5,7 +5,7 @@ from nf_meta.core.errors import (
     ValidationError,
     format_errors_for_cli,
 )
-from nf_meta.runner import run_metapipeline, Runners, NfMetaRunnerError
+from nf_meta.runner import run_metapipeline, get_registered_runners, RunOptions, NfMetaRunnerError
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.session import start_session
 from nf_meta.editor import start_editor_backend
@@ -62,8 +62,8 @@ def validate_config(config, verbose):
     "--runner",
     "-r",
     prompt=True,
-    type=click.Choice([e.value for e in Runners]),
-    default=Runners.PYTHON.value,
+    type=click.Choice(get_registered_runners()),
+    default="python",
 )
 @click.option("--resume", is_flag=True, help="Resume a previous run")
 @click.option(
@@ -81,21 +81,25 @@ def validate_config(config, verbose):
     type=str,
     help="Nextflow profile to apply globally, taking precedent over config values.",
 )
-@click.option("--stub", is_flag=True, help="Run all workflows as stub runs (passes -stub to Nextflow)")
+@click.option(
+    "--stub",
+    is_flag=True,
+    help="Run all workflows as stub runs (passes -stub to Nextflow)",
+)
 def run(config, verbose, runner, resume, output_lines, start, target, profile, stub):
     try:
-        g = MetaworkflowGraph.from_file(config)
-        run_metapipeline(
-            g,
+        run_options = RunOptions(
             runner_name=runner,
-            resume=resume,
             verbose=verbose,
             output_lines=output_lines,
+            nf_profile=profile,
+            stub=stub,
+            resume=resume,
             start=start,
             target=target,
-            profile=profile,
-            stub=stub,
         )
+        g = MetaworkflowGraph.from_file(config)
+        run_metapipeline(g, run_options)
     except (GraphValidationError, ValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)

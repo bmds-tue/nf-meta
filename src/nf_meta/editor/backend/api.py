@@ -32,7 +32,7 @@ from pathlib import Path
 DEV_MODE = os.getenv("NF_META_DEVMODE", 0) == "1"
 DEV_HOST = "127.0.0.1"
 DEV_PORT = 8080
-DEV_VITE_PORT = 5173
+DEV_VITE_PORT = 5180
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend_dist"
 
 app = FastAPI(title="metapipeline_editor")
@@ -168,7 +168,9 @@ def get_nfcore_module_meta(name: str, version: Optional[str] = None):
     if not releases:
         return JSONResponse(
             status_code=404,
-            content={"detail": f"Module '{name}' not found or has no published releases"},
+            content={
+                "detail": f"Module '{name}' not found or has no published releases"
+            },
         )
 
     if version is not None:
@@ -176,7 +178,9 @@ def get_nfcore_module_meta(name: str, version: Optional[str] = None):
         if release is None:
             return JSONResponse(
                 status_code=404,
-                content={"detail": f"Version '{version}' not found for module '{name}'"},
+                content={
+                    "detail": f"Version '{version}' not found for module '{name}'"
+                },
             )
     else:
         release = max(releases, key=lambda r: r.get("createdAt", ""))

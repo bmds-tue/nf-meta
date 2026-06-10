@@ -6,12 +6,13 @@ import yaml
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.models import Transition, GlobalOptions  # type: ignore[import]
 from nf_meta.runner.python_runner import SimplePythonRunner  # type: ignore[import]
+from nf_meta.runner.utils import RunOptions  # type: ignore[import]
 from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 
 
 @pytest.fixture
 def runner(mock_nextflow, tmp_path):
-    return SimplePythonRunner(tempdir=str(tmp_path / "cache"))
+    return SimplePythonRunner(RunOptions(tempdir=tmp_path))
 
 
 @pytest.fixture
@@ -341,7 +342,7 @@ class TestRun:
     def test_run_applies_start_target_subset(
         self, runner, graph_two, wf_rnaseq, wf_fetchngs
     ):
-        runner.start_wf_id = wf_rnaseq.id
+        runner.run_options.start = wf_rnaseq.id
         call_ids = []
 
         def fake_run(wf, *args, **kwargs):
@@ -390,7 +391,7 @@ class TestRun:
         # Simulate A having been successfully run previously
         runner._write_resolved_params(a, a.params)
 
-        runner.start_wf_id = b.id
+        runner.run_options.start = b.id
         resolved_wfs = []
 
         def fake_run(wf, *args, **kwargs):
@@ -419,6 +420,6 @@ class TestRun:
             g.add_transition(Transition(source=a.id, target=b.id))
         g.pop_events()
 
-        runner.start_wf_id = b.id
+        runner.run_options.start = b.id
         with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
             runner.run(g)

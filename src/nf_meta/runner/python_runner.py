@@ -57,11 +57,11 @@ class SimplePythonRunner(BaseRunner):
     def _workflow_dir(self, wf: Workflow) -> Path:
         safe_name = wf.name.replace("/", "_")
         return (
-            self.run_options.tempdir / f"{safe_name}_{wf.version}_{wf.hash()}"
+            self.run_options.cachedir / f"{safe_name}_{wf.version}_{wf.hash()}"
         ).resolve()
 
     def _resolved_params_path(self, wf: Workflow) -> Path:
-        return self.run_options.tempdir / f"{wf.id}_{wf.hash()}_resolved.yaml"
+        return self.run_options.cachedir / f"{wf.id}_{wf.hash()}_resolved.yaml"
 
     def _write_resolved_params(self, raw_wf: Workflow, params: dict) -> None:
         with open(self._resolved_params_path(raw_wf), "w") as f:
@@ -244,8 +244,8 @@ class SimplePythonRunner(BaseRunner):
 
     def run(self, graph: MetaworkflowGraph, resume=False):
 
-        self.run_options.tempdir = Path(self.run_options.tempdir)
-        self.run_options.tempdir.mkdir(parents=True, exist_ok=True)
+        self.run_options.cachedir = Path(self.run_options.cachedir)
+        self.run_options.cachedir.mkdir(parents=True, exist_ok=True)
 
         if graph.global_options.nextflow_version:
             _ = check_nextflow_version(graph.global_options.nextflow_version)

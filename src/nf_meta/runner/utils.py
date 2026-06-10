@@ -25,7 +25,7 @@ class RunOptions:
     Attributes:
         runner_name: Name of the runner backend to use. Must match a key
             registered in ``base_runner._REGISTRY``.
-        tempdir: Directory used for all per-workflow working directories,
+        cachedir: Directory used for all per-workflow working directories,
             resolved-param cache files, and Nextflow work directories.
             Created automatically if it does not exist.
         verbose: Enables verbose logging output.
@@ -53,7 +53,7 @@ class RunOptions:
     """
 
     runner_name: str = "python"
-    tempdir: Path = Path(".nf-meta-cache")
+    cachedir: Path = Path(".nf-meta-cache")
     verbose: bool = False
     output_lines: int = 20
     start: Optional[str] = None

@@ -12,7 +12,7 @@ from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 
 @pytest.fixture
 def runner(mock_nextflow, tmp_path):
-    return SimplePythonRunner(RunOptions(tempdir=tmp_path))
+    return SimplePythonRunner(RunOptions(cachedir=tmp_path))
 
 
 @pytest.fixture
@@ -131,9 +131,7 @@ class TestResolveParamReferences:
 
         # Simulate B having already been resolved
         b_resolved_params = {b.id: {"outdir": "/data/raw/processed"}}
-        resolved_c = runner._resolve_field_refs(
-            c, g, resolved=b_resolved_params
-        )
+        resolved_c = runner._resolve_field_refs(c, g, resolved=b_resolved_params)
         assert resolved_c.params["input"] == "/data/raw/processed/samples.csv"
 
 

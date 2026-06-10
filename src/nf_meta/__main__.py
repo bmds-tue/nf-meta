@@ -5,10 +5,15 @@ from nf_meta.core.errors import (
     ValidationError,
     format_errors_for_cli,
 )
-from nf_meta.runner import run_metapipeline, get_registered_runners, RunOptions, NfMetaRunnerError
+from nf_meta.runner import (
+    run_metapipeline,
+    get_registered_runners,
+    RunOptions,
+    NfMetaRunnerError,
+)
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.session import start_session
-from nf_meta.editor import start_editor_backend
+from nf_meta.editor import get_registered_editors, EditorOptions, run_editor
 
 
 @click.group()
@@ -20,18 +25,28 @@ def cli() -> None:
 @click.command("editor")
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
 @click.option(
-    "--host", default="localhost", help="Host to use for running the editor ui"
+    "--editor",
+    "-e",
+    type=click.Choice(get_registered_editors()),
+    default="browser",
+    help="Editor backend to use",
 )
-@click.option("--port", help="Port to use for running the editor ui")
+@click.option("--host", help="Host to bind the editor server to")
+@click.option(
+    "--port",
+    type=int,
+    help="Port for the editor server (auto-assigned if omitted)",
+)
 @click.argument("config", required=False, type=click.Path())
-def edit_browser(config, verbose, host, port):
+def edit_browser(config, verbose, editor, host, port):
     try:
-        # start engine
         start_session(config)
-
-        # start api and open editor in browser
-        start_editor_backend(host, port)
-
+        opts = EditorOptions(editor_name=editor)
+        if host is not None:
+            opts.host = host
+        if port is not None:
+            opts.port = port
+        run_editor(opts)
     except (GraphValidationError, ValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)

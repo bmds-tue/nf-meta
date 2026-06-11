@@ -1,10 +1,12 @@
 import functools
 import logging
+import os
+import re
 
 import requests
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 _GITHUB_API_HEADERS = {
     "Accept": "application/vnd.github+json",
@@ -185,6 +187,168 @@ def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
         _fetch_json(api_url, f"GitHub file {path}@{ref}", headers=_GITHUB_API_HEADERS)
         is not None
     )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline schema fetching and validation helpers
+# ---------------------------------------------------------------------------
+
+
+class PipelineSchemaError(Exception):
+    """Raised when nextflow_schema.json cannot be fetched or parsed."""
+
+
+_REPO_URL_PATTERN = re.compile(
+    r"https?://(?P<host>(?:github\.com|gitlab\.com|bitbucket\.org))"
+    r"/(?P<owner>[^/]+)/(?P<repo>[^/?.#]+)"
+)
+
+
+def _parse_repo_url(url: str) -> tuple[str, str, str]:
+    """Return (host, owner, repo) from a repository URL."""
+    url = url.rstrip("/").removesuffix(".git")
+    match = _REPO_URL_PATTERN.match(url)
+    if not match:
+        raise PipelineSchemaError(
+            f"Cannot parse repository URL '{url}'. "
+            "Supported hosts: github.com, gitlab.com, bitbucket.org."
+        )
+    return match.group("host"), match.group("owner"), match.group("repo")
+
+
+def _raw_url(host: str, owner: str, repo: str, version: str, path: str) -> str:
+    """Construct the raw file URL for the given host."""
+    path = path.lstrip("/")
+    if host == "github.com":
+        return f"https://raw.githubusercontent.com/{owner}/{repo}/{version}/{path}"
+    if host == "gitlab.com":
+        return f"https://gitlab.com/{owner}/{repo}/-/raw/{version}/{path}"
+    if host == "bitbucket.org":
+        return f"https://bitbucket.org/{owner}/{repo}/raw/{version}/{path}"
+    raise PipelineSchemaError(f"Unsupported host: {host}")
+
+
+def _get_auth_headers(host: str) -> dict:
+    if host == "github.com":
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            return {"Authorization": f"Bearer {token}"}
+    elif host == "gitlab.com":
+        token = os.environ.get("GITLAB_TOKEN")
+        if token:
+            return {"PRIVATE-TOKEN": token}
+    return {}
+
+
+def _parse_nextflow_schema(data: dict) -> dict[str, dict]:
+    """
+    Flatten a nextflow_schema.json into {param_name: spec}.
+
+    Handles both ``definitions`` (draft-07) and ``$defs`` (2020-12) keys.
+    Each spec dict contains: type, required, enum, pattern, format, default, hidden.
+    """
+    result: dict[str, dict] = {}
+
+    definitions = data.get("definitions") or data.get("$defs") or {}
+    for _, group in definitions.items():
+        if not isinstance(group, dict):
+            continue
+        required_in_group = set(group.get("required", []))
+        for param_name, spec in group.get("properties", {}).items():
+            if not isinstance(spec, dict):
+                continue
+            result[param_name] = {
+                "type": spec.get("type"),
+                "required": param_name in required_in_group,
+                "enum": spec.get("enum"),
+                "pattern": spec.get("pattern"),
+                "format": spec.get("format"),
+                "default": spec.get("default"),
+                "hidden": spec.get("hidden", False),
+            }
+
+    top_required = set(data.get("required", []))
+    for param_name, spec in data.get("properties", {}).items():
+        if not isinstance(spec, dict) or param_name in result:
+            continue
+        result[param_name] = {
+            "type": spec.get("type"),
+            "required": param_name in top_required,
+            "enum": spec.get("enum"),
+            "pattern": spec.get("pattern"),
+            "format": spec.get("format"),
+            "default": spec.get("default"),
+            "hidden": spec.get("hidden", False),
+        }
+
+    return result
+
+
+@functools.cache
+def get_pipeline_schema(url: str, version: str) -> dict[str, dict]:
+    """
+    Fetch and parse ``nextflow_schema.json`` for the pipeline at ``url@version``.
+
+    Results are cached in memory (per process) and on disk via
+    ``nf_meta.core.cache``. Raises ``PipelineSchemaError`` if the schema
+    cannot be fetched or parsed for any reason. Set the ``GITHUB_TOKEN``
+    environment variable to increase GitHub API rate limits.
+    """
+    from nf_meta.core.cache import read_schema_cache, write_schema_cache
+
+    cached = read_schema_cache(url, version)
+    if cached is not None:
+        return cached
+
+    host, owner, repo = _parse_repo_url(url)
+    schema_url = _raw_url(host, owner, repo, version, "nextflow_schema.json")
+    auth_headers = _get_auth_headers(host)
+
+    try:
+        response = requests.get(schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
+    except requests.exceptions.Timeout:
+        raise PipelineSchemaError(
+            f"Timeout fetching nextflow_schema.json for {url}@{version}"
+        )
+    except requests.exceptions.RequestException as e:
+        raise PipelineSchemaError(
+            f"Network error fetching nextflow_schema.json for {url}@{version}: {e}"
+        )
+
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After", "unknown")
+        token_hint = (
+            "Set GITHUB_TOKEN to increase the rate limit."
+            if host == "github.com"
+            else "Set GITLAB_TOKEN to authenticate."
+            if host == "gitlab.com"
+            else "Authenticate to increase the rate limit."
+        )
+        raise PipelineSchemaError(
+            f"Rate-limited (429) fetching nextflow_schema.json for {url}@{version}. "
+            f"Retry-After: {retry_after}. {token_hint}"
+        )
+    if response.status_code == 404:
+        raise PipelineSchemaError(
+            f"nextflow_schema.json not found for {url}@{version}. "
+            "Ensure the pipeline includes a nextflow_schema.json at its root."
+        )
+    if response.status_code != 200:
+        raise PipelineSchemaError(
+            f"Unexpected HTTP {response.status_code} fetching nextflow_schema.json "
+            f"for {url}@{version}"
+        )
+
+    try:
+        data = response.json()
+    except ValueError as e:
+        raise PipelineSchemaError(
+            f"Failed to parse nextflow_schema.json for {url}@{version} as JSON: {e}"
+        )
+
+    schema = _parse_nextflow_schema(data)
+    write_schema_cache(url, version, schema)
+    return schema
 
 
 @functools.cache

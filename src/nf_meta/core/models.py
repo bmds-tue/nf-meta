@@ -9,6 +9,8 @@ import uuid
 import hashlib
 import json
 
+import click
+
 from pydantic import (
     BaseModel,
     Field,
@@ -26,7 +28,10 @@ from nf_meta.core.nf_core_utils import (
     get_nfcore_pipelines,
     url_exists,
     github_file_exists,
+    get_pipeline_schema,
+    PipelineSchemaError,
 )
+from nf_meta.core.nf_param_validation import validate_params
 
 logger = logging.getLogger()
 
@@ -302,6 +307,59 @@ class NfPipeline(Workflow):
             )
 
         return value
+
+    @model_validator(mode="after")
+    def validate_params_against_schema(self) -> "NfPipeline":
+        try:
+            schema = get_pipeline_schema(self.url, self.version)
+        except PipelineSchemaError as e:
+            click.echo(
+                click.style(
+                    f"Warning: cannot validate params for '{self.name}': {e}",
+                    fg="yellow",
+                )
+            )
+            return self
+
+        # Start from params_file contents, then let self.params override.
+        # This gives the full picture for required-param checks while
+        # honouring the precedence rule (self.params wins on collision).
+        merged: dict[str, str] = {}
+        skip_required = False
+
+        if self.params_file is not None:
+            try:
+                with open(self.params_file) as fh:
+                    file_data = yaml.safe_load(fh) or {}
+                if isinstance(file_data, dict):
+                    merged = {k: str(v) for k, v in file_data.items() if v is not None}
+                else:
+                    logger.warning(
+                        "params_file '%s' does not contain a mapping — skipping required-param check",
+                        self.params_file,
+                    )
+                    skip_required = True
+            except Exception as exc:
+                logger.warning(
+                    "Could not read params_file '%s': %s — skipping required-param check",
+                    self.params_file,
+                    exc,
+                )
+                skip_required = True
+
+        merged.update(self.params or {})
+
+        errors = validate_params(
+            merged,
+            schema,
+            pipeline_id=self.id,
+            skip_required=skip_required,
+        )
+        if errors:
+            joined = "\n  - ".join(errors)
+            raise ValueError(f"Parameter validation failed:\n  - {joined}")
+
+        return self
 
     @model_validator(mode="before")
     @classmethod

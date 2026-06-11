@@ -179,6 +179,17 @@ class Workflow(BaseModel):
                 )
         return refs
 
+    @field_validator("version", mode="after")
+    @classmethod
+    def validate_version_ref(cls, value: str) -> str:
+        if re.match(r"^v?\d", value) or re.match(r"^[0-9a-fA-F]{7,40}$", value):
+            return value
+        raise ValueError(
+            f"Version '{value}' looks like a branch name. "
+            "Use a release tag (e.g. '1.2.3', 'v1.2.3') or a commit SHA "
+            "to ensure reproducibility."
+        )
+
     @model_validator(mode="after")
     def warn_malformed_refs(self) -> "Workflow":
         if not self.params:

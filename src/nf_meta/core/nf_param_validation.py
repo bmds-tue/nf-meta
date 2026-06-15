@@ -19,7 +19,7 @@ def _check_type(
                 f"[{pipeline_id}] Parameter '{param_name}' = {value!r} "
                 "is not a valid integer"
             )
-    elif expected_type == "number":
+    elif expected_type in ("number", "float"):
         try:
             float(value)
         except ValueError:
@@ -72,7 +72,18 @@ def validate_params(
                 and not spec.get("hidden", False)
                 and spec.get("default") is None
             )
-            if is_truly_required and param_name not in params:
+            if not is_truly_required:
+                continue
+            # map-type inputs are represented as flattened dot-keys (e.g. meta.id,
+            # meta.sample), so check for any key with the expected prefix.
+            if spec.get("type") == "map":
+                prefix = f"{param_name}."
+                present = param_name in params or any(
+                    k.startswith(prefix) for k in params
+                )
+            else:
+                present = param_name in params
+            if not present:
                 errors.append(
                     f"[{pipeline_id}] Required parameter '{param_name}' is not set. "
                     "Provide it in the params dict or via a params_file."

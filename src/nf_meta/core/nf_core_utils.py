@@ -3,7 +3,9 @@ import logging
 import os
 import re
 
+import click
 import requests
+import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -144,7 +146,8 @@ def get_nfcore_modules() -> list[dict]:
 @functools.cache
 def get_nfcore_module_releases(name: str) -> list[dict]:
     """
-    All published releases for nf-core module `name` (short name, e.g. "fastqc").
+    All published releases for nf-core module `name` (short name, e.g. "fastqc") available
+    in the nextflow registry. (registry.nextflow.io)
 
     Each release contains: version, createdAt, status, checksum, size, url,
     and a metadata dict with description, keywords, input, output, and tools.
@@ -157,6 +160,140 @@ def get_nfcore_module_releases(name: str) -> list[dict]:
     if not isinstance(data, dict):
         return []
     return data.get("releases", [])
+
+
+# ---------------------------------------------------------------------------
+# Module schema fetching and parsing
+# ---------------------------------------------------------------------------
+
+_MODULE_SHA_SUFFIX_PATTERN = re.compile(r"-([0-9a-fA-F]{7,40})$")
+_PLAIN_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{7,40}$")
+_MODULES_RAW_BASE = "https://raw.githubusercontent.com/nf-core/modules"
+_NFCORE_MODULES_META_PATH = "modules/{name}/meta.yml"
+
+
+def _extract_module_sha(version: str) -> str | None:
+    """Return the hex SHA embedded in a module version string, or None."""
+    if _PLAIN_SHA_PATTERN.match(version):
+        return version
+    match = _MODULE_SHA_SUFFIX_PATTERN.search(version)
+    return match.group(1) if match else None
+
+
+def _parse_module_schema(meta_yml: dict) -> dict[str, dict]:
+    """
+    Convert a parsed meta.yml into a flat {param_name: spec} dict.
+
+    All inputs are marked required=True. The type field uses the meta.yml
+    vocabulary (file, map, list, string, integer, boolean, number, directory).
+    Callers must handle map/list types specially in required checks.
+    """
+    result: dict[str, dict] = {}
+    for entry in meta_yml.get("input", []):
+        if isinstance(entry, dict):
+            elements = [entry]
+        elif isinstance(entry, list):
+            elements = entry  # tuple input: flatten channel members
+        else:
+            continue
+        for element in elements:
+            if not isinstance(element, dict):
+                continue
+            for param_name, spec in element.items():
+                spec = spec or {}
+                result[param_name] = {
+                    "type": spec.get("type"),
+                    "required": True,
+                    "enum": spec.get("enum"),
+                    "pattern": spec.get("pattern"),
+                }
+    return result
+
+
+@functools.cache
+def get_module_schema(name: str, version: str) -> dict[str, dict]:
+    """
+    Fetch and parse ``meta.yml`` for the nf-core module ``name`` at ``version``.
+
+    The version string is inspected for an embedded commit SHA (e.g.
+    ``0.0.0-6c4ed3a`` → ``6c4ed3a``). SHA-pinned fetches are cached on disk.
+    When no SHA is extractable, ``master`` is used with a warning and the
+    result is NOT cached to disk (master is mutable). Returns ``{}`` on any
+    fetch or parse failure after emitting a yellow warning.
+    """
+    from nf_meta.core.cache import read_schema_cache, write_schema_cache
+
+    sha = _extract_module_sha(version)
+    ref = sha if sha else "master"
+    cache_key = f"module:{name}@{ref}"
+
+    if not sha:
+        click.echo(
+            click.style(
+                f"Warning: no commit SHA found in module version '{version}' for '{name}'. "
+                "Cannot fetch module schema",
+                fg="yellow",
+            )
+        )
+        return {}
+
+    cached = read_schema_cache(cache_key, "")
+    if cached is not None:
+        return cached
+
+    path = _NFCORE_MODULES_META_PATH.format(name=name)
+    url = f"{_MODULES_RAW_BASE}/{ref}/{path}"
+    auth_headers = _get_auth_headers("github.com")
+
+    try:
+        response = requests.get(url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
+    except requests.exceptions.RequestException as e:
+        click.echo(
+            click.style(
+                f"Warning: cannot fetch meta.yml for '{name}@{version}': {e}",
+                fg="yellow",
+            )
+        )
+        return {}
+
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After", "unknown")
+        click.echo(
+            click.style(
+                f"Warning: rate-limited fetching meta.yml for '{name}@{version}'. "
+                f"Retry-After: {retry_after}. Set GITHUB_TOKEN to increase the rate limit.",
+                fg="yellow",
+            )
+        )
+        return {}
+
+    if response.status_code != 200:
+        click.echo(
+            click.style(
+                f"Warning: cannot fetch meta.yml for '{name}@{version}' "
+                f"(HTTP {response.status_code}) — skipping param validation.",
+                fg="yellow",
+            )
+        )
+        return {}
+
+    try:
+        meta_yml = yaml.safe_load(response.text)
+    except Exception as e:
+        click.echo(
+            click.style(
+                f"Warning: failed to parse meta.yml for '{name}@{version}': {e}",
+                fg="yellow",
+            )
+        )
+        return {}
+
+    schema = _parse_module_schema(meta_yml or {})
+
+    if sha:
+        write_schema_cache(cache_key, "", schema)
+
+    return schema
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +442,9 @@ def get_pipeline_schema(url: str, version: str) -> dict[str, dict]:
     auth_headers = _get_auth_headers(host)
 
     try:
-        response = requests.get(schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
+        response = requests.get(
+            schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers
+        )
     except requests.exceptions.Timeout:
         raise PipelineSchemaError(
             f"Timeout fetching nextflow_schema.json for {url}@{version}"

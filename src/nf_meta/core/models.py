@@ -29,6 +29,7 @@ from nf_meta.core.nf_core_utils import (
     url_exists,
     github_file_exists,
     get_pipeline_schema,
+    get_module_schema,
     PipelineSchemaError,
 )
 from nf_meta.core.nf_param_validation import validate_params
@@ -436,6 +437,24 @@ class NfModule(Workflow):
     container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = (
         None
     )
+
+    @model_validator(mode="after")
+    def validate_params_against_schema(self) -> "NfModule":
+        schema = get_module_schema(self.name, self.version)
+        if not schema:
+            return self
+
+        errors = validate_params(
+            self.params or {},
+            schema,
+            pipeline_id=self.id,
+            skip_required=False,
+        )
+        if errors:
+            joined = "\n  - ".join(errors)
+            raise ValueError(f"Parameter validation failed:\n  - {joined}")
+
+        return self
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"

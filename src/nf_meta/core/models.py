@@ -26,6 +26,7 @@ import yaml
 
 from nf_meta.core.nf_core_utils import (
     get_nfcore_pipelines,
+    get_nfcore_module_releases,
     url_exists,
     github_file_exists,
     get_pipeline_schema,
@@ -437,6 +438,22 @@ class NfModule(Workflow):
     container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = (
         None
     )
+
+    @field_validator("version", mode="after")
+    @classmethod
+    def validate_version_in_registry(cls, value: str, info: ValidationInfo) -> str:
+        name: str = info.data.get("name", "")
+        short_name = name.removeprefix("nf-core/")
+        if not short_name or short_name == name:
+            return value
+        releases = get_nfcore_module_releases(short_name)
+        valid_versions = {r["version"] for r in releases}
+        if valid_versions and value not in valid_versions:
+            raise ValueError(
+                f"Version '{value}' is not available in the Nextflow registry for "
+                f"module '{name}'. Use one of: {sorted(valid_versions)}"
+            )
+        return value
 
     @model_validator(mode="after")
     def validate_params_against_schema(self) -> "NfModule":

@@ -102,6 +102,10 @@ def mock_nfcore(monkeypatch):
         "nf_meta.core.models.get_module_schema",
         lambda name, version: {},
     )
+    monkeypatch.setattr(
+        "nf_meta.core.models.get_nfcore_module_releases",
+        lambda name: [],
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -59,10 +59,15 @@ def validate_params(
     """
     errors: list[str] = []
 
-    # Check for unknown params; allow dot-key sub-params for map-type entries
+    # Check for unknown params; enforce map-type params use dot-key expansion
     _map_keys = {k for k, s in schema.items() if s.get("type") == "map"}
     for param_name in params:
-        if param_name not in schema:
+        if param_name in _map_keys:
+            errors.append(
+                f"[{pipeline_id}] Parameter '{param_name}' is a map — "
+                f"use dot-notation sub-keys (e.g. '{param_name}.id') instead of a raw value"
+            )
+        elif param_name not in schema:
             if not any(param_name.startswith(f"{k}.") for k in _map_keys):
                 errors.append(f"[{pipeline_id}] Unknown parameter '{param_name}'")
 

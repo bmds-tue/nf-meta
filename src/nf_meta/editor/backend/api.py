@@ -9,6 +9,9 @@ from nf_meta.core.nf_core_utils import (
     get_nfcore_pipelines,
     get_nfcore_modules,
     get_nfcore_module_releases,
+    get_module_schema,
+    get_pipeline_schema,
+    PipelineSchemaError,
 )
 from nf_meta.core.models import AnyWorkflow, Transition, GlobalOptions
 from nf_meta.core.events import (
@@ -190,6 +193,42 @@ def get_nfcore_module_meta(name: str, version: Optional[str] = None):
         "version": release["version"],
         "metadata": release.get("metadata", {}),
     }
+
+
+@api_router.get("/nfcore/modules/{name}/schema/")
+def get_nfcore_module_schema(name: str, version: str):
+    """Return the parsed input schema for nf-core module `name` at `version`.
+
+    `version` must contain an extractable commit SHA (e.g. ``0.0.0-6c4ed3a``).
+    Returns a flat ``{param_name: spec}`` dict with ``type``, ``required``,
+    ``enum``, and ``pattern`` fields per parameter.
+    """
+    schema = get_module_schema(f"nf-core/{name}", version)
+    if not schema:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": (
+                    f"No schema available for module '{name}' at version '{version}'. "
+                    "Ensure the version contains a commit SHA (e.g. '0.0.0-6c4ed3a')."
+                )
+            },
+        )
+    return schema
+
+
+@api_router.get("/nfcore/pipelines/schema/")
+def get_nfcore_pipeline_schema(url: str, version: str):
+    """Return the parsed param schema for the pipeline at ``url`` at ``version``.
+
+    ``url`` must be a GitHub, GitLab, or Bitbucket repository URL.
+    Returns a flat ``{param_name: spec}`` dict with ``type``, ``required``,
+    ``enum``, ``pattern``, ``format``, ``default``, and ``hidden`` fields.
+    """
+    try:
+        return get_pipeline_schema(url, version)
+    except PipelineSchemaError as exc:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 app.include_router(api_router, prefix="/api")

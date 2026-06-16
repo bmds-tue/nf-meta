@@ -50,6 +50,40 @@ FAKE_NFCORE_PIPELINES = [
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Fake pipeline schema used by all tests — covers params used in unit tests
+# ---------------------------------------------------------------------------
+
+def _make_spec(type_, *, required=False, default=None, enum=None, hidden=False):
+    return {
+        "type": type_,
+        "required": required,
+        "enum": enum,
+        "pattern": None,
+        "format": None,
+        "default": default,
+        "hidden": hidden,
+    }
+
+
+FAKE_PIPELINE_SCHEMA: dict[str, dict] = {
+    # Real nf-core/rnaseq params used in unit tests
+    "input": _make_spec("string", default=""),
+    "outdir": _make_spec("string", default="results"),
+    # Fictional param names used specifically in coercion tests
+    "count": _make_spec("integer", default=0),
+    "threshold": _make_spec("number", default=0.0),
+    "flag": _make_spec("boolean", default=False),
+}
+
+# Module schema shaped like fastqc's meta.yml inputs.
+# Matches what _parse_module_schema produces (no format/default/hidden keys).
+FAKE_MODULE_SCHEMA: dict[str, dict] = {
+    "meta":  {"type": "map",  "required": True, "enum": None, "pattern": None},
+    "reads": {"type": "file", "required": True, "enum": None, "pattern": "*_{1,2}.fastq.gz"},
+}
+
+
 @pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
@@ -59,6 +93,14 @@ def mock_nfcore(monkeypatch):
     monkeypatch.setattr("nf_meta.core.models.url_exists", lambda url, timeout=10: True)
     monkeypatch.setattr(
         "nf_meta.core.models.github_file_exists", lambda url, path, ref: True
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.models.get_pipeline_schema",
+        lambda url, version: FAKE_PIPELINE_SCHEMA,
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.models.get_module_schema",
+        lambda name, version: {},
     )
 
 

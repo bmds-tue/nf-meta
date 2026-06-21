@@ -125,11 +125,6 @@ def create_id():
     return str(uuid.uuid4())[:8]
 
 
-class Position(BaseModel):
-    x: int
-    y: int
-
-
 @dataclass
 class Reference:
     name: Optional[str]
@@ -162,7 +157,6 @@ class BaseWorkflow(BaseModel, ABC):
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
-    position: Optional[Position] = Field(default=Position(x=0, y=0))
     config_file: Optional[ExistingNfConfigFile] = None
 
     @computed_field  # type: ignore[misc]

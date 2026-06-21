@@ -1,3 +1,4 @@
+from abc import ABC
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -151,7 +152,7 @@ class WorkflowReference(Reference):
 # ---------------------------------------------------------------------------
 
 
-class Workflow(BaseModel):
+class BaseWorkflow(BaseModel, ABC):
     """
     Base class for all metapipeline steps.
     Concrete types: NfPipeline, NfModule.
@@ -162,13 +163,12 @@ class Workflow(BaseModel):
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
     position: Optional[Position] = Field(default=Position(x=0, y=0))
-    params: Optional[CoercedParams] = None
     config_file: Optional[ExistingNfConfigFile] = None
 
     @computed_field  # type: ignore[misc]
     @property
     def field_refs(self) -> list[WorkflowReference]:
-        if not self.params:
+        if not getattr(self, "params", False):
             return []
         refs = []
         for k, v in self.params.items():
@@ -198,7 +198,7 @@ class Workflow(BaseModel):
         )
 
     @model_validator(mode="after")
-    def warn_malformed_refs(self) -> "Workflow":
+    def warn_malformed_refs(self) -> "BaseWorkflow":
         if not self.params:
             return self
         for k, v in self.params.items():
@@ -235,7 +235,7 @@ class Workflow(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class NfPipeline(Workflow):
+class NfPipeline(BaseWorkflow):
     """A Nextflow pipeline step executed with 'nextflow run'."""
 
     type: Literal[WorkflowType.NF_PIPELINE] = WorkflowType.NF_PIPELINE
@@ -244,6 +244,10 @@ class NfPipeline(Workflow):
     params_file: Optional[ExistingYamlFile] = None
     profile: Optional[str] = None
     main_script: Optional[str] = None
+    # Declared after url/params_file so that field_validator("params") can access
+    # both via info.data (Pydantic validates fields in declaration order).
+    # validate_default=True ensures the validator runs even when params is omitted.
+    params: Optional[CoercedParams] = Field(default=None, validate_default=True)
 
     @computed_field  # type: ignore[misc]
     @property
@@ -310,59 +314,6 @@ class NfPipeline(Workflow):
 
         return value
 
-    @model_validator(mode="after")
-    def validate_params_against_schema(self) -> "NfPipeline":
-        try:
-            schema = get_pipeline_schema(self.url, self.version)
-        except PipelineSchemaError as e:
-            click.echo(
-                click.style(
-                    f"Warning: cannot validate params for '{self.name}': {e}",
-                    fg="yellow",
-                )
-            )
-            return self
-
-        # Start from params_file contents, then let self.params override.
-        # This gives the full picture for required-param checks while
-        # honouring the precedence rule (self.params wins on collision).
-        merged: dict[str, str] = {}
-        skip_required = False
-
-        if self.params_file is not None:
-            try:
-                with open(self.params_file) as fh:
-                    file_data = yaml.safe_load(fh) or {}
-                if isinstance(file_data, dict):
-                    merged = {k: str(v) for k, v in file_data.items() if v is not None}
-                else:
-                    logger.warning(
-                        "params_file '%s' does not contain a mapping — skipping required-param check",
-                        self.params_file,
-                    )
-                    skip_required = True
-            except Exception as exc:
-                logger.warning(
-                    "Could not read params_file '%s': %s — skipping required-param check",
-                    self.params_file,
-                    exc,
-                )
-                skip_required = True
-
-        merged.update(self.params or {})
-
-        errors = validate_params(
-            merged,
-            schema,
-            pipeline_id=self.id,
-            skip_required=skip_required,
-        )
-        if errors:
-            joined = "\n  - ".join(errors)
-            raise ValueError(f"Parameter validation failed:\n  - {joined}")
-
-        return self
-
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:
@@ -381,6 +332,76 @@ class NfPipeline(Workflow):
                 data["description"] = nfcore_info.get("description", "")
 
         return data
+
+    @field_validator("params", mode="after")
+    @classmethod
+    def validate_params_against_schema(
+        cls, value: Optional[CoercedParams], info: ValidationInfo
+    ) -> Optional[CoercedParams]:
+        url: Optional[str] = info.data.get("url")
+        version: Optional[str] = info.data.get("version")
+        node_id: Optional[str] = info.data.get("id")
+        params_file: Optional[Any] = info.data.get("params_file")
+        name: Optional[str] = info.data.get("name")
+
+        print("DEBUG: NfPipeline::validate_params - url ", url)
+        print("DEBUG: NfPipeline::validate_params - version ", version)
+        print("DEBUG: NfPipeline::validate_params - id ", node_id)
+        print("DEBUG: NfPipeline::validate_params - name ", name)
+
+        if not url or not name or not version:
+            return value
+
+        try:
+            schema = get_pipeline_schema(url, version)
+        except PipelineSchemaError as e:
+            click.echo(
+                click.style(
+                    f"Warning: cannot validate params for '{name}': {e}",
+                    fg="yellow",
+                )
+            )
+            return value
+
+        # Start from params_file contents, then let value override.
+        # This gives the full picture for required-param checks while
+        # honouring the precedence rule (value wins on collision).
+        merged: dict[str, str] = {}
+        skip_required = False
+
+        if params_file is not None:
+            try:
+                with open(params_file) as fh:
+                    file_data = yaml.safe_load(fh) or {}
+                if isinstance(file_data, dict):
+                    merged = {k: str(v) for k, v in file_data.items() if v is not None}
+                else:
+                    logger.warning(
+                        "params_file '%s' does not contain a mapping — skipping required-param check",
+                        params_file,
+                    )
+                    skip_required = True
+            except Exception as exc:
+                logger.warning(
+                    "Could not read params_file '%s': %s — skipping required-param check",
+                    params_file,
+                    exc,
+                )
+                skip_required = True
+
+        merged.update(value or {})
+
+        errors = validate_params(
+            merged,
+            schema,
+            pipeline_id=node_id,
+            skip_required=skip_required,
+        )
+        if errors:
+            joined = "\n  - ".join(errors)
+            raise ValueError(f"Parameter validation failed:\n  - {joined}")
+
+        return value
 
     def hash(self) -> str:
         data = f"{self.url}{self.version}"
@@ -431,13 +452,16 @@ class NfPipeline(Workflow):
 # ---------------------------------------------------------------------------
 
 
-class NfModule(Workflow):
+class NfModule(BaseWorkflow):
     """A Nextflow module step executed with 'nextflow module run'."""
 
     type: Literal[WorkflowType.NF_MODULE] = WorkflowType.NF_MODULE
     container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = (
         None
     )
+    # validate_default=True ensures the params field_validator runs even when
+    # params is absent from the input (Pydantic skips field validators for defaults otherwise).
+    params: Optional[CoercedParams] = Field(default=None, validate_default=True)
 
     @field_validator("version", mode="after")
     @classmethod
@@ -455,23 +479,32 @@ class NfModule(Workflow):
             )
         return value
 
-    @model_validator(mode="after")
-    def validate_params_against_schema(self) -> "NfModule":
-        schema = get_module_schema(self.name, self.version)
+    @field_validator("params", mode="after")
+    @classmethod
+    def validate_params_against_schema(
+        cls, value: Optional[dict], info: ValidationInfo
+    ) -> Optional[dict]:
+        name: str = info.data.get("name", "")
+        version: str = info.data.get("version", "")
+        node_id: str = info.data.get("id", "")
+
+        if not name or not version:
+            return value
+
+        schema = get_module_schema(name, version)
         if not schema:
-            return self
+            return value
 
         errors = validate_params(
-            self.params or {},
+            value or {},
             schema,
-            pipeline_id=self.id,
+            pipeline_id=node_id,
             skip_required=False,
         )
         if errors:
             joined = "\n  - ".join(errors)
             raise ValueError(f"Parameter validation failed:\n  - {joined}")
-
-        return self
+        return value
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"
@@ -504,7 +537,7 @@ class NfModule(Workflow):
 
 # Discriminated union used at deserialization boundaries (API, config load).
 # Internal plumbing (graph, events, runner) uses the Workflow base class.
-AnyWorkflow = Annotated[NfPipeline | NfModule, Field(discriminator="type")]
+Workflow = Annotated[NfPipeline | NfModule, Field(discriminator="type")]
 
 
 # ---------------------------------------------------------------------------
@@ -596,7 +629,7 @@ class Transition(BaseModel):
 
 class MetaworkflowConfig(BaseModel):
     config_version: str
-    workflows: List[AnyWorkflow]
+    workflows: List[Workflow]
     globals: Optional[GlobalOptions] = None
     transitions: List[Transition]
 
@@ -608,6 +641,9 @@ class MetaworkflowConfig(BaseModel):
         dict keys become the `id` field of each item.
         Missing `type` defaults to WorkflowType.NF_PIPELINE for backward compatibility.
         """
+        if not data:
+            return data
+
         value = data.get("workflows")
         if isinstance(value, dict):
             items = []
@@ -683,6 +719,8 @@ def dump_config(config: MetaworkflowConfig, path: Path):
         },
         "transitions": [t.model_dump() for t in config.transitions],
     }
+    print("DEBUG models::dump_config config_dict = ", config_dict)
+
     if not config_dict["globals"]:
         del config_dict["globals"]
 

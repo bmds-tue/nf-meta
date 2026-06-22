@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -433,7 +433,6 @@ class NfPipeline(BaseWorkflow):
             "params",
             "description",
             "is_nfcore",
-            "position",
             "config_file",
             "profile",
             "main_script",
@@ -522,7 +521,6 @@ class NfModule(BaseWorkflow):
             "type",
             "version",
             "params",
-            "position",
             "config_file",
             "container_engine",
         }

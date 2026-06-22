@@ -541,7 +541,7 @@ class GlobalOptions(BaseModel):
     profile: Optional[str] = None
     config_file: Optional[ExistingNfConfigFile] = None
     params: Optional[CoercedParams] = None
-    nextflow_version: Optional[str | tuple[int, int, int, int] | int] = None
+    nextflow_version: Optional[str | int | float] = None
 
     @field_validator("profile", mode="after")
     @classmethod
@@ -558,25 +558,14 @@ class GlobalOptions(BaseModel):
         if v is None:
             return v
 
-        if isinstance(v, (tuple, list)):
-            if len(v) == 4 and all(isinstance(x, int) for x in v):
-                return tuple(v)
-            raise ValueError(
-                f"nextflow_version tuple must have exactly 4 int elements, got {v!r}."
-            )
-
-        if isinstance(v, int):
-            return v
-
-        if isinstance(v, float):
+        if isinstance(v, int) or isinstance(v, float):
             return str(v)
 
         if not isinstance(v, str):
             raise ValueError(
-                f"nextflow_version must be a string, integer, or 4-tuple of ints, got {type(v).__name__!r}."
+                f"nextflow_version must be a string, integer, or float, got {type(v).__name__!r}."
             )
 
-        edge_flag = 1 if v.endswith("-edge") else 0
         numeric_part = v.removesuffix("-edge")
 
         raw_parts = numeric_part.split(".")
@@ -597,10 +586,8 @@ class GlobalOptions(BaseModel):
         v = self.nextflow_version
         if v is None:
             return None
-        if isinstance(v, tuple):
-            return v
-        if isinstance(v, int):
-            return (v, 0, 0, 0)
+
+        v = str(v)
         edge_flag = 1 if v.endswith("-edge") else 0
         numeric_part = v.removesuffix("-edge")
         raw_parts = numeric_part.split(".")
@@ -608,7 +595,8 @@ class GlobalOptions(BaseModel):
         major = numeric[0]
         minor = numeric[1] if len(numeric) > 1 else 0
         patch = numeric[2] if len(numeric) > 2 else 0
-        return (major, minor, patch, edge_flag)
+        version_tuple = (major, minor, patch, edge_flag)
+        return version_tuple
 
 
 # ---------------------------------------------------------------------------

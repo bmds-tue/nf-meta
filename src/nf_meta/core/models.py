@@ -541,7 +541,7 @@ class GlobalOptions(BaseModel):
     profile: Optional[str] = None
     config_file: Optional[ExistingNfConfigFile] = None
     params: Optional[CoercedParams] = None
-    nextflow_version: Optional[tuple[int, int, int, int]] = None
+    nextflow_version: Optional[str | tuple[int, int, int, int] | int] = None
 
     @field_validator("profile", mode="after")
     @classmethod
@@ -552,7 +552,9 @@ class GlobalOptions(BaseModel):
 
     @field_validator("nextflow_version", mode="before")
     @classmethod
-    def extract_nextflow_tuple(cls, v: Any) -> Optional[tuple[int, int, int, int]]:
+    def validate_nextflow_version(
+        cls, v: Any
+    ) -> Optional[str | tuple[int, int, int, int] | int]:
         if v is None:
             return v
 
@@ -563,12 +565,15 @@ class GlobalOptions(BaseModel):
                 f"nextflow_version tuple must have exactly 4 int elements, got {v!r}."
             )
 
-        if isinstance(v, (int, float)):
-            v = str(v)
+        if isinstance(v, int):
+            return v
+
+        if isinstance(v, float):
+            return str(v)
 
         if not isinstance(v, str):
             raise ValueError(
-                f"nextflow_version must be a string or 4-tuple of ints, got {type(v).__name__!r}."
+                f"nextflow_version must be a string, integer, or 4-tuple of ints, got {type(v).__name__!r}."
             )
 
         edge_flag = 1 if v.endswith("-edge") else 0
@@ -582,15 +587,27 @@ class GlobalOptions(BaseModel):
                 "e.g. '25', '25.10', '25.10.4-edge'."
             )
 
-        try:
-            numeric = [int(p) for p in raw_parts]
-        except ValueError:
+        if not all(isinstance(x, int) for x in [int(p) for p in raw_parts]):
             raise ValueError(f"Non-integer component in nextflow_version '{v}'.")
 
+        return v
+
+    @property
+    def nextflow_version_tuple(self) -> Optional[tuple[int, int, int, int]]:
+        v = self.nextflow_version
+        if v is None:
+            return None
+        if isinstance(v, tuple):
+            return v
+        if isinstance(v, int):
+            return (v, 0, 0, 0)
+        edge_flag = 1 if v.endswith("-edge") else 0
+        numeric_part = v.removesuffix("-edge")
+        raw_parts = numeric_part.split(".")
+        numeric = [int(p) for p in raw_parts]
         major = numeric[0]
         minor = numeric[1] if len(numeric) > 1 else 0
         patch = numeric[2] if len(numeric) > 2 else 0
-
         return (major, minor, patch, edge_flag)
 
 

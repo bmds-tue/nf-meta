@@ -147,7 +147,7 @@ class WorkflowReference(Reference):
 # ---------------------------------------------------------------------------
 
 
-class BaseWorkflow(BaseModel, ABC):
+class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
     """
     Base class for all metapipeline steps.
     Concrete types: NfPipeline, NfModule.

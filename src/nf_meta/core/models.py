@@ -213,11 +213,11 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
         data += str(self.config_file.absolute()) if self.config_file else ""
         return hashlib.sha256(data.encode()).hexdigest()[:8]
 
-    def model_dump_config(self) -> dict:
-        raise NotImplementedError
+    @abstractmethod
+    def model_dump_config(self) -> dict: ...
 
-    def model_dump_display(self) -> dict:
-        raise NotImplementedError
+    @abstractmethod
+    def model_dump_display(self) -> dict: ...
 
     def model_dump(self, **kwargs: Any):
         kwargs.setdefault("exclude_none", True)

@@ -338,11 +338,6 @@ class NfPipeline(BaseWorkflow):
         params_file: Optional[Any] = info.data.get("params_file")
         name: Optional[str] = info.data.get("name")
 
-        print("DEBUG: NfPipeline::validate_params - url ", url)
-        print("DEBUG: NfPipeline::validate_params - version ", version)
-        print("DEBUG: NfPipeline::validate_params - id ", node_id)
-        print("DEBUG: NfPipeline::validate_params - name ", name)
-
         if not url or not name or not version:
             return value
 
@@ -739,7 +734,6 @@ def dump_config(config: MetaworkflowConfig, path: Path):
         },
         "transitions": [t.model_dump() for t in config.transitions],
     }
-    print("DEBUG models::dump_config config_dict = ", config_dict)
 
     if not config_dict["globals"]:
         del config_dict["globals"]

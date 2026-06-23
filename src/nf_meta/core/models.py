@@ -672,6 +672,29 @@ class MetaworkflowConfig(BaseModel):
                 )
         return self
 
+    @model_validator(mode="after")
+    def warn_about_module_executor(self):
+
+        if self.globals.config_file:
+            return self
+
+        # if no config, check if nf-modules are used
+        for wf in self.workflows:
+            if not wf.type == WorkflowType.NF_MODULE:
+                continue
+
+            if wf.container_engine:
+                continue
+
+            logger.warning(
+                "Running Nextflow module(s) without specifying an executor "
+                "or a global Nextflow config relies on the local environment.\n"
+                "This will cause errors, if module dependencies are not "
+                "available locally and breaks reproducibility"
+            )
+
+        return self
+
     @field_validator("config_version")
     @classmethod
     def config_version_valid(cls, config_version):

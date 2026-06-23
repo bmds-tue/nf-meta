@@ -155,7 +155,10 @@ def get_nfcore_module_releases(name: str) -> list[dict]:
     Returns [] for unknown modules (404) or on any network/parse error.
     Results are cached for the process lifetime — restart the editor to refresh.
     """
-    url = f"{_NXF_REGISTRY_BASE}/nf-core%2F{name}/releases"
+    # The registry endpoints expects underscore ("_")
+    # characters in the name to be urlencoded!
+    name_enc = name.replace("_", "%2F")
+    url = f"{_NXF_REGISTRY_BASE}/nf-core%2F{name_enc}/releases"
     data = _fetch_json(url, f"releases for nf-core/{name}")
     if not isinstance(data, dict):
         return []

@@ -104,9 +104,7 @@ class NfPipelineRun(WorkflowRun, workflow_type=WorkflowType.NF_PIPELINE):
         if self.globals and self.globals.config_file:
             nf_cfg = Path(self.globals.config_file)
             if not nf_cfg.exists():
-                raise NfMetaRunnerError(
-                    f"Global config file does not exist: {nf_cfg}"
-                )
+                raise NfMetaRunnerError(f"Global config file does not exist: {nf_cfg}")
             cmd += ["-c", str(nf_cfg)]
 
         if wf.config_file:
@@ -151,9 +149,7 @@ class NfModuleRun(WorkflowRun, workflow_type=WorkflowType.NF_MODULE):
         if self.globals and self.globals.config_file:
             nf_cfg = Path(self.globals.config_file)
             if not nf_cfg.exists():
-                raise NfMetaRunnerError(
-                    f"Global config file does not exist: {nf_cfg}"
-                )
+                raise NfMetaRunnerError(f"Global config file does not exist: {nf_cfg}")
             cmd += ["-c", str(nf_cfg)]
 
         if wf.config_file:

@@ -203,7 +203,10 @@ class SimplePythonRunner(BaseRunner):
         return (process.returncode, stdout, stderr)
 
     def _run_workflow(
-        self, wf: Workflow, globals: Optional[GlobalOptions] = None, resume: bool = True
+        self,
+        wf: Workflow,
+        globals: Optional[GlobalOptions] = None,
+        resume: bool = True,
     ) -> bool:
         wf_dir = self._workflow_dir(wf)
 
@@ -247,8 +250,8 @@ class SimplePythonRunner(BaseRunner):
         self.run_options.cachedir = Path(self.run_options.cachedir)
         self.run_options.cachedir.mkdir(parents=True, exist_ok=True)
 
-        if graph.global_options.nextflow_version:
-            _ = check_nextflow_version(graph.global_options.nextflow_version)
+        if graph.global_options.nextflow_version_tuple:
+            _ = check_nextflow_version(graph.global_options.nextflow_version_tuple)
 
         workflows = graph.get_workflows_sorted()
         if self.run_options.start or self.run_options.target:

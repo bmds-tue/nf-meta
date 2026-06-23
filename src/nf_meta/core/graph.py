@@ -7,10 +7,9 @@ import networkx as nx
 
 from .models import (
     MetaworkflowConfig,
-    Workflow,
-    AnyWorkflow,
     GlobalOptions,
     Transition,
+    Workflow,
     load_config,
     dump_config,
     CONFIG_VERSION_MAX,

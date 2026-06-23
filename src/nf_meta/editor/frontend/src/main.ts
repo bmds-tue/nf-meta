@@ -1,6 +1,7 @@
-import { createApp, } from 'vue'
+import { createApp, h } from 'vue'
 import { createPinia } from 'pinia'
-import { mdi } from 'vuetify/iconsets/mdi'
+import { aliases, mdi } from 'vuetify/iconsets/mdi'
+import nfcoreIconUrl from './assets/nfcore.svg'
 import App from './App.vue'
 
 import { usePipelineStore } from './store'
@@ -16,6 +17,11 @@ import "vuetify/dist/vuetify.css"
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
+
+const NfCoreIcon = (props: { size?: string | number }) => {
+  const px = props.size ? `${props.size}px` : '1.2em'
+  return h('img', { src: nfcoreIconUrl, style: { width: px, height: px, verticalAlign: 'middle' } })
+}
 
 const vuetify = createVuetify({
   theme: {
@@ -51,6 +57,7 @@ const vuetify = createVuetify({
   },
   icons: {
     defaultSet: "mdi",
+    aliases: { ...aliases, nfcore: NfCoreIcon },
     sets: { mdi }
   },
   components,

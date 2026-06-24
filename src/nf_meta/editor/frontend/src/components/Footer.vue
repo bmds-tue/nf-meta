@@ -1,12 +1,12 @@
 <template>
-  <div class="footer-wrapper">
+  <div class="d-flex flex-column flex-shrink-0">
     <v-expand-transition>
-      <div v-if="activityStore.drawerOpen" class="activity-panel">
-        <div class="activity-panel-header">
+      <div v-if="activityStore.drawerOpen" class="activity-panel d-flex flex-column bg-surface overflow-hidden">
+        <div class="activity-panel-header d-flex align-center justify-space-between pr-1 flex-shrink-0">
           <v-tabs v-model="activeTab" density="compact" height="36">
             <v-tab value="history" class="text-caption">History</v-tab>
           </v-tabs>
-          <div class="drawer-actions">
+          <div class="d-flex align-center ga-1">
             <v-btn
               v-if="activeTab === 'history'"
               size="x-small"
@@ -27,15 +27,15 @@
       </div>
     </v-expand-transition>
 
-    <v-footer class="app-footer pt-0 pb-0">
-      <span class="left">{{ year }} ©</span>
+    <v-footer class="app-footer pt-0 pb-0 d-flex align-center justify-space-between text-caption flex-shrink-0">
+      <span>{{ year }} ©</span>
 
-      <span class="center">
+      <span>
         Code and Issues on
         <a :href="github">Github</a>
       </span>
 
-      <span class="right">
+      <span class="d-flex align-center ga-1">
         <v-btn
           :title="activityStore.drawerOpen ? 'Hide history' : 'Show history'"
           size="x-small"
@@ -64,53 +64,21 @@ const activityStore = useActivityStore()
 </script>
 
 <style scoped>
-.footer-wrapper {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 .activity-panel {
   max-height: 280px;
-  overflow: hidden;
   border-top: 1px solid rgb(var(--v-theme-surfaceVariant));
-  background: rgb(var(--v-theme-surface));
-  display: flex;
-  flex-direction: column;
 }
 
 .activity-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-right: 4px;
   border-bottom: 1px solid rgb(var(--v-theme-surfaceVariant));
-  flex-shrink: 0;
-}
-
-.drawer-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
 }
 
 .app-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
   color: rgb(var(--v-theme-onSurface));
-  flex-shrink: 0;
   backdrop-filter: blur(6px);
 }
 
 .app-footer a {
   color: inherit;
-}
-
-.right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 </style>

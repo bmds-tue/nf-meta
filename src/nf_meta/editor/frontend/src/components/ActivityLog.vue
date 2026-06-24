@@ -47,7 +47,7 @@ function formatTime(date: Date): string {
 </script>
 
 <template>
-    <div class="log-wrapper">
+    <div class="w-100 overflow-y-auto">
         <v-list density="compact" class="pa-0">
             <v-list-item v-if="!log.length">
                 No changes in history yet
@@ -57,7 +57,7 @@ function formatTime(date: Date): string {
                 :key="i"
                 class="px-1 py-0"
             >
-                <div class="row-grid">
+                <div class="d-flex align-center ga-3 w-100">
                     <div class="chip-cell">
                         <v-chip
                             :color="chipColor(entry.event.type)"
@@ -66,7 +66,7 @@ function formatTime(date: Date): string {
                         >{{ entry.event.type }}</v-chip>
                     </div>
                     <span class="text-caption">{{ label(entry.event) }}</span>
-                    <span class="text-caption timestamp">{{ formatTime(entry.timestamp) }}</span>
+                    <span class="text-caption ml-auto text-no-wrap">{{ formatTime(entry.timestamp) }}</span>
                 </div>
             </v-list-item>
         </v-list>
@@ -74,24 +74,7 @@ function formatTime(date: Date): string {
 </template>
 
 <style scoped>
-.log-wrapper {
-    width: 100%;
-    overflow-y: auto;
-}
-
-.row-grid {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-}
-
 .chip-cell {
     flex: 0 0 160px;
-}
-
-.timestamp {
-    margin-left: auto;
-    white-space: nowrap;
 }
 </style>

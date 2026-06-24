@@ -13,7 +13,7 @@ from nf_meta.core.nf_core_utils import (
     get_pipeline_schema,
     PipelineSchemaError,
 )
-from nf_meta.core.models import AnyWorkflow, Transition, GlobalOptions
+from nf_meta.core.models import Workflow, Transition, GlobalOptions
 from nf_meta.core.events import (
     AddTransition,
     AddWorkflow,
@@ -109,13 +109,13 @@ def update_global_config(globals: GlobalOptions):
 
 
 @api_router.post("/node/add/")
-def add_node(wf: AnyWorkflow):
+def add_node(wf: Workflow):
     SESSION.handle_command(AddWorkflow(workflow=wf))
     return JSONResponse(dict())
 
 
 @api_router.post("/node/update/")
-def update_node(wf: AnyWorkflow):
+def update_node(wf: Workflow):
     SESSION.handle_command(EditWorkflow(workflow=wf))
     return JSONResponse(dict())
 

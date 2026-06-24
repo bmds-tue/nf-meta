@@ -100,7 +100,7 @@ watch(
   sideBarOpen,
   async () => {
     nextTick(() => {
-      setTimeout(fitView, 1)
+      setTimeout(fitView, 300)
     })
   }
 )
@@ -189,7 +189,9 @@ onMounted(async () => {
         </template>
       </VueFlow>
   
-      <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
+      <v-expand-x-transition>
+        <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
+      </v-expand-x-transition>
     </div>
     <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>

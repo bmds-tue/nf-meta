@@ -28,23 +28,20 @@
     </v-expand-transition>
 
     <v-footer class="app-footer pt-0 pb-0 d-flex align-center justify-space-between text-caption flex-shrink-0">
-      <span>{{ year }} ©</span>
-
-      <span>
-        Code and Issues on
-        <a :href="github">Github</a>
-      </span>
-
       <span class="d-flex align-center ga-1">
-        <v-btn
-          :title="activityStore.drawerOpen ? 'Hide history' : 'Show history'"
-          size="x-small"
-          variant="text"
-          icon="mdi-history"
-          @click="activityStore.toggleDrawer()"
-        ></v-btn>
-        v{{ version }}
+        <span>v{{ version }}</span>
+        <v-btn :href="github" target="_blank" size="x-small" variant="text" icon="mdi-github"></v-btn>
       </span>
+
+      <span>{{ graphStore.filename }}</span>
+
+      <v-btn
+        :title="activityStore.drawerOpen ? 'Hide history' : 'Show history'"
+        size="x-small"
+        variant="text"
+        icon="mdi-history"
+        @click="activityStore.toggleDrawer()"
+      ></v-btn>
     </v-footer>
   </div>
 </template>
@@ -53,14 +50,14 @@
 import { ref } from 'vue'
 import { APP_VERSION } from '../version'
 import ActivityLog from './ActivityLog.vue'
-import { useActivityStore } from '../store'
+import { useActivityStore, useGraphStore } from '../store'
 
-const year = new Date().getFullYear()
 const version = APP_VERSION
 const github = "https://github.com/bmds-tue/nf-meta"
 
 const activeTab = ref('history')
 const activityStore = useActivityStore()
+const graphStore = useGraphStore()
 </script>
 
 <style scoped>
@@ -78,7 +75,4 @@ const activityStore = useActivityStore()
   backdrop-filter: blur(6px);
 }
 
-.app-footer a {
-  color: inherit;
-}
 </style>

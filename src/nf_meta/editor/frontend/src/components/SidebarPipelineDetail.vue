@@ -188,10 +188,3 @@ function editDetail() {
   </v-card-text>
 </template>
 
-<style scoped>
-.greyscale {
-  filter: grayscale(100%);
-  opacity: 0.5;
-  transition: filter 0.2s, opacity 0.2s;
-}
-</style>

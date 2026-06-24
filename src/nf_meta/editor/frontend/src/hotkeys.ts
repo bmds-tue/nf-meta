@@ -1,5 +1,5 @@
 import { useHotkey } from 'vuetify'
-import { useEditorStore, useGraphStore, useActivityStore } from './store.ts'
+import { useEditorStore, useGraphStore, useActivityStore } from './store'
 import { useVueFlow } from '@vue-flow/core'
 
 export function useEditorHotkeys() {

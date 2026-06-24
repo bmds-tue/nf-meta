@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useEditorStore } from '../store.ts'
-import { useGraphStore } from '../store.ts'
+import { useEditorStore } from '../store'
+import { useGraphStore } from '../store'
 import { ref } from 'vue'
 
 const editorStore = useEditorStore()

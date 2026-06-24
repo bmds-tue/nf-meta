@@ -4,7 +4,7 @@ import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import nfcoreIconUrl from './assets/nfcore.svg'
 import App from './App.vue'
 
-import { usePipelineStore } from './store'
+import { usePipelineStore, useModuleStore } from './store'
 import { useEditorHotkeys } from './hotkeys'
 
 import '@vue-flow/core/dist/style.css'
@@ -37,7 +37,7 @@ const vuetify = createVuetify({
 
           // Brand
           primary: '#2563eb',
-          primarySoft:  '#5e88e3',
+          primarySoft: '#5e88e3',
 
           // Semantic
           success: '#16a34a',
@@ -47,6 +47,8 @@ const vuetify = createVuetify({
           // Graph domain (separate from semantic!)
           nodeDefaultBorder: '#925819',
           nodeNfCoreBorder: '#1a9655',
+
+          nfcore: '#1a9655',
 
           // Text
           onSurface: '#cbd5e1',
@@ -70,9 +72,11 @@ app.use(pinia)
 app.use(vuetify)
 app.mount("#app")
 
-// Prepopulate data in the pipeline store
+// Prepopulate data in pipeline and module stores
 const pipelineStore = usePipelineStore()
 pipelineStore.initialize()
+const moduleStore = useModuleStore()
+moduleStore.initialize()
 
 // Initialize hotkey listeners
 useEditorHotkeys()

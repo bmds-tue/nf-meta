@@ -1,4 +1,5 @@
-import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, APIGlobalOptions, FieldError } from './types'
+import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo, APIGlobalOptions, FieldError, NewNodeData } from './types'
+import { WorkflowType } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import { ref, computed, watch } from 'vue'
@@ -39,7 +40,7 @@ export const useEditorStore = defineStore("editor", () => {
     const sideBarTab = ref('nodes')
     const sideBarActiveDetailId = ref(0)
     const _nextSideBarId = ref(1)
-    const _sideBarNodes = ref<SideBarDetail<APINodeData>[]>([])
+    const _sideBarNodes = ref<SideBarDetail<APINodeData | NewNodeData>[]>([])
     const sideBarNodes = computed(() => _sideBarNodes.value)
 
     const _saveDialogOpen = ref<boolean>(false)
@@ -80,20 +81,26 @@ export const useEditorStore = defineStore("editor", () => {
         return { id: _nextSideBarId.value, detailData: detailData }
     }
 
-    function addNodeToSideBar(node: APINodeData) {
+    function addNodeToSideBar(node: APINodeData | NewNodeData) {
         // If the node is not new (i.e. has an id)
         // -> Check if it is already opened in the side bar and jump there instead
         // If it is new, there should only be one being created at a time.
-        const existingDetail = sideBarNodes.value.find(
-            (sideBarDetail) => sideBarDetail.detailData?.id == node?.id
-        )
+        const nodeId = 'id' in node ? node.id : undefined
+        const existingDetail = sideBarNodes.value.find((sideBarDetail) => {
+            const detailId = 'id' in sideBarDetail.detailData ? sideBarDetail.detailData.id : undefined
+            return detailId == nodeId
+        })
         if (existingDetail) {
             setActiveSidebarDetailId(existingDetail.id)
             return
         }
 
         const newDetail = createSideBarDetailWithId(node)
-        _sideBarNodes.value = [..._sideBarNodes.value, newDetail]
+        if (!('id' in newDetail.detailData)) {
+            _sideBarNodes.value = [newDetail, ..._sideBarNodes.value]
+        } else {
+            _sideBarNodes.value = [..._sideBarNodes.value, newDetail]
+        }
         setActiveSidebarDetailId(newDetail.id)
     }
 
@@ -230,9 +237,15 @@ export const useGraphStore = defineStore('graph', () => {
 
     function extractFieldErrors(fieldErrors: FieldError[], workflowId: string): Record<string, string[]> {
         const result: Record<string, string[]> = {}
+        const discriminators = new Set<string>(Object.values(WorkflowType))
         for (const err of fieldErrors.filter(e => e.workflow_id === workflowId || e.workflow_id === null)) {
-            if (!result[err.field]) result[err.field] = []
-            result[err.field]!.push(err.message)
+            // Strip discriminated-union prefix: "nf-pipeline.url" → "url"
+            const parts = err.field.split(".")
+            const field = parts.length > 1 && discriminators.has(parts[0]!)
+                ? parts.slice(1).join(".")
+                : err.field
+            if (!result[field]) result[field] = []
+            result[field]!.push(err.message)
         }
         return result
     }
@@ -484,5 +497,31 @@ export const usePipelineStore = defineStore("pipeline", () => {
     return {
         initialize,
         nfCorePipelines,
+    }
+})
+
+export const useModuleStore = defineStore("module", () => {
+    const nfCoreModules = ref<NfCoreModuleInfo[]>()
+
+    async function initialize() {
+        const endpoint = '/api/nfcore/modules/'
+        fetch(endpoint, { method: "GET", headers: { 'Content-Type': 'application/json' } })
+            .then(r => r.ok ? r.json() : null)
+            .then((data: NfCoreModuleInfo[] | null) => {
+                if (data) nfCoreModules.value = data
+            })
+    }
+
+    async function fetchModuleVersions(shortName: string): Promise<NfCoreModuleVersionInfo[]> {
+        const endpoint = `/api/nfcore/modules/${shortName}/versions/`
+        const response = await fetch(endpoint, { method: "GET" })
+        if (!response.ok) return []
+        return response.json() as Promise<NfCoreModuleVersionInfo[]>
+    }
+
+    return {
+        initialize,
+        nfCoreModules,
+        fetchModuleVersions,
     }
 })

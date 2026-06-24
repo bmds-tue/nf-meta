@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { ref, watch } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
@@ -34,6 +34,17 @@ const editorStore = useEditorStore()
 const paramsString = props.modelValue ? YAML.stringify(props.modelValue) : ""
 const code = ref(paramsString)
 const error = ref<string>("")
+
+// Emit parsed params on every valid YAML change so v-model stays live.
+// Explicit save() is still needed only for the @save event (Cmd+S / API call).
+watch(code, (newCode) => {
+  try {
+    emit("update:modelValue", YAML.parse(newCode))
+    error.value = ""
+  } catch {
+    // don't emit on parse error — keep last valid modelValue
+  }
+})
 
 
 // ==== THEMES ================================================

@@ -1,0 +1,133 @@
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue';
+import { useModuleStore } from '../store';
+import type { APINfModuleNodeData, NfCoreModuleVersionInfo } from '../types';
+import type { SubmitEventPromise } from 'vuetify';
+import YamlEditor from './YamlEditor.vue';
+
+const props = defineProps<{
+  initialValue: APINfModuleNodeData,
+  errors: Record<string, string[]>,
+  isNew: boolean,
+}>()
+
+const emit = defineEmits<{
+  save: [data: APINfModuleNodeData],
+  delete: [],
+}>()
+
+const moduleStore = useModuleStore()
+
+const form = ref<APINfModuleNodeData>({ ...props.initialValue })
+const isEditing = ref(props.isNew)
+const moduleVersions = ref<string[]>([])
+const versionsLoading = ref(false)
+
+// nf-core/ prefix stripped for the API, shown with prefix in the autocomplete
+const moduleNames = computed(() => {
+  return moduleStore.nfCoreModules?.map(m => `nf-core/${m.name}`) ?? []
+})
+
+async function handleUpdateModule() {
+  const name = form.value.name
+  form.value.version = undefined
+  if (!name) {
+    moduleVersions.value = []
+    return
+  }
+  const shortName = name.replace(/^nf-core\//, '')
+  versionsLoading.value = true
+  try {
+    moduleVersions.value = (await moduleStore.fetchModuleVersions(shortName)).map(nfmv => nfmv.version)
+  } finally {
+    versionsLoading.value = false
+  }
+  // auto-select the latest version if none set yet
+  if (!form.value.version && moduleVersions.value.length > 0) {
+    form.value.version = moduleVersions.value[0]
+  }
+}
+
+// Load versions when editing an existing module (name already set)
+watch(() => props.initialValue.name, async (name) => {
+  if (name && !props.isNew) {
+    form.value.name = name
+    await handleUpdateModule()
+  }
+}, { immediate: true })
+
+function submitForm(e: SubmitEventPromise) {
+  e.then(value => {
+    if (value.valid) {
+      emit('save', { ...form.value })
+    }
+  })
+}
+
+function handleReset() {
+  form.value = { ...props.initialValue }
+  isEditing.value = false
+}
+
+function editDetail() {
+  isEditing.value = true
+}
+</script>
+
+<template>
+  <div class="m-0 p-0">
+  
+    <div v-if="!isEditing" class="content">
+      <div class="d-flex align-center">
+        <strong>{{ form.name }}</strong>
+        <v-chip v-if="form.version" size="small" class="ml-2">{{ form.version }}</v-chip>
+      </div>
+      <v-card-actions class="justify-end">
+        <v-btn @click.stop="editDetail">Edit</v-btn>
+        <v-btn @click.stop="emit('delete')" color="error">Delete</v-btn>
+      </v-card-actions>
+    </div>
+
+    <div v-else class="content">
+      <v-form @submit.prevent="submitForm">
+        <v-autocomplete
+          label="Module name"
+          v-model="form.name"
+          :items="moduleNames"
+          variant="outlined"
+          density="compact"
+          @update:modelValue="handleUpdateModule"
+          :error-messages="errors.name">
+        </v-autocomplete>
+
+        <v-autocomplete
+          label="Version"
+          v-model="form.version"
+          :items="moduleVersions"
+          key="version"
+          :loading="versionsLoading"
+          :disabled="!form.name"
+          variant="outlined"
+          density="compact"
+          :error-messages="errors.version">
+        </v-autocomplete>
+
+        <v-label class="mt-2 mb-1">Params</v-label>
+        <p v-if="errors['params']?.length" style="color: rgb(var(--v-theme-error)); font-size: 0.85em;" class="mb-1">
+          {{ errors['params']!.join(' ') }}
+        </p>
+        <div style="height: 220px;">
+          <YamlEditor
+            v-model="form.params"
+            :node-id="form.id">
+          </YamlEditor>
+        </div>
+
+        <v-card-actions class="justfiy-end">
+          <v-btn class="me-4" type="submit">save changes</v-btn>
+          <v-btn @click="handleReset" color="error">cancel edit</v-btn>
+        </v-card-actions>
+      </v-form>
+    </div>
+  </div>
+</template>

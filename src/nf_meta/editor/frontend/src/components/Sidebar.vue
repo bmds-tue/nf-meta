@@ -3,12 +3,9 @@ import NodeDetail from "./SidebarNodeDetail.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
-import { useEditorStore, useGraphStore } from "../store"
-import YamlEditor from "./YamlEditor.vue"
+import { useEditorStore } from "../store"
 import GlobalConfig from "./GlobalConfig.vue"
-import type { SideBarDetail, APINodeData } from "../types"
 
-const graphStore = useGraphStore()
 const editorStore = useEditorStore()
 
 const { fitView } = useVueFlow()
@@ -70,21 +67,6 @@ const startDrag = (e: MouseEvent) => {
     window.addEventListener("pointerup", stopDrag)
 }
 
-const closeDetail = (detailId: number) => {
-  editorStore.removeSidebarDetail(detailId)
-}
-
-const nodeParamErrors = ref<Record<number, string>>({})
-
-async function saveNodeParams(detail: SideBarDetail<APINodeData>) {
-  nodeParamErrors.value[detail.id] = ""
-  const result = await graphStore.saveNode(detail.detailData)
-  if (!result.ok && result.fieldErrors) {
-    const fieldErrors = graphStore.extractFieldErrors(result.fieldErrors, detail.detailData.id ?? "")
-    nodeParamErrors.value[detail.id] = fieldErrors["params"]?.join("; ") ?? ""
-  }
-}
-
 onBeforeUnmount(stopDrag)
 </script>
 
@@ -93,7 +75,6 @@ onBeforeUnmount(stopDrag)
     <v-container class="pa-0 mb-1">
       <v-tabs v-model="sideBarTab">
         <v-tab value="nodes">Node Details</v-tab>
-        <v-tab value="params">Node Params</v-tab>
         <v-tab value="globals">Globals</v-tab>
       </v-tabs>
     </v-container>
@@ -113,51 +94,6 @@ onBeforeUnmount(stopDrag)
         </v-container>
       </v-tabs-window-item>
 
-      <v-tabs-window-item value="params" class="d-flex flex-column fill-height" transition="none">
-        <v-container v-if="editorStore.sideBarNodes.length > 0 " class="d-flex flex-column flex-grow-1 pa-1">
-          <v-card class="pa-0 mb-1 mt-0 flex-grow-1 d-flex flex-column">
-            <v-card-title>
-              <v-tabs v-model="editorStore.sideBarActiveDetailId" class="flex-grow-0" show-arrows>
-                <v-tab v-for="detail of editorStore.sideBarNodes" :value="detail.id"
-                  @mouseup.middle.stop.prevent="closeDetail(detail.id)">
-                  {{ detail.detailData.name ?? "New Workflow" }}
-                  <template v-slot:append props="{{ detail }}">
-                    <v-btn
-                      title="close params detail"
-                      icon="mdi-close"
-                      size="small"
-                      density="compact"
-                      variant="plain"
-                      rounded="circle"
-                      @click.stop="closeDetail(detail.id)">
-                    </v-btn>
-                  </template>
-                </v-tab>
-              </v-tabs>
-            </v-card-title>
-            <v-card-text>
-
-              <v-tabs-window v-model="editorStore.sideBarActiveDetailId" class="flex-grow-1 d-flex flex-column  mt-1" style="height: 100%;">
-                <v-tabs-window-item v-for="detail of editorStore.sideBarNodes" :value="detail.id" class="flex-grow-1 d-flex flex-column min-h-0" style="height:100%">
-                  <YamlEditor
-                    v-model="detail.detailData.params"
-                    @save="saveNodeParams(detail)"
-                    :node-id="detail.detailData.id ?? ''"
-                    :server-error="nodeParamErrors[detail.id]"
-                    hint="Params defined here do not change your params_file"
-                  ></YamlEditor>
-                </v-tabs-window-item>
-              </v-tabs-window>
-            </v-card-text>
-          </v-card> 
-        </v-container>
-        <v-container v-else class="content">
-          <v-card
-            text="Double click nodes to show detail"
-          ></v-card>
-        </v-container>
-      </v-tabs-window-item>
-  
       <v-tabs-window-item value="globals" class="d-flex flex-cloumn fill-height">
         <v-container class="d-flex flex-column flex-grow-1 pa-1">
           <GlobalConfig></GlobalConfig>

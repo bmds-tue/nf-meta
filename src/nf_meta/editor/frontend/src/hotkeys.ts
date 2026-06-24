@@ -1,10 +1,11 @@
 import { useHotkey } from 'vuetify'
-import { useEditorStore, useGraphStore } from './store.ts'
+import { useEditorStore, useGraphStore, useActivityStore } from './store.ts'
 import { useVueFlow } from '@vue-flow/core'
 
 export function useEditorHotkeys() {
   const graphStore = useGraphStore()
   const editorStore = useEditorStore()
+  const activityStore = useActivityStore()
   const { getSelectedNodes, getSelectedEdges } = useVueFlow({id: "main-flow"})
 
   function deleteSelection() {
@@ -43,5 +44,9 @@ export function useEditorHotkeys() {
 
   useHotkey('meta+b', () => {
     editorStore.toggleSidebar()
+  })
+
+  useHotkey('meta+j', () => {
+    activityStore.toggleDrawer()
   })
 }

@@ -102,3 +102,12 @@ export type NfCoreModuleInfo = {
   description?: string,
   keywords?: string[],
 }
+
+export type APIEvent = {
+  type: string
+  [key: string]: unknown
+}
+
+export type APICommandResponse = {
+  events: APIEvent[]
+}

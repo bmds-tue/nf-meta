@@ -99,7 +99,7 @@ onBeforeUnmount(stopDrag)
           <GlobalConfig></GlobalConfig>
         </v-container>
       </v-tabs-window-item>
-    
+
     </v-tabs-window>
     <div
       class="resize-handle"

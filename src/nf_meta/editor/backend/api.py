@@ -1,7 +1,7 @@
 import os
 from typing import Annotated, Optional
 
-from .serializers import serialize_state, Selection
+from .serializers import serialize_state, serialize_events, Selection
 
 from nf_meta.core.errors import SessionCommandError
 from nf_meta.core.session import SESSION
@@ -92,54 +92,52 @@ def load_graph(config: Path = Body(embed=True)):
 
 @api_router.get("/graph/undo/")
 def undo_most_recent():
-    SESSION.handle_undo()
-    return JSONResponse(dict())
+    events = SESSION.handle_undo()
+    return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.get("/graph/redo/")
 def redo_most_recent():
-    SESSION.handle_redo()
-    return JSONResponse(dict())
+    events = SESSION.handle_redo()
+    return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.post("/globals/update/")
 def update_global_config(globals: GlobalOptions):
-    SESSION.handle_command(UpdateGlobalOptions(globals))
-    pass
+    events = SESSION.handle_command(UpdateGlobalOptions(globals))
+    return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.post("/node/add/")
 def add_node(wf: Workflow):
-    SESSION.handle_command(AddWorkflow(workflow=wf))
-    return JSONResponse(dict())
+    events = SESSION.handle_command(AddWorkflow(workflow=wf))
+    return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.post("/node/update/")
 def update_node(wf: Workflow):
-    SESSION.handle_command(EditWorkflow(workflow=wf))
-    return JSONResponse(dict())
+    events = SESSION.handle_command(EditWorkflow(workflow=wf))
+    return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.delete("/delete/")
 def remove(selection: Selection):
     cmds: list[Command] = []
     for edge_id in selection.edges:
-        # TODO: Change representation in frontend?
-        # Or rely on the ids being created there and containing "->"?
         src, tgt = edge_id.split("->")
         cmds.append(RemoveTransition(src, tgt))
 
     for node_id in selection.nodes:
         cmds.append(RemoveWorkflow(node_id))
 
-    SESSION.handle_command(Transaction(tuple(cmds)))
-    return JSONResponse(dict())
+    events = SESSION.handle_command(Transaction(tuple(cmds)))
+    return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.post("/edge/add/")
 def add_edge(tr: Transition):
-    SESSION.handle_command(AddTransition(tr))
-    return JSONResponse(dict())
+    events = SESSION.handle_command(AddTransition(tr))
+    return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.get("/nfcore/pipelines/")

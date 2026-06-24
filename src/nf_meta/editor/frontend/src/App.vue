@@ -194,7 +194,7 @@ onMounted(async () => {
     <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>
     <Snackbar></Snackbar>
-    <Footer class="footer"></Footer>
+    <Footer></Footer>
 </v-app>
 </template>
 
@@ -215,11 +215,6 @@ onMounted(async () => {
 .editor * {
   outline: 1px solid red;
 } */
-
-.footer {
-  flex-grow: 0;
-  flex-shrink: 0;
-}
 
 .split-view {
   flex: 1;

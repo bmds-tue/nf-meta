@@ -1,4 +1,4 @@
-import type { ApiResult, APINodeData, APIEdgeData, APIGraph, Selection, SideBarDetail, NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo, APIGlobalOptions, FieldError, NewNodeData } from './types'
+import type { ApiResult, APINodeData, APIEdgeData, APIGraph, APICommandResponse, APIEvent, Selection, SideBarDetail, NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo, APIGlobalOptions, FieldError, NewNodeData } from './types'
 import { WorkflowType } from './types'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
@@ -126,10 +126,36 @@ export const useEditorStore = defineStore("editor", () => {
     }
 })
 
+export const useActivityStore = defineStore("activity", () => {
+    interface LogEntry {
+        event: APIEvent
+        timestamp: Date
+    }
+
+    const log = ref<LogEntry[]>([])
+    const drawerOpen = ref(false)
+
+    function pushEvents(events: APIEvent[]) {
+        const entries = events.map(event => ({ event, timestamp: new Date() }))
+        log.value = [...entries, ...log.value]
+    }
+
+    function clear() {
+        log.value = []
+    }
+
+    function toggleDrawer() {
+        drawerOpen.value = !drawerOpen.value
+    }
+
+    return { log, pushEvents, clear, drawerOpen, toggleDrawer }
+})
+
 export const useGraphStore = defineStore('graph', () => {
 
     const { layoutOptions } = useLayout()
     const messageStore = useMessageStore()
+    const activityStore = useActivityStore()
 
     // Track the API retruned Data for internal use
     // to avoid buggy resolution of the 
@@ -266,7 +292,7 @@ export const useGraphStore = defineStore('graph', () => {
     }
 
     async function addOrUpdate<T>(endpoint: string, data: T) {
-        const result = await apiRequest(endpoint, {
+        const result = await apiRequest<APICommandResponse>(endpoint, {
             method: "POST",
             body: JSON.stringify(data)
         })
@@ -274,6 +300,7 @@ export const useGraphStore = defineStore('graph', () => {
         if (!result.ok) {
             handleErrors(result)
         } else {
+            activityStore.pushEvents(result.data.events ?? [])
             await getAndUpdateGraph()
             messageStore.add("Saved", "success")
         }
@@ -281,7 +308,7 @@ export const useGraphStore = defineStore('graph', () => {
     }
 
     async function remove<T>(endpoint: string, data: T) {
-        const result = await apiRequest(endpoint, {
+        const result = await apiRequest<APICommandResponse>(endpoint, {
             method: "DELETE",
             body: JSON.stringify(data)
         })
@@ -289,6 +316,7 @@ export const useGraphStore = defineStore('graph', () => {
         if (!result.ok) {
             handleErrors(result)
         } else {
+            activityStore.pushEvents(result.data.events ?? [])
             await getAndUpdateGraph()
         }
 
@@ -374,7 +402,7 @@ export const useGraphStore = defineStore('graph', () => {
         }
         const endpoint = "/api/graph/undo/"
         const options = { method: "GET" }
-        await apiRequest(endpoint, options)
+        await apiRequest<APICommandResponse>(endpoint, options)
             .then((response) => {
                 if (!response.ok) {
                     const detail = response.graphErrors?.length
@@ -383,6 +411,7 @@ export const useGraphStore = defineStore('graph', () => {
                     messageStore.add(`Undo failed: ${detail}`, "error")
                     return
                 }
+                activityStore.pushEvents(response.data.events ?? [])
                 getAndUpdateGraph()
             })
     }
@@ -394,7 +423,7 @@ export const useGraphStore = defineStore('graph', () => {
         }
         const endpoint = "/api/graph/redo/"
         const options = { method: "GET" }
-        await apiRequest(endpoint, options)
+        await apiRequest<APICommandResponse>(endpoint, options)
             .then((response) => {
                 if (!response.ok) {
                     const detail = response.graphErrors?.length
@@ -403,6 +432,7 @@ export const useGraphStore = defineStore('graph', () => {
                     messageStore.add(`Redo failed: ${detail}`, "error")
                     return
                 }
+                activityStore.pushEvents(response.data.events ?? [])
                 getAndUpdateGraph()
             })
     }

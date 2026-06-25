@@ -49,9 +49,9 @@ function removeDetail() {
 
 const displayName = computed(() => {
   if ('name' in props.detailData && props.detailData.name) return props.detailData.name
-  if (confirmedType.value === WorkflowType.NF_PIPELINE) return 'New Pipeline'
-  if (confirmedType.value === WorkflowType.NF_MODULE) return 'New Module'
-  return 'Add New Node'
+  if (confirmedType.value === WorkflowType.NF_PIPELINE) return 'Add Pipeline'
+  if (confirmedType.value === WorkflowType.NF_MODULE) return 'Add Module'
+  return 'Add Workflow'
 })
 
 const displayVersion = computed(() => {

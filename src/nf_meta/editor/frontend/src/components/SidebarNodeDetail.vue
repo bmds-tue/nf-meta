@@ -65,21 +65,21 @@ const displayVersion = computed(() => {
     'workflow-node-nfcore': confirmedType === WorkflowType.NF_PIPELINE && 'is_nfcore' in detailData && detailData.is_nfcore,
     'workflow-node-module': confirmedType === WorkflowType.NF_MODULE
   }">
-  <v-card-title class="d-flex justify-space-between w-100">
-    <div class="d-flex flex-grow flex-shrink" style="min-width: 0;">
+  <v-card-title
+    class="node-title d-flex justify-space-between align-center w-100"
+    @click="!isActive ? expandDetails() : collapseDetails()"
+  >
+    <div class="d-flex align-center flex-grow-1 flex-shrink-1" style="min-width: 0;">
       <strong class="text-truncate mr-2" :class="isNew ? 'font-italic' : ''">{{ displayName }}</strong>
       <v-chip v-if="displayVersion" size="small">{{ displayVersion }}</v-chip>
       <v-chip v-if="confirmedType === WorkflowType.NF_MODULE" size="small" color="success" class="ml-1">module</v-chip>
     </div>
-    <div>
-      <v-btn
-        @click.stop="!isActive ? expandDetails() : collapseDetails()"
-        :icon="isActive ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-        height="30" width="30" class="ml-1">
-      </v-btn>
+    <div class="d-flex align-center">
+      <v-icon :icon="isActive ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="20" class="ml-1" />
       <v-btn
         @click.stop="removeDetail"
         icon="mdi-close"
+        flat
         height="30" width="30" class="ml-1">
       </v-btn>
     </div>
@@ -114,4 +114,12 @@ const displayVersion = computed(() => {
 </template>
 
 <style scoped>
+.node-title {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s;
+}
+.node-title:hover {
+  background-color: rgba(var(--v-theme-onSurface), 0.06);
+}
 </style>

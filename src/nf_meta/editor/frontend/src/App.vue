@@ -172,11 +172,6 @@ onMounted(async () => {
           @click="editorStore.toggleSidebar"
           icon="mdi-view-split-vertical">
         </v-btn>
-
-        <v-btn 
-          title="editor options"
-          icon="mdi-dots-horizontal">
-        </v-btn>
       </v-container>
     </Panel>
 

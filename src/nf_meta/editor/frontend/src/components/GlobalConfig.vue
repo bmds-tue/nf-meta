@@ -3,20 +3,23 @@ import { ref } from 'vue';
 import CustomFileInput from './CustomFileInput.vue';
 import YamlEditor from './YamlEditor.vue';
 import { useGraphStore } from '../store';
+import { extractFieldErrors } from '../utils';
 
 const graphStore = useGraphStore()
+const saving = ref(false)
 const errors = ref<Record<string, string[]>>({})
 
-function save() {
+async function save() {
     errors.value = {}
-    graphStore.updateGlobalOptions(graphStore.globalOptions)
-        .then(result => {
-            if (!result.ok) {
-                if (result?.fieldErrors) {
-                    errors.value = graphStore.extractFieldErrors(result.fieldErrors, "")
-                }
-            }
-        })
+    saving.value = true
+    try {
+        const result = await graphStore.updateGlobalOptions(graphStore.globalOptions)
+        if (!result.ok && result.fieldErrors) {
+            errors.value = extractFieldErrors(result.fieldErrors, '')
+        }
+    } finally {
+        saving.value = false
+    }
 }
 
 </script>

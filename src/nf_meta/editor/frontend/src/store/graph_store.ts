@@ -4,9 +4,8 @@ import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import type {
     ApiResult, APINodeData, APIEdgeData, APIGraph, APICommandResponse,
-    APIGlobalOptions, Selection, FieldError,
+    APIGlobalOptions, Selection,
 } from '../types'
-import { WorkflowType } from '../types'
 import { useLayout } from '../layout_graph'
 import { useMessageStore, useActivityStore } from './ui_store'
 import { useApiStore } from './api_store'
@@ -68,20 +67,6 @@ export const useGraphStore = defineStore('graph', () => {
             animated: false,
             markerEnd: MarkerType.ArrowClosed,
         }
-    }
-
-    function extractFieldErrors(fieldErrors: FieldError[], workflowId: string): Record<string, string[]> {
-        const result: Record<string, string[]> = {}
-        const discriminators = new Set<string>(Object.values(WorkflowType))
-        for (const err of fieldErrors.filter(e => e.workflow_id === workflowId || e.workflow_id === null)) {
-            const parts = err.field.split('.')
-            const field = parts.length > 1 && discriminators.has(parts[0]!)
-                ? parts.slice(1).join('.')
-                : err.field
-            if (!result[field]) result[field] = []
-            result[field]!.push(err.message)
-        }
-        return result
     }
 
     function handleErrors<T>(result: ApiResult<T>) {
@@ -229,6 +214,5 @@ export const useGraphStore = defineStore('graph', () => {
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,
         getPredecessors, getParams,
-        extractFieldErrors,
     }
 })

@@ -1,25 +1,28 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { useModuleStore } from '../store';
-import type { APINfModuleNodeData, NfCoreModuleVersionInfo } from '../types';
+import { useModuleStore, useGraphStore } from '../store';
+import { extractFieldErrors } from '../utils';
+import type { APINfModuleNodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import YamlEditor from './YamlEditor.vue';
 
 const props = defineProps<{
   initialValue: APINfModuleNodeData,
-  errors: Record<string, string[]>,
   isNew: boolean,
 }>()
 
 const emit = defineEmits<{
-  save: [data: APINfModuleNodeData],
-  delete: [],
+  saved: [],
+  deleted: [],
 }>()
 
 const moduleStore = useModuleStore()
+const graphStore = useGraphStore()
 
 const form = ref<APINfModuleNodeData>({ ...props.initialValue })
 const isEditing = ref(props.isNew)
+const saving = ref(false)
+const errors = ref<Record<string, string[]>>({})
 const moduleVersions = ref<string[]>([])
 const versionsLoading = ref(false)
 
@@ -56,16 +59,34 @@ watch(() => props.initialValue.name, async (name) => {
   }
 }, { immediate: true })
 
-function submitForm(e: SubmitEventPromise) {
-  e.then(value => {
-    if (value.valid) {
-      emit('save', { ...form.value })
+async function submitForm(e: SubmitEventPromise) {
+  const { valid } = await e
+  if (!valid) return
+  errors.value = {}
+  saving.value = true
+  try {
+    const result = await graphStore.saveNode({ ...form.value })
+    if (result.ok) {
+      isEditing.value = false
+      emit('saved')
+    } else if (result.fieldErrors) {
+      errors.value = extractFieldErrors(result.fieldErrors, form.value.id ?? '')
     }
-  })
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDelete() {
+  if (form.value.id) {
+    await graphStore.removeNodeById(form.value.id)
+  }
+  emit('deleted')
 }
 
 function handleReset() {
   form.value = { ...props.initialValue }
+  errors.value = {}
   isEditing.value = false
 }
 
@@ -76,7 +97,7 @@ function editDetail() {
 
 <template>
   <div class="m-0 p-0">
-  
+
     <div v-if="!isEditing" class="content">
       <div class="d-flex align-center">
         <strong>{{ form.name }}</strong>
@@ -84,7 +105,7 @@ function editDetail() {
       </div>
       <v-card-actions class="justify-end">
         <v-btn @click.stop="editDetail">Edit</v-btn>
-        <v-btn @click.stop="emit('delete')" color="error">Delete</v-btn>
+        <v-btn @click.stop="handleDelete" color="error">Delete</v-btn>
       </v-card-actions>
     </div>
 
@@ -123,8 +144,8 @@ function editDetail() {
           </YamlEditor>
         </div>
 
-        <v-card-actions class="justfiy-end">
-          <v-btn class="me-4" type="submit">save changes</v-btn>
+        <v-card-actions class="justify-end">
+          <v-btn class="me-4" type="submit" :loading="saving">save changes</v-btn>
           <v-btn @click="handleReset" color="error">cancel edit</v-btn>
         </v-card-actions>
       </v-form>

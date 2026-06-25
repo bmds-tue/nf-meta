@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { usePipelineStore } from '../store';
+import { usePipelineStore, useGraphStore } from '../store';
+import { extractFieldErrors } from '../utils';
 import type { APINfPipelineNodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import CustomFileInput from './CustomFileInput.vue';
@@ -8,19 +9,21 @@ import YamlEditor from './YamlEditor.vue';
 
 const props = defineProps<{
   initialValue: APINfPipelineNodeData,
-  errors: Record<string, string[]>,
   isNew: boolean,
 }>()
 
 const emit = defineEmits<{
-  save: [data: APINfPipelineNodeData],
-  delete: [],
+  saved: [],
+  deleted: [],
 }>()
 
 const pipelineStore = usePipelineStore()
+const graphStore = useGraphStore()
 
 const form = ref<APINfPipelineNodeData>({ ...props.initialValue })
 const isEditing = ref(props.isNew)
+const saving = ref(false)
+const errors = ref<Record<string, string[]>>({})
 
 const nfCorePipelines = computed(() => {
   return pipelineStore.nfCorePipelines?.map(p => p.name)
@@ -42,16 +45,34 @@ function handleUpdatePipeline() {
   }
 }
 
-function submitForm(e: SubmitEventPromise) {
-  e.then(value => {
-    if (value.valid) {
-      emit('save', { ...form.value })
+async function submitForm(e: SubmitEventPromise) {
+  const { valid } = await e
+  if (!valid) return
+  errors.value = {}
+  saving.value = true
+  try {
+    const result = await graphStore.saveNode({ ...form.value })
+    if (result.ok) {
+      isEditing.value = false
+      emit('saved')
+    } else if (result.fieldErrors) {
+      errors.value = extractFieldErrors(result.fieldErrors, form.value.id ?? '')
     }
-  })
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDelete() {
+  if (form.value.id) {
+    await graphStore.removeNodeById(form.value.id)
+  }
+  emit('deleted')
 }
 
 function handleReset() {
   form.value = { ...props.initialValue }
+  errors.value = {}
   isEditing.value = false
 }
 
@@ -79,7 +100,7 @@ function editDetail() {
       </v-btn>
       <div>
         <v-btn @click.stop="editDetail">Edit</v-btn>
-        <v-btn @click.stop="emit('delete')" color="error">Delete</v-btn>
+        <v-btn @click.stop="handleDelete" color="error">Delete</v-btn>
       </div>
     </v-card-actions>
   </v-card-text>
@@ -181,10 +202,9 @@ function editDetail() {
       </div>
 
       <v-card-actions class="justify-end">
-        <v-btn class="me-4" type="submit">save changes</v-btn>
+        <v-btn class="me-4" type="submit" :loading="saving">save changes</v-btn>
         <v-btn @click="handleReset" color="error">cancel edit</v-btn>
       </v-card-actions>
     </v-form>
   </v-card-text>
 </template>
-

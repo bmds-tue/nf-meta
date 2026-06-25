@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useEditorStore, useGraphStore } from '../store';
+import { useEditorStore } from '../store';
 import type { APINodeData, APINfPipelineNodeData, APINfModuleNodeData, SideBarDetail, NewNodeData, WorkflowTypeValue } from '../types';
 import { WorkflowType } from '../types';
 import SidebarPipelineDetail from './SidebarPipelineDetail.vue';
 import SidebarModuleDetail from './SidebarModuleDetail.vue';
 
 const editorStore = useEditorStore()
-const graphStore = useGraphStore()
 
 const props = defineProps<SideBarDetail<APINodeData | NewNodeData>>()
 
-const errors = ref<Record<string, string[]>>({})
 const isActive = computed(() => editorStore.sideBarActiveDetailId == props.id)
 const isNew = computed(() => !('id' in props.detailData && props.detailData.id))
 
@@ -36,25 +34,6 @@ const moduleData = computed<APINfModuleNodeData>(() => {
   }
   return { type: WorkflowType.NF_MODULE }
 })
-
-async function onSave(data: APINodeData) {
-  errors.value = {}
-  const result = await graphStore.saveNode(data)
-  if (!result.ok) {
-    if (result.fieldErrors) {
-      errors.value = graphStore.extractFieldErrors(result.fieldErrors, data.id ?? '')
-    }
-  } else {
-    removeDetail()
-  }
-}
-
-function onDelete() {
-  if ('id' in props.detailData && props.detailData.id) {
-    graphStore.removeNodeById(props.detailData.id)
-  }
-  editorStore.removeSidebarDetail(props.id)
-}
 
 function expandDetails() {
   editorStore.setActiveSidebarDetailId(props.id)
@@ -118,19 +97,17 @@ const displayVersion = computed(() => {
     <SidebarPipelineDetail
       v-if="isActive && confirmedType === WorkflowType.NF_PIPELINE"
       :initial-value="pipelineData"
-      :errors="errors"
       :is-new="isNew"
-      @save="onSave"
-      @delete="onDelete"
+      @saved="removeDetail"
+      @deleted="removeDetail"
     />
 
     <SidebarModuleDetail
       v-if="isActive && confirmedType === WorkflowType.NF_MODULE"
       :initial-value="moduleData"
-      :errors="errors"
       :is-new="isNew"
-      @save="onSave"
-      @delete="onDelete"
+      @saved="removeDetail"
+      @deleted="removeDetail"
     />
   </v-card-text>
 </v-card>

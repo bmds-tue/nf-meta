@@ -61,6 +61,14 @@ const displayVersion = computed(() => {
 const nodeId = computed(() => 'id' in props.detailData ? props.detailData.id : undefined)
 const isMouseOver = ref(false)
 const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId === nodeId.value && !isMouseOver.value)
+
+function onSaved(newNodeData?: APINodeData) {
+  if (isNew.value) {
+    removeDetail()
+    if (newNodeData) editorStore.addNodeToSideBar(newNodeData, true)
+  }
+  // For existing nodes the subcomponent already set isEditing = false — nothing to do here.
+}
 </script>
 
 <template>
@@ -105,7 +113,7 @@ const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId ===
       v-if="isActive && confirmedType === WorkflowType.NF_PIPELINE"
       :initial-value="pipelineData"
       :is-new="isNew"
-      @saved="removeDetail"
+      @saved="onSaved"
       @deleted="removeDetail"
     />
 
@@ -113,7 +121,7 @@ const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId ===
       v-if="isActive && confirmedType === WorkflowType.NF_MODULE"
       :initial-value="moduleData"
       :is-new="isNew"
-      @saved="removeDetail"
+      @saved="onSaved"
       @deleted="removeDetail"
     />
   </v-card-text>

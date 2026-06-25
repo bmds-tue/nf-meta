@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { usePipelineStore, useGraphStore } from '../store';
 import { extractFieldErrors } from '../utils';
-import type { APINfPipelineNodeData } from '../types';
+import type { APINfPipelineNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import CustomFileInput from './CustomFileInput.vue';
 import YamlEditor from './YamlEditor.vue';
@@ -14,7 +14,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  saved: [],
+  saved: [newNodeData?: APINodeData],
   deleted: [],
 }>()
 
@@ -52,10 +52,16 @@ async function submitForm(e: SubmitEventPromise) {
   errors.value = {}
   saving.value = true
   try {
+    const previousIds = new Set(graphStore.nodes.map(n => n.id))
     const result = await graphStore.saveNode({ ...form.value })
     if (result.ok) {
       isEditing.value = false
-      emit('saved')
+      if (props.isNew) {
+        const newNode = graphStore.nodes.find(n => !previousIds.has(n.id))
+        emit('saved', newNode?.data)
+      } else {
+        emit('saved')
+      }
     } else if (result.fieldErrors) {
       errors.value = extractFieldErrors(result.fieldErrors, form.value.id ?? '')
     }

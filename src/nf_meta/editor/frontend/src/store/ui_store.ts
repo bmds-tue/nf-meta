@@ -74,7 +74,7 @@ export const useEditorStore = defineStore('editor', () => {
         return { id: _nextSideBarId.value, detailData }
     }
 
-    function addNodeToSideBar(node: APINodeData | NewNodeData) {
+    function addNodeToSideBar(node: APINodeData | NewNodeData, prepend = false) {
         const nodeId = 'id' in node ? node.id : undefined
         const existingDetail = sideBarNodes.value.find((sideBarDetail) => {
             const detailId = 'id' in sideBarDetail.detailData ? sideBarDetail.detailData.id : undefined
@@ -86,7 +86,7 @@ export const useEditorStore = defineStore('editor', () => {
         }
 
         const newDetail = createSideBarDetailWithId(node)
-        if (!('id' in newDetail.detailData)) {
+        if (prepend || !('id' in newDetail.detailData)) {
             _sideBarNodes.value = [newDetail, ..._sideBarNodes.value]
         } else {
             _sideBarNodes.value = [..._sideBarNodes.value, newDetail]

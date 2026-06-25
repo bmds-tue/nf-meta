@@ -244,7 +244,9 @@ def get_module_schema(name: str, version: str) -> dict[str, dict]:
     if cached is not None:
         return cached
 
-    path = _NFCORE_MODULES_META_PATH.format(name=name)
+    # nf-core uses "_" as a path separator in short names (e.g. "nf-core/samtools_sort"),
+    # but the GitHub repo stores submodules as nested directories ("samtools/sort").
+    path = _NFCORE_MODULES_META_PATH.format(name=name.replace("_", "/"))
     url = f"{_MODULES_RAW_BASE}/{ref}/{path}"
     auth_headers = _get_auth_headers("github.com")
 

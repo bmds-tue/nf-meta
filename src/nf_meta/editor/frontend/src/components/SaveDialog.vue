@@ -8,25 +8,29 @@ const graphStore = useGraphStore()
 
 const filename = ref<string>(graphStore.filename || "")
 const errorMessages = ref<string[]>([])
+const saving = ref(false)
 
 function resetDialog() {
     errorMessages.value = []
     filename.value = graphStore.filename || ""
 }
 
-function save() {
-    if (filename.value){
-        if (!filename.value.endsWith(".yaml") &&
-            !filename.value.endsWith(".yml")) {
-                errorMessages.value.push("File must have a .yaml or .yml extension")
-                return
-        }
-        graphStore.saveAs(filename.value).then(() => {
-            resetDialog()
-            editorStore.closeSaveDialog()
-        })
-    } else {
+async function save() {
+    if (!filename.value) {
         errorMessages.value.push("Filename Required")
+        return
+    }
+    if (!filename.value.endsWith(".yaml") && !filename.value.endsWith(".yml")) {
+        errorMessages.value.push("File must have a .yaml or .yml extension")
+        return
+    }
+    saving.value = true
+    try {
+        await graphStore.saveAs(filename.value)
+        resetDialog()
+        editorStore.closeSaveDialog()
+    } finally {
+        saving.value = false
     }
 }
 
@@ -56,8 +60,8 @@ function cancel() {
 
         <v-card-actions>
         <v-spacer />
-        <v-btn @click="cancel">Cancel</v-btn>
-        <v-btn @click="save">Save</v-btn>
+        <v-btn @click="cancel" :disabled="saving">Cancel</v-btn>
+        <v-btn @click="save" :loading="saving">Save</v-btn>
         </v-card-actions>
     </v-card>
   </v-dialog>

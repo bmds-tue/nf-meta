@@ -116,7 +116,7 @@ function editDetail() {
           variant="outlined"
           density="compact"
           @update:modelValue="handleUpdatePipeline"
-          :error-messages="errors.name"
+          :error-messages="errors.name ?? (pipelineStore.initError ? [pipelineStore.initError] : [])"
           class="flex-grow-1">
         </v-autocomplete>
         <v-text-field

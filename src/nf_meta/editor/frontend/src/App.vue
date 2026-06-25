@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import type { Node, Connection, NodeMouseEvent } from '@vue-flow/core'
 import { VueFlow, useVueFlow, ConnectionMode, Panel} from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
@@ -54,24 +54,31 @@ const onConnected = (conn: Connection) => {
   graphStore.saveEdge(conn)
 }
 
-const onSave = () => {
+const saving = ref(false)
+const undoing = ref(false)
+const redoing = ref(false)
+
+const onSave = async () => {
   if (!graphStore.filename) {
     editorStore.openSaveDialog()
-  } else {
-    graphStore.save()
+    return
   }
+  saving.value = true
+  try { await graphStore.save() } finally { saving.value = false }
 }
 
 const onOpen = () => {
   editorStore.openLoadDialog()
 }
 
-const onUndo = () => {
-  graphStore.undo()
+const onUndo = async () => {
+  undoing.value = true
+  try { await graphStore.undo() } finally { undoing.value = false }
 }
 
-const onRedo = () => {
-  graphStore.redo()
+const onRedo = async () => {
+  redoing.value = true
+  try { await graphStore.redo() } finally { redoing.value = false }
 }
 
 
@@ -123,9 +130,10 @@ onMounted(async () => {
           @click=onAddNodeClick>
         </v-btn>
         
-        <v-btn 
+        <v-btn
           title="save to file"
           icon="mdi-content-save"
+          :loading="saving"
           @click="onSave">
         </v-btn>
 
@@ -138,13 +146,15 @@ onMounted(async () => {
         <v-btn
           title="undo last operation"
           :disabled="!graphStore.undoable"
+          :loading="undoing"
           icon="mdi-undo"
           @click="onUndo">
         </v-btn>
 
-        <v-btn 
+        <v-btn
           title="redo last operations"
-          :disabled="!graphStore.redoable" 
+          :disabled="!graphStore.redoable"
+          :loading="redoing"
           icon="mdi-redo"
           @click="onRedo">
         </v-btn>

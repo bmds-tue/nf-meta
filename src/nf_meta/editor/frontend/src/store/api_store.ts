@@ -82,34 +82,40 @@ export const useApiStore = defineStore('api', () => {
 
 export const usePipelineStore = defineStore('pipeline', () => {
     const nfCorePipelines = ref<NfCorePipelineInfo[]>()
+    const initError = ref<string>()
 
     async function initialize() {
-        fetch('/api/nfcore/pipelines/', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
-            .then(r => r.ok ? r.json() : null)
-            .then((data: NfCorePipelineInfo[] | null) => {
-                if (data) nfCorePipelines.value = data
-            })
+        try {
+            const r = await fetch('/api/nfcore/pipelines/', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+            if (!r.ok) throw new Error(`HTTP ${r.status}`)
+            nfCorePipelines.value = await r.json()
+        } catch {
+            initError.value = 'Failed to load nf-core pipelines'
+        }
     }
 
-    return { initialize, nfCorePipelines }
+    return { initialize, nfCorePipelines, initError }
 })
 
 export const useModuleStore = defineStore('module', () => {
     const nfCoreModules = ref<NfCoreModuleInfo[]>()
+    const initError = ref<string>()
 
     async function initialize() {
-        fetch('/api/nfcore/modules/', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
-            .then(r => r.ok ? r.json() : null)
-            .then((data: NfCoreModuleInfo[] | null) => {
-                if (data) nfCoreModules.value = data
-            })
+        try {
+            const r = await fetch('/api/nfcore/modules/', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+            if (!r.ok) throw new Error(`HTTP ${r.status}`)
+            nfCoreModules.value = await r.json()
+        } catch {
+            initError.value = 'Failed to load nf-core modules'
+        }
     }
 
     async function fetchModuleVersions(shortName: string): Promise<NfCoreModuleVersionInfo[]> {
         const response = await fetch(`/api/nfcore/modules/${shortName}/versions/`, { method: 'GET' })
-        if (!response.ok) return []
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
         return response.json() as Promise<NfCoreModuleVersionInfo[]>
     }
 
-    return { initialize, nfCoreModules, fetchModuleVersions }
+    return { initialize, nfCoreModules, initError, fetchModuleVersions }
 })

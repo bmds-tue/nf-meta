@@ -25,6 +25,7 @@ const saving = ref(false)
 const errors = ref<Record<string, string[]>>({})
 const moduleVersions = ref<string[]>([])
 const versionsLoading = ref(false)
+const versionsError = ref<string>()
 
 // nf-core/ prefix stripped for the API, shown with prefix in the autocomplete
 const moduleNames = computed(() => {
@@ -34,6 +35,7 @@ const moduleNames = computed(() => {
 async function handleUpdateModule() {
   const name = form.value.name
   form.value.version = undefined
+  versionsError.value = undefined
   if (!name) {
     moduleVersions.value = []
     return
@@ -42,12 +44,15 @@ async function handleUpdateModule() {
   versionsLoading.value = true
   try {
     moduleVersions.value = (await moduleStore.fetchModuleVersions(shortName)).map(nfmv => nfmv.version)
+    // auto-select the latest version if none set yet
+    if (!form.value.version && moduleVersions.value.length > 0) {
+      form.value.version = moduleVersions.value[0]
+    }
+  } catch {
+    versionsError.value = 'Failed to load versions'
+    moduleVersions.value = []
   } finally {
     versionsLoading.value = false
-  }
-  // auto-select the latest version if none set yet
-  if (!form.value.version && moduleVersions.value.length > 0) {
-    form.value.version = moduleVersions.value[0]
   }
 }
 
@@ -118,7 +123,7 @@ function editDetail() {
           variant="outlined"
           density="compact"
           @update:modelValue="handleUpdateModule"
-          :error-messages="errors.name">
+          :error-messages="errors.name ?? (moduleStore.initError ? [moduleStore.initError] : [])">
         </v-autocomplete>
 
         <v-autocomplete
@@ -130,7 +135,7 @@ function editDetail() {
           :disabled="!form.name"
           variant="outlined"
           density="compact"
-          :error-messages="errors.version">
+          :error-messages="errors.version ?? (versionsError ? [versionsError] : [])">
         </v-autocomplete>
 
         <v-label class="mt-2 mb-1">Params</v-label>

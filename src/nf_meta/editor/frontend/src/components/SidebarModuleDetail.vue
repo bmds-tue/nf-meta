@@ -5,6 +5,7 @@ import { extractFieldErrors } from '../utils';
 import type { APINfModuleNodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import YamlEditor from './YamlEditor.vue';
+import YAML from 'yaml';
 
 const props = defineProps<{
   initialValue: APINfModuleNodeData,
@@ -98,19 +99,54 @@ function handleReset() {
 function editDetail() {
   isEditing.value = true
 }
+
+const hasParams = computed(() => !!form.value.params && Object.keys(form.value.params).length > 0)
+const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.params).trim() : '')
+
+const copiedField = ref<string>()
+async function copyPath(text: string, field: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedField.value = field
+    setTimeout(() => copiedField.value = undefined, 2000)
+  } catch (e) {
+    console.error('Clipboard write failed:', e)
+  }
+}
 </script>
 
 <template>
   <div class="m-0 p-0">
 
-    <div v-if="!isEditing" class="content">
-      <div class="d-flex align-center">
-        <strong>{{ form.name }}</strong>
-        <v-chip v-if="form.version" size="small" class="ml-2">{{ form.version }}</v-chip>
+    <div v-if="!isEditing" class="pa-3">
+      <div class="d-flex flex-column ga-2 mb-2">
+        <div v-if="form.version" class="detail-row d-flex align-center ga-2 text-body-2">
+          <v-icon icon="mdi-tag-outline" size="16" class="flex-shrink-0" />
+          <span>{{ form.version }}</span>
+        </div>
+        <div class="detail-row d-flex align-center ga-2 text-body-2">
+          <v-icon icon="$nfcore" size="16" class="flex-shrink-0" />
+          <span>nf-core community module</span>
+        </div>
+        <div v-if="form.config_file" class="detail-row d-flex align-start ga-2 text-body-2">
+          <v-icon icon="mdi-cog-outline" size="16" class="flex-shrink-0 mt-1" />
+          <code class="path-text flex-grow-1">{{ form.config_file }}</code>
+          <v-btn
+            :icon="copiedField === 'config_file' ? 'mdi-check' : 'mdi-content-copy'"
+            size="x-small" variant="text" :ripple="false" flat class="flex-shrink-0"
+            @click.stop="copyPath(form.config_file!, 'config_file')" />
+        </div>
       </div>
-      <v-card-actions class="justify-end">
-        <v-btn @click.stop="editDetail">Edit</v-btn>
-        <v-btn @click.stop="handleDelete" color="error">Delete</v-btn>
+
+      <template v-if="hasParams">
+        <div class="text-caption mb-1">Params</div>
+        <pre class="yaml-preview">{{ paramsYaml }}</pre>
+      </template>
+      <p v-else class="text-body-2 mb-0">No params configured.</p>
+
+      <v-card-actions class="justify-end pa-0 pt-3">
+        <v-btn size="small" @click.stop="editDetail">Edit</v-btn>
+        <v-btn size="small" color="error" @click.stop="handleDelete">Delete</v-btn>
       </v-card-actions>
     </div>
 
@@ -157,3 +193,39 @@ function editDetail() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.detail-row {
+  min-width: 0;
+}
+.detail-row .v-icon {
+  color: rgba(var(--v-theme-onSurface), 0.45) !important;
+  text-decoration: none;
+}
+.detail-row-link {
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.detail-row-link:hover {
+  opacity: 0.8;
+}
+.detail-row-link:hover span {
+  text-decoration: underline;
+}
+.path-text {
+  word-break: break-all;
+  align-self: flex-start;
+}
+.yaml-preview {
+  font-family: monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  background: rgba(var(--v-theme-onSurface), 0.05);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  max-height: 110px;
+  overflow-y: auto;
+  white-space: pre;
+}
+</style>

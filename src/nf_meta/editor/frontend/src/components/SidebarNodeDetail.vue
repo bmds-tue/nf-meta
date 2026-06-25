@@ -61,13 +61,18 @@ const displayVersion = computed(() => {
 const nodeId = computed(() => 'id' in props.detailData ? props.detailData.id : undefined)
 const isMouseOver = ref(false)
 const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId === nodeId.value && !isMouseOver.value)
+const isFlashing = computed(() => !!nodeId.value && editorStore.flashingNodeId === nodeId.value)
 
 function onSaved(newNodeData?: APINodeData) {
   if (isNew.value) {
     removeDetail()
-    if (newNodeData) editorStore.addNodeToSideBar(newNodeData, true)
+    if (newNodeData?.id) {
+      editorStore.addNodeToSideBar(newNodeData, true)
+      editorStore.flashNode(newNodeData.id)
+    }
+  } else if (nodeId.value) {
+    editorStore.flashNode(nodeId.value)
   }
-  // For existing nodes the subcomponent already set isEditing = false — nothing to do here.
 }
 </script>
 
@@ -76,7 +81,7 @@ function onSaved(newNodeData?: APINodeData) {
   :class="{
     'workflow-node-nfcore': confirmedType === WorkflowType.NF_PIPELINE && 'is_nfcore' in detailData && detailData.is_nfcore,
     'workflow-node-module': confirmedType === WorkflowType.NF_MODULE,
-    'detail-hovered': isHovered,
+    'detail-hovered': isHovered || isFlashing,
   }"
   @mouseenter="isMouseOver = true; editorStore.setHoveredNodeId(nodeId)"
   @mouseleave="isMouseOver = false; editorStore.setHoveredNodeId(undefined)">

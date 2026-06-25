@@ -81,11 +81,14 @@ onBeforeUnmount(stopDrag)
     <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
       <v-tabs-window-item value="nodes">
         <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
-          <NodeDetail 
-            v-for="sbDetail in editorStore.sideBarNodes" 
-            :id="sbDetail.id" 
-            :detail-data="sbDetail.detailData"> 
-          </NodeDetail>
+          <TransitionGroup name="detail-fade">
+            <NodeDetail
+              v-for="sbDetail in editorStore.sideBarNodes"
+              :key="sbDetail.id"
+              :id="sbDetail.id"
+              :detail-data="sbDetail.detailData">
+            </NodeDetail>
+          </TransitionGroup>
         </v-container>
         <v-container v-if="editorStore.sideBarNodes.length == 0" class="content">
           <v-card
@@ -167,5 +170,13 @@ onBeforeUnmount(stopDrag)
 
 .split-pane.dragging {
     border-left: 2px solid #4a5568;
+}
+
+.detail-fade-leave-active {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.detail-fade-leave-to {
+    opacity: 0;
+    transform: translateX(12px);
 }
 </style>

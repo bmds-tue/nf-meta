@@ -33,6 +33,11 @@ html, body, #app, :root {
     transition:box-shadow .2s;
 }
 
+.workflow-node-hovered {
+    box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4);
+    transition: box-shadow .2s;
+}
+
 .workflow-node-nfcore {
     border-color: rgb(var(--v-theme-nodeNfCoreBorder));
 }

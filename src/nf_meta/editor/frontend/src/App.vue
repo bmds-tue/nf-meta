@@ -18,7 +18,7 @@ const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
 const { sideBarTab, sideBarOpen } = storeToRefs(editorStore)
-const { setNodes, getNodes, getEdges, onNodesInitialized, fitView } = useVueFlow({id: "main-flow"})
+const { setNodes, getNodes, getEdges, onNodesInitialized, fitView, findNode, addSelectedNodes, removeSelectedNodes } = useVueFlow({id: "main-flow"})
 const { layout } = useLayout()
 
 const toggleLayoutAndFitView = async function() {
@@ -53,6 +53,9 @@ const onAddNodeClick = function (_: any) {
 const onConnected = (conn: Connection) => {
   graphStore.saveEdge(conn)
 }
+
+const onNodeHoverEnter = (e: NodeMouseEvent) => editorStore.setHoveredNodeId(e.node.id)
+const onNodeHoverLeave = () => editorStore.setHoveredNodeId(undefined)
 
 const saving = ref(false)
 const undoing = ref(false)
@@ -109,6 +112,20 @@ watch(
     nextTick(() => {
       setTimeout(fitView, 300)
     })
+  }
+)
+
+watch(
+  () => editorStore.sideBarActiveDetailId,
+  (activeId) => {
+    if (!activeId) return
+    const detail = editorStore.sideBarNodes.find(d => d.id === activeId)
+    const nodeId = detail && 'id' in detail.detailData ? detail.detailData.id : undefined
+    removeSelectedNodes(getNodes.value.filter(n => n.selected))
+    if (nodeId) {
+      const node = findNode(nodeId)
+      if (node) addSelectedNodes([node])
+    }
   }
 )
 
@@ -184,6 +201,8 @@ onMounted(async () => {
         :connection-mode="ConnectionMode.Strict"
         @connect=onConnected
         @node-double-click=onNodeDbClick
+        @node-mouse-enter="onNodeHoverEnter"
+        @node-mouse-leave="onNodeHoverLeave"
         :delete-key-code="null"
         fit-view-on-init>
         <Background />

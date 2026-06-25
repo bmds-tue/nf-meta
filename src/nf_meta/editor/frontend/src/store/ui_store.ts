@@ -26,6 +26,7 @@ export const useEditorStore = defineStore('editor', () => {
     const sideBarOpen = computed(() => _sideBarOpen.value)
 
     const sideBarTab = ref('nodes')
+    const hoveredNodeId = ref<string>()
     const sideBarActiveDetailId = ref(0)
     const _nextSideBarId = ref(1)
     const _sideBarNodes = ref<SideBarDetail<APINodeData | NewNodeData>[]>([])
@@ -62,6 +63,10 @@ export const useEditorStore = defineStore('editor', () => {
 
     function setActiveSidebarDetailId(id: number) {
         sideBarActiveDetailId.value = id
+    }
+
+    function setHoveredNodeId(id: string | undefined) {
+        hoveredNodeId.value = id
     }
 
     function createSideBarDetailWithId<T>(detailData: T): SideBarDetail<T> {
@@ -104,6 +109,7 @@ export const useEditorStore = defineStore('editor', () => {
         sideBarActiveDetailId, setActiveSidebarDetailId,
         sideBarTab, sideBarNodes, addNodeToSideBar,
         removeSidebarDetail, collapseSidebarDetail,
+        hoveredNodeId, setHoveredNodeId,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
     }

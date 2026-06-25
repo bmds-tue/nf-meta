@@ -57,14 +57,21 @@ const displayName = computed(() => {
 const displayVersion = computed(() => {
   return 'version' in props.detailData ? props.detailData.version : undefined
 })
+
+const nodeId = computed(() => 'id' in props.detailData ? props.detailData.id : undefined)
+const isMouseOver = ref(false)
+const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId === nodeId.value && !isMouseOver.value)
 </script>
 
 <template>
 <v-card class="mb-2 mt-2"
   :class="{
     'workflow-node-nfcore': confirmedType === WorkflowType.NF_PIPELINE && 'is_nfcore' in detailData && detailData.is_nfcore,
-    'workflow-node-module': confirmedType === WorkflowType.NF_MODULE
-  }">
+    'workflow-node-module': confirmedType === WorkflowType.NF_MODULE,
+    'detail-hovered': isHovered,
+  }"
+  @mouseenter="isMouseOver = true; editorStore.setHoveredNodeId(nodeId)"
+  @mouseleave="isMouseOver = false; editorStore.setHoveredNodeId(undefined)">
   <v-card-title
     class="node-title d-flex justify-space-between align-center w-100"
     @click="!isActive ? expandDetails() : collapseDetails()"
@@ -121,5 +128,11 @@ const displayVersion = computed(() => {
 }
 .node-title:hover {
   background-color: rgba(var(--v-theme-onSurface), 0.06);
+}
+.v-card {
+  transition: box-shadow 0.2s;
+}
+.detail-hovered {
+  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4) !important;
 }
 </style>

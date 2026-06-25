@@ -4,6 +4,9 @@ import { computed, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import type { APINodeData } from '../types.ts'
 import { WorkflowType } from '../types.ts'
+import { useEditorStore } from '../store'
+
+const editorStore = useEditorStore()
 
 const copyIcon = ref("mdi-content-copy")
 
@@ -18,6 +21,7 @@ const isModule = computed(() => props.data.type === WorkflowType.NF_MODULE)
 const isNfCorePipeline = computed(() =>
     props.data.type === WorkflowType.NF_PIPELINE && props.data.is_nfcore
 )
+const isHovered = computed(() => editorStore.hoveredNodeId === props.id)
 
 async function copyToClipboard() {
     try {
@@ -32,7 +36,7 @@ async function copyToClipboard() {
 </script>
 
 <template>
-  <v-container :class="['workflow-node', (isNfCorePipeline || isModule) && 'workflow-node-nfcore' ]">
+  <v-container :class="['workflow-node', (isNfCorePipeline || isModule) && 'workflow-node-nfcore', isHovered && 'workflow-node-hovered']">
     <Handle class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout }"
             type="target"

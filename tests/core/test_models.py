@@ -4,14 +4,19 @@ from pydantic import ValidationError
 from pathlib import Path
 
 from nf_meta.core.models import (
-    NfPipeline, GlobalOptions, Transition, MetaworkflowConfig,
-    load_config, dump_config, Position,
+    NfPipeline,
+    GlobalOptions,
+    Transition,
+    MetaworkflowConfig,
+    load_config,
+    dump_config,
 )
 
 
 # ---------------------------------------------------------------------------
 # Workflow
 # ---------------------------------------------------------------------------
+
 
 class TestWorkflowConstruction:
     def test_nfcore_url_auto_populated(self, wf_rnaseq):
@@ -42,9 +47,6 @@ class TestWorkflowConstruction:
         assert wf_rnaseq.id.startswith("n")
         assert len(wf_rnaseq.id) == 9  # "n" + 8 hex chars
 
-    def test_default_position(self, wf_rnaseq):
-        assert wf_rnaseq.position == Position(x=0, y=0)
-
 
 class TestParamCoercion:
     def test_int_coerced_to_str(self):
@@ -52,7 +54,9 @@ class TestParamCoercion:
         assert wf.params["count"] == "42"
 
     def test_float_coerced_to_str(self):
-        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"threshold": 0.5})
+        wf = NfPipeline(
+            name="nf-core/rnaseq", version="3.14.0", params={"threshold": 0.5}
+        )
         assert wf.params["threshold"] == "0.5"
 
     def test_bool_coerced_to_str(self):
@@ -61,7 +65,11 @@ class TestParamCoercion:
 
     def test_unsupported_type_raises(self):
         with pytest.raises(ValidationError):
-            NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"bad": {"nested": "dict"}})
+            NfPipeline(
+                name="nf-core/rnaseq",
+                version="3.14.0",
+                params={"bad": {"nested": "dict"}},
+            )
 
 
 class TestFieldRefs:
@@ -81,7 +89,9 @@ class TestFieldRefs:
         assert ref.source_key == "input"
 
     def test_no_refs_without_brace_pattern(self):
-        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"})
+        wf = NfPipeline(
+            name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"}
+        )
         assert wf.field_refs == []
 
 
@@ -95,20 +105,36 @@ class TestWorkflowHash:
         assert wf1.hash() != wf2.hash()
 
     def test_hash_differs_by_main_script(self, monkeypatch):
-        monkeypatch.setattr("nf_meta.core.models.github_file_exists", lambda url, path, ref: True)
-        wf1 = NfPipeline(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline")
-        wf2 = NfPipeline(name="my-org/custom-pipeline", version="1.0.0", url="https://github.com/my-org/custom-pipeline", main_script="workflows/special.nf")
+        monkeypatch.setattr(
+            "nf_meta.core.models.github_file_exists", lambda url, path, ref: True
+        )
+        wf1 = NfPipeline(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://github.com/my-org/custom-pipeline",
+        )
+        wf2 = NfPipeline(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://github.com/my-org/custom-pipeline",
+            main_script="workflows/special.nf",
+        )
         assert wf1.hash() != wf2.hash()
 
 
 class TestWorkflowMainScript:
-
     def test_main_script_raises_for_nfcore(self):
         with pytest.raises(ValidationError, match="nf-core"):
-            NfPipeline(name="nf-core/rnaseq", version="3.14.0", main_script="workflows/special.nf")
+            NfPipeline(
+                name="nf-core/rnaseq",
+                version="3.14.0",
+                main_script="workflows/special.nf",
+            )
 
     def test_main_script_raises_when_file_not_found_on_github(self, monkeypatch):
-        monkeypatch.setattr("nf_meta.core.models.github_file_exists", lambda url, path, ref: False)
+        monkeypatch.setattr(
+            "nf_meta.core.models.github_file_exists", lambda url, path, ref: False
+        )
         with pytest.raises(ValidationError, match="not found"):
             NfPipeline(
                 name="my-org/custom-pipeline",
@@ -118,11 +144,20 @@ class TestWorkflowMainScript:
             )
 
     def test_main_script_warns_for_non_github_url(self, monkeypatch):
-        monkeypatch.setattr("nf_meta.core.models.url_exists", lambda url, timeout=10: True)
+        monkeypatch.setattr(
+            "nf_meta.core.models.url_exists", lambda url, timeout=10: True
+        )
         warned = []
         monkeypatch.setattr(
             "nf_meta.core.models.logger",
-            type("L", (), {"warning": lambda self, *a, **k: warned.append(a[0]), "debug": lambda *a, **k: None})(),
+            type(
+                "L",
+                (),
+                {
+                    "warning": lambda self, *a, **k: warned.append(a[0]),
+                    "debug": lambda *a, **k: None,
+                },
+            )(),
         )
         NfPipeline(
             name="my-org/custom-pipeline",
@@ -140,7 +175,6 @@ class TestWorkflowDump:
         assert "name" in d
         assert "version" in d
         assert "url" not in d
-        assert "position" not in d
         assert "description" not in d
 
     def test_model_dump_config_includes_url_for_non_nfcore(self, wf_custom):
@@ -152,12 +186,12 @@ class TestWorkflowDump:
         d = wf_rnaseq.model_dump_display()
         assert "description" in d
         assert "is_nfcore" in d
-        assert "position" in d
 
 
 # ---------------------------------------------------------------------------
 # GlobalOptions
 # ---------------------------------------------------------------------------
+
 
 class TestGlobalOptions:
     def test_profile_whitespace_stripped(self):
@@ -169,37 +203,38 @@ class TestGlobalOptions:
         assert g.profile is None
 
     def test_nextflow_version_full_string(self):
-        g = GlobalOptions(nextflow_version="25.10.4")
-        assert g.nextflow_version == (25, 10, 4, 0)
+        g = GlobalOptions(nextflow_version_tuple="25.10.4")
+        assert g.nextflow_version_tuple == (25, 10, 4, 0)
 
     def test_nextflow_version_partial(self):
-        g = GlobalOptions(nextflow_version="25")
-        assert g.nextflow_version == (25, 0, 0, 0)
+        g = GlobalOptions(nextflow_version_tuple="25")
+        assert g.nextflow_version_tuple == (25, 0, 0, 0)
 
     def test_nextflow_version_edge(self):
-        g = GlobalOptions(nextflow_version="25.10.4-edge")
-        assert g.nextflow_version == (25, 10, 4, 1)
+        g = GlobalOptions(nextflow_version_tuple="25.10.4-edge")
+        assert g.nextflow_version_tuple == (25, 10, 4, 1)
 
     def test_nextflow_version_tuple_passthrough(self):
-        g = GlobalOptions(nextflow_version=(25, 10, 4, 0))
-        assert g.nextflow_version == (25, 10, 4, 0)
+        g = GlobalOptions(nextflow_version_tuple=(25, 10, 4, 0))
+        assert g.nextflow_version_tuple == (25, 10, 4, 0)
 
     def test_nextflow_version_none(self):
-        g = GlobalOptions(nextflow_version=None)
-        assert g.nextflow_version is None
+        g = GlobalOptions(nextflow_version_tuple=None)
+        assert g.nextflow_version_tuple is None
 
     def test_nextflow_version_invalid_raises(self):
         with pytest.raises(ValidationError):
-            GlobalOptions(nextflow_version="not-a-version")
+            GlobalOptions(nextflow_version_tuple="not-a-version")
 
     def test_nextflow_version_too_many_parts_raises(self):
         with pytest.raises(ValidationError):
-            GlobalOptions(nextflow_version="25.10.4.5")
+            GlobalOptions(nextflow_version_tuple="25.10.4.5")
 
 
 # ---------------------------------------------------------------------------
 # Transition
 # ---------------------------------------------------------------------------
+
 
 class TestTransition:
     def test_id_computed(self):
@@ -217,6 +252,7 @@ class TestTransition:
 # MetaworkflowConfig
 # ---------------------------------------------------------------------------
 
+
 class TestMetaworkflowConfig:
     def _make_config(self, workflows, transitions=None):
         return {
@@ -226,29 +262,62 @@ class TestMetaworkflowConfig:
         }
 
     def test_list_format_workflows(self, wf_rnaseq):
-        cfg = MetaworkflowConfig.model_validate(self._make_config(
-            [{"id": wf_rnaseq.id, "name": wf_rnaseq.name, "version": wf_rnaseq.version, "url": wf_rnaseq.url}]
-        ))
+        cfg = MetaworkflowConfig.model_validate(
+            self._make_config(
+                [
+                    {
+                        "id": wf_rnaseq.id,
+                        "name": wf_rnaseq.name,
+                        "version": wf_rnaseq.version,
+                        "url": wf_rnaseq.url,
+                    }
+                ]
+            )
+        )
         assert len(cfg.workflows) == 1
         assert cfg.workflows[0].id == wf_rnaseq.id
 
     def test_dict_format_workflows(self, wf_rnaseq):
-        cfg = MetaworkflowConfig.model_validate(self._make_config(
-            {wf_rnaseq.id: {"name": wf_rnaseq.name, "version": wf_rnaseq.version, "url": wf_rnaseq.url}}
-        ))
+        cfg = MetaworkflowConfig.model_validate(
+            self._make_config(
+                {
+                    wf_rnaseq.id: {
+                        "name": wf_rnaseq.name,
+                        "version": wf_rnaseq.version,
+                        "url": wf_rnaseq.url,
+                    }
+                }
+            )
+        )
         assert len(cfg.workflows) == 1
         assert cfg.workflows[0].id == wf_rnaseq.id
 
     def test_transition_invalid_target_raises(self, wf_rnaseq):
         with pytest.raises(ValidationError):
-            MetaworkflowConfig.model_validate(self._make_config(
-                [{"id": wf_rnaseq.id, "name": wf_rnaseq.name, "version": wf_rnaseq.version, "url": wf_rnaseq.url}],
-                transitions=[{"source": wf_rnaseq.id, "target": "nonexistent"}],
-            ))
+            MetaworkflowConfig.model_validate(
+                self._make_config(
+                    [
+                        {
+                            "id": wf_rnaseq.id,
+                            "name": wf_rnaseq.name,
+                            "version": wf_rnaseq.version,
+                            "url": wf_rnaseq.url,
+                        }
+                    ],
+                    transitions=[{"source": wf_rnaseq.id, "target": "nonexistent"}],
+                )
+            )
 
     def test_config_version_too_old_raises(self, wf_rnaseq):
         data = self._make_config(
-            [{"id": wf_rnaseq.id, "name": wf_rnaseq.name, "version": wf_rnaseq.version, "url": wf_rnaseq.url}]
+            [
+                {
+                    "id": wf_rnaseq.id,
+                    "name": wf_rnaseq.name,
+                    "version": wf_rnaseq.version,
+                    "url": wf_rnaseq.url,
+                }
+            ]
         )
         data["config_version"] = "0.0.0"
         with pytest.raises(ValidationError):
@@ -256,22 +325,39 @@ class TestMetaworkflowConfig:
 
     def test_config_version_too_new_raises(self, wf_rnaseq):
         data = self._make_config(
-            [{"id": wf_rnaseq.id, "name": wf_rnaseq.name, "version": wf_rnaseq.version, "url": wf_rnaseq.url}]
+            [
+                {
+                    "id": wf_rnaseq.id,
+                    "name": wf_rnaseq.name,
+                    "version": wf_rnaseq.version,
+                    "url": wf_rnaseq.url,
+                }
+            ]
         )
         data["config_version"] = "9.9.9"
         with pytest.raises(ValidationError):
             MetaworkflowConfig.model_validate(data)
 
     def test_config_version_valid(self, wf_rnaseq):
-        cfg = MetaworkflowConfig.model_validate(self._make_config(
-            [{"id": wf_rnaseq.id, "name": wf_rnaseq.name, "version": wf_rnaseq.version, "url": wf_rnaseq.url}]
-        ))
+        cfg = MetaworkflowConfig.model_validate(
+            self._make_config(
+                [
+                    {
+                        "id": wf_rnaseq.id,
+                        "name": wf_rnaseq.name,
+                        "version": wf_rnaseq.version,
+                        "url": wf_rnaseq.url,
+                    }
+                ]
+            )
+        )
         assert cfg.config_version == "0.0.1"
 
 
 # ---------------------------------------------------------------------------
 # load_config / dump_config round-trip
 # ---------------------------------------------------------------------------
+
 
 class TestLoadDump:
     def test_load_config(self, minimal_yaml_path):

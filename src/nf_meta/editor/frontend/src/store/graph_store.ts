@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import type {
-    ApiResult, APINodeData, APIEdgeData, APIGraph, APICommandResponse,
+    ApiResult, APINodeData, APIEdgeData, APICommandResponse,
     APIGlobalOptions, Selection,
 } from '../types'
 import { useLayout } from '../layout_graph'
@@ -205,8 +205,10 @@ export const useGraphStore = defineStore('graph', () => {
         return node?.params ?? {}
     }
 
+    const nodeData = computed(() => _nodeData.value)
+
     return {
-        nodes, edges, globalOptions, filename,
+        nodes, nodeData, edges, globalOptions, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
         undoable, redoable,
         getAndUpdateGraph,

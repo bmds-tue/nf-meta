@@ -71,13 +71,13 @@ async function submitForm(e: SubmitEventPromise) {
   errors.value = {}
   saving.value = true
   try {
-    const previousIds = new Set(graphStore.nodes.map(n => n.id))
+    const previousIds = new Set(graphStore.nodeData.map(n => n.id))
     const result = await graphStore.saveNode({ ...form.value })
     if (result.ok) {
       isEditing.value = false
       if (props.isNew) {
-        const newNode = graphStore.nodes.find(n => !previousIds.has(n.id))
-        emit('saved', newNode?.data)
+        const newNode = graphStore.nodeData.find(n => !previousIds.has(n.id))
+        emit('saved', newNode)
       } else {
         emit('saved')
       }

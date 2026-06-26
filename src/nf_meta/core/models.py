@@ -670,7 +670,7 @@ class MetaworkflowConfig(BaseModel):
     @model_validator(mode="after")
     def warn_about_module_executor(self):
 
-        if self.globals.config_file:
+        if self.globals and self.globals.config_file:
             return self
 
         # if no config, check if nf-modules are used

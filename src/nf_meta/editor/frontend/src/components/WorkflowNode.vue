@@ -3,15 +3,25 @@ import { Handle, Position } from '@vue-flow/core'
 import { computed, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import type { APINodeData } from '../types.ts'
+import { WorkflowType } from '../types.ts'
+import { useEditorStore } from '../store'
+
+const editorStore = useEditorStore()
 
 const copyIcon = ref("mdi-content-copy")
 
 const props = defineProps<NodeProps<APINodeData>>()
-    
+
 const horizLayout = computed(() => {
-    return props.targetPosition == Position.Left && 
+    return props.targetPosition == Position.Left &&
         props.sourcePosition == Position.Right
-}) 
+})
+
+const isModule = computed(() => props.data.type === WorkflowType.NF_MODULE)
+const isNfCorePipeline = computed(() =>
+    props.data.type === WorkflowType.NF_PIPELINE && props.data.is_nfcore
+)
+const isHovered = computed(() => editorStore.hoveredNodeId === props.id)
 
 async function copyToClipboard() {
     try {
@@ -26,10 +36,10 @@ async function copyToClipboard() {
 </script>
 
 <template>
-  <v-container :class="['workflow-node', data.is_nfcore && 'workflow-node-nfcore']">
-    <Handle class="workflow-node-handle" 
+  <v-container :class="['workflow-node', (isNfCorePipeline || isModule) && 'workflow-node-nfcore', isHovered && 'workflow-node-hovered']">
+    <Handle class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout }"
-            type="target" 
+            type="target"
             :position="targetPosition"
             />
     <div class="d-flex flex-column">
@@ -37,15 +47,21 @@ async function copyToClipboard() {
             <strong>
                 {{ data.name }}
             </strong>
-            <v-chip 
-                v-if="data.version" 
+            <v-chip
+                v-if="data.version"
                 class="ml-2">
                 {{ data.version }}
+            </v-chip>
+            <v-chip
+                v-if="isModule"
+                color="success"
+                class="ml-1">
+                module
             </v-chip>
         </div>
         <div class="d-flex flex-row align-center">
             <small> {{ data.id }} </small>
-            <v-btn 
+            <v-btn
                 :icon="copyIcon"
                 @click="copyToClipboard"
                 @dbclick.stop
@@ -56,11 +72,14 @@ async function copyToClipboard() {
             </v-btn>
         </div>
     </div>
-    <Handle class="workflow-node-handle"
+    <!-- No source (output) handles for nf-module type. There is no stable mechanism for connection yet -->
+    <Handle 
+            v-if="!isModule"
+            class="workflow-node-handle"
             :class="{'handle-horiz' : horizLayout}"
-            type="source" 
+            type="source"
             :position="sourcePosition"
-            /> 
+            />
   </v-container>
 
 </template>

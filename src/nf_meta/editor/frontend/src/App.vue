@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import type { Node, Connection, NodeMouseEvent } from '@vue-flow/core'
 import { VueFlow, useVueFlow, ConnectionMode, Panel} from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
@@ -18,7 +18,7 @@ const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
 const { sideBarTab, sideBarOpen } = storeToRefs(editorStore)
-const { setNodes, getNodes, getEdges, onNodesInitialized, fitView } = useVueFlow({id: "main-flow"})
+const { setNodes, getNodes, getEdges, onNodesInitialized, fitView, findNode, addSelectedNodes, removeSelectedNodes } = useVueFlow({id: "main-flow"})
 const { layout } = useLayout()
 
 const toggleLayoutAndFitView = async function() {
@@ -54,24 +54,34 @@ const onConnected = (conn: Connection) => {
   graphStore.saveEdge(conn)
 }
 
-const onSave = () => {
+const onNodeHoverEnter = (e: NodeMouseEvent) => editorStore.setHoveredNodeId(e.node.id)
+const onNodeHoverLeave = () => editorStore.setHoveredNodeId(undefined)
+
+const saving = ref(false)
+const undoing = ref(false)
+const redoing = ref(false)
+
+const onSave = async () => {
   if (!graphStore.filename) {
     editorStore.openSaveDialog()
-  } else {
-    graphStore.save()
+    return
   }
+  saving.value = true
+  try { await graphStore.save() } finally { saving.value = false }
 }
 
 const onOpen = () => {
   editorStore.openLoadDialog()
 }
 
-const onUndo = () => {
-  graphStore.undo()
+const onUndo = async () => {
+  undoing.value = true
+  try { await graphStore.undo() } finally { undoing.value = false }
 }
 
-const onRedo = () => {
-  graphStore.redo()
+const onRedo = async () => {
+  redoing.value = true
+  try { await graphStore.redo() } finally { redoing.value = false }
 }
 
 
@@ -100,8 +110,22 @@ watch(
   sideBarOpen,
   async () => {
     nextTick(() => {
-      setTimeout(fitView, 1)
+      setTimeout(fitView, 300)
     })
+  }
+)
+
+watch(
+  () => editorStore.sideBarActiveDetailId,
+  (activeId) => {
+    if (!activeId) return
+    const detail = editorStore.sideBarNodes.find(d => d.id === activeId)
+    const nodeId = detail && 'id' in detail.detailData ? detail.detailData.id : undefined
+    removeSelectedNodes(getNodes.value.filter(n => n.selected))
+    if (nodeId) {
+      const node = findNode(nodeId)
+      if (node) addSelectedNodes([node])
+    }
   }
 )
 
@@ -123,9 +147,10 @@ onMounted(async () => {
           @click=onAddNodeClick>
         </v-btn>
         
-        <v-btn 
+        <v-btn
           title="save to file"
           icon="mdi-content-save"
+          :loading="saving"
           @click="onSave">
         </v-btn>
 
@@ -138,13 +163,15 @@ onMounted(async () => {
         <v-btn
           title="undo last operation"
           :disabled="!graphStore.undoable"
+          :loading="undoing"
           icon="mdi-undo"
           @click="onUndo">
         </v-btn>
 
-        <v-btn 
+        <v-btn
           title="redo last operations"
-          :disabled="!graphStore.redoable" 
+          :disabled="!graphStore.redoable"
+          :loading="redoing"
           icon="mdi-redo"
           @click="onRedo">
         </v-btn>
@@ -162,11 +189,6 @@ onMounted(async () => {
           @click="editorStore.toggleSidebar"
           icon="mdi-view-split-vertical">
         </v-btn>
-
-        <v-btn 
-          title="editor options"
-          icon="mdi-dots-horizontal">
-        </v-btn>
       </v-container>
     </Panel>
 
@@ -179,6 +201,8 @@ onMounted(async () => {
         :connection-mode="ConnectionMode.Strict"
         @connect=onConnected
         @node-double-click=onNodeDbClick
+        @node-mouse-enter="onNodeHoverEnter"
+        @node-mouse-leave="onNodeHoverLeave"
         :delete-key-code="null"
         fit-view-on-init>
         <Background />
@@ -189,12 +213,14 @@ onMounted(async () => {
         </template>
       </VueFlow>
   
-      <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
+      <v-expand-x-transition>
+        <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
+      </v-expand-x-transition>
     </div>
     <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>
     <Snackbar></Snackbar>
-    <Footer class="footer"></Footer>
+    <Footer></Footer>
 </v-app>
 </template>
 
@@ -215,11 +241,6 @@ onMounted(async () => {
 .editor * {
   outline: 1px solid red;
 } */
-
-.footer {
-  flex-grow: 0;
-  flex-shrink: 0;
-}
 
 .split-view {
   flex: 1;

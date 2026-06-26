@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nf_meta.core.models import Workflow, Transition  # type: ignore[import]
+from nf_meta.core.models import NfPipeline, NfModule, Transition  # type: ignore[import]
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 
 
@@ -50,6 +50,40 @@ FAKE_NFCORE_PIPELINES = [
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Fake pipeline schema used by all tests — covers params used in unit tests
+# ---------------------------------------------------------------------------
+
+def _make_spec(type_, *, required=False, default=None, enum=None, hidden=False):
+    return {
+        "type": type_,
+        "required": required,
+        "enum": enum,
+        "pattern": None,
+        "format": None,
+        "default": default,
+        "hidden": hidden,
+    }
+
+
+FAKE_PIPELINE_SCHEMA: dict[str, dict] = {
+    # Real nf-core/rnaseq params used in unit tests
+    "input": _make_spec("string", default=""),
+    "outdir": _make_spec("string", default="results"),
+    # Fictional param names used specifically in coercion tests
+    "count": _make_spec("integer", default=0),
+    "threshold": _make_spec("number", default=0.0),
+    "flag": _make_spec("boolean", default=False),
+}
+
+# Module schema shaped like fastqc's meta.yml inputs.
+# Matches what _parse_module_schema produces (no format/default/hidden keys).
+FAKE_MODULE_SCHEMA: dict[str, dict] = {
+    "meta":  {"type": "map",  "required": True, "enum": None, "pattern": None},
+    "reads": {"type": "file", "required": True, "enum": None, "pattern": "*_{1,2}.fastq.gz"},
+}
+
+
 @pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
@@ -57,6 +91,21 @@ def mock_nfcore(monkeypatch):
         "nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES
     )
     monkeypatch.setattr("nf_meta.core.models.url_exists", lambda url, timeout=10: True)
+    monkeypatch.setattr(
+        "nf_meta.core.models.github_file_exists", lambda url, path, ref: True
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.models.get_pipeline_schema",
+        lambda url, version: FAKE_PIPELINE_SCHEMA,
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.models.get_module_schema",
+        lambda name, version: {},
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.models.get_nfcore_module_releases",
+        lambda name: [],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -66,22 +115,32 @@ def mock_nfcore(monkeypatch):
 
 @pytest.fixture
 def wf_rnaseq():
-    return Workflow(name="nf-core/rnaseq", version="3.14.0")
+    return NfPipeline(name="nf-core/rnaseq", version="3.14.0")
 
 
 @pytest.fixture
 def wf_fetchngs():
-    return Workflow(name="nf-core/fetchngs", version="1.12.0")
+    return NfPipeline(name="nf-core/fetchngs", version="1.12.0")
+
+
+@pytest.fixture
+def wf_sarek():
+    return NfPipeline(name="nf-core/sarek", version="3.4.0")
 
 
 @pytest.fixture
 def wf_custom():
     """A non-nf-core workflow with an explicit URL."""
-    return Workflow(
+    return NfPipeline(
         name="my-org/custom-pipeline",
         version="1.0.0",
         url="https://github.com/my-org/custom-pipeline",
     )
+
+
+@pytest.fixture
+def module_fastqc():
+    return NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +209,11 @@ def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
 @pytest.fixture
 def mock_nextflow(monkeypatch):
     """Stub out all nextflow binary interactions."""
+    from nf_meta.runner import utils as runner_utils
+
+    runner_utils.check_nextflow.cache_clear()
     monkeypatch.setattr(
-        "nf_meta.runner.python_runner.check_nextflow", lambda: "nextflow"
+        "nf_meta.runner.workflow_run.check_nextflow", lambda: "nextflow"
     )
     monkeypatch.setattr(
         "nf_meta.runner.utils.shutil.which", lambda name: "/usr/bin/nextflow"

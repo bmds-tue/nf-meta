@@ -1,3 +1,5 @@
+import dataclasses
+
 from pydantic import BaseModel
 
 from nf_meta.core.session import EditorSession
@@ -21,5 +23,18 @@ def serialize_state(session: EditorSession) -> dict:
     return d
 
 
-def serialize_events(events: tuple[Event]) -> list[dict]:
-    return []
+def _serialize_event(event) -> dict:
+    result: dict = {"type": type(event).__name__}
+    for field in dataclasses.fields(event):
+        value = getattr(event, field.name)
+        if hasattr(value, "model_dump_display"):
+            result[field.name] = value.model_dump_display()
+        elif isinstance(value, BaseModel):
+            result[field.name] = value.model_dump()
+        else:
+            result[field.name] = value
+    return result
+
+
+def serialize_events(events: tuple[Event, ...]) -> list[dict]:
+    return [_serialize_event(e) for e in events]

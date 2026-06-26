@@ -1,42 +1,78 @@
 <template>
-  <v-footer class="app-footer">
-    <span class="left">
-      {{ year }} ©
-    </span>
+  <div class="d-flex flex-column flex-shrink-0">
+    <v-expand-transition>
+      <div v-if="activityStore.drawerOpen" class="activity-panel d-flex flex-column bg-surface overflow-hidden">
+        <div class="activity-panel-header d-flex align-center justify-space-between pr-1 flex-shrink-0">
+          <v-tabs v-model="activeTab" density="compact" height="36">
+            <v-tab value="history" class="text-caption">History</v-tab>
+          </v-tabs>
+          <div class="d-flex align-center ga-1">
+            <v-btn
+              v-if="activeTab === 'history'"
+              size="x-small"
+              variant="text"
+              prepend-icon="mdi-delete-outline"
+              @click="activityStore.clear()"
+            >Clear history</v-btn>
+            <v-btn
+              title="Collapse"
+              size="x-small"
+              variant="text"
+              icon="mdi-chevron-down"
+              @click="activityStore.drawerOpen = false"
+            ></v-btn>
+          </div>
+        </div>
+        <ActivityLog />
+      </div>
+    </v-expand-transition>
 
-    <span class="center">
-        Code and Issues on 
-        <a :href="github">Github</a>
-    </span>
+    <v-footer class="app-footer pt-0 pb-0 d-flex align-center justify-space-between text-caption flex-shrink-0">
+      <span class="d-flex align-center ga-1">
+        <span>v{{ version }}</span>
+        <v-btn :href="github" target="_blank" size="x-small" variant="text" icon="mdi-github"></v-btn>
+      </span>
 
-    <span class="right">
-      v{{ version }}
-    </span>
-  </v-footer>
+      <span>{{ graphStore.filename }}</span>
+
+      <v-btn
+        :title="activityStore.drawerOpen ? 'Hide history' : 'Show history'"
+        size="x-small"
+        variant="text"
+        icon="mdi-history"
+        @click="activityStore.toggleDrawer()"
+      ></v-btn>
+    </v-footer>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { APP_VERSION } from '../version'
-
-const year = new Date().getFullYear()
+import ActivityLog from './ActivityLog.vue'
+import { useActivityStore, useGraphStore } from '../store'
 
 const version = APP_VERSION
-
 const github = "https://github.com/bmds-tue/nf-meta"
+
+const activeTab = ref('history')
+const activityStore = useActivityStore()
+const graphStore = useGraphStore()
 </script>
 
 <style scoped>
+.activity-panel {
+  max-height: 280px;
+  border-top: 1px solid rgb(var(--v-theme-surfaceVariant));
+}
+
+.activity-panel-header {
+  border-bottom: 1px solid rgb(var(--v-theme-surfaceVariant));
+}
+
 .app-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
   color: rgb(var(--v-theme-onSurface));
-  flex-shrink: 0;
   backdrop-filter: blur(6px);
 }
 
-.app-footer a {
-      color:inherit;
-}
 </style>

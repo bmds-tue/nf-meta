@@ -1,9 +1,10 @@
-import { createApp, } from 'vue'
+import { createApp, h } from 'vue'
 import { createPinia } from 'pinia'
-import { mdi } from 'vuetify/iconsets/mdi'
+import { aliases, mdi } from 'vuetify/iconsets/mdi'
+import nfcoreIconUrl from './assets/nfcore.svg'
 import App from './App.vue'
 
-import { usePipelineStore } from './store'
+import { usePipelineStore, useModuleStore } from './store'
 import { useEditorHotkeys } from './hotkeys'
 
 import '@vue-flow/core/dist/style.css'
@@ -16,6 +17,11 @@ import "vuetify/dist/vuetify.css"
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
+
+const NfCoreIcon = (props: { size?: string | number }) => {
+  const px = props.size ? `${props.size}px` : '1.2em'
+  return h('img', { src: nfcoreIconUrl, style: { width: px, height: px, verticalAlign: 'middle' } })
+}
 
 const vuetify = createVuetify({
   theme: {
@@ -31,7 +37,7 @@ const vuetify = createVuetify({
 
           // Brand
           primary: '#2563eb',
-          primarySoft:  '#5e88e3',
+          primarySoft: '#5e88e3',
 
           // Semantic
           success: '#16a34a',
@@ -42,6 +48,8 @@ const vuetify = createVuetify({
           nodeDefaultBorder: '#925819',
           nodeNfCoreBorder: '#1a9655',
 
+          nfcore: '#1a9655',
+
           // Text
           onSurface: '#cbd5e1',
           onPrimary: '#303030',
@@ -51,6 +59,7 @@ const vuetify = createVuetify({
   },
   icons: {
     defaultSet: "mdi",
+    aliases: { ...aliases, nfcore: NfCoreIcon },
     sets: { mdi }
   },
   components,
@@ -63,9 +72,11 @@ app.use(pinia)
 app.use(vuetify)
 app.mount("#app")
 
-// Prepopulate data in the pipeline store
+// Prepopulate data in pipeline and module stores
 const pipelineStore = usePipelineStore()
 pipelineStore.initialize()
+const moduleStore = useModuleStore()
+moduleStore.initialize()
 
 // Initialize hotkey listeners
 useEditorHotkeys()

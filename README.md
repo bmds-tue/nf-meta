@@ -61,7 +61,7 @@ This project features a small editor which intends to ease the creation and upda
 of these config files, by visualizing the config as a graph and 
 offering user-firendly form for entering and validating values.
 
-![editor](assets/nf-meta-screenshot.png)
+![editor](https://raw.githubusercontent.com/bmds-tue/nf-meta/main/assets/nf-meta-screenshot.png)
 
 
 ## Metapipeline Runners

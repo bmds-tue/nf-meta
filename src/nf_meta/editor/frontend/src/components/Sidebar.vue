@@ -3,11 +3,9 @@ import NodeDetail from "./SidebarNodeDetail.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
-import { useEditorStore, useGraphStore } from "../store"
-import YamlEditor from "./YamlEditor.vue"
+import { useEditorStore } from "../store"
 import GlobalConfig from "./GlobalConfig.vue"
 
-const graphStore = useGraphStore()
 const editorStore = useEditorStore()
 
 const { fitView } = useVueFlow()
@@ -69,10 +67,6 @@ const startDrag = (e: MouseEvent) => {
     window.addEventListener("pointerup", stopDrag)
 }
 
-const closeDetail = (detailId: number) => {
-  editorStore.removeSidebarDetail(detailId)
-}
-
 onBeforeUnmount(stopDrag)
 </script>
 
@@ -81,18 +75,20 @@ onBeforeUnmount(stopDrag)
     <v-container class="pa-0 mb-1">
       <v-tabs v-model="sideBarTab">
         <v-tab value="nodes">Node Details</v-tab>
-        <v-tab value="params">Node Params</v-tab>
         <v-tab value="globals">Globals</v-tab>
       </v-tabs>
     </v-container>
     <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
       <v-tabs-window-item value="nodes">
         <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
-          <NodeDetail 
-            v-for="sbDetail in editorStore.sideBarNodes" 
-            :id="sbDetail.id" 
-            :detail-data="sbDetail.detailData"> 
-          </NodeDetail>
+          <TransitionGroup name="detail-fade">
+            <NodeDetail
+              v-for="sbDetail in editorStore.sideBarNodes"
+              :key="sbDetail.id"
+              :id="sbDetail.id"
+              :detail-data="sbDetail.detailData">
+            </NodeDetail>
+          </TransitionGroup>
         </v-container>
         <v-container v-if="editorStore.sideBarNodes.length == 0" class="content">
           <v-card
@@ -101,55 +97,12 @@ onBeforeUnmount(stopDrag)
         </v-container>
       </v-tabs-window-item>
 
-      <v-tabs-window-item value="params" class="d-flex flex-column fill-height" transition="none">
-        <v-container v-if="editorStore.sideBarNodes.length > 0 " class="d-flex flex-column flex-grow-1 pa-1">
-          <v-card class="pa-0 mb-1 mt-0 flex-grow-1 d-flex flex-column">
-            <v-card-title>
-              <v-tabs v-model="editorStore.sideBarActiveDetailId" class="flex-grow-0" show-arrows>
-                <v-tab v-for="detail of editorStore.sideBarNodes" :value="detail.id">
-                  {{ detail.detailData.name ?? "New Workflow" }}
-                  <template v-slot:append props="{{ detail }}">
-                    <v-btn
-                      title="close params detail"
-                      icon="mdi-close"
-                      size="small"
-                      density="compact"
-                      variant="plain"
-                      rounded="circle"
-                      @click.stop="closeDetail(detail.id)">
-                    </v-btn>
-                  </template>
-                </v-tab>
-              </v-tabs>
-            </v-card-title>
-            <v-card-text>
-
-              <v-tabs-window v-model="editorStore.sideBarActiveDetailId" class="flex-grow-1 d-flex flex-column  mt-1" style="height: 100%;">
-                <v-tabs-window-item v-for="detail of editorStore.sideBarNodes" :value="detail.id" class="flex-grow-1 d-flex flex-column min-h-0" style="height:100%">
-                  <YamlEditor 
-                    v-model="detail.detailData.params"
-                    @save="graphStore.saveNode(detail.detailData)"
-                    :node-id="detail.detailData.id ?? ''"
-                    hint="Params defined here do not change your params_file"
-                  ></YamlEditor>
-                </v-tabs-window-item>
-              </v-tabs-window>
-            </v-card-text>
-          </v-card> 
-        </v-container>
-        <v-container v-else class="content">
-          <v-card
-            text="Double click nodes to show detail"
-          ></v-card>
-        </v-container>
-      </v-tabs-window-item>
-  
       <v-tabs-window-item value="globals" class="d-flex flex-cloumn fill-height">
         <v-container class="d-flex flex-column flex-grow-1 pa-1">
           <GlobalConfig></GlobalConfig>
         </v-container>
       </v-tabs-window-item>
-    
+
     </v-tabs-window>
     <div
       class="resize-handle"
@@ -217,5 +170,13 @@ onBeforeUnmount(stopDrag)
 
 .split-pane.dragging {
     border-left: 2px solid #4a5568;
+}
+
+.detail-fade-leave-active {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.detail-fade-leave-to {
+    opacity: 0;
+    transform: translateX(12px);
 }
 </style>

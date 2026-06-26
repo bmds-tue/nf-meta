@@ -28,18 +28,30 @@ class EditorSession:
 
     def handle_command(self, c: Command):
         try:
-            _ = self.history.execute(c, self.graph)
+            events = self.history.execute(c, self.graph)
         except (GraphValidationError, ValueError) as e:
             raise SessionCommandError.from_exception(e)
 
-        # Save to config after every command
-        self.save_to_config(self.config_file)
+        if self.config_file:
+            self.save_to_config(self.config_file)
+
+        return events
 
     def handle_undo(self):
-        _ = self.history.undo(self.graph)
+        events = self.history.undo(self.graph)
+        try:
+            self.save_to_config(self.config_file)
+        except ValueError as e:
+            raise SessionCommandError.from_exception(e)
+        return events
 
     def handle_redo(self):
-        _ = self.history.redo(self.graph)
+        events = self.history.redo(self.graph)
+        try:
+            self.save_to_config(self.config_file)
+        except ValueError as e:
+            raise SessionCommandError.from_exception(e)
+        return events
 
     def save_to_config(self, config: Path | None):
         if not (config or self.config_file):

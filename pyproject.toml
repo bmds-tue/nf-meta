@@ -13,7 +13,7 @@ namespaces = false
 
 [project]
 name = "nf-meta"
-version = "0.2.4"
+version = "0.3.0-dev"
 description = "nf-meta is a cli tool for building, validating and running meta-pipelines based on the Nextflow workflow language"
 readme = "README.md"
 authors = [
@@ -47,6 +47,7 @@ dev = [
     "twine>=6.2.0",
     "pytest>=9.0.3",
     "pytest-mock>=3.15.1",
+    "mypy>=2.1.0",
     "types-networkx>=3.6.1.20260408",
     "types-pyyaml>=6.0.12.20260408",
     "types-requests>=2.33.0.20260503",
@@ -54,3 +55,11 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["uvicorn", "uvicorn.*"]
+ignore_missing_imports = true

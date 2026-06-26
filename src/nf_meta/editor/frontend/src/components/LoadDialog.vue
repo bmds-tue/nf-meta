@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useEditorStore } from '../store.ts'
-import { useGraphStore } from '../store.ts'
+import { useEditorStore } from '../store'
+import { useGraphStore } from '../store'
 import { ref } from 'vue'
 
 const editorStore = useEditorStore()
@@ -8,21 +8,24 @@ const graphStore = useGraphStore()
 
 const filename = ref<File>()
 const errorMessages = ref<string[]>([])
+const loading = ref(false)
 
 function cleanup() {
     errorMessages.value = []
     editorStore.closeLoadDialog()
 }
 
-function load() {
-    console.log(filename)
-    console.log(filename.value)
-    if (filename.value){
-        graphStore.loadConfig(filename.value.name).then(() => {
-            cleanup()
-        })
-    } else {
-        errorMessages.value.push("Unable to load File")
+async function load() {
+    if (!filename.value) {
+        errorMessages.value.push("No file selected")
+        return
+    }
+    loading.value = true
+    try {
+        await graphStore.loadConfig(filename.value.name)
+        cleanup()
+    } finally {
+        loading.value = false
     }
 }
 
@@ -53,8 +56,8 @@ function cancel() {
 
         <v-card-actions>
         <v-spacer />
-        <v-btn @click="cancel">Cancel</v-btn>
-        <v-btn @click="load">Load selected file</v-btn>
+        <v-btn @click="cancel" :disabled="loading">Cancel</v-btn>
+        <v-btn @click="load" :loading="loading">Load selected file</v-btn>
         </v-card-actions>
     </v-card>
   </v-dialog>

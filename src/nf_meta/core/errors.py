@@ -25,7 +25,7 @@ class WorkflowReferenceErrors(GraphValidationError):
 class SessionCommandError(Exception):
     @dataclass
     class FieldError:
-        workflow_id: str
+        workflow_id: Optional[str]
         field: str
         message: str
 

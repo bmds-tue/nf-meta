@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { ref, watch } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
@@ -13,13 +13,14 @@ import {
   type CompletionContext,
   type CompletionResult,
 } from "@codemirror/autocomplete"
-import { useGraphStore } from "../store"
+import { useGraphStore, useEditorStore } from "../store"
 import type { APINodeData } from "../types"
 
 const props = defineProps<{
   modelValue?: object
   hint?: string
   nodeId?: string
+  serverError?: string
 }>()
 
 const emit = defineEmits<{
@@ -28,10 +29,22 @@ const emit = defineEmits<{
     }>()
 
 const graphStore = useGraphStore()
+const editorStore = useEditorStore()
 
 const paramsString = props.modelValue ? YAML.stringify(props.modelValue) : ""
 const code = ref(paramsString)
 const error = ref<string>("")
+
+// Emit parsed params on every valid YAML change so v-model stays live.
+// Explicit save() is still needed only for the @save event (Cmd+S / API call).
+watch(code, (newCode) => {
+  try {
+    emit("update:modelValue", YAML.parse(newCode))
+    error.value = ""
+  } catch {
+    // don't emit on parse error — keep last valid modelValue
+  }
+})
 
 
 // ==== THEMES ================================================
@@ -311,12 +324,27 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
   return diagnostics
 })
 
+// ─── Global save (Cmd/Ctrl+S) ─────────────────────────────────────────────────
+// useHotkey skips contenteditable targets, so we intercept Cmd+S inside
+// CodeMirror directly. Returning true prevents the browser's Save Page default.
+
+const globalSaveKeymap = Prec.high(keymap.of([{
+  key: "Mod-s",
+  run() {
+    if (save() && !graphStore.filename) {
+      editorStore.openSaveDialog()
+    }
+    return true
+  }
+}]))
+
 // ─── Combined extensions ──────────────────────────────────────────────────────
 
 const extensions = [
   langyaml(),
   fullHeightTheme,
   oneDark,
+  globalSaveKeymap,
 ]
 
 // Only add the node references features,
@@ -340,27 +368,28 @@ if (props.nodeId) {
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
 
-function save() {
+function save(): boolean {
   try {
     error.value = ""
     const params = YAML.parse(code.value)
     emit("update:modelValue", params)
     emit("save")
+    return true
   } catch (err: unknown) {
     if (err instanceof YAMLParseError) {
       error.value = err.message
     } else {
       console.log(err)
     }
+    return false
   }
 }
 </script>
 
 <template>
-  <p v-show="error" style="color: rgb(var(--v-theme-error))">
-    {{ error }}
+  <p v-show="error || serverError" style="color: rgb(var(--v-theme-error))">
+    {{ error || serverError }}
   </p>
   <Codemirror v-model="code" :extensions="extensions" />
   <small>{{ hint }}</small>
-  <v-btn @click="save">Save changes</v-btn>
 </template>

@@ -1,6 +1,6 @@
 import pytest
 
-from nf_meta.core.models import Workflow, Transition  # type: ignore[import]
+from nf_meta.core.models import NfPipeline, BaseWorkflow, Transition  # type: ignore[import]
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,
@@ -30,7 +30,7 @@ class TestWorkflowMutations:
         assert events[0].workflow.id == wf_rnaseq.id
 
     def test_add_workflow_with_invalid_ref_raises_and_rolls_back(self, empty_graph):
-        wf = Workflow(
+        wf = NfPipeline(
             name="nf-core/rnaseq",
             version="3.14.0",
             params={"input": "${nonexistent:params:outdir}/file.csv"},
@@ -160,7 +160,7 @@ class TestParamReferenceValidation:
         )
         empty_graph.update_workflow(wf_fetchngs_with_params)
 
-        wf_rnaseq = Workflow(
+        wf_rnaseq = NfPipeline(
             name="nf-core/rnaseq",
             version="3.14.0",
             params={"input": f"${{{wf_fetchngs.id}:params:outdir}}/samplesheet.csv"},
@@ -172,7 +172,7 @@ class TestParamReferenceValidation:
             )
 
     def test_ref_to_unknown_workflow_raises(self, empty_graph):
-        wf = Workflow(
+        wf = NfPipeline(
             name="nf-core/rnaseq",
             version="3.14.0",
             params={"input": "${ghost:params:outdir}/file.csv"},
@@ -188,7 +188,7 @@ class TestParamReferenceValidation:
         )
         empty_graph.update_workflow(fetchngs_with_params)
 
-        rnaseq_with_ref = Workflow(
+        rnaseq_with_ref = NfPipeline(
             name="nf-core/rnaseq",
             version="3.14.0",
             params={"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"},
@@ -210,7 +210,7 @@ class TestDeferredValidation:
             update={"params": {"outdir": "results"}}
         )
 
-        wf_rnaseq = Workflow(
+        wf_rnaseq = NfPipeline(
             name="nf-core/rnaseq",
             version="3.14.0",
             params={"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"},

@@ -1,65 +1,50 @@
-from .python_runner import SimplePythonRunner
-from .cascade_runner import NfCascadeRunner
+from .base_runner import _REGISTRY
 from .errors import NfMetaRunnerError
+from .utils import RunOptions
 
 import logging
-from enum import StrEnum
-from typing import Protocol
 from nf_meta.core.graph import MetaworkflowGraph
-from nf_meta.core.models import Workflow, GlobalOptions
 
 
 logger = logging.getLogger(__name__)
 
 
-class Runners(StrEnum):
-    PYTHON = "python"
-    PLATFORM = "platform"
-    DAISY_CHAIN = "daisy_chain"
-    NEXTFLOW_MONO = "nextflow_mono"
-
-
-class Runner(Protocol):
-    def run(self, graph) -> None: ...
-    def resume(self, graph) -> None: ...
-
-
 def run_metapipeline(
-        g: MetaworkflowGraph,
-        runner_name: Runners = Runners.PYTHON,
-        resume = False,
-        verbose = True,
-        output_lines = 20,
-        start: str = None,
-        target: str = None,
-        profile: str = None
-    ) -> None:
+    g: MetaworkflowGraph,
+    run_options: RunOptions = RunOptions(),
+) -> None:
     logger.info("Started runner")
 
     errors = []
-    if start:
-        if not g.get_workflow_by_id(start):
-            errors.append(f"Starting workflow {start} is not a valid workflow id!")
+    if run_options.start:
+        if not g.get_workflow_by_id(run_options.start):
+            errors.append(
+                f"Starting workflow {run_options.start} is not a valid workflow id!"
+            )
         else:
-            logger.info(f"Starting workflow: {start}")
-        
-    if target:
-        if not g.get_workflow_by_id(target):
-            errors.append(f"Target workflow {target} is not a valid workflow id!")
+            logger.info(f"Starting workflow: {run_options.start}")
+
+    if run_options.target:
+        if not g.get_workflow_by_id(run_options.target):
+            errors.append(
+                f"Target workflow {run_options.target} is not a valid workflow id!"
+            )
         else:
-            logger.info(f"Target workflow: {target}")
-    
+            logger.info(f"Target workflow: {run_options.target}")
+
     if errors:
         raise NfMetaRunnerError("\n".join(errors))
 
-    runner = None
-    match runner_name:
-        case Runners.PYTHON:
-            runner = SimplePythonRunner(output_window_size=output_lines, start=start, target=target, extra_profile=profile)
-        case _:
-            raise NotImplementedError("Requested runner not implemented yet")
-    
-    if resume:
+    runner_cls = _REGISTRY.get(run_options.runner_name)
+    if runner_cls is None:
+        available = ", ".join(f"'{k}'" for k in _REGISTRY)
+        raise NfMetaRunnerError(
+            f"Unknown runner '{run_options.runner_name}'. Available: {available}"
+        )
+
+    runner = runner_cls(run_options)
+
+    if run_options.resume:
         runner.resume(g)
     else:
         runner.run(g)

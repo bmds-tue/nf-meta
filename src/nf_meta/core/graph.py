@@ -7,9 +7,9 @@ import networkx as nx
 
 from .models import (
     MetaworkflowConfig,
-    Workflow,
     GlobalOptions,
     Transition,
+    Workflow,
     load_config,
     dump_config,
     CONFIG_VERSION_MAX,
@@ -167,6 +167,8 @@ class MetaworkflowGraph:
     def validate_param_references(self, wf: Workflow):
         errors = []
         for ref in wf.field_refs:
+            if ref.namespace != "params":
+                continue  # output references not yet validated
             referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
             if not referenced_wf:
                 errors.append(

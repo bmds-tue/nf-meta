@@ -203,32 +203,28 @@ class TestGlobalOptions:
         assert g.profile is None
 
     def test_nextflow_version_full_string(self):
-        g = GlobalOptions(nextflow_version_tuple="25.10.4")
+        g = GlobalOptions(nextflow_version="25.10.4")
         assert g.nextflow_version_tuple == (25, 10, 4, 0)
 
     def test_nextflow_version_partial(self):
-        g = GlobalOptions(nextflow_version_tuple="25")
+        g = GlobalOptions(nextflow_version=25)
         assert g.nextflow_version_tuple == (25, 0, 0, 0)
 
     def test_nextflow_version_edge(self):
-        g = GlobalOptions(nextflow_version_tuple="25.10.4-edge")
+        g = GlobalOptions(nextflow_version="25.10.4-edge")
         assert g.nextflow_version_tuple == (25, 10, 4, 1)
 
-    def test_nextflow_version_tuple_passthrough(self):
-        g = GlobalOptions(nextflow_version_tuple=(25, 10, 4, 0))
-        assert g.nextflow_version_tuple == (25, 10, 4, 0)
-
     def test_nextflow_version_none(self):
-        g = GlobalOptions(nextflow_version_tuple=None)
+        g = GlobalOptions(nextflow_version=None)
         assert g.nextflow_version_tuple is None
 
     def test_nextflow_version_invalid_raises(self):
         with pytest.raises(ValidationError):
-            GlobalOptions(nextflow_version_tuple="not-a-version")
+            GlobalOptions(nextflow_version="not-a-version")
 
     def test_nextflow_version_too_many_parts_raises(self):
         with pytest.raises(ValidationError):
-            GlobalOptions(nextflow_version_tuple="25.10.4.5")
+            GlobalOptions(nextflow_version="25.10.4.5")
 
 
 # ---------------------------------------------------------------------------

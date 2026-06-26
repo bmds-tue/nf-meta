@@ -1,6 +1,6 @@
 import pytest
 
-from nf_meta.core.models import NfPipeline, Workflow, Transition  # type: ignore[import]
+from nf_meta.core.models import NfPipeline, BaseWorkflow, Transition  # type: ignore[import]
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,

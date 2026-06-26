@@ -8,11 +8,14 @@ export function useEditorHotkeys() {
   const activityStore = useActivityStore()
   const { getSelectedNodes, getSelectedEdges } = useVueFlow({id: "main-flow"})
 
-  function deleteSelection() {
+  async function deleteSelection() {
     const nodeIds = getSelectedNodes.value.map(n => n.id)
     const edgeIds = getSelectedEdges.value.map(e => e.id)
 
-    graphStore.removeSelectionById({nodes: nodeIds, edges: edgeIds})
+    const result = await graphStore.removeSelectionById({nodes: nodeIds, edges: edgeIds})
+    if (result.ok && nodeIds.length > 0) {
+      editorStore.removeSidebarDetailsForNodeIds(nodeIds)
+    }
   }
 
   useHotkey('delete', deleteSelection)

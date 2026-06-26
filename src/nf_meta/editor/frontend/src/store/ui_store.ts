@@ -104,6 +104,14 @@ export const useEditorStore = defineStore('editor', () => {
         _sideBarNodes.value = _sideBarNodes.value.filter((d) => d.id != id)
     }
 
+    function removeSidebarDetailsForNodeIds(nodeIds: string[]) {
+        const idSet = new Set(nodeIds)
+        _sideBarNodes.value = _sideBarNodes.value.filter(d => {
+            const detailNodeId = 'id' in d.detailData ? d.detailData.id : undefined
+            return !detailNodeId || !idSet.has(detailNodeId)
+        })
+    }
+
     function collapseSidebarDetail(id: number) {
         if (id == sideBarActiveDetailId.value) {
             sideBarActiveDetailId.value = 0
@@ -114,7 +122,7 @@ export const useEditorStore = defineStore('editor', () => {
         showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
         sideBarActiveDetailId, setActiveSidebarDetailId,
         sideBarTab, sideBarNodes, addNodeToSideBar,
-        removeSidebarDetail, collapseSidebarDetail,
+        removeSidebarDetail, removeSidebarDetailsForNodeIds, collapseSidebarDetail,
         hoveredNodeId, setHoveredNodeId,
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,

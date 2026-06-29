@@ -275,7 +275,13 @@ class NfPipeline(BaseWorkflow):
             raise ValueError("Url should start with https://")
 
         if not is_nfcore and not url_exists(value):
-            raise ValueError("Invalid or inaccessible pipeline url")
+            click.echo(
+                click.style(
+                    f"Warning: pipeline URL '{value}' could not be reached. "
+                    "Continuing — reachability may depend on network or authentication.",
+                    fg="yellow",
+                )
+            )
 
         return value
 

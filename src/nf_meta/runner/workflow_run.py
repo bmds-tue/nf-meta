@@ -74,12 +74,25 @@ class WorkflowRun:
         return run_cls(wf, workdir, globals, extra_profile)
 
     def prepare(self) -> None:
-        """Create workdir and write params file from wf.params. Call before get_cmd()."""
+        """Create workdir and write the params file. Call before get_cmd().
+
+        Merges wf.params_file (base, real YAML types preserved) with wf.params
+        (overrides — resolved ${...} refs, outdir, etc.), then writes one
+        -params-file. This lets typed params live in an external YAML file.
+        """
         self.workdir.mkdir(parents=True, exist_ok=True)
+        merged: dict = {}
+        if self.wf.params_file:
+            with open(self.wf.params_file) as fh:
+                loaded = yaml.safe_load(fh) or {}
+            if isinstance(loaded, dict):
+                merged.update(loaded)
         if self.wf.params:
+            merged.update(self.wf.params)
+        if merged:
             self._params_file = self.workdir / "params.yaml"
             with open(self._params_file, "w") as fh:
-                yaml.dump(self.wf.params, fh)
+                yaml.dump(merged, fh)
 
     def get_cmd(self, resume: bool = False, stub: bool = False) -> list[str]:
         raise NotImplementedError

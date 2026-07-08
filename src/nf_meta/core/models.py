@@ -78,7 +78,15 @@ ExistingNfConfigFile = Annotated[
 ]
 
 
-def coerce_param_values_to_str(v: Any) -> Optional[dict[str, str]]:
+def validate_param_scalars(v: Any) -> Optional[dict[str, Any]]:
+    """Validate that every param value is a scalar, preserving its type.
+
+    Values are returned unchanged so ints/floats/bools round-trip through the
+    generated params-file as real YAML types. Nextflow's ``-params-file`` keeps
+    those types, so nf-schema accepts integer/boolean params instead of
+    rejecting stringified ones. Only scalar types are allowed; nested
+    dict/list values are rejected.
+    """
     if v is None:
         return None
 
@@ -87,25 +95,21 @@ def coerce_param_values_to_str(v: Any) -> Optional[dict[str, str]]:
             f"Params must be a key-value mapping, got {type(v).__name__!r}"
         )
 
-    COERCIBLE = (str, int, float, bool)
-    coerced = {}
-    errors = []
-    for key, value in v.items():
-        if not isinstance(value, COERCIBLE):
-            errors.append(
-                f"\tParam '{key}' has unsupported type {type(value).__name__}"
-            )
-        else:
-            coerced[key] = str(value)
+    SCALAR = (str, int, float, bool)
+    errors = [
+        f"\tParam '{key}' has unsupported type {type(value).__name__}"
+        for key, value in v.items()
+        if not isinstance(value, SCALAR)
+    ]
 
     if errors:
         raise ValueError("\n" + "\n".join(errors))
 
-    return coerced
+    return v
 
 
 CoercedParams = Annotated[
-    Optional[dict[str, str]], BeforeValidator(coerce_param_values_to_str)
+    Optional[dict[str, Any]], BeforeValidator(validate_param_scalars)
 ]
 
 

@@ -114,18 +114,19 @@ class SimplePythonRunner(BaseRunner):
             ref_value = values_source.get(ref.target_key)
             source_value = wf_resolved.params.get(ref.source_key)
 
-            if not ref_value:
+            if ref_value is None:
                 raise ValueError(
                     f"Resolving reference {ref.name} failed: "
                     f"key '{ref.target_key}' not found in workflow '{ref.target_wf_id}' {ref.namespace}"
                 )
-            if not source_value:
+            if source_value is None:
                 raise ValueError(
                     f"Resolving reference {ref.name} failed: "
                     f"source key '{ref.source_key}' not found in workflow '{ref.source_wf_id}' params"
                 )
 
-            resolved_value = source_value.replace(ref.name, ref_value)
+            # ref_value may now be a non-string scalar (int/bool); str() it for interpolation
+            resolved_value = source_value.replace(ref.name, str(ref_value))
             if work_directories:
                 resolved_value = str(
                     work_directories[ref.target_wf_id] / resolved_value

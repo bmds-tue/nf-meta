@@ -91,14 +91,7 @@ ExistingNfConfigFile = Annotated[
 
 
 def validate_param_scalars(v: Any) -> Optional[dict[str, Any]]:
-    """Validate that every param value is a scalar, preserving its type.
-
-    Values are returned unchanged so ints/floats/bools round-trip through the
-    generated params-file as real YAML types. Nextflow's ``-params-file`` keeps
-    those types, so nf-schema accepts integer/boolean params instead of
-    rejecting stringified ones. Only scalar types are allowed; nested
-    dict/list values are rejected.
-    """
+    """Validate that every param value is a scalar, preserving its type."""
     if v is None:
         return None
 
@@ -123,6 +116,12 @@ def validate_param_scalars(v: Any) -> Optional[dict[str, Any]]:
 CoercedParams = Annotated[
     Optional[dict[str, Any]], BeforeValidator(validate_param_scalars)
 ]
+
+
+def load_params_file(path: Path) -> dict:
+    """Load a YAML params-file into a dict ({} if empty or not a mapping)."""
+    data = yaml.safe_load(Path(path).read_text()) or {}
+    return data if isinstance(data, dict) else {}
 
 
 def create_id():
@@ -356,24 +355,17 @@ class NfPipeline(BaseWorkflow):
             )
             return value
 
-        # Start from params_file contents, then let value override.
-        # This gives the full picture for required-param checks while
-        # honouring the precedence rule (value wins on collision).
+        # params_file is the base, value overrides. The pre-flight validator's
+        # contract is str-typed, so stringify here only (self.params stays typed).
         merged: dict[str, str] = {}
         skip_required = False
-
         if params_file is not None:
             try:
-                with open(params_file) as fh:
-                    file_data = yaml.safe_load(fh) or {}
-                if isinstance(file_data, dict):
-                    merged = {k: str(v) for k, v in file_data.items() if v is not None}
-                else:
-                    logger.warning(
-                        "params_file '%s' does not contain a mapping — skipping required-param check",
-                        params_file,
-                    )
-                    skip_required = True
+                merged = {
+                    k: str(v)
+                    for k, v in load_params_file(params_file).items()
+                    if v is not None
+                }
             except Exception as exc:
                 logger.warning(
                     "Could not read params_file '%s': %s — skipping required-param check",
@@ -381,9 +373,6 @@ class NfPipeline(BaseWorkflow):
                     exc,
                 )
                 skip_required = True
-
-        # The pre-flight validator works on strings (its documented contract),
-        # so stringify here only — self.params keeps real types for runtime.
         merged.update({k: str(v) for k, v in (value or {}).items()})
 
         errors = validate_params(

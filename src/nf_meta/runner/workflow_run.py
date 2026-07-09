@@ -21,6 +21,7 @@ from nf_meta.core.models import (
     NfPipeline,
     Workflow,
     WorkflowType,
+    load_params_file,
 )
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow
@@ -74,21 +75,10 @@ class WorkflowRun:
         return run_cls(wf, workdir, globals, extra_profile)
 
     def prepare(self) -> None:
-        """Create workdir and write the params file. Call before get_cmd().
-
-        Merges wf.params_file (base, real YAML types preserved) with wf.params
-        (overrides — resolved ${...} refs, outdir, etc.), then writes one
-        -params-file. This lets typed params live in an external YAML file.
-        """
+        """Write the params file: params_file as base, wf.params (refs) override."""
         self.workdir.mkdir(parents=True, exist_ok=True)
-        merged: dict = {}
-        if self.wf.params_file:
-            with open(self.wf.params_file) as fh:
-                loaded = yaml.safe_load(fh) or {}
-            if isinstance(loaded, dict):
-                merged.update(loaded)
-        if self.wf.params:
-            merged.update(self.wf.params)
+        file_params = load_params_file(self.wf.params_file) if self.wf.params_file else {}
+        merged = {**file_params, **(self.wf.params or {})}
         if merged:
             self._params_file = self.workdir / "params.yaml"
             with open(self._params_file, "w") as fh:

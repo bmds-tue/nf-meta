@@ -125,7 +125,7 @@ class SimplePythonRunner(BaseRunner):
                     f"source key '{ref.source_key}' not found in workflow '{ref.source_wf_id}' params"
                 )
 
-            # ref_value may now be a non-string scalar (int/bool); str() it for interpolation
+            # ref_value may be a non-str scalar now
             resolved_value = source_value.replace(ref.name, str(ref_value))
             if work_directories:
                 resolved_value = str(

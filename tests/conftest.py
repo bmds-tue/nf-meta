@@ -86,7 +86,13 @@ FAKE_MODULE_SCHEMA: dict[str, dict] = {
 
 @pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
-    """Replace HTTP-backed helpers with static stubs for every test."""
+    """Replace HTTP-backed helpers with static stubs for every test.
+
+    Patches both nf_meta.core.models.* (still the active validators until the
+    dynamic-validation extraction is wired up) and nf_meta.core.dynamic_validation.*
+    (the new, not-yet-wired-up module) so both code paths stay offline and
+    deterministic during the transition.
+    """
     monkeypatch.setattr(
         "nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES
     )
@@ -104,6 +110,25 @@ def mock_nfcore(monkeypatch):
     )
     monkeypatch.setattr(
         "nf_meta.core.models.get_nfcore_module_releases",
+        lambda name: [],
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.github_file_exists",
+        lambda url, path, ref: True,
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_pipeline_schema",
+        lambda url, version: FAKE_PIPELINE_SCHEMA,
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_module_schema",
+        lambda name, version: {},
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
         lambda name: [],
     )
 

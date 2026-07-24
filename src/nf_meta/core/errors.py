@@ -1,5 +1,6 @@
 from .models import Reference
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Optional
 
 import click
@@ -8,6 +9,19 @@ from pydantic import ValidationError
 
 class GraphValidationError(Exception):
     pass
+
+
+class Severity(StrEnum):
+    ERROR = "error"
+    WARNING = "warning"
+
+
+@dataclass(frozen=True)
+class Diagnostic:
+    workflow_id: str
+    field: str
+    message: str
+    severity: Severity
 
 
 @dataclass
@@ -55,6 +69,19 @@ class SessionCommandError(Exception):
                 graph_errors=[],
             )
         return cls(field_errors=[], graph_errors=[str(e)])
+
+    @classmethod
+    def from_diagnostics(cls, diagnostics: list[Diagnostic]) -> "SessionCommandError":
+        return cls(
+            field_errors=[
+                cls.FieldError(
+                    workflow_id=d.workflow_id, field=d.field, message=d.message
+                )
+                for d in diagnostics
+                if d.severity == Severity.ERROR
+            ],
+            graph_errors=[],
+        )
 
     def to_dict(self):
         return {

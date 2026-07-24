@@ -2,7 +2,9 @@ import pytest
 
 from nf_meta.core.models import Reference, WorkflowReference
 from nf_meta.core.errors import (
+    Diagnostic,
     GraphValidationError,
+    Severity,
     WorkflowReferenceError,
     WorkflowReferenceErrors,
     SessionCommandError,
@@ -56,6 +58,52 @@ class TestSessionCommandError:
         assert "graph_errors" in d
         assert isinstance(d["field_errors"], list)
         assert d["field_errors"][0]["workflow_id"] == "wf_a"
+
+
+# ---------------------------------------------------------------------------
+# SessionCommandError.from_diagnostics
+# ---------------------------------------------------------------------------
+
+
+class TestSessionCommandErrorFromDiagnostics:
+    def test_only_error_severity_included(self):
+        diagnostics = [
+            Diagnostic(
+                workflow_id="wf_a",
+                field="params",
+                message="bad param",
+                severity=Severity.ERROR,
+            ),
+            Diagnostic(
+                workflow_id="wf_a",
+                field="url",
+                message="could not reach url",
+                severity=Severity.WARNING,
+            ),
+        ]
+        err = SessionCommandError.from_diagnostics(diagnostics)
+        assert len(err.field_errors) == 1
+        assert err.field_errors[0].workflow_id == "wf_a"
+        assert err.field_errors[0].field == "params"
+        assert err.field_errors[0].message == "bad param"
+        assert err.graph_errors == []
+
+    def test_no_errors_yields_empty_field_errors(self):
+        diagnostics = [
+            Diagnostic(
+                workflow_id="wf_a",
+                field="url",
+                message="warn only",
+                severity=Severity.WARNING,
+            ),
+        ]
+        err = SessionCommandError.from_diagnostics(diagnostics)
+        assert err.field_errors == []
+
+    def test_empty_diagnostics_list(self):
+        err = SessionCommandError.from_diagnostics([])
+        assert err.field_errors == []
+        assert err.graph_errors == []
 
 
 # ---------------------------------------------------------------------------

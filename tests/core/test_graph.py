@@ -1,6 +1,12 @@
 import pytest
 
-from nf_meta.core.models import NfPipeline, BaseWorkflow, Transition  # type: ignore[import]
+from nf_meta.core.models import (  # type: ignore[import]
+    MetaworkflowConfig,
+    NfModule,
+    NfPipeline,
+    BaseWorkflow,
+    Transition,
+)
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,
@@ -9,7 +15,11 @@ from nf_meta.core.events import (  # type: ignore[import]
     TransitionAdded,
     TransitionRemoved,
 )
-from nf_meta.core.errors import GraphValidationError, WorkflowReferenceErrors  # type: ignore[import]
+from nf_meta.core.errors import (  # type: ignore[import]
+    DynamicValidationError,
+    GraphValidationError,
+    WorkflowReferenceErrors,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -261,8 +271,171 @@ class TestFileIO:
 
 
 # ---------------------------------------------------------------------------
-# Utility methods
+# Dynamic validation on load (from_config)
 # ---------------------------------------------------------------------------
+
+
+class TestDynamicValidationOnLoad:
+    def test_from_config_raises_dynamic_validation_error(self, monkeypatch):
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "1.0.0-abcdefa"}],
+        )
+        module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
+        cfg = MetaworkflowConfig.model_validate(
+            {
+                "config_version": "0.0.1",
+                "workflows": [
+                    {
+                        "id": module.id,
+                        "type": "nf-module",
+                        "name": module.name,
+                        "version": module.version,
+                    }
+                ],
+                "transitions": [],
+            }
+        )
+        with pytest.raises(DynamicValidationError) as excinfo:
+            MetaworkflowGraph.from_config(cfg)
+
+        assert any(
+            d.workflow_id == module.id and "not available" in d.message
+            for d in excinfo.value.errors
+        )
+
+    def test_from_config_succeeds_when_dynamic_checks_pass(self, monkeypatch):
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "0.0.0-6c4ed3a"}],
+        )
+        module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
+        cfg = MetaworkflowConfig.model_validate(
+            {
+                "config_version": "0.0.1",
+                "workflows": [
+                    {
+                        "id": module.id,
+                        "type": "nf-module",
+                        "name": module.name,
+                        "version": module.version,
+                    }
+                ],
+                "transitions": [],
+            }
+        )
+        g = MetaworkflowGraph.from_config(cfg)
+        assert g.get_workflow_by_id(module.id) is not None
+
+
+# ---------------------------------------------------------------------------
+# Dynamic validation on direct mutation (add_workflow / update_workflow)
+# ---------------------------------------------------------------------------
+
+
+class TestDynamicValidationOnMutation:
+    def test_add_workflow_raises_dynamic_validation_error(
+        self, empty_graph, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "1.0.0-abcdefa"}],
+        )
+        wf = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
+        with pytest.raises(DynamicValidationError):
+            empty_graph.add_workflow(wf)
+        assert empty_graph.get_workflow_by_id(wf.id) is None
+
+    def test_update_workflow_raises_dynamic_validation_error(
+        self, empty_graph, module_fastqc, monkeypatch
+    ):
+        empty_graph.add_workflow(module_fastqc)
+        empty_graph.pop_events()
+
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "1.0.0-abcdefa"}],
+        )
+        updated = module_fastqc.model_copy(update={"version": "0.0.0-badc0de"})
+        with pytest.raises(DynamicValidationError):
+            empty_graph.update_workflow(updated)
+
+    def test_update_workflow_skip_if_unchanged(self, empty_graph, monkeypatch):
+        """previous is now resolved internally via get_workflow_by_id — no
+        caller needs to pass it in (unlike the old session-layer design)."""
+        wf = NfPipeline(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://github.com/my-org/custom-pipeline",
+        )
+        empty_graph.add_workflow(wf)
+        empty_graph.pop_events()
+
+        calls = []
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.url_exists",
+            lambda url, timeout=10: calls.append("url") or True,
+        )
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
+            lambda url, version: calls.append("schema") or {},
+        )
+
+        updated = wf.model_copy(update={"description": "a new description"})
+        empty_graph.update_workflow(updated)
+        assert calls == []
+
+    def test_update_workflow_reruns_check_for_changed_field(
+        self, empty_graph, monkeypatch
+    ):
+        wf = NfPipeline(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://github.com/my-org/custom-pipeline",
+        )
+        empty_graph.add_workflow(wf)
+        empty_graph.pop_events()
+
+        calls = []
+        schema = {"foo": {"type": "string", "required": False, "enum": None}}
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
+            lambda url, version: calls.append("schema") or schema,
+        )
+
+        updated = wf.model_copy(update={"params": {"foo": "bar"}})
+        empty_graph.update_workflow(updated)
+        assert calls == ["schema"]
+
+    def test_deferred_validation_only_rechecks_touched_nodes(
+        self, empty_graph, monkeypatch
+    ):
+        """A suspended block (Transaction/deferred_validation) that only
+        touches one node must not re-run dynamic checks for the rest of the
+        graph at exit — that's the whole point of touched-node scoping."""
+        wf_a = NfPipeline(
+            name="my-org/a", version="1.0.0", url="https://github.com/my-org/a"
+        )
+        wf_b = NfPipeline(
+            name="my-org/b", version="1.0.0", url="https://github.com/my-org/b"
+        )
+        empty_graph.add_workflow(wf_a)
+        empty_graph.add_workflow(wf_b)
+        empty_graph.pop_events()
+
+        checked_urls = []
+        schema = {"x": {"type": "string", "required": False, "enum": None}}
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
+            lambda url, version: checked_urls.append(url) or schema,
+        )
+
+        with empty_graph.deferred_validation():
+            updated_a = wf_a.model_copy(update={"params": {"x": "y"}})
+            empty_graph.update_workflow(updated_a)
+
+        assert wf_b.url not in checked_urls
+        assert wf_a.url in checked_urls
 
 
 class TestUtilities:

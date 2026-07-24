@@ -11,6 +11,8 @@ from nf_meta.core.models import (
     load_config,
     dump_config,
 )
+from nf_meta.core.dynamic_validation import check_pipeline_main_script_exists
+from nf_meta.core.errors import Severity
 
 
 # ---------------------------------------------------------------------------
@@ -104,10 +106,7 @@ class TestWorkflowHash:
         wf2 = NfPipeline(name="nf-core/rnaseq", version="3.13.0")
         assert wf1.hash() != wf2.hash()
 
-    def test_hash_differs_by_main_script(self, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.models.github_file_exists", lambda url, path, ref: True
-        )
+    def test_hash_differs_by_main_script(self):
         wf1 = NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
@@ -133,39 +132,33 @@ class TestWorkflowMainScript:
 
     def test_main_script_raises_when_file_not_found_on_github(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.models.github_file_exists", lambda url, path, ref: False
+            "nf_meta.core.dynamic_validation.github_file_exists",
+            lambda url, path, ref: False,
         )
-        with pytest.raises(ValidationError, match="not found"):
-            NfPipeline(
-                name="my-org/custom-pipeline",
-                version="1.0.0",
-                url="https://github.com/my-org/custom-pipeline",
-                main_script="workflows/missing.nf",
-            )
+        wf = NfPipeline(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://github.com/my-org/custom-pipeline",
+            main_script="workflows/missing.nf",
+        )
+        diagnostics = check_pipeline_main_script_exists(wf)
+        assert any(
+            d.severity == Severity.ERROR and "not found" in d.message
+            for d in diagnostics
+        )
 
-    def test_main_script_warns_for_non_github_url(self, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.models.url_exists", lambda url, timeout=10: True
-        )
-        warned = []
-        monkeypatch.setattr(
-            "nf_meta.core.models.logger",
-            type(
-                "L",
-                (),
-                {
-                    "warning": lambda self, *a, **k: warned.append(a[0]),
-                    "debug": lambda *a, **k: None,
-                },
-            )(),
-        )
-        NfPipeline(
+    def test_main_script_warns_for_non_github_url(self):
+        wf = NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
             url="https://gitlab.com/my-org/custom-pipeline",
             main_script="workflows/special.nf",
         )
-        assert any("Cannot validate" in w for w in warned)
+        diagnostics = check_pipeline_main_script_exists(wf)
+        assert any(
+            d.severity == Severity.WARNING and "Cannot validate" in d.message
+            for d in diagnostics
+        )
 
 
 class TestWorkflowDump:

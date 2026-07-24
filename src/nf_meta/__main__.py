@@ -1,6 +1,7 @@
 import click
 from functools import wraps
 from nf_meta.core.errors import (
+    DynamicValidationError,
     GraphValidationError,
     ValidationError,
     format_errors_for_cli,
@@ -44,7 +45,7 @@ def edit_browser(config, verbose, editor, host, port):
         if port is not None:
             opts.port = port
         run_editor(opts)
-    except (GraphValidationError, ValidationError) as e:
+    except (GraphValidationError, ValidationError, DynamicValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)
     except FileNotFoundError as e:
@@ -59,7 +60,7 @@ def validate_config(config, verbose):
     try:
         g = MetaworkflowGraph.from_file(config)
         click.echo(click.style("✓ Config is valid", fg="green"))
-    except (GraphValidationError, ValidationError) as e:
+    except (GraphValidationError, ValidationError, DynamicValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)
     except FileNotFoundError as e:
@@ -114,7 +115,7 @@ def run(config, verbose, runner, resume, output_lines, start, target, profile, s
         )
         g = MetaworkflowGraph.from_file(config)
         run_metapipeline(g, run_options)
-    except (GraphValidationError, ValidationError) as e:
+    except (GraphValidationError, ValidationError, DynamicValidationError) as e:
         click.echo(format_errors_for_cli(e))
         raise SystemExit(1)
     except NfMetaRunnerError as e:

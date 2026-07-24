@@ -3,6 +3,7 @@ import pytest
 from nf_meta.core.models import Reference, WorkflowReference
 from nf_meta.core.errors import (
     Diagnostic,
+    DynamicValidationError,
     GraphValidationError,
     Severity,
     WorkflowReferenceError,
@@ -104,6 +105,28 @@ class TestSessionCommandErrorFromDiagnostics:
         err = SessionCommandError.from_diagnostics([])
         assert err.field_errors == []
         assert err.graph_errors == []
+
+
+# ---------------------------------------------------------------------------
+# format_errors_for_cli — DynamicValidationError
+# ---------------------------------------------------------------------------
+
+
+class TestFormatErrorsForCliDynamic:
+    def test_formats_dynamic_validation_error(self):
+        exc = DynamicValidationError(
+            errors=[
+                Diagnostic(
+                    workflow_id="wf_a",
+                    field="version",
+                    message="version not in registry",
+                    severity=Severity.ERROR,
+                )
+            ]
+        )
+        output = format_errors_for_cli(exc)
+        assert "wf_a" in output
+        assert "version not in registry" in output
 
 
 # ---------------------------------------------------------------------------

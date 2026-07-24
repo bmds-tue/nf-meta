@@ -24,10 +24,13 @@ from .events import (
     GlobalOptionsUpdated,
 )
 from .errors import (
+    DynamicValidationError,
     GraphValidationError,
+    Severity,
     WorkflowReferenceError,
     WorkflowReferenceErrors,
 )
+from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
 
 logger = logging.getLogger()
 
@@ -45,7 +48,10 @@ class MetaworkflowGraph:
         self.global_options = GlobalOptions()
         self.config_version: str = CONFIG_VERSION_MAX
         self._events: list[Event] = []
-        self._validation_suspended = False
+        # None = not suspended. A set = suspended, accumulating the ids of
+        # workflows touched while suspended, so deferred_validation's exit
+        # can scope the batched dynamic check to only those (see validate()).
+        self._validation_suspended: Optional[set[str]] = None
 
     def _emit(self, event: Event):
         self._events.append(event)
@@ -86,11 +92,18 @@ class MetaworkflowGraph:
         return obj
 
     def add_workflow(self, wf: Workflow):
+        if self._validation_suspended is not None:
+            self._validation_suspended.add(wf.id)
+        else:
+            diagnostics = run_dynamic_checks(wf, previous=None)
+            if any(d.severity == Severity.ERROR for d in diagnostics):
+                raise DynamicValidationError(diagnostics)
+            log_warnings(diagnostics)
 
         self.G.add_node(wf.id, workflow=wf.model_copy())
 
         try:
-            if wf.params and not self._validation_suspended:
+            if wf.params and self._validation_suspended is None:
                 self.validate_param_references(wf)
             self._emit(WorkflowAdded(wf))
         except GraphValidationError as e:
@@ -99,13 +112,21 @@ class MetaworkflowGraph:
 
     def update_workflow(self, wf: Workflow):
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
-        if wf.params and not self._validation_suspended:
-            self.validate_param_references(wf)
-
         if wf.id not in self.G.nodes:
             raise ValueError("Workflow has invalid id. Update unsuccessful!")
 
         old_wf = self.get_workflow_by_id(wf.id)
+
+        if self._validation_suspended is not None:
+            self._validation_suspended.add(wf.id)
+        else:
+            diagnostics = run_dynamic_checks(wf, previous=old_wf)
+            if any(d.severity == Severity.ERROR for d in diagnostics):
+                raise DynamicValidationError(diagnostics)
+            log_warnings(diagnostics)
+            if wf.params:
+                self.validate_param_references(wf)
+
         self.G.nodes[wf.id]["workflow"] = wf.model_copy()
         self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))  # type: ignore
 
@@ -141,7 +162,7 @@ class MetaworkflowGraph:
         self._emit(TransitionAdded(tr))
 
         # can only be validated after-the-fact with the node in the graph
-        if not self._validation_suspended:
+        if self._validation_suspended is None:
             self.validate_graph_topology()
 
     def remove_transition(self, source: str, target: str):
@@ -152,7 +173,7 @@ class MetaworkflowGraph:
         self.G.remove_edge(source, target)
         self._emit(TransitionRemoved(tr))
 
-        if not self._validation_suspended:
+        if self._validation_suspended is None:
             source_wf = self.get_workflow_by_id(source)
             self.validate_param_references(source_wf)  # type: ignore
 
@@ -215,7 +236,7 @@ class MetaworkflowGraph:
         if src not in self.G or tgt not in self.G:
             raise GraphValidationError(f"Edge refers to nonexistent node: {src}->{tgt}")
 
-    def validate(self):
+    def validate(self, touched: Optional[set[str]] = None):
         self.validate_graph_topology()
 
         # Detect missing workflow nodes
@@ -229,7 +250,19 @@ class MetaworkflowGraph:
 
         for n in self.G.nodes:
             wf = self.get_workflow_by_id(n)
-            self.validate_param_references(wf)
+            self.validate_param_references(wf)  # type: ignore
+
+        if touched:
+            # Batched, concurrent dynamic check scoped to only the workflows
+            # touched while suspended — not the whole graph. A node removed
+            # later in the same suspended block is filtered out (nothing to
+            # check).
+            raw = [self.get_workflow_by_id(n) for n in touched if n in self.G.nodes]
+            workflows = [wf for wf in raw if wf is not None]
+            diagnostics = check_all(workflows)
+            if any(d.severity == Severity.ERROR for d in diagnostics):
+                raise DynamicValidationError(diagnostics)
+            log_warnings(diagnostics)
 
     # ===========================
     #   EXPORT BACK TO CONFIG
@@ -319,11 +352,15 @@ class MetaworkflowGraph:
     @contextmanager
     def deferred_validation(self):
         """
-        Suspend per-operation vaidation; run a full graph validation on exit
+        Suspend per-operation validation; on exit, run a full graph
+        validation plus a single batched, concurrent dynamic-check pass
+        scoped to the workflows touched while suspended (not the whole
+        graph).
         """
-        self._validation_suspended = True
+        self._validation_suspended = set()
         try:
             yield self
         finally:
-            self._validation_suspended = False
-            self.validate()
+            touched = self._validation_suspended
+            self._validation_suspended = None
+            self.validate(touched)

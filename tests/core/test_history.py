@@ -2,7 +2,8 @@ import pytest
 
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.history import History  # type: ignore[import]
-from nf_meta.core.models import Transition, GlobalOptions  # type: ignore[import]
+from nf_meta.core.models import NfModule, Transition, GlobalOptions  # type: ignore[import]
+from nf_meta.core.errors import DynamicValidationError  # type: ignore[import]
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,
     WorkflowRemoved,
@@ -122,8 +123,13 @@ class TestUndoRedo:
 # Mirrors TestExecute.test_execute_rolls_back_on_error, extended to undo/redo:
 # History.execute() already catches, rolls back via the inverted just-emitted
 # events, and re-raises; undo()/redo() call Command.apply() directly with no
-# equivalent. These force a generic failure to prove the mechanism works
-# regardless of *why* apply() fails.
+# equivalent. The first two tests force a generic failure to prove the
+# mechanism works regardless of *why* apply() fails; the last two exercise
+# the real trigger this matters for — a dynamic (network-backed) check can
+# legitimately fail during replay if external state (the nf-core registry)
+# drifted between the original action and the undo/redo, unlike tier-1
+# checks, which can't fail on replay since undo/redo only ever move between
+# previously-validated states.
 
 
 class TestUndoRedoRollback:
@@ -180,6 +186,74 @@ class TestUndoRedoRollback:
 
         # redo failed before anything succeeded — graph unchanged.
         assert graph.get_workflow_by_id(wf_rnaseq.id) is not None
+        # The failed redo is restored so it can be retried.
+        assert history.redoable()
+        assert not history.undoable()
+
+    def test_undo_rolls_back_on_dynamic_check_failure(self, history, monkeypatch):
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "0.0.0-6c4ed3a"}, {"version": "1.0.0-aaaaaaa"}],
+        )
+        module_a = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
+        module_b = NfModule(name="nf-core/fastqc", version="1.0.0-aaaaaaa")
+
+        graph = MetaworkflowGraph()
+        graph.add_workflow(module_a)
+        graph.add_workflow(module_b)
+        graph.pop_events()
+
+        history.execute(
+            Transaction((RemoveWorkflow(module_a.id), RemoveWorkflow(module_b.id))),
+            graph,
+        )
+        assert graph.get_workflow_by_id(module_a.id) is None
+        assert graph.get_workflow_by_id(module_b.id) is None
+
+        # External drift: module_a's version is no longer valid by the time
+        # undo resurrects it (module_b's still is).
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "1.0.0-aaaaaaa"}],
+        )
+
+        with pytest.raises(DynamicValidationError):
+            history.undo(graph)
+
+        # Both nodes are part of the same suspended batch (Transaction wraps
+        # the whole undo in deferred_validation), so a failure anywhere in
+        # the batch rolls the whole batch back — neither is left orphaned.
+        assert graph.get_workflow_by_id(module_a.id) is None
+        assert graph.get_workflow_by_id(module_b.id) is None
+        # The failed undo is restored so it can be retried.
+        assert history.undoable()
+        assert not history.redoable()
+
+    def test_redo_rolls_back_on_dynamic_check_failure(self, history, monkeypatch):
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "0.0.0-6c4ed3a"}],
+        )
+        graph = MetaworkflowGraph()
+        module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
+
+        history.execute(AddWorkflow(module), graph)
+        assert graph.get_workflow_by_id(module.id) is not None
+
+        history.undo(graph)
+        assert graph.get_workflow_by_id(module.id) is None
+
+        # External drift: the version is no longer valid by the time redo
+        # resurrects it.
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "9.9.9-ffffff9"}],
+        )
+
+        with pytest.raises(DynamicValidationError):
+            history.redo(graph)
+
+        assert graph.get_workflow_by_id(module.id) is None
         # The failed redo is restored so it can be retried.
         assert history.redoable()
         assert not history.undoable()

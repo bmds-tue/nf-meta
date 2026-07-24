@@ -23,6 +23,11 @@ from nf_meta.core.nf_core_utils import (
 )
 from nf_meta.core.nf_param_validation import validate_params
 from nf_meta.core.models import NfPipeline, NfModule
+from nf_meta.core.dynamic_validation import (
+    check_module_params_schema,
+    check_pipeline_params_schema,
+)
+from nf_meta.core.errors import Severity
 
 
 # ---------------------------------------------------------------------------
@@ -346,11 +351,13 @@ class TestGetPipelineSchema:
 # ---------------------------------------------------------------------------
 
 class TestNfPipelineParamValidation:
-    """Integration tests using a custom schema mock that exercises validation paths."""
+    """Integration tests for NfPipeline param-schema validation
+    (dynamic_validation.check_pipeline_params_schema)."""
 
     def _pipeline_with_schema(self, monkeypatch, schema, **kwargs):
         monkeypatch.setattr(
-            "nf_meta.core.models.get_pipeline_schema", lambda url, version: schema
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
+            lambda url, version: schema,
         )
         return NfPipeline(
             name="nf-core/rnaseq",
@@ -365,18 +372,29 @@ class TestNfPipelineParamValidation:
             params={"input": "/data/sheet.csv"},
         )
         assert wf.params["input"] == "/data/sheet.csv"
+        assert check_pipeline_params_schema(wf) == []
 
     def test_unknown_param_raises(self, monkeypatch):
-        with pytest.raises(ValidationError, match="Unknown parameter"):
-            self._pipeline_with_schema(
-                monkeypatch,
-                PARSED_SCHEMA,
-                params={"not_a_real_param": "value"},
-            )
+        wf = self._pipeline_with_schema(
+            monkeypatch,
+            PARSED_SCHEMA,
+            params={"not_a_real_param": "value"},
+        )
+        diagnostics = check_pipeline_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "Unknown parameter" in d.message
+            for d in diagnostics
+        )
 
     def test_required_missing_raises(self, monkeypatch):
-        with pytest.raises(ValidationError, match="Required parameter.*input"):
-            self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA)
+        wf = self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA)
+        diagnostics = check_pipeline_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR
+            and "Required parameter" in d.message
+            and "input" in d.message
+            for d in diagnostics
+        )
 
     def test_params_file_satisfies_required(self, monkeypatch, tmp_path):
         pf = tmp_path / "params.yaml"
@@ -388,12 +406,20 @@ class TestNfPipelineParamValidation:
             params_file=str(pf),
         )
         assert wf.params_file is not None
+        diagnostics = check_pipeline_params_schema(wf)
+        assert not any(d.severity == Severity.ERROR for d in diagnostics)
 
     def test_params_file_missing_required_raises(self, monkeypatch, tmp_path):
         pf = tmp_path / "params.yaml"
         pf.write_text("outdir: /results\n")  # input is still missing
-        with pytest.raises(ValidationError, match="Required parameter.*input"):
-            self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA, params_file=str(pf))
+        wf = self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA, params_file=str(pf))
+        diagnostics = check_pipeline_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR
+            and "Required parameter" in d.message
+            and "input" in d.message
+            for d in diagnostics
+        )
 
     def test_params_overrides_params_file(self, monkeypatch, tmp_path):
         pf = tmp_path / "params.yaml"
@@ -409,38 +435,55 @@ class TestNfPipelineParamValidation:
     def test_params_file_unknown_param_raises(self, monkeypatch, tmp_path):
         pf = tmp_path / "params.yaml"
         pf.write_text("input: /data/sheet.csv\nnot_a_real_param: value\n")
-        with pytest.raises(ValidationError, match="Unknown parameter.*not_a_real_param"):
-            self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA, params_file=str(pf))
+        wf = self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA, params_file=str(pf))
+        diagnostics = check_pipeline_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR
+            and "Unknown parameter" in d.message
+            and "not_a_real_param" in d.message
+            for d in diagnostics
+        )
 
     def test_schema_error_warns_and_skips_validation(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.models.get_pipeline_schema",
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
             lambda url, version: (_ for _ in ()).throw(
                 PipelineSchemaError("schema unavailable")
             ),
         )
-        output = []
-        monkeypatch.setattr("nf_meta.core.models.click.echo", lambda msg: output.append(msg))
         # Should not raise — schema unavailability is a warning, not a hard error
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
         assert wf is not None
-        assert any("cannot validate params" in str(m).lower() for m in output)
+        diagnostics = check_pipeline_params_schema(wf)
+        assert any(
+            d.severity == Severity.WARNING
+            and "cannot validate params" in d.message.lower()
+            for d in diagnostics
+        )
 
     def test_invalid_enum_raises(self, monkeypatch):
-        with pytest.raises(ValidationError, match="allowed values"):
-            self._pipeline_with_schema(
-                monkeypatch,
-                PARSED_SCHEMA,
-                params={"input": "/data/sheet.csv", "aligner": "bowtie2"},
-            )
+        wf = self._pipeline_with_schema(
+            monkeypatch,
+            PARSED_SCHEMA,
+            params={"input": "/data/sheet.csv", "aligner": "bowtie2"},
+        )
+        diagnostics = check_pipeline_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "allowed values" in d.message
+            for d in diagnostics
+        )
 
     def test_wrong_type_raises(self, monkeypatch):
-        with pytest.raises(ValidationError, match="integer"):
-            self._pipeline_with_schema(
-                monkeypatch,
-                PARSED_SCHEMA,
-                params={"input": "/data/sheet.csv", "max_cpus": "lots"},
-            )
+        wf = self._pipeline_with_schema(
+            monkeypatch,
+            PARSED_SCHEMA,
+            params={"input": "/data/sheet.csv", "max_cpus": "lots"},
+        )
+        diagnostics = check_pipeline_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "integer" in d.message
+            for d in diagnostics
+        )
 
     def test_reference_token_skips_type_check(self, monkeypatch):
         wf = self._pipeline_with_schema(
@@ -452,6 +495,8 @@ class TestNfPipelineParamValidation:
             },
         )
         assert "${fetch:params:thread_count}" in wf.params["max_cpus"]
+        diagnostics = check_pipeline_params_schema(wf)
+        assert not any(d.severity == Severity.ERROR for d in diagnostics)
 
 
 # ---------------------------------------------------------------------------
@@ -580,7 +625,8 @@ class TestParseModuleSchema:
 # ---------------------------------------------------------------------------
 
 class TestNfModuleParamValidation:
-    """Integration tests for NfModule.validate_params_against_schema.
+    """Integration tests for NfModule param-schema validation
+    (dynamic_validation.check_module_params_schema).
 
     The autouse mock_nfcore fixture returns {} for get_module_schema by default,
     so tests that want real validation override it per-test via monkeypatch.
@@ -588,7 +634,8 @@ class TestNfModuleParamValidation:
 
     def _module_with_schema(self, monkeypatch, schema, **kwargs):
         monkeypatch.setattr(
-            "nf_meta.core.models.get_module_schema", lambda name, version: schema
+            "nf_meta.core.dynamic_validation.get_module_schema",
+            lambda name, version: schema,
         )
         return NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a", **kwargs)
 
@@ -601,8 +648,12 @@ class TestNfModuleParamValidation:
             "meta":  {"type": "map",  "required": True},
             "reads": {"type": "file", "required": True},
         }
-        with pytest.raises(ValidationError, match="Required parameter"):
-            self._module_with_schema(monkeypatch, schema)
+        wf = self._module_with_schema(monkeypatch, schema)
+        diagnostics = check_module_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "Required parameter" in d.message
+            for d in diagnostics
+        )
 
     def test_all_required_params_present_passes(self, monkeypatch):
         schema = {
@@ -615,6 +666,7 @@ class TestNfModuleParamValidation:
             params={"meta.id": "s1", "reads": "/data/r1.fastq.gz"},
         )
         assert wf.params["reads"] == "/data/r1.fastq.gz"
+        assert check_module_params_schema(wf) == []
 
     def test_map_subkey_satisfies_required(self, monkeypatch):
         schema = {
@@ -627,47 +679,65 @@ class TestNfModuleParamValidation:
             params={"meta.id": "sample1", "reads": "/data/r1.fastq.gz"},
         )
         assert wf.params["meta.id"] == "sample1"
+        assert check_module_params_schema(wf) == []
 
     def test_unknown_param_raises(self, monkeypatch):
         schema = {
             "meta":  {"type": "map",  "required": True},
             "reads": {"type": "file", "required": True},
         }
-        with pytest.raises(ValidationError, match="Unknown parameter"):
-            self._module_with_schema(
-                monkeypatch,
-                schema,
-                params={"meta.id": "s1", "reads": "/r.fastq.gz", "extra": "nope"},
-            )
+        wf = self._module_with_schema(
+            monkeypatch,
+            schema,
+            params={"meta.id": "s1", "reads": "/r.fastq.gz", "extra": "nope"},
+        )
+        diagnostics = check_module_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "Unknown parameter" in d.message
+            for d in diagnostics
+        )
 
     def test_map_raw_value_raises(self, monkeypatch):
         schema = {
             "meta":  {"type": "map",  "required": True},
             "reads": {"type": "file", "required": True},
         }
-        with pytest.raises(ValidationError, match="dot-notation"):
-            self._module_with_schema(
-                monkeypatch,
-                schema,
-                params={"meta": "[id:'s1']", "reads": "/data/r1.fastq.gz"},
-            )
+        wf = self._module_with_schema(
+            monkeypatch,
+            schema,
+            params={"meta": "[id:'s1']", "reads": "/data/r1.fastq.gz"},
+        )
+        diagnostics = check_module_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "dot-notation" in d.message
+            for d in diagnostics
+        )
 
     def test_enum_enforced(self, monkeypatch):
         schema = {
             "mode": {"type": "string", "required": True, "enum": ["paired", "single"]},
         }
-        with pytest.raises(ValidationError, match="allowed values"):
-            self._module_with_schema(monkeypatch, schema, params={"mode": "interleaved"})
+        wf = self._module_with_schema(monkeypatch, schema, params={"mode": "interleaved"})
+        diagnostics = check_module_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "allowed values" in d.message
+            for d in diagnostics
+        )
 
     def test_float_type_validated(self, monkeypatch):
         schema = {"threshold": {"type": "float", "required": True}}
-        with pytest.raises(ValidationError, match="number"):
-            self._module_with_schema(monkeypatch, schema, params={"threshold": "not-a-float"})
+        wf = self._module_with_schema(monkeypatch, schema, params={"threshold": "not-a-float"})
+        diagnostics = check_module_params_schema(wf)
+        assert any(
+            d.severity == Severity.ERROR and "number" in d.message
+            for d in diagnostics
+        )
 
     def test_eval_type_skips_check(self, monkeypatch):
         schema = {"expr": {"type": "eval", "required": True}}
         wf = self._module_with_schema(monkeypatch, schema, params={"expr": "params.flag ? 'a' : 'b'"})
         assert wf.params["expr"] is not None
+        assert check_module_params_schema(wf) == []
 
     def test_reference_token_skips_validation(self, monkeypatch):
         schema = {
@@ -680,3 +750,4 @@ class TestNfModuleParamValidation:
             params={"meta.id": "s", "reads": "${fetch:params:samplesheet}"},
         )
         assert "${fetch:params:samplesheet}" in wf.params["reads"]
+        assert check_module_params_schema(wf) == []

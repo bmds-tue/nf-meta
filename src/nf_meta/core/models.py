@@ -10,8 +10,6 @@ import uuid
 import hashlib
 import json
 
-import click
-
 from pydantic import (
     BaseModel,
     Field,
@@ -25,16 +23,7 @@ from pydantic import (
 from pydantic.functional_serializers import PlainSerializer
 import yaml
 
-from nf_meta.core.nf_core_utils import (
-    get_nfcore_pipelines,
-    get_nfcore_module_releases,
-    url_exists,
-    github_file_exists,
-    get_pipeline_schema,
-    get_module_schema,
-    PipelineSchemaError,
-)
-from nf_meta.core.nf_param_validation import validate_params
+from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 
 logger = logging.getLogger()
 
@@ -274,15 +263,6 @@ class NfPipeline(BaseWorkflow):
         if not is_nfcore and not value.startswith("http"):
             raise ValueError("Url should start with https://")
 
-        if not is_nfcore and not url_exists(value):
-            click.echo(
-                click.style(
-                    f"Warning: pipeline URL '{value}' could not be reached. "
-                    "Continuing — reachability may depend on network or authentication.",
-                    fg="yellow",
-                )
-            )
-
         return value
 
     @field_validator("main_script", mode="after")
@@ -296,21 +276,6 @@ class NfPipeline(BaseWorkflow):
         name = info.data.get("name")
         if name and cls.get_nfcore_info(name):
             raise ValueError("main_script cannot be set for nf-core workflows")
-
-        url = info.data.get("url")
-        version = info.data.get("version")
-
-        if url and "github.com" in url and version:
-            if not github_file_exists(url, value, version):
-                raise ValueError(
-                    f"main_script '{value}' not found in repository '{url}' at ref '{version}'"
-                )
-        else:
-            logger.warning(
-                "Cannot validate main_script '%s': '%s' is not a GitHub URL",
-                value,
-                url,
-            )
 
         return value
 
@@ -332,71 +297,6 @@ class NfPipeline(BaseWorkflow):
                 data["description"] = nfcore_info.get("description", "")
 
         return data
-
-    @field_validator("params", mode="after")
-    @classmethod
-    def validate_params_against_schema(
-        cls, value: Optional[CoercedParams], info: ValidationInfo
-    ) -> Optional[CoercedParams]:
-        url: Optional[str] = info.data.get("url")
-        version: Optional[str] = info.data.get("version")
-        node_id: Optional[str] = info.data.get("id")
-        params_file: Optional[Any] = info.data.get("params_file")
-        name: Optional[str] = info.data.get("name")
-
-        if not url or not name or not version:
-            return value
-
-        try:
-            schema = get_pipeline_schema(url, version)
-        except PipelineSchemaError as e:
-            click.echo(
-                click.style(
-                    f"Warning: cannot validate params for '{name}': {e}",
-                    fg="yellow",
-                )
-            )
-            return value
-
-        # Start from params_file contents, then let value override.
-        # This gives the full picture for required-param checks while
-        # honouring the precedence rule (value wins on collision).
-        merged: dict[str, str] = {}
-        skip_required = False
-
-        if params_file is not None:
-            try:
-                with open(params_file) as fh:
-                    file_data = yaml.safe_load(fh) or {}
-                if isinstance(file_data, dict):
-                    merged = {k: str(v) for k, v in file_data.items() if v is not None}
-                else:
-                    logger.warning(
-                        "params_file '%s' does not contain a mapping — skipping required-param check",
-                        params_file,
-                    )
-                    skip_required = True
-            except Exception as exc:
-                logger.warning(
-                    "Could not read params_file '%s': %s — skipping required-param check",
-                    params_file,
-                    exc,
-                )
-                skip_required = True
-
-        merged.update(value or {})
-
-        errors = validate_params(
-            merged,
-            schema,
-            pipeline_id=node_id,
-            skip_required=skip_required,
-        )
-        if errors:
-            joined = "\n  - ".join(errors)
-            raise ValueError(f"Parameter validation failed:\n  - {joined}")
-
-        return value
 
     def hash(self) -> str:
         data = f"{self.url}{self.version}"
@@ -456,49 +356,6 @@ class NfModule(BaseWorkflow):
     # validate_default=True ensures the params field_validator runs even when
     # params is absent from the input (Pydantic skips field validators for defaults otherwise).
     params: Optional[CoercedParams] = Field(default=None, validate_default=True)
-
-    @field_validator("version", mode="after")
-    @classmethod
-    def validate_version_in_registry(cls, value: str, info: ValidationInfo) -> str:
-        name: str = info.data.get("name", "")
-        short_name = name.removeprefix("nf-core/")
-        if not short_name or short_name == name:
-            return value
-        releases = get_nfcore_module_releases(short_name)
-        valid_versions = {r["version"] for r in releases}
-        if valid_versions and value not in valid_versions:
-            raise ValueError(
-                f"Version '{value}' is not available in the Nextflow registry for "
-                f"module '{name}'. Use one of: {sorted(valid_versions)}"
-            )
-        return value
-
-    @field_validator("params", mode="after")
-    @classmethod
-    def validate_params_against_schema(
-        cls, value: Optional[dict], info: ValidationInfo
-    ) -> Optional[dict]:
-        name: str = info.data.get("name", "")
-        version: str = info.data.get("version", "")
-        node_id: str = info.data.get("id", "")
-
-        if not name or not version:
-            return value
-
-        schema = get_module_schema(name, version)
-        if not schema:
-            return value
-
-        errors = validate_params(
-            value or {},
-            schema,
-            pipeline_id=node_id,
-            skip_required=False,
-        )
-        if errors:
-            joined = "\n  - ".join(errors)
-            raise ValueError(f"Parameter validation failed:\n  - {joined}")
-        return value
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"

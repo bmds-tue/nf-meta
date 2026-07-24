@@ -25,6 +25,11 @@ class Diagnostic:
 
 
 @dataclass
+class DynamicValidationError(Exception):
+    errors: list[Diagnostic]
+
+
+@dataclass
 class WorkflowReferenceError(GraphValidationError):
     reference: Reference
     message: str
@@ -52,7 +57,8 @@ class SessionCommandError(Exception):
         e: WorkflowReferenceError
         | WorkflowReferenceErrors
         | GraphValidationError
-        | ValueError,
+        | ValueError
+        | DynamicValidationError,
     ):
         if isinstance(e, WorkflowReferenceError):
             e = WorkflowReferenceErrors([e])
@@ -68,6 +74,8 @@ class SessionCommandError(Exception):
                 ],
                 graph_errors=[],
             )
+        if isinstance(e, DynamicValidationError):
+            return cls.from_diagnostics(e.errors)
         return cls(field_errors=[], graph_errors=[str(e)])
 
     @classmethod
@@ -97,7 +105,8 @@ def format_errors_for_cli(
     e: WorkflowReferenceError
     | WorkflowReferenceErrors
     | GraphValidationError
-    | ValidationError,
+    | ValidationError
+    | DynamicValidationError,
 ) -> str:
     lines = []
     if isinstance(e, WorkflowReferenceError):
@@ -115,4 +124,9 @@ def format_errors_for_cli(
         for err in e.errors():
             field = ".".join(str(l) for l in err["loc"])
             lines.append(f" {click.style(field, fg='yellow')}: {err['msg']}")
+    elif isinstance(e, DynamicValidationError):
+        lines.append(click.style("Dynamic validation failed:", fg="red", bold=True))
+        for d in e.errors:
+            wf = click.style(f"Workflow {d.workflow_id}", fg="yellow")
+            lines.append(f" {wf} [{d.field}]: {d.message}")
     return "\n".join(lines)

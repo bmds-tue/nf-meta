@@ -1,4 +1,4 @@
-from .errors import GraphValidationError, SessionCommandError
+from .errors import DynamicValidationError, GraphValidationError, SessionCommandError
 from .events import Command
 from .history import History
 from .graph import MetaworkflowGraph
@@ -29,7 +29,7 @@ class EditorSession:
     def handle_command(self, c: Command):
         try:
             events = self.history.execute(c, self.graph)
-        except (GraphValidationError, ValueError) as e:
+        except (GraphValidationError, ValueError, DynamicValidationError) as e:
             raise SessionCommandError.from_exception(e)
 
         if self.config_file:

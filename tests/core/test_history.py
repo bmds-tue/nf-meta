@@ -116,6 +116,76 @@ class TestUndoRedo:
 
 
 # ---------------------------------------------------------------------------
+# undo / redo rollback-on-exception
+# ---------------------------------------------------------------------------
+#
+# Mirrors TestExecute.test_execute_rolls_back_on_error, extended to undo/redo:
+# History.execute() already catches, rolls back via the inverted just-emitted
+# events, and re-raises; undo()/redo() call Command.apply() directly with no
+# equivalent. These force a generic failure to prove the mechanism works
+# regardless of *why* apply() fails.
+
+
+class TestUndoRedoRollback:
+    def test_undo_rolls_back_on_partial_failure_and_restores_stack(
+        self, history, graph, wf_rnaseq, wf_fetchngs, monkeypatch
+    ):
+        history.execute(
+            Transaction((RemoveWorkflow(wf_rnaseq.id), RemoveWorkflow(wf_fetchngs.id))),
+            graph,
+        )
+        assert graph.get_workflow_by_id(wf_rnaseq.id) is None
+        assert graph.get_workflow_by_id(wf_fetchngs.id) is None
+
+        # Force the second of the two resurrections undo's inverse Transaction
+        # will attempt to fail, so there's a partial success to roll back.
+        original_add_workflow = MetaworkflowGraph.add_workflow
+        calls = []
+
+        def flaky_add_workflow(self, wf):
+            calls.append(wf.id)
+            if len(calls) == 2:
+                raise RuntimeError("simulated failure")
+            return original_add_workflow(self, wf)
+
+        monkeypatch.setattr(MetaworkflowGraph, "add_workflow", flaky_add_workflow)
+
+        with pytest.raises(RuntimeError):
+            history.undo(graph)
+
+        # Rollback: the first (successful) resurrection must not be left
+        # orphaned in the graph.
+        assert graph.get_workflow_by_id(wf_rnaseq.id) is None
+        assert graph.get_workflow_by_id(wf_fetchngs.id) is None
+        # The failed undo is restored so it can be retried.
+        assert history.undoable()
+        assert not history.redoable()
+
+    def test_redo_rolls_back_on_failure_and_restores_stack(
+        self, history, graph, wf_rnaseq, monkeypatch
+    ):
+        history.execute(RemoveWorkflow(wf_rnaseq.id), graph)
+        history.undo(graph)
+        assert graph.get_workflow_by_id(wf_rnaseq.id) is not None
+
+        def failing_remove_workflow(self, wf_id, recursive=False):
+            raise RuntimeError("simulated failure")
+
+        monkeypatch.setattr(
+            MetaworkflowGraph, "remove_workflow", failing_remove_workflow
+        )
+
+        with pytest.raises(RuntimeError):
+            history.redo(graph)
+
+        # redo failed before anything succeeded — graph unchanged.
+        assert graph.get_workflow_by_id(wf_rnaseq.id) is not None
+        # The failed redo is restored so it can be retried.
+        assert history.redoable()
+        assert not history.undoable()
+
+
+# ---------------------------------------------------------------------------
 # Transaction
 # ---------------------------------------------------------------------------
 

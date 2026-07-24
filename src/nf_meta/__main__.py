@@ -5,15 +5,9 @@ from nf_meta.core.errors import (
     ValidationError,
     format_errors_for_cli,
 )
-from nf_meta.runner import (
-    run_metapipeline,
-    get_registered_runners,
-    RunOptions,
-    NfMetaRunnerError,
-)
+from nf_meta.runner import get_registered_runners
 from nf_meta.core.graph import MetaworkflowGraph
-from nf_meta.core.session import start_session
-from nf_meta.editor import get_registered_editors, EditorOptions, run_editor
+from nf_meta.editor import get_registered_editors
 
 
 @click.group()
@@ -39,6 +33,9 @@ def cli() -> None:
 )
 @click.argument("config", required=False, type=click.Path())
 def edit_browser(config, verbose, editor, host, port):
+    from nf_meta.editor import EditorOptions, run_editor
+    from nf_meta.core.session import start_session
+
     try:
         start_session(config)
         opts = EditorOptions(editor_name=editor)
@@ -102,6 +99,8 @@ def validate_config(config, verbose):
     help="Run all workflows as stub runs (passes -stub to Nextflow)",
 )
 def run(config, verbose, runner, resume, output_lines, start, target, profile, stub):
+    from nf_meta.runner import run_metapipeline, RunOptions, NfMetaRunnerError
+
     try:
         run_options = RunOptions(
             runner_name=runner,

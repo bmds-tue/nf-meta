@@ -1,5 +1,6 @@
 import click
 from functools import wraps
+from pathlib import Path
 from nf_meta.core.errors import (
     DynamicValidationError,
     GraphValidationError,
@@ -9,6 +10,36 @@ from nf_meta.core.errors import (
 from nf_meta.runner import get_registered_runners
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.editor import get_registered_editors
+
+
+def handle_validation_errors(func):
+    """Shared error handling for commands taking a `config` path: renders any
+    validation failure through the unified format_errors_for_cli, with real
+    line numbers when the config file can be read as text."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        config = kwargs.get("config")
+        try:
+            return func(*args, **kwargs)
+        except (GraphValidationError, ValidationError, DynamicValidationError) as e:
+            source_text = None
+            if config:
+                try:
+                    source_text = Path(config).read_text()
+                except OSError:
+                    source_text = None
+            click.echo(
+                format_errors_for_cli(
+                    e, source_text=source_text, filename=str(config or "")
+                )
+            )
+            raise SystemExit(1)
+        except FileNotFoundError as e:
+            click.echo(click.style(str(e), fg="red"))
+            raise SystemExit(1)
+
+    return wrapper
 
 
 @click.group()
@@ -33,39 +64,27 @@ def cli() -> None:
     help="Port for the editor server (auto-assigned if omitted)",
 )
 @click.argument("config", required=False, type=click.Path())
+@handle_validation_errors
 def edit_browser(config, verbose, editor, host, port):
     from nf_meta.editor import EditorOptions, run_editor
     from nf_meta.core.session import start_session
 
-    try:
-        start_session(config)
-        opts = EditorOptions(editor_name=editor)
-        if host is not None:
-            opts.host = host
-        if port is not None:
-            opts.port = port
-        run_editor(opts)
-    except (GraphValidationError, ValidationError, DynamicValidationError) as e:
-        click.echo(format_errors_for_cli(e))
-        raise SystemExit(1)
-    except FileNotFoundError as e:
-        click.echo(click.style(e, fg="red"))
-        raise SystemExit(1)
+    start_session(config)
+    opts = EditorOptions(editor_name=editor)
+    if host is not None:
+        opts.host = host
+    if port is not None:
+        opts.port = port
+    run_editor(opts)
 
 
 @click.command("validate")
 @click.argument("config", type=click.Path())
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
+@handle_validation_errors
 def validate_config(config, verbose):
-    try:
-        g = MetaworkflowGraph.from_file(config)
-        click.echo(click.style("✓ Config is valid", fg="green"))
-    except (GraphValidationError, ValidationError, DynamicValidationError) as e:
-        click.echo(format_errors_for_cli(e))
-        raise SystemExit(1)
-    except FileNotFoundError as e:
-        click.echo(click.style(e, fg="red"))
-        raise SystemExit(1)
+    g = MetaworkflowGraph.from_file(config)
+    click.echo(click.style("✓ Config is valid", fg="green"))
 
 
 @click.command("run")
@@ -99,6 +118,7 @@ def validate_config(config, verbose):
     is_flag=True,
     help="Run all workflows as stub runs (passes -stub to Nextflow)",
 )
+@handle_validation_errors
 def run(config, verbose, runner, resume, output_lines, start, target, profile, stub):
     from nf_meta.runner import run_metapipeline, RunOptions, NfMetaRunnerError
 
@@ -115,14 +135,8 @@ def run(config, verbose, runner, resume, output_lines, start, target, profile, s
         )
         g = MetaworkflowGraph.from_file(config)
         run_metapipeline(g, run_options)
-    except (GraphValidationError, ValidationError, DynamicValidationError) as e:
-        click.echo(format_errors_for_cli(e))
-        raise SystemExit(1)
     except NfMetaRunnerError as e:
         click.echo(click.style(e.message, fg="red"))
-        raise SystemExit(1)
-    except FileNotFoundError as e:
-        click.echo(click.style(e, fg="red"))
         raise SystemExit(1)
 
 

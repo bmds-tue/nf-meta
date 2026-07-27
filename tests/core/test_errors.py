@@ -1,6 +1,7 @@
 import pytest
+from pydantic import ValidationError
 
-from nf_meta.core.models import Reference, WorkflowReference
+from nf_meta.core.models import NfPipeline, Reference, WorkflowReference
 from nf_meta.core.errors import (
     Diagnostic,
     DynamicValidationError,
@@ -9,6 +10,7 @@ from nf_meta.core.errors import (
     WorkflowReferenceError,
     WorkflowReferenceErrors,
     SessionCommandError,
+    diagnostics_from_pydantic_error,
     format_errors_for_cli,
 )
 
@@ -105,6 +107,34 @@ class TestSessionCommandErrorFromDiagnostics:
         err = SessionCommandError.from_diagnostics([])
         assert err.field_errors == []
         assert err.graph_errors == []
+
+
+# ---------------------------------------------------------------------------
+# diagnostics_from_pydantic_error
+# ---------------------------------------------------------------------------
+
+
+class TestDiagnosticsFromPydanticError:
+    def test_single_field_failure(self):
+        with pytest.raises(ValidationError) as exc_info:
+            NfPipeline(name="my-org/custom", version="not-a-version", url="https://github.com/my-org/custom")
+        diagnostics = diagnostics_from_pydantic_error(exc_info.value, workflow_id="wf_1")
+        assert len(diagnostics) == 1
+        assert diagnostics[0].workflow_id == "wf_1"
+        assert diagnostics[0].field == "version"
+        assert diagnostics[0].severity == Severity.ERROR
+        assert "branch name" in diagnostics[0].message
+
+    def test_multiple_field_failures(self):
+        with pytest.raises(ValidationError) as exc_info:
+            NfPipeline(name="", version="not-a-version", url="not-a-url")
+        diagnostics = diagnostics_from_pydantic_error(exc_info.value, workflow_id="wf_2")
+        fields = {d.field for d in diagnostics}
+        assert "name" in fields
+        assert "version" in fields
+        assert "url" in fields
+        assert all(d.workflow_id == "wf_2" for d in diagnostics)
+        assert all(d.severity == Severity.ERROR for d in diagnostics)
 
 
 # ---------------------------------------------------------------------------

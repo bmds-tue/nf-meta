@@ -29,6 +29,25 @@ class DynamicValidationError(Exception):
     errors: list[Diagnostic]
 
 
+def diagnostics_from_pydantic_error(
+    e: ValidationError, workflow_id: str
+) -> list[Diagnostic]:
+    """Adapt a tier-0/1 pydantic.ValidationError into the tier-2 Diagnostic vocabulary.
+
+    workflow_id is taken explicitly since a ValidationError carries no reference
+    to the (failed-to-construct) instance.
+    """
+    return [
+        Diagnostic(
+            workflow_id=workflow_id,
+            field=".".join(str(loc) for loc in err["loc"]),
+            message=err["msg"],
+            severity=Severity.ERROR,
+        )
+        for err in e.errors()
+    ]
+
+
 @dataclass
 class WorkflowReferenceError(GraphValidationError):
     reference: Reference

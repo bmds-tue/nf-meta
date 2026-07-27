@@ -189,27 +189,36 @@ class TestRawUrl:
 class TestValidateParams:
     def test_valid_params_no_errors(self):
         params = {"input": "/data/samplesheet.csv", "aligner": "star"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert errors == []
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert diagnostics == []
 
     def test_unknown_param_flagged(self):
         params = {"nonexistent_param": "value"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert any("Unknown parameter" in e and "nonexistent_param" in e for e in errors)
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert any(
+            d.field == "params.nonexistent_param"
+            and d.workflow_id == "p1"
+            and d.severity == Severity.ERROR
+            and "Unknown parameter" in d.message
+            for d in diagnostics
+        )
 
     def test_required_missing_raises(self):
         # input is required (no default), not in params
-        errors = validate_params({}, PARSED_SCHEMA, pipeline_id="p1")
-        assert any("Required parameter" in e and "input" in e for e in errors)
+        diagnostics = validate_params({}, PARSED_SCHEMA, pipeline_id="p1")
+        assert any(
+            d.field == "params.input" and "Required parameter" in d.message
+            for d in diagnostics
+        )
 
     def test_required_with_default_not_flagged(self):
         # outdir is in required=False and has a default — no error
-        errors = validate_params({}, PARSED_SCHEMA, pipeline_id="p1")
-        assert not any("outdir" in e for e in errors)
+        diagnostics = validate_params({}, PARSED_SCHEMA, pipeline_id="p1")
+        assert not any(d.field == "params.outdir" for d in diagnostics)
 
     def test_skip_required_suppresses_check(self):
-        errors = validate_params({}, PARSED_SCHEMA, pipeline_id="p1", skip_required=True)
-        assert errors == []
+        diagnostics = validate_params({}, PARSED_SCHEMA, pipeline_id="p1", skip_required=True)
+        assert diagnostics == []
 
     def test_hidden_required_not_flagged(self):
         # 'help' is hidden — even if it were required it should be skipped
@@ -225,65 +234,84 @@ class TestValidateParams:
                 "hidden": True,
             },
         }
-        errors = validate_params({}, schema_with_hidden_required, pipeline_id="p1")
-        assert not any("internal_param" in e for e in errors)
+        diagnostics = validate_params({}, schema_with_hidden_required, pipeline_id="p1")
+        assert not any(d.field == "params.internal_param" for d in diagnostics)
 
     def test_wrong_integer_type(self):
         params = {"input": "/data/sheet.csv", "max_cpus": "not-a-number"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert any("max_cpus" in e and "integer" in e for e in errors)
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert any(
+            d.field == "params.max_cpus" and "integer" in d.message for d in diagnostics
+        )
 
     def test_valid_integer(self):
         params = {"input": "/data/sheet.csv", "max_cpus": "8"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert not any("max_cpus" in e for e in errors)
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert not any(d.field == "params.max_cpus" for d in diagnostics)
 
     def test_invalid_enum(self):
         params = {"input": "/data/sheet.csv", "aligner": "bowtie2"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert any("aligner" in e and "allowed" in e for e in errors)
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert any(
+            d.field == "params.aligner" and "allowed" in d.message for d in diagnostics
+        )
 
     def test_valid_enum(self):
         params = {"input": "/data/sheet.csv", "aligner": "hisat2"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert not any("aligner" in e for e in errors)
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert not any(d.field == "params.aligner" for d in diagnostics)
 
     def test_invalid_boolean(self):
         params = {"input": "/data/sheet.csv", "save_unaligned": "maybe"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert any("save_unaligned" in e and "boolean" in e for e in errors)
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert any(
+            d.field == "params.save_unaligned" and "boolean" in d.message
+            for d in diagnostics
+        )
 
     def test_valid_booleans(self):
         for val in ("true", "false", "True", "False", "1", "0"):
             params = {"input": "/data/sheet.csv", "save_unaligned": val}
-            errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-            assert not any("save_unaligned" in e for e in errors), f"Failed for value {val!r}"
+            diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+            assert not any(
+                d.field == "params.save_unaligned" for d in diagnostics
+            ), f"Failed for value {val!r}"
 
     def test_reference_token_skips_type_check(self):
         # A cross-step reference should not be type-checked
         params = {"max_cpus": "${other_wf:params:threads}"}
-        errors = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert not any("max_cpus" in e for e in errors)
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert not any(d.field == "params.max_cpus" for d in diagnostics)
 
     def test_empty_schema_flags_all_params_unknown(self):
         params = {"input": "x"}
-        errors = validate_params(params, {}, pipeline_id="p1")
-        assert any("Unknown parameter" in e and "input" in e for e in errors)
+        diagnostics = validate_params(params, {}, pipeline_id="p1")
+        assert any(
+            d.field == "params.input" and "Unknown parameter" in d.message
+            for d in diagnostics
+        )
 
     def test_map_subkey_not_flagged_as_unknown(self):
         schema = {"meta": {"type": "map", "required": True}}
-        errors = validate_params({"meta.id": "s1", "meta.sample": "sA"}, schema, pipeline_id="p1")
-        assert not any("Unknown parameter" in e for e in errors)
+        diagnostics = validate_params(
+            {"meta.id": "s1", "meta.sample": "sA"}, schema, pipeline_id="p1"
+        )
+        assert not any("Unknown parameter" in d.message for d in diagnostics)
 
     def test_map_raw_value_flagged_as_error(self):
         schema = {"meta": {"type": "map", "required": True}}
-        errors = validate_params({"meta": "[id:'s1']"}, schema, pipeline_id="p1")
-        assert any("dot-notation" in e and "meta" in e for e in errors)
+        diagnostics = validate_params({"meta": "[id:'s1']"}, schema, pipeline_id="p1")
+        assert any(
+            d.field == "params.meta" and "dot-notation" in d.message for d in diagnostics
+        )
 
     def test_non_map_dotkey_flagged_as_unknown(self):
         schema = {"outdir": {"type": "string", "required": False, "default": "results"}}
-        errors = validate_params({"outdir.sub": "x"}, schema, pipeline_id="p1")
-        assert any("Unknown parameter" in e and "outdir.sub" in e for e in errors)
+        diagnostics = validate_params({"outdir.sub": "x"}, schema, pipeline_id="p1")
+        assert any(
+            d.field == "params.outdir.sub" and "Unknown parameter" in d.message
+            for d in diagnostics
+        )
 
 
 # ---------------------------------------------------------------------------

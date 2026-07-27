@@ -156,22 +156,14 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
 
     merged.update(value or {})
 
-    errors = validate_params(
-        merged,
-        schema,
-        pipeline_id=node_id,
-        skip_required=skip_required,
-    )
-    if errors:
-        joined = "\n  - ".join(errors)
-        diagnostics.append(
-            Diagnostic(
-                workflow_id=node_id,
-                field="params",
-                message=f"Parameter validation failed:\n  - {joined}",
-                severity=Severity.ERROR,
-            )
+    diagnostics.extend(
+        validate_params(
+            merged,
+            schema,
+            pipeline_id=node_id,
+            skip_required=skip_required,
         )
+    )
 
     return diagnostics
 
@@ -213,23 +205,12 @@ def check_module_params_schema(wf: NfModule) -> list[Diagnostic]:
     if not schema:
         return []
 
-    errors = validate_params(
+    return validate_params(
         wf.params or {},
         schema,
         pipeline_id=node_id,
         skip_required=False,
     )
-    if errors:
-        joined = "\n  - ".join(errors)
-        return [
-            Diagnostic(
-                workflow_id=node_id,
-                field="params",
-                message=f"Parameter validation failed:\n  - {joined}",
-                severity=Severity.ERROR,
-            )
-        ]
-    return []
 
 
 # ---------------------------------------------------------------------------

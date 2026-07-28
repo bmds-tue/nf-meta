@@ -346,11 +346,13 @@ def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
 def from_raw_dict(data: dict) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
 
-    Workflows must be declared in dict form (`workflows: {<id>: {...}}`) --
-    the legacy list form is rejected. Transitions are declared per-workflow
-    via `from: <id>` or `from: [<id>, ...]`; a top-level `transitions:` key
-    is also still accepted for backward compatibility, but mixing both
-    styles in the same file raises rather than merging them.
+    Workflows can be declared as a dict keyed by id (`workflows: {<id>: {...}}`,
+    the preferred form) or as a legacy list of definitions each carrying their
+    own `id` (accepted for backward compatibility, with a deprecation
+    warning). Transitions are declared per-workflow via `from: <id>` or
+    `from: [<id>, ...]`; a top-level `transitions:` key is also still
+    accepted for backward compatibility, but mixing both styles in the same
+    file raises rather than merging them.
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -363,21 +365,28 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
     has_top_level_transitions = "transitions" in data
 
     raw_workflows = data.get("workflows") or {}
-    if isinstance(raw_workflows, list):
-        raise GraphValidationError(
-            "Legacy list-format 'workflows:' is no longer supported — use "
-            "the dict format keyed by workflow id instead."
+    if isinstance(raw_workflows, dict):
+        raw_items: list[tuple[str | None, object]] = list(raw_workflows.items())
+    elif isinstance(raw_workflows, list):
+        logger.warning(
+            "Legacy list-format for 'workflows' is deprecated -- use the dict-"
+            "format keyed by workflow id instead. Update by opening and saving the "
+            "config in the editor."
         )
-    if not isinstance(raw_workflows, dict):
+        raw_items = [
+            (item.get("id") if isinstance(item, dict) else None, item)
+            for item in raw_workflows
+        ]
+    else:
         raise GraphValidationError(
-            f"'workflows:' must be a mapping keyed by workflow id, got "
-            f"{type(raw_workflows).__name__!r}"
+            f"'workflows:' must be a mapping keyed by workflow id or a list "
+            f"of workflow definitions, got {type(raw_workflows).__name__!r}"
         )
 
     items: list[dict] = []
     pending_transitions: list[tuple[str, str]] = []
     any_from_key_present = False
-    for key, item in raw_workflows.items():
+    for key, item in raw_items:
         if not isinstance(item, dict):
             raise GraphValidationError(
                 f"Invalid definition of workflow {key}: Must be a key-value "
@@ -385,6 +394,8 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
             )
         item = {**item}
         item.setdefault("type", WorkflowType.NF_PIPELINE)
+        if key is not None:
+            item.setdefault("id", key)  # dict form: the mapping key is authoritative
         any_from_key_present = any_from_key_present or "from" in item
         from_ids = item.pop("from", None) or []
         if isinstance(from_ids, str):
@@ -393,11 +404,13 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
             isinstance(f, str) for f in from_ids
         ):
             raise GraphValidationError(
-                f"Invalid 'from' value for workflow {key}: expected a workflow "
-                f"id or a list of workflow ids, got '{from_ids}' instead"
+                f"Invalid 'from' value for workflow {item.get('id', '<unknown>')}: "
+                f"expected a workflow id or a list of workflow ids, got "
+                f"'{from_ids}' instead"
             )
-        pending_transitions.extend((source_id, key) for source_id in from_ids)
-        items.append({"id": key, **item})
+        target_id = item.get("id", "<unknown>")
+        pending_transitions.extend((source_id, target_id) for source_id in from_ids)
+        items.append(item)
 
     if has_top_level_transitions and any_from_key_present:
         raise GraphValidationError(

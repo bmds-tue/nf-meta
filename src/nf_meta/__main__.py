@@ -77,6 +77,27 @@ def edit_browser(config, verbose, editor, host, port):
     run_editor(opts)
 
 
+@click.command("export-schema")
+@click.argument(
+    "output",
+    required=False,
+    type=click.Path(),
+    default="schemas/metapipeline.schema.json",
+)
+def export_schema(output):
+    """Write the metapipeline.yaml JSON Schema to OUTPUT (default:
+    schemas/metapipeline.schema.json)."""
+    import json
+    from nf_meta.core.schema_export import generate_schema
+
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump(generate_schema(), fh, indent=2)
+        fh.write("\n")
+    click.echo(click.style(f"✓ Schema written to {path}", fg="green"))
+
+
 @click.command("validate")
 @click.argument("config", type=click.Path())
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
@@ -142,6 +163,7 @@ def run(config, verbose, runner, resume, output_lines, start, target, profile, s
 cli.add_command(edit_browser)
 cli.add_command(validate_config)
 cli.add_command(run)
+cli.add_command(export_schema)
 
 
 if __name__ == "__main__":

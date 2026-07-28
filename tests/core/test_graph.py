@@ -285,20 +285,25 @@ class TestFromRawDict:
     def _make_config(self, workflows):
         return {"config_version": "0.3.0", "workflows": workflows}
 
-    def test_list_format_workflows_rejected(self, wf_rnaseq):
-        with pytest.raises(GraphValidationError, match="list-format"):
-            from_raw_dict(
-                self._make_config(
-                    [
-                        {
-                            "id": wf_rnaseq.id,
-                            "name": wf_rnaseq.name,
-                            "version": wf_rnaseq.version,
-                            "url": wf_rnaseq.url,
-                        }
-                    ]
-                )
+    def test_list_format_workflows_accepted_with_deprecation_warning(
+        self, wf_rnaseq, caplog
+    ):
+        g = from_raw_dict(
+            self._make_config(
+                [
+                    {
+                        "id": wf_rnaseq.id,
+                        "name": wf_rnaseq.name,
+                        "version": wf_rnaseq.version,
+                        "url": wf_rnaseq.url,
+                    }
+                ]
             )
+        )
+        assert g.get_workflow_by_id(wf_rnaseq.id) is not None
+        assert any(
+            "deprecated" in record.message for record in caplog.records
+        )
 
     def test_dict_format_workflows(self, wf_rnaseq):
         g = from_raw_dict(

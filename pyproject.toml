@@ -51,6 +51,7 @@ dev = [
     "types-networkx>=3.6.1.20260408",
     "types-pyyaml>=6.0.12.20260408",
     "types-requests>=2.33.0.20260503",
+    "jsonschema>=4.25.0",
 ]
 
 [tool.pytest.ini_options]

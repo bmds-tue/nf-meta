@@ -350,6 +350,19 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
     call), so the error for a broken workflow already carries its real id —
     no need to recover it from a pydantic list-index afterward. Preserves
     today's fail-fast behavior: raises on the first bad workflow.
+
+    The preferred way to declare a workflow is the dict form
+    (`workflows: {<id>: {...}}`) and the preferred way to declare a transition
+    is a `from: <id>` or `from: [<id>, ...]` entry inside the target
+    workflow's own definition — `dump_config` always writes this form.
+    For backward compatibility, a top-level `transitions:` key (the
+    pre-`from:` format) is still accepted on read. Mixing both styles in the
+    same file is rejected loudly (not silently merged) — that should only
+    ever happen from a half-finished hand migration, and merging could mask
+    a mistake. Legacy list-format `workflows:` is rejected outright (no read
+    support) with a clear migration error rather than silently ignored,
+    since silently dropping real workflows would be a wrong, unnoticed
+    migration.
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -359,24 +372,64 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
     except ValueError as e:
         raise GraphValidationError(str(e)) from e
 
+    has_top_level_transitions = "transitions" in data
+
     raw_workflows = data.get("workflows") or {}
+    if isinstance(raw_workflows, list):
+        raise GraphValidationError(
+            "Legacy list-format 'workflows:' is no longer supported — use "
+            "the dict format keyed by workflow id instead."
+        )
+    if not isinstance(raw_workflows, dict):
+        raise GraphValidationError(
+            f"'workflows:' must be a mapping keyed by workflow id, got "
+            f"{type(raw_workflows).__name__!r}"
+        )
+
     items: list[dict] = []
-    if isinstance(raw_workflows, dict):
-        for key, item in raw_workflows.items():
-            if not isinstance(item, dict):
+    pending_transitions: list[tuple[str, str]] = []
+    any_from_key_present = False
+    for key, item in raw_workflows.items():
+        if not isinstance(item, dict):
+            raise GraphValidationError(
+                f"Invalid definition of workflow {key}: Must be a key-value "
+                f"mapping, got '{item}' instead"
+            )
+        item = {**item}
+        item.setdefault("type", WorkflowType.NF_PIPELINE)
+        any_from_key_present = any_from_key_present or "from" in item
+        from_ids = item.pop("from", None) or []
+        if isinstance(from_ids, str):
+            from_ids = [from_ids]  # a single predecessor id, not wrapped in a list
+        if not isinstance(from_ids, list) or not all(
+            isinstance(f, str) for f in from_ids
+        ):
+            raise GraphValidationError(
+                f"Invalid 'from' value for workflow {key}: expected a workflow "
+                f"id or a list of workflow ids, got '{from_ids}' instead"
+            )
+        pending_transitions.extend((source_id, key) for source_id in from_ids)
+        items.append({"id": key, **item})
+
+    if has_top_level_transitions and any_from_key_present:
+        raise GraphValidationError(
+            "Cannot mix the legacy top-level 'transitions:' key with "
+            "per-workflow 'from:' declarations in the same file — use one "
+            "style consistently."
+        )
+
+    if has_top_level_transitions:
+        for tr_data in data.get("transitions") or []:
+            if (
+                not isinstance(tr_data, dict)
+                or not isinstance(tr_data.get("source"), str)
+                or not isinstance(tr_data.get("target"), str)
+            ):
                 raise GraphValidationError(
-                    f"Invalid definition of workflow {key}: Must be a key-value "
-                    f"mapping, got '{item}' instead"
+                    f"Invalid transition entry: expected a mapping with "
+                    f"string 'source'/'target' keys, got '{tr_data}' instead"
                 )
-            item = {**item}
-            item.setdefault("type", WorkflowType.NF_PIPELINE)
-            items.append({"id": key, **item})
-    elif isinstance(raw_workflows, list):
-        for item in raw_workflows:
-            if isinstance(item, dict):
-                item = {**item}
-                item.setdefault("type", WorkflowType.NF_PIPELINE)
-            items.append(item)
+            pending_transitions.append((tr_data["source"], tr_data["target"]))
 
     g = MetaworkflowGraph()
     g.config_version = config_version
@@ -396,8 +449,8 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
                 ) from e
             g.add_workflow(wf)
 
-        for tr_data in data.get("transitions") or []:
-            g.add_transition(Transition(**tr_data))
+        for source_id, target_id in pending_transitions:
+            g.add_transition(Transition(source=source_id, target=target_id))
 
         if data.get("globals") is not None:
             try:
@@ -422,16 +475,23 @@ def from_file(cfg_file: Path) -> "MetaworkflowGraph":
 
 
 def dump_config(g: "MetaworkflowGraph") -> dict:
+    from_by_target: dict[str, list[str]] = {}
+    for tr in g.get_transitions():
+        from_by_target.setdefault(tr.target, []).append(tr.source)
+
+    workflows_dict = {}
+    for w in g.get_workflows():
+        wf_dict = {k: v for k, v in w.model_dump_config().items()}
+        if w.id in from_by_target:
+            wf_dict["from"] = from_by_target[w.id]
+        workflows_dict[w.id] = wf_dict
+
     config_dict = {
         "config_version": g.config_version,
         "globals": g.global_options.model_dump(exclude_none=True)
         if g.global_options
         else None,
-        "workflows": {
-            w.id: {k: v for k, v in w.model_dump_config().items()}
-            for w in g.get_workflows()
-        },
-        "transitions": [t.model_dump() for t in g.get_transitions()],
+        "workflows": workflows_dict,
     }
 
     if not config_dict["globals"]:

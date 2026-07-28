@@ -27,7 +27,7 @@ from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.2.0"
+CONFIG_VERSION_MAX = "0.3.0"
 
 
 class WorkflowType(StrEnum):

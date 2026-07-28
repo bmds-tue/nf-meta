@@ -184,7 +184,7 @@ def minimal_yaml_path():
 def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
     """Write a minimal config YAML to a temp file and return its path."""
     data = {
-        "config_version": "0.0.1",
+        "config_version": "0.3.0",
         "workflows": {
             wf_fetchngs.id: {
                 "name": wf_fetchngs.name,
@@ -195,9 +195,9 @@ def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
                 "name": wf_rnaseq.name,
                 "version": wf_rnaseq.version,
                 "url": wf_rnaseq.url,
+                "from": [wf_fetchngs.id],
             },
         },
-        "transitions": [{"source": wf_fetchngs.id, "target": wf_rnaseq.id}],
     }
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(data))

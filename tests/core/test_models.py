@@ -1,15 +1,10 @@
 import pytest
-import yaml
 from pydantic import ValidationError
-from pathlib import Path
 
 from nf_meta.core.models import (
     NfPipeline,
     GlobalOptions,
     Transition,
-    MetaworkflowConfig,
-    load_config,
-    dump_config,
 )
 from nf_meta.core.dynamic_validation import check_pipeline_main_script_exists
 from nf_meta.core.errors import Severity
@@ -237,127 +232,8 @@ class TestTransition:
         assert d == {"source": "wf_a", "target": "wf_b"}
 
 
-# ---------------------------------------------------------------------------
-# MetaworkflowConfig
-# ---------------------------------------------------------------------------
-
-
-class TestMetaworkflowConfig:
-    def _make_config(self, workflows, transitions=None):
-        return {
-            "config_version": "0.0.1",
-            "workflows": workflows,
-            "transitions": transitions or [],
-        }
-
-    def test_list_format_workflows(self, wf_rnaseq):
-        cfg = MetaworkflowConfig.model_validate(
-            self._make_config(
-                [
-                    {
-                        "id": wf_rnaseq.id,
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                    }
-                ]
-            )
-        )
-        assert len(cfg.workflows) == 1
-        assert cfg.workflows[0].id == wf_rnaseq.id
-
-    def test_dict_format_workflows(self, wf_rnaseq):
-        cfg = MetaworkflowConfig.model_validate(
-            self._make_config(
-                {
-                    wf_rnaseq.id: {
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                    }
-                }
-            )
-        )
-        assert len(cfg.workflows) == 1
-        assert cfg.workflows[0].id == wf_rnaseq.id
-
-    def test_transition_invalid_target_raises(self, wf_rnaseq):
-        with pytest.raises(ValidationError):
-            MetaworkflowConfig.model_validate(
-                self._make_config(
-                    [
-                        {
-                            "id": wf_rnaseq.id,
-                            "name": wf_rnaseq.name,
-                            "version": wf_rnaseq.version,
-                            "url": wf_rnaseq.url,
-                        }
-                    ],
-                    transitions=[{"source": wf_rnaseq.id, "target": "nonexistent"}],
-                )
-            )
-
-    def test_config_version_too_old_raises(self, wf_rnaseq):
-        data = self._make_config(
-            [
-                {
-                    "id": wf_rnaseq.id,
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                }
-            ]
-        )
-        data["config_version"] = "0.0.0"
-        with pytest.raises(ValidationError):
-            MetaworkflowConfig.model_validate(data)
-
-    def test_config_version_too_new_raises(self, wf_rnaseq):
-        data = self._make_config(
-            [
-                {
-                    "id": wf_rnaseq.id,
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                }
-            ]
-        )
-        data["config_version"] = "9.9.9"
-        with pytest.raises(ValidationError):
-            MetaworkflowConfig.model_validate(data)
-
-    def test_config_version_valid(self, wf_rnaseq):
-        cfg = MetaworkflowConfig.model_validate(
-            self._make_config(
-                [
-                    {
-                        "id": wf_rnaseq.id,
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                    }
-                ]
-            )
-        )
-        assert cfg.config_version == "0.0.1"
-
-
-# ---------------------------------------------------------------------------
-# load_config / dump_config round-trip
-# ---------------------------------------------------------------------------
-
-
-class TestLoadDump:
-    def test_load_config(self, minimal_yaml_path):
-        cfg = load_config(minimal_yaml_path)
-        assert len(cfg.workflows) == 2
-        assert len(cfg.transitions) == 1
-
-    def test_round_trip(self, tmp_path, config_yaml):
-        cfg1 = load_config(config_yaml)
-        out = tmp_path / "out.yaml"
-        dump_config(cfg1, out)
-        cfg2 = load_config(out)
-        assert {w.id for w in cfg1.workflows} == {w.id for w in cfg2.workflows}
-        assert len(cfg1.transitions) == len(cfg2.transitions)
+# Note: MetaworkflowConfig-level tests (list/dict format, transition validity,
+# config_version bounds) and load_config/dump_config round-trip tests have been
+# migrated to tests/core/test_graph.py's TestFromRawDict, TestFileIO, and
+# TestDynamicValidationOnLoad — MetaworkflowGraph's from_raw_dict/dump_config/
+# from_file/to_file are now the construction/serialization entry points.

@@ -1,11 +1,10 @@
-from .models import Reference, WorkflowReference, WorkflowType
+from .models import Reference, WorkflowReference
 from .line_linting import locate_field
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional
 
 import click
-import yaml
 from pydantic import ValidationError
 
 
@@ -27,19 +26,23 @@ class Diagnostic:
 
 
 @dataclass
-class DynamicValidationError(Exception):
+class ConfigValidationError(Exception):
+    """A workflow/config-definition-level validation failure — whether from
+    tier-0/1 (pydantic construction) or tier-2 (network-backed) checks. Every
+    consumer treats both tiers identically, so they share one exception type."""
+
     errors: list[Diagnostic]
 
 
 def diagnostics_from_pydantic_error(
-    e: ValidationError, workflow_id: str
+    e: ValidationError, workflow_id: str | None
 ) -> list[Diagnostic]:
-    """Adapt a tier-0/1 pydantic.ValidationError into the tier-2 Diagnostic vocabulary.
+    """Adapt a tier-0/1 pydantic.ValidationError into the Diagnostic vocabulary.
 
     workflow_id is taken explicitly since a ValidationError carries no reference
-    to the (failed-to-construct) instance. For errors against a single, already
-    known workflow (e.g. round-trip single-node validation) — not for a whole
-    MetaworkflowConfig, see diagnostics_from_config_validation_error for that.
+    to the (failed-to-construct) instance — the caller (e.g. MetaworkflowGraph's
+    from_raw_dict, constructing one workflow at a time) already knows which
+    workflow this is.
     """
     return [
         Diagnostic(
@@ -50,67 +53,6 @@ def diagnostics_from_pydantic_error(
         )
         for err in e.errors()
     ]
-
-
-_WORKFLOW_TYPE_DISCRIMINATORS = {t.value for t in WorkflowType}
-
-
-def diagnostics_from_config_validation_error(
-    e: ValidationError, raw_text: str
-) -> list[Diagnostic]:
-    """Adapt a whole-MetaworkflowConfig ValidationError into Diagnostics.
-
-    Pydantic's error `loc` for a workflow field looks like
-    ("workflows", 3, "nf-pipeline", "name") — the "3" is a list index, not the
-    workflow's real id, because MetaworkflowConfig.normalize_dict_to_list
-    converts the dict-format `workflows:` mapping into a list before
-    validation. Dict iteration order is preserved from yaml.safe_load, so the
-    Nth list item corresponds exactly to the Nth key of the original
-    `workflows:` mapping — recovered here by re-parsing raw_text.
-
-    Only the dict-format `workflows:` case is resolved to a real workflow_id
-    and position-lookup-ready field. Anything else (top-level errors,
-    `transitions`, legacy list-format `workflows`) falls back to a plain
-    dotted-loc field with workflow_id=None — no crash, just no attributable
-    workflow/position.
-    """
-    try:
-        raw = yaml.safe_load(raw_text) or {}
-    except yaml.YAMLError:
-        raw = {}
-    raw_workflows = raw.get("workflows") if isinstance(raw, dict) else None
-    index_to_key: dict[int, str] | None = None
-    if isinstance(raw_workflows, dict):
-        index_to_key = dict(enumerate(raw_workflows.keys()))
-
-    diagnostics = []
-    for err in e.errors():
-        loc = err["loc"]
-        workflow_id: str | None = None
-        field_loc = loc
-
-        if (
-            index_to_key is not None
-            and len(loc) >= 2
-            and loc[0] == "workflows"
-            and isinstance(loc[1], int)
-            and loc[1] in index_to_key
-        ):
-            workflow_id = index_to_key[loc[1]]
-            field_loc = loc[2:]
-            if field_loc and str(field_loc[0]) in _WORKFLOW_TYPE_DISCRIMINATORS:
-                field_loc = field_loc[1:]
-
-        field = ".".join(str(x) for x in field_loc) or err.get("type", "")
-        diagnostics.append(
-            Diagnostic(
-                workflow_id=workflow_id,
-                field=field,
-                message=err["msg"],
-                severity=Severity.ERROR,
-            )
-        )
-    return diagnostics
 
 
 def diagnostics_from_reference_errors(e: "WorkflowReferenceErrors") -> list[Diagnostic]:
@@ -162,7 +104,7 @@ class SessionCommandError(Exception):
         | WorkflowReferenceErrors
         | GraphValidationError
         | ValueError
-        | DynamicValidationError,
+        | ConfigValidationError,
     ):
         if isinstance(e, WorkflowReferenceError):
             e = WorkflowReferenceErrors([e])
@@ -178,7 +120,7 @@ class SessionCommandError(Exception):
                 ],
                 graph_errors=[],
             )
-        if isinstance(e, DynamicValidationError):
+        if isinstance(e, ConfigValidationError):
             return cls.from_diagnostics(e.errors)
         return cls(field_errors=[], graph_errors=[str(e)])
 
@@ -209,8 +151,7 @@ def format_errors_for_cli(
     e: WorkflowReferenceError
     | WorkflowReferenceErrors
     | GraphValidationError
-    | ValidationError
-    | DynamicValidationError,
+    | ConfigValidationError,
     source_text: str | None = None,
     filename: str = "",
 ) -> str:
@@ -227,21 +168,8 @@ def format_errors_for_cli(
         e = WorkflowReferenceErrors([e])
     if isinstance(e, WorkflowReferenceErrors):
         diagnostics = diagnostics_from_reference_errors(e)
-    elif isinstance(e, DynamicValidationError):
+    elif isinstance(e, ConfigValidationError):
         diagnostics = e.errors
-    elif isinstance(e, ValidationError):
-        if source_text is not None:
-            diagnostics = diagnostics_from_config_validation_error(e, source_text)
-        else:
-            diagnostics = [
-                Diagnostic(
-                    workflow_id=None,
-                    field=".".join(str(loc) for loc in err["loc"]),
-                    message=err["msg"],
-                    severity=Severity.ERROR,
-                )
-                for err in e.errors()
-            ]
     elif isinstance(e, GraphValidationError):
         graph_messages = [str(e)]
 

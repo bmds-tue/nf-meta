@@ -2,13 +2,12 @@ import click
 from functools import wraps
 from pathlib import Path
 from nf_meta.core.errors import (
-    DynamicValidationError,
+    ConfigValidationError,
     GraphValidationError,
-    ValidationError,
     format_errors_for_cli,
 )
 from nf_meta.runner import get_registered_runners
-from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.graph import from_file
 from nf_meta.editor import get_registered_editors
 
 
@@ -22,7 +21,7 @@ def handle_validation_errors(func):
         config = kwargs.get("config")
         try:
             return func(*args, **kwargs)
-        except (GraphValidationError, ValidationError, DynamicValidationError) as e:
+        except (GraphValidationError, ConfigValidationError) as e:
             source_text = None
             if config:
                 try:
@@ -83,7 +82,7 @@ def edit_browser(config, verbose, editor, host, port):
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
 @handle_validation_errors
 def validate_config(config, verbose):
-    g = MetaworkflowGraph.from_file(config)
+    g = from_file(config)
     click.echo(click.style("✓ Config is valid", fg="green"))
 
 
@@ -133,7 +132,7 @@ def run(config, verbose, runner, resume, output_lines, start, target, profile, s
             start=start,
             target=target,
         )
-        g = MetaworkflowGraph.from_file(config)
+        g = from_file(config)
         run_metapipeline(g, run_options)
     except NfMetaRunnerError as e:
         click.echo(click.style(e.message, fg="red"))

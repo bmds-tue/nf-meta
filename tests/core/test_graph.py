@@ -1,13 +1,18 @@
 import pytest
 
 from nf_meta.core.models import (  # type: ignore[import]
-    MetaworkflowConfig,
     NfModule,
     NfPipeline,
     BaseWorkflow,
     Transition,
 )
-from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
+from nf_meta.core.graph import (  # type: ignore[import]
+    MetaworkflowGraph,
+    dump_config,
+    from_file,
+    from_raw_dict,
+    to_file,
+)
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,
     WorkflowRemoved,
@@ -16,7 +21,7 @@ from nf_meta.core.events import (  # type: ignore[import]
     TransitionRemoved,
 )
 from nf_meta.core.errors import (  # type: ignore[import]
-    DynamicValidationError,
+    ConfigValidationError,
     GraphValidationError,
     WorkflowReferenceErrors,
 )
@@ -120,14 +125,14 @@ class TestTransitionMutations:
 
     def test_add_transition_unknown_source_raises(self, empty_graph, wf_fetchngs):
         empty_graph.add_workflow(wf_fetchngs)
-        with pytest.raises(ValueError):
+        with pytest.raises(GraphValidationError):
             empty_graph.add_transition(
                 Transition(source="ghost", target=wf_fetchngs.id)
             )
 
     def test_add_transition_unknown_target_raises(self, empty_graph, wf_rnaseq):
         empty_graph.add_workflow(wf_rnaseq)
-        with pytest.raises(ValueError):
+        with pytest.raises(GraphValidationError):
             empty_graph.add_transition(Transition(source=wf_rnaseq.id, target="ghost"))
 
     def test_add_transition_cycle_raises(self, empty_graph, wf_rnaseq, wf_fetchngs):
@@ -257,74 +262,206 @@ class TestDeferredValidation:
 
 class TestFileIO:
     def test_from_file(self, minimal_yaml_path):
-        g = MetaworkflowGraph.from_file(minimal_yaml_path)
+        g = from_file(minimal_yaml_path)
         assert len(g.get_workflows()) == 2
         assert len(g.get_transitions()) == 1
 
     def test_to_file_round_trip(self, two_node_graph, tmp_path):
         out = tmp_path / "out.yaml"
-        two_node_graph.to_file(out)
-        g2 = MetaworkflowGraph.from_file(out)
+        to_file(two_node_graph, out)
+        g2 = from_file(out)
         ids1 = {w.id for w in two_node_graph.get_workflows()}
         ids2 = {w.id for w in g2.get_workflows()}
         assert ids1 == ids2
 
 
 # ---------------------------------------------------------------------------
-# Dynamic validation on load (from_config)
+# from_raw_dict / dump_config — construction and serialization
+# (migrated from the retired MetaworkflowConfig/load_config/dump_config tests)
+# ---------------------------------------------------------------------------
+
+
+class TestFromRawDict:
+    def _make_config(self, workflows, transitions=None):
+        return {
+            "config_version": "0.0.1",
+            "workflows": workflows,
+            "transitions": transitions or [],
+        }
+
+    def test_list_format_workflows(self, wf_rnaseq):
+        g = from_raw_dict(
+            self._make_config(
+                [
+                    {
+                        "id": wf_rnaseq.id,
+                        "name": wf_rnaseq.name,
+                        "version": wf_rnaseq.version,
+                        "url": wf_rnaseq.url,
+                    }
+                ]
+            )
+        )
+        assert len(g.get_workflows()) == 1
+        assert g.get_workflow_by_id(wf_rnaseq.id) is not None
+
+    def test_dict_format_workflows(self, wf_rnaseq):
+        g = from_raw_dict(
+            self._make_config(
+                {
+                    wf_rnaseq.id: {
+                        "name": wf_rnaseq.name,
+                        "version": wf_rnaseq.version,
+                        "url": wf_rnaseq.url,
+                    }
+                }
+            )
+        )
+        assert len(g.get_workflows()) == 1
+        assert g.get_workflow_by_id(wf_rnaseq.id) is not None
+
+    def test_transition_invalid_target_raises(self, wf_rnaseq):
+        with pytest.raises(GraphValidationError):
+            from_raw_dict(
+                self._make_config(
+                    [
+                        {
+                            "id": wf_rnaseq.id,
+                            "name": wf_rnaseq.name,
+                            "version": wf_rnaseq.version,
+                            "url": wf_rnaseq.url,
+                        }
+                    ],
+                    transitions=[{"source": wf_rnaseq.id, "target": "nonexistent"}],
+                )
+            )
+
+    def test_config_version_too_old_raises(self, wf_rnaseq):
+        data = self._make_config(
+            [
+                {
+                    "id": wf_rnaseq.id,
+                    "name": wf_rnaseq.name,
+                    "version": wf_rnaseq.version,
+                    "url": wf_rnaseq.url,
+                }
+            ]
+        )
+        data["config_version"] = "0.0.0"
+        with pytest.raises(GraphValidationError):
+            from_raw_dict(data)
+
+    def test_config_version_too_new_raises(self, wf_rnaseq):
+        data = self._make_config(
+            [
+                {
+                    "id": wf_rnaseq.id,
+                    "name": wf_rnaseq.name,
+                    "version": wf_rnaseq.version,
+                    "url": wf_rnaseq.url,
+                }
+            ]
+        )
+        data["config_version"] = "9.9.9"
+        with pytest.raises(GraphValidationError):
+            from_raw_dict(data)
+
+    def test_config_version_valid(self, wf_rnaseq):
+        g = from_raw_dict(
+            self._make_config(
+                [
+                    {
+                        "id": wf_rnaseq.id,
+                        "name": wf_rnaseq.name,
+                        "version": wf_rnaseq.version,
+                        "url": wf_rnaseq.url,
+                    }
+                ]
+            )
+        )
+        assert g.config_version == "0.0.1"
+
+    def test_malformed_workflow_item_raises(self):
+        with pytest.raises(GraphValidationError, match="key-value mapping"):
+            from_raw_dict(self._make_config({"wf_a": "not-a-mapping"}))
+
+    def test_bad_workflow_field_raises_static_validation_error_with_real_id(self):
+        data = self._make_config({"wf_a": {"version": "2.0.0"}})  # missing name/url
+        with pytest.raises(ConfigValidationError) as excinfo:
+            from_raw_dict(data)
+        assert any(d.workflow_id == "wf_a" for d in excinfo.value.errors)
+
+    def test_round_trip_via_dump_config(self, tmp_path, wf_rnaseq, wf_fetchngs):
+        data = self._make_config(
+            {
+                wf_fetchngs.id: {
+                    "name": wf_fetchngs.name,
+                    "version": wf_fetchngs.version,
+                },
+                wf_rnaseq.id: {
+                    "name": wf_rnaseq.name,
+                    "version": wf_rnaseq.version,
+                },
+            },
+            transitions=[{"source": wf_fetchngs.id, "target": wf_rnaseq.id}],
+        )
+        g1 = from_raw_dict(data)
+        g2 = from_raw_dict(dump_config(g1))
+        assert {w.id for w in g1.get_workflows()} == {w.id for w in g2.get_workflows()}
+        assert len(g1.get_transitions()) == len(g2.get_transitions())
+
+
+# ---------------------------------------------------------------------------
+# Dynamic validation on load (from_raw_dict)
 # ---------------------------------------------------------------------------
 
 
 class TestDynamicValidationOnLoad:
-    def test_from_config_raises_dynamic_validation_error(self, monkeypatch):
+    def test_from_raw_dict_raises_dynamic_validation_error(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
             lambda name: [{"version": "1.0.0-abcdefa"}],
         )
         module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
-        cfg = MetaworkflowConfig.model_validate(
-            {
-                "config_version": "0.0.1",
-                "workflows": [
-                    {
-                        "id": module.id,
-                        "type": "nf-module",
-                        "name": module.name,
-                        "version": module.version,
-                    }
-                ],
-                "transitions": [],
-            }
-        )
-        with pytest.raises(DynamicValidationError) as excinfo:
-            MetaworkflowGraph.from_config(cfg)
+        data = {
+            "config_version": "0.0.1",
+            "workflows": [
+                {
+                    "id": module.id,
+                    "type": "nf-module",
+                    "name": module.name,
+                    "version": module.version,
+                }
+            ],
+            "transitions": [],
+        }
+        with pytest.raises(ConfigValidationError) as excinfo:
+            from_raw_dict(data)
 
         assert any(
             d.workflow_id == module.id and "not available" in d.message
             for d in excinfo.value.errors
         )
 
-    def test_from_config_succeeds_when_dynamic_checks_pass(self, monkeypatch):
+    def test_from_raw_dict_succeeds_when_dynamic_checks_pass(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
             lambda name: [{"version": "0.0.0-6c4ed3a"}],
         )
         module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
-        cfg = MetaworkflowConfig.model_validate(
-            {
-                "config_version": "0.0.1",
-                "workflows": [
-                    {
-                        "id": module.id,
-                        "type": "nf-module",
-                        "name": module.name,
-                        "version": module.version,
-                    }
-                ],
-                "transitions": [],
-            }
-        )
-        g = MetaworkflowGraph.from_config(cfg)
+        data = {
+            "config_version": "0.0.1",
+            "workflows": [
+                {
+                    "id": module.id,
+                    "type": "nf-module",
+                    "name": module.name,
+                    "version": module.version,
+                }
+            ],
+            "transitions": [],
+        }
+        g = from_raw_dict(data)
         assert g.get_workflow_by_id(module.id) is not None
 
 
@@ -342,7 +479,7 @@ class TestDynamicValidationOnMutation:
             lambda name: [{"version": "1.0.0-abcdefa"}],
         )
         wf = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
-        with pytest.raises(DynamicValidationError):
+        with pytest.raises(ConfigValidationError):
             empty_graph.add_workflow(wf)
         assert empty_graph.get_workflow_by_id(wf.id) is None
 
@@ -357,7 +494,7 @@ class TestDynamicValidationOnMutation:
             lambda name: [{"version": "1.0.0-abcdefa"}],
         )
         updated = module_fastqc.model_copy(update={"version": "0.0.0-badc0de"})
-        with pytest.raises(DynamicValidationError):
+        with pytest.raises(ConfigValidationError):
             empty_graph.update_workflow(updated)
 
     def test_update_workflow_skip_if_unchanged(self, empty_graph, monkeypatch):

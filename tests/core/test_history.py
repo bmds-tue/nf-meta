@@ -3,7 +3,7 @@ import pytest
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.history import History  # type: ignore[import]
 from nf_meta.core.models import NfModule, Transition, GlobalOptions  # type: ignore[import]
-from nf_meta.core.errors import DynamicValidationError  # type: ignore[import]
+from nf_meta.core.errors import ConfigValidationError  # type: ignore[import]
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,
     WorkflowRemoved,
@@ -217,7 +217,7 @@ class TestUndoRedoRollback:
             lambda name: [{"version": "1.0.0-aaaaaaa"}],
         )
 
-        with pytest.raises(DynamicValidationError):
+        with pytest.raises(ConfigValidationError):
             history.undo(graph)
 
         # Both nodes are part of the same suspended batch (Transaction wraps
@@ -250,7 +250,7 @@ class TestUndoRedoRollback:
             lambda name: [{"version": "9.9.9-ffffff9"}],
         )
 
-        with pytest.raises(DynamicValidationError):
+        with pytest.raises(ConfigValidationError):
             history.redo(graph)
 
         assert graph.get_workflow_by_id(module.id) is None

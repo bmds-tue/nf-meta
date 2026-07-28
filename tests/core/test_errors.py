@@ -1,19 +1,17 @@
 import click
 import pytest
-import yaml
 from pydantic import ValidationError
 
 from nf_meta.core.line_linting import locate_field
-from nf_meta.core.models import MetaworkflowConfig, NfPipeline, Reference, WorkflowReference
+from nf_meta.core.models import NfPipeline, Reference, WorkflowReference
 from nf_meta.core.errors import (
+    ConfigValidationError,
     Diagnostic,
-    DynamicValidationError,
     GraphValidationError,
     Severity,
     WorkflowReferenceError,
     WorkflowReferenceErrors,
     SessionCommandError,
-    diagnostics_from_config_validation_error,
     diagnostics_from_pydantic_error,
     diagnostics_from_reference_errors,
     format_errors_for_cli,
@@ -143,94 +141,6 @@ class TestDiagnosticsFromPydanticError:
 
 
 # ---------------------------------------------------------------------------
-# diagnostics_from_config_validation_error
-# ---------------------------------------------------------------------------
-
-
-class TestDiagnosticsFromConfigValidationError:
-    def test_resolves_dict_format_index_to_real_key(self):
-        text = (
-            "config_version: 0.0.2\n"
-            "workflows:\n"
-            "  wf_a:\n"
-            "    name: nf-core/rnaseq\n"
-            "    version: 3.14.0\n"
-            "  wf_b:\n"
-            "    version: 2.0.0\n"
-            "transitions: []\n"
-        )
-        with pytest.raises(ValidationError) as exc_info:
-            MetaworkflowConfig.model_validate(
-                yaml.safe_load(text)
-            )
-        diagnostics = diagnostics_from_config_validation_error(exc_info.value, text)
-        # wf_b is missing name/url -- both errors should resolve to workflow_id="wf_b",
-        # not the numeric list index normalize_dict_to_list assigned internally.
-        assert any(
-            d.workflow_id == "wf_b" and d.field == "name" for d in diagnostics
-        )
-        assert any(
-            d.workflow_id == "wf_b" and d.field == "url" for d in diagnostics
-        )
-        assert all(d.severity == Severity.ERROR for d in diagnostics)
-
-    def test_strips_workflow_type_discriminator(self):
-        text = (
-            "config_version: 0.0.2\n"
-            "workflows:\n"
-            "  wf_a:\n"
-            "    type: nf-module\n"
-            "    version: not-a-version\n"
-            "transitions: []\n"
-        )
-        with pytest.raises(ValidationError) as exc_info:
-            MetaworkflowConfig.model_validate(
-                yaml.safe_load(text)
-            )
-        diagnostics = diagnostics_from_config_validation_error(exc_info.value, text)
-        # field should be "version", not "nf-module.version"
-        assert any(
-            d.workflow_id == "wf_a" and d.field == "version" for d in diagnostics
-        )
-
-    def test_top_level_field_error_has_no_workflow_id(self):
-        text = (
-            "config_version: not-a-version\n"
-            "workflows:\n"
-            "  wf_a:\n"
-            "    name: nf-core/rnaseq\n"
-            "    version: 3.14.0\n"
-            "transitions: []\n"
-        )
-        with pytest.raises(ValidationError) as exc_info:
-            MetaworkflowConfig.model_validate(
-                yaml.safe_load(text)
-            )
-        diagnostics = diagnostics_from_config_validation_error(exc_info.value, text)
-        assert any(
-            d.workflow_id is None and d.field == "config_version" for d in diagnostics
-        )
-
-    def test_legacy_list_format_falls_back_without_workflow_id(self):
-        text = (
-            "config_version: 0.0.2\n"
-            "workflows:\n"
-            "- id: wf_a\n"
-            "  version: not-a-version\n"
-            "transitions: []\n"
-        )
-        with pytest.raises(ValidationError) as exc_info:
-            MetaworkflowConfig.model_validate(
-                yaml.safe_load(text)
-            )
-        diagnostics = diagnostics_from_config_validation_error(exc_info.value, text)
-        # No dict-format workflows mapping to resolve against -- degrade gracefully,
-        # no crash, no attributed workflow_id.
-        assert len(diagnostics) >= 1
-        assert all(d.workflow_id is None for d in diagnostics)
-
-
-# ---------------------------------------------------------------------------
 # diagnostics_from_reference_errors
 # ---------------------------------------------------------------------------
 
@@ -257,13 +167,13 @@ class TestDiagnosticsFromReferenceErrors:
 
 
 # ---------------------------------------------------------------------------
-# format_errors_for_cli — DynamicValidationError
+# format_errors_for_cli — ConfigValidationError
 # ---------------------------------------------------------------------------
 
 
-class TestFormatErrorsForCliDynamic:
-    def test_formats_dynamic_validation_error(self):
-        exc = DynamicValidationError(
+class TestFormatErrorsForCliConfig:
+    def test_formats_config_validation_error(self):
+        exc = ConfigValidationError(
             errors=[
                 Diagnostic(
                     workflow_id="wf_a",
@@ -276,6 +186,21 @@ class TestFormatErrorsForCliDynamic:
         output = format_errors_for_cli(exc)
         assert "wf_a" in output
         assert "version not in registry" in output
+
+    def test_formats_error_from_pydantic_construction_failure(self):
+        exc = ConfigValidationError(
+            errors=[
+                Diagnostic(
+                    workflow_id="wf_a",
+                    field="name",
+                    message="Field required",
+                    severity=Severity.ERROR,
+                )
+            ]
+        )
+        output = format_errors_for_cli(exc)
+        assert "wf_a" in output
+        assert "Field required" in output
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +255,7 @@ class TestFormatErrorsForCliPositions:
         expected = locate_field(source, "workflows.wf_a.params.outdir")
         assert expected is not None
 
-        exc = DynamicValidationError(
+        exc = ConfigValidationError(
             errors=[
                 Diagnostic(
                     workflow_id="wf_a",
@@ -344,7 +269,7 @@ class TestFormatErrorsForCliPositions:
         assert f"test.yaml:{expected.line}:{expected.column}" in output
 
     def test_no_position_falls_back_to_bare_filename(self):
-        exc = DynamicValidationError(
+        exc = ConfigValidationError(
             errors=[
                 Diagnostic(
                     workflow_id="wf_a",
@@ -364,7 +289,7 @@ class TestFormatErrorsForCliPositions:
 
     def test_no_workflow_id_skips_position_lookup(self):
         source = "config_version: 0.0.2\nworkflows: {}\ntransitions: []\n"
-        exc = DynamicValidationError(
+        exc = ConfigValidationError(
             errors=[
                 Diagnostic(
                     workflow_id=None,
@@ -382,7 +307,7 @@ class TestFormatErrorsForCliPositions:
         assert lines[1].startswith(" test.yaml:")
 
     def test_warning_severity_labeled_distinctly_from_error(self):
-        exc = DynamicValidationError(
+        exc = ConfigValidationError(
             errors=[
                 Diagnostic(
                     workflow_id="wf_a",
@@ -398,7 +323,7 @@ class TestFormatErrorsForCliPositions:
 
     def test_column_alignment_across_mixed_positions(self):
         source = "workflows:\n  wf_a:\n    name: nf-core/rnaseq\n"
-        exc = DynamicValidationError(
+        exc = ConfigValidationError(
             errors=[
                 Diagnostic(
                     workflow_id="wf_a",

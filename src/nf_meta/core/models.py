@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, List, Any, Annotated, Literal
+from typing import Optional, Any, Annotated, Literal
 import logging
 import re
 import uuid
@@ -21,7 +21,6 @@ from pydantic import (
     BeforeValidator,
 )
 from pydantic.functional_serializers import PlainSerializer
-import yaml
 
 from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 
@@ -478,128 +477,31 @@ class Transition(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# MetaworkflowConfig
+# Config-level validation
+#
+# MetaworkflowConfig (a top-level pydantic model wrapping the whole document)
+# has been retired in favor of MetaworkflowGraph constructing workflows
+# directly from a raw dict (see graph.py's from_raw_dict). The per-field
+# checks that used to live on that model now live here as plain functions,
+# called explicitly by from_raw_dict — genuinely exercised on every real
+# load, so staying plain functions (not an unused pydantic model) is honest.
 # ---------------------------------------------------------------------------
 
 
-class MetaworkflowConfig(BaseModel):
-    config_version: str
-    workflows: List[Workflow]
-    globals: Optional[GlobalOptions] = None
-    transitions: List[Transition]
+def validate_config_version(config_version: str) -> str:
+    result = re.match(r"^\d+\.\d+\.\d$", config_version)
+    if not result:
+        raise ValueError(f"Invalid config version: {config_version}")
 
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_dict_to_list(cls, data: dict) -> dict:
-        """
-        Accept either list format (legacy) or dict format (new), where
-        dict keys become the `id` field of each item.
-        Missing `type` defaults to WorkflowType.NF_PIPELINE for backward compatibility.
-        """
-        if not data:
-            return data
+    version = Version(result.string)
+    if version < Version(CONFIG_VERSION_MIN):
+        raise ValueError(
+            f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}"
+        )
 
-        value = data.get("workflows")
-        if isinstance(value, dict):
-            items = []
-            for key, item in value.items():
-                if not isinstance(item, dict):
-                    raise ValueError(
-                        f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{str(item)}' instead"
-                    )
-                item.setdefault("type", WorkflowType.NF_PIPELINE)
-                items.append({"id": key, **item})
-            data["workflows"] = items
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict):
-                    item.setdefault("type", WorkflowType.NF_PIPELINE)
-        return data
+    if version > Version(CONFIG_VERSION_MAX):
+        raise ValueError(
+            f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}"
+        )
 
-    @model_validator(mode="after")
-    def transitions_valid(self):
-        all_ids = {w.id for w in self.workflows}
-        for tr in self.transitions:
-            if tr.target not in all_ids:
-                raise ValueError(
-                    f"transition 'target' references unknown workflow id: {tr.target}"
-                )
-            if tr.source and tr.source not in all_ids:
-                raise ValueError(
-                    f"transition 'source' references unknown workflow id: {tr.source}"
-                )
-        return self
-
-    @model_validator(mode="after")
-    def warn_about_module_executor(self):
-
-        if self.globals and self.globals.config_file:
-            return self
-
-        # if no config, check if nf-modules are used
-        for wf in self.workflows:
-            if not wf.type == WorkflowType.NF_MODULE:
-                continue
-
-            if wf.container_engine:
-                continue
-
-            logger.warning(
-                "Running Nextflow module(s) without specifying an executor "
-                "or a global Nextflow config relies on the local environment.\n"
-                "This will cause errors, if module dependencies are not "
-                "available locally and breaks reproducibility"
-            )
-
-        return self
-
-    @field_validator("config_version")
-    @classmethod
-    def config_version_valid(cls, config_version):
-        result = re.match(r"^\d+\.\d+\.\d$", config_version)
-        if not result:
-            raise ValueError(f"Invalid config version: {config_version}")
-
-        version = Version(result.string)
-        if version < Version(CONFIG_VERSION_MIN):
-            raise ValueError(
-                f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}"
-            )
-
-        if version > Version(CONFIG_VERSION_MAX):
-            raise ValueError(
-                f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}"
-            )
-
-        return str(version)
-
-
-# ---------------------------------------------------------------------------
-# I/O helpers
-# ---------------------------------------------------------------------------
-
-
-def load_config(path: Path) -> MetaworkflowConfig:
-    with open(path) as fh:
-        data = yaml.safe_load(fh)
-    return MetaworkflowConfig.model_validate(data)
-
-
-def dump_config(config: MetaworkflowConfig, path: Path):
-    config_dict = {
-        "config_version": config.config_version,
-        "globals": config.globals.model_dump(exclude_none=True)
-        if config.globals
-        else None,
-        "workflows": {
-            w.id: {k: v for k, v in w.model_dump_config().items()}
-            for w in config.workflows
-        },
-        "transitions": [t.model_dump() for t in config.transitions],
-    }
-
-    if not config_dict["globals"]:
-        del config_dict["globals"]
-
-    with open(path, "w") as fh:
-        yaml.safe_dump(config_dict, fh, sort_keys=False)
+    return str(version)

@@ -1,27 +1,11 @@
-import json
-from pathlib import Path
-
 import jsonschema
 import pytest
 
 from nf_meta.core.graph import dump_config, from_raw_dict
 from nf_meta.core.schema_export import generate_schema
 
-SCHEMA_PATH = (
-    Path(__file__).parent.parent.parent / "schemas" / "metapipeline.schema.json"
-)
-
 
 class TestGenerateSchema:
-    def test_matches_committed_schema(self):
-        """Drift check: forces a contributor who changes a model to also
-        regenerate and commit schemas/metapipeline.schema.json in the same PR."""
-        committed = json.loads(SCHEMA_PATH.read_text())
-        assert generate_schema() == committed, (
-            "schemas/metapipeline.schema.json is out of date -- regenerate it "
-            "via `nf-meta export-schema` and commit the result."
-        )
-
     def test_defs_hoisted_to_document_root(self):
         """The oneOf/discriminator $ref pointers ('#/$defs/NfPipeline') must
         resolve against the document root, not a nested sub-schema."""

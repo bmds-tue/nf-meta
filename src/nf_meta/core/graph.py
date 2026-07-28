@@ -344,25 +344,13 @@ def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
 
 
 def from_raw_dict(data: dict) -> "MetaworkflowGraph":
-    """Construct a MetaworkflowGraph directly from a raw, parsed-YAML dict.
+    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
 
-    Constructs each workflow individually (not via one atomic list-validation
-    call), so the error for a broken workflow already carries its real id —
-    no need to recover it from a pydantic list-index afterward. Preserves
-    today's fail-fast behavior: raises on the first bad workflow.
-
-    The preferred way to declare a workflow is the dict form
-    (`workflows: {<id>: {...}}`) and the preferred way to declare a transition
-    is a `from: <id>` or `from: [<id>, ...]` entry inside the target
-    workflow's own definition — `dump_config` always writes this form.
-    For backward compatibility, a top-level `transitions:` key (the
-    pre-`from:` format) is still accepted on read. Mixing both styles in the
-    same file is rejected loudly (not silently merged) — that should only
-    ever happen from a half-finished hand migration, and merging could mask
-    a mistake. Legacy list-format `workflows:` is rejected outright (no read
-    support) with a clear migration error rather than silently ignored,
-    since silently dropping real workflows would be a wrong, unnoticed
-    migration.
+    Workflows must be declared in dict form (`workflows: {<id>: {...}}`) --
+    the legacy list form is rejected. Transitions are declared per-workflow
+    via `from: <id>` or `from: [<id>, ...]`; a top-level `transitions:` key
+    is also still accepted for backward compatibility, but mixing both
+    styles in the same file raises rather than merging them.
     """
     if not data:
         raise GraphValidationError("No config data provided")

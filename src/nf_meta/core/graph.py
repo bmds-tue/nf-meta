@@ -348,11 +348,14 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
 
     Workflows can be declared as a dict keyed by id (`workflows: {<id>: {...}}`,
     the preferred form) or as a legacy list of definitions each carrying their
-    own `id` (accepted for backward compatibility, with a deprecation
-    warning). Transitions are declared per-workflow via `from: <id>` or
-    `from: [<id>, ...]`; a top-level `transitions:` key is also still
-    accepted for backward compatibility, but mixing both styles in the same
-    file raises rather than merging them.
+    own `id`. Transitions are declared per-workflow via `from: <id>` or
+    `from: [<id>, ...]`; a top-level `transitions:` key is also still accepted,
+    but mixing both styles in the same file raises rather than merging them.
+
+    Both the list-format `workflows:` and the top-level `transitions:` key are
+    deprecated -- reading either logs a CLI warning. Fix by opening and saving
+    the config in the editor, which always writes the current dict-keyed
+    `workflows:` + per-workflow `from:` form.
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -363,6 +366,12 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
         raise GraphValidationError(str(e)) from e
 
     has_top_level_transitions = "transitions" in data
+    if has_top_level_transitions:
+        logger.warning(
+            "Legacy top-level 'transitions:' key is deprecated -- declare each "
+            "workflow's predecessors via its own 'from:' key instead. Update by "
+            "opening and saving the config in the editor."
+        )
 
     raw_workflows = data.get("workflows") or {}
     if isinstance(raw_workflows, dict):

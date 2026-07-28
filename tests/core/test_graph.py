@@ -320,6 +320,27 @@ class TestFromRawDict:
         assert len(g.get_workflows()) == 1
         assert g.get_workflow_by_id(wf_rnaseq.id) is not None
 
+    def test_legacy_top_level_transitions_logs_deprecation_warning(
+        self, wf_rnaseq, wf_fetchngs, caplog
+    ):
+        data = self._make_config(
+            {
+                wf_fetchngs.id: {
+                    "name": wf_fetchngs.name,
+                    "version": wf_fetchngs.version,
+                    "url": wf_fetchngs.url,
+                },
+                wf_rnaseq.id: {
+                    "name": wf_rnaseq.name,
+                    "version": wf_rnaseq.version,
+                    "url": wf_rnaseq.url,
+                },
+            }
+        )
+        data["transitions"] = [{"source": wf_fetchngs.id, "target": wf_rnaseq.id}]
+        from_raw_dict(data)
+        assert any("deprecated" in record.message for record in caplog.records)
+
     def test_legacy_top_level_transitions_accepted_alone(self, wf_rnaseq, wf_fetchngs):
         data = self._make_config(
             {

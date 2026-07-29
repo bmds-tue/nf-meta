@@ -510,6 +510,13 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
     return config_dict
 
 
+SCHEMA_URL = (
+    "https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/"
+    "schemas/metapipeline.schema.json"
+)
+
+
 def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
     with open(file, "w") as fh:
+        fh.write(f"# yaml-language-server: $schema={SCHEMA_URL}\n")
         yaml.safe_dump(dump_config(g), fh, sort_keys=False)

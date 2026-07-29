@@ -28,11 +28,13 @@ from .events import (
 )
 from .errors import (
     ConfigValidationError,
+    Diagnostic,
     GraphValidationError,
     Severity,
     WorkflowReferenceError,
     WorkflowReferenceErrors,
     diagnostics_from_pydantic_error,
+    diagnostics_from_reference_errors,
 )
 from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
 
@@ -314,15 +316,10 @@ class MetaworkflowGraph:
 
 
 # ---------------------------------------------------------------------------
-# Construction / serialization — free functions, not methods
-#
-# MetaworkflowGraph itself stays "a validated graph with mutation methods";
-# the YAML/dict-boundary concerns (parsing raw data into one, projecting one
-# back to a dict) live alongside it in this module instead of on the class,
-# per the retired-MetaworkflowConfig redesign. There is no longer a top-level
-# pydantic model for the whole document — MetaworkflowGraph constructs each
-# workflow directly, one at a time, so a single broken workflow no longer
-# blocks the others from being added.
+# Static construction / serialization Functions
+# Concerned with the YAML/dict-boundaries (parsing config file, processing
+# raw dict, graph instantiation, writing config)
+# MetaworkflowGraph itself is a validated graph with mutation methods.
 # ---------------------------------------------------------------------------
 
 
@@ -343,28 +340,20 @@ def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
         )
 
 
-def from_raw_dict(data: dict) -> "MetaworkflowGraph":
-    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
+def _extract_items_and_transitions(
+    data: dict,
+) -> tuple[list[dict], list[tuple[str, str]]]:
+    """Normalize `workflows:`/`transitions:`/`from:` into a flat list of
+    workflow-definition dicts (`type`/`id` defaulted) and a list of pending
+    `(source, target)` transitions.
 
-    Workflows can be declared as a dict keyed by id (`workflows: {<id>: {...}}`,
-    the preferred form) or as a legacy list of definitions each carrying their
-    own `id`. Transitions are declared per-workflow via `from: <id>` or
-    `from: [<id>, ...]`; a top-level `transitions:` key is also still accepted,
-    but mixing both styles in the same file raises rather than merging them.
-
-    Both the list-format `workflows:` and the top-level `transitions:` key are
-    deprecated -- reading either logs a CLI warning. Fix by opening and saving
-    the config in the editor, which always writes the current dict-keyed
-    `workflows:` + per-workflow `from:` form.
+    Raises `GraphValidationError` immediately for malformed input shapes (a
+    `workflows:` value that's neither a mapping nor a list, a non-dict item, a
+    malformed `from:` value, mixed legacy-`transitions:`-and-`from:` usage, a
+    malformed legacy transition entry) -- these represent invalid input, not
+    ordinary per-workflow mistakes, so every caller lets them raise immediately
+    rather than aggregating around them.
     """
-    if not data:
-        raise GraphValidationError("No config data provided")
-
-    try:
-        config_version = validate_config_version(data.get("config_version", ""))
-    except ValueError as e:
-        raise GraphValidationError(str(e)) from e
-
     has_top_level_transitions = "transitions" in data
     if has_top_level_transitions:
         logger.warning(
@@ -441,22 +430,53 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
                 )
             pending_transitions.append((tr_data["source"], tr_data["target"]))
 
+    return items, pending_transitions
+
+
+def construct_workflow(
+    item: dict, workflow_id: str
+) -> tuple[Workflow | None, list[Diagnostic]]:
+    """Attempt to construct one `NfPipeline`/`NfModule` from a raw dict
+    (discriminated on `type`). Returns `(workflow, [])` on success, or
+    `(None, diagnostics)` on failure -- a reusable building block for
+    validating one workflow at a time, whether inside a full-graph build or a
+    standalone snippet.
+    """
+    try:
+        if item.get("type") == WorkflowType.NF_MODULE:
+            return NfModule(**item), []
+        return NfPipeline(**item), []
+    except ValidationError as e:
+        return None, diagnostics_from_pydantic_error(e, workflow_id=workflow_id)
+
+
+def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
+    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
+    failing fast: raises immediately on the first problem found (a workflow's
+    construction, graph topology, cross-workflow references, or a tier-2
+    check). See `_full_validated_graph` for the collect-everything alternative
+    used by the CLI's `validate` command. Not called directly -- use
+    `validated_graph(data)` (the default, `collect_errors=False`).
+    """
+    if not data:
+        raise GraphValidationError("No config data provided")
+
+    try:
+        config_version = validate_config_version(data.get("config_version", ""))
+    except ValueError as e:
+        raise GraphValidationError(str(e)) from e
+
+    items, pending_transitions = _extract_items_and_transitions(data)
+
     g = MetaworkflowGraph()
     g.config_version = config_version
 
     with g.deferred_validation():
         for item in items:
             wf_id = item.get("id", "<unknown>")
-            wf: Workflow
-            try:
-                if item.get("type") == WorkflowType.NF_MODULE:
-                    wf = NfModule(**item)
-                else:
-                    wf = NfPipeline(**item)
-            except ValidationError as e:
-                raise ConfigValidationError(
-                    diagnostics_from_pydantic_error(e, workflow_id=wf_id)
-                ) from e
+            wf, diagnostics = construct_workflow(item, wf_id)
+            if wf is None:
+                raise ConfigValidationError(diagnostics)
             g.add_workflow(wf)
 
         for source_id, target_id in pending_transitions:
@@ -478,10 +498,126 @@ def from_raw_dict(data: dict) -> "MetaworkflowGraph":
     return g
 
 
-def from_file(cfg_file: Path) -> "MetaworkflowGraph":
+def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
+    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
+    collecting every problem instead of stopping at the first -- used by the
+    CLI's `validate` command so one run can show a construction error, a
+    dangling edge, a cycle, and reference errors together. Returns a fully
+    valid MetaworkflowGraph if nothing was wrong, or raises one
+    `ConfigValidationError` carrying every diagnostic and graph-level message
+    found -- the same "always fully succeeds or raises" contract as
+    `_fast_validated_graph`, just without stopping along the way. Shape-level
+    errors (malformed `workflows:`/`from:`/`transitions:`) still raise
+    immediately, same as `_fast_validated_graph` -- aggregation only applies to
+    per-workflow and graph-level problems. Not called directly -- use
+    `validated_graph(data, collect_errors=True)`.
+    """
+    if not data:
+        raise GraphValidationError("No config data provided")
+
+    graph_messages: list[str] = []
+    try:
+        config_version = validate_config_version(data.get("config_version", ""))
+    except ValueError as e:
+        graph_messages.append(str(e))
+        config_version = CONFIG_VERSION_MAX
+
+    items, pending_transitions = _extract_items_and_transitions(data)
+
+    g = MetaworkflowGraph()
+    g.config_version = config_version
+
+    diagnostics: list[Diagnostic] = []
+    attempted_ids = {item.get("id") for item in items}
+    constructed: list[Workflow] = []
+    for item in items:
+        wf_id = item.get("id", "<unknown>")
+        wf, item_diagnostics = construct_workflow(item, wf_id)
+        if wf is None:
+            diagnostics.extend(item_diagnostics)
+            continue
+        constructed.append(wf)
+        g.G.add_node(wf.id, workflow=wf)
+
+    for source_id, target_id in pending_transitions:
+        if source_id not in g.G or target_id not in g.G:
+            # A missing endpoint that was attempted but failed to construct is
+            # already reported above -- re-reporting it as "unknown node" would
+            # be a confusing secondary symptom of the same problem. Only a
+            # genuinely undeclared id gets its own message here.
+            never_declared = [
+                i
+                for i in (source_id, target_id)
+                if i not in g.G and i not in attempted_ids
+            ]
+            if never_declared:
+                graph_messages.append(
+                    f"Edge refers to nonexistent node: {source_id}->{target_id}"
+                )
+            continue
+        g.G.add_edge(
+            source_id,
+            target_id,
+            transition=Transition(source=source_id, target=target_id),
+        )
+
+    try:
+        g.validate_graph_topology()
+    except GraphValidationError as e:
+        graph_messages.append(str(e))
+
+    for wf in constructed:
+        try:
+            g.validate_param_references(wf)
+        except WorkflowReferenceErrors as e:
+            diagnostics.extend(diagnostics_from_reference_errors(e))
+
+    tier2_diagnostics = check_all(constructed)
+    diagnostics.extend(d for d in tier2_diagnostics if d.severity == Severity.ERROR)
+    log_warnings(tier2_diagnostics)
+
+    if data.get("globals") is not None:
+        try:
+            g.global_options = GlobalOptions(**data["globals"])
+        except ValidationError as e:
+            diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None))
+
+    _warn_about_module_executor(g)
+
+    if diagnostics or graph_messages:
+        raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages)
+
+    return g
+
+
+def validated_graph(data: dict, *, collect_errors: bool = False) -> "MetaworkflowGraph":
+    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
+
+    Workflows can be declared as a dict keyed by id (`workflows: {<id>: {...}}`,
+    the preferred form) or as a legacy list of definitions each carrying their
+    own `id`. Transitions are declared per-workflow via `from: <id>` or
+    `from: [<id>, ...]`; a top-level `transitions:` key is also still accepted,
+    but mixing both styles in the same file raises rather than merging them.
+
+    Both the list-format `workflows:` and the top-level `transitions:` key are
+    deprecated -- reading either logs a CLI warning. Fix by opening and saving
+    the config in the editor, which always writes the current dict-keyed
+    `workflows:` + per-workflow `from:` form.
+
+    By default (`collect_errors=False`) this fails fast, raising on the first
+    problem found. Pass `collect_errors=True` for a best-effort pass that
+    collects every problem instead of stopping at the first -- used by the
+    CLI's `validate` command.
+    """
+    if collect_errors:
+        return _full_validated_graph(data)
+    return _fast_validated_graph(data)
+
+
+def from_file(cfg_file: Path, *, collect_errors: bool = False) -> "MetaworkflowGraph":
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
-    return from_raw_dict(data)
+    return validated_graph(data, collect_errors=collect_errors)
 
 
 def dump_config(g: "MetaworkflowGraph") -> dict:

@@ -103,7 +103,7 @@ def export_schema(output):
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
 @handle_validation_errors
 def validate_config(config, verbose):
-    g = from_file(config)
+    from_file(config, collect_errors=True)
     click.echo(click.style("✓ Config is valid", fg="green"))
 
 

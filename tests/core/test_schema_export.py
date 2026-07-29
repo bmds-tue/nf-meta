@@ -1,7 +1,7 @@
 import jsonschema
 import pytest
 
-from nf_meta.core.graph import dump_config, from_raw_dict
+from nf_meta.core.graph import dump_config, validated_graph
 from nf_meta.core.schema_export import generate_schema
 
 
@@ -64,7 +64,7 @@ class TestGenerateSchema:
                 },
             },
         }
-        g = from_raw_dict(data)
+        g = validated_graph(data)
         dumped = dump_config(g)
         assert "transitions" not in dumped
 

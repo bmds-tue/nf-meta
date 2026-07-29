@@ -87,6 +87,33 @@ class TestValidateCommand:
         assert result.exit_code == 0
         assert "valid" in result.output
 
+    def test_multiple_errors_reported_together(self, tmp_path):
+        text = (
+            "config_version: 0.3.0\n"
+            "workflows:\n"
+            "  wf_a:\n"
+            "    version: 2.0.0\n"  # missing name -> construction error
+            "  wf_b:\n"
+            "    name: nf-core/rnaseq\n"
+            "    version: 3.14.0\n"
+            "    from: [wf_c, nonexistent]\n"  # dangling edge to 'nonexistent'
+            "  wf_c:\n"
+            "    name: nf-core/fetchngs\n"
+            "    version: 1.12.0\n"
+            "    from: wf_b\n"  # wf_b <-> wf_c cycle
+            "    params:\n"
+            "      input: samplesheet.csv\n"
+            "      outdir: results\n"
+        )
+        path = _write(tmp_path, text)
+
+        result = CliRunner().invoke(cli, ["validate", str(path)])
+
+        assert result.exit_code == 1
+        assert "wf_a/name" in result.output
+        assert "nonexistent" in result.output
+        assert "cycle" in result.output
+
     def test_mixing_from_and_top_level_transitions_rejected(self, tmp_path):
         text = (
             "config_version: 0.3.0\n"

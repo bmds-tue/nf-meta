@@ -1,6 +1,6 @@
 from .models import Reference, WorkflowReference
 from .line_linting import locate_field
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Optional
 
@@ -32,6 +32,7 @@ class ConfigValidationError(Exception):
     consumer treats both tiers identically, so they share one exception type."""
 
     errors: list[Diagnostic]
+    graph_messages: list[str] = field(default_factory=list)
 
 
 def diagnostics_from_pydantic_error(
@@ -40,8 +41,8 @@ def diagnostics_from_pydantic_error(
     """Adapt a tier-0/1 pydantic.ValidationError into the Diagnostic vocabulary.
 
     workflow_id is taken explicitly since a ValidationError carries no reference
-    to the (failed-to-construct) instance — the caller (e.g. MetaworkflowGraph's
-    from_raw_dict, constructing one workflow at a time) already knows which
+    to the (failed-to-construct) instance — the caller (e.g. graph.py's
+    construct_workflow, constructing one workflow at a time) already knows which
     workflow this is.
     """
     return [
@@ -170,6 +171,7 @@ def format_errors_for_cli(
         diagnostics = diagnostics_from_reference_errors(e)
     elif isinstance(e, ConfigValidationError):
         diagnostics = e.errors
+        graph_messages = e.graph_messages
     elif isinstance(e, GraphValidationError):
         graph_messages = [str(e)]
 

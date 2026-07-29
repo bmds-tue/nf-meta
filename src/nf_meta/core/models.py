@@ -476,18 +476,6 @@ class Transition(BaseModel):
         return super().model_dump(*args, **kwargs)
 
 
-# ---------------------------------------------------------------------------
-# Config-level validation
-#
-# MetaworkflowConfig (a top-level pydantic model wrapping the whole document)
-# has been retired in favor of MetaworkflowGraph constructing workflows
-# directly from a raw dict (see graph.py's from_raw_dict). The per-field
-# checks that used to live on that model now live here as plain functions,
-# called explicitly by from_raw_dict — genuinely exercised on every real
-# load, so staying plain functions (not an unused pydantic model) is honest.
-# ---------------------------------------------------------------------------
-
-
 def validate_config_version(config_version: str) -> str:
     result = re.match(r"^\d+\.\d+\.\d$", config_version)
     if not result:

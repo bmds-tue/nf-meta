@@ -3,14 +3,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, List, Any, Annotated, Literal
+from typing import Optional, Any, Annotated, Literal
 import logging
 import re
 import uuid
 import hashlib
 import json
-
-import click
 
 from pydantic import (
     BaseModel,
@@ -23,23 +21,13 @@ from pydantic import (
     BeforeValidator,
 )
 from pydantic.functional_serializers import PlainSerializer
-import yaml
 
-from nf_meta.core.nf_core_utils import (
-    get_nfcore_pipelines,
-    get_nfcore_module_releases,
-    url_exists,
-    github_file_exists,
-    get_pipeline_schema,
-    get_module_schema,
-    PipelineSchemaError,
-)
-from nf_meta.core.nf_param_validation import validate_params
+from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 
 logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.2.0"
+CONFIG_VERSION_MAX = "0.3.0"
 
 
 class WorkflowType(StrEnum):
@@ -274,9 +262,6 @@ class NfPipeline(BaseWorkflow):
         if not is_nfcore and not value.startswith("http"):
             raise ValueError("Url should start with https://")
 
-        if not is_nfcore and not url_exists(value):
-            raise ValueError("Invalid or inaccessible pipeline url")
-
         return value
 
     @field_validator("main_script", mode="after")
@@ -290,21 +275,6 @@ class NfPipeline(BaseWorkflow):
         name = info.data.get("name")
         if name and cls.get_nfcore_info(name):
             raise ValueError("main_script cannot be set for nf-core workflows")
-
-        url = info.data.get("url")
-        version = info.data.get("version")
-
-        if url and "github.com" in url and version:
-            if not github_file_exists(url, value, version):
-                raise ValueError(
-                    f"main_script '{value}' not found in repository '{url}' at ref '{version}'"
-                )
-        else:
-            logger.warning(
-                "Cannot validate main_script '%s': '%s' is not a GitHub URL",
-                value,
-                url,
-            )
 
         return value
 
@@ -326,71 +296,6 @@ class NfPipeline(BaseWorkflow):
                 data["description"] = nfcore_info.get("description", "")
 
         return data
-
-    @field_validator("params", mode="after")
-    @classmethod
-    def validate_params_against_schema(
-        cls, value: Optional[CoercedParams], info: ValidationInfo
-    ) -> Optional[CoercedParams]:
-        url: Optional[str] = info.data.get("url")
-        version: Optional[str] = info.data.get("version")
-        node_id: Optional[str] = info.data.get("id")
-        params_file: Optional[Any] = info.data.get("params_file")
-        name: Optional[str] = info.data.get("name")
-
-        if not url or not name or not version:
-            return value
-
-        try:
-            schema = get_pipeline_schema(url, version)
-        except PipelineSchemaError as e:
-            click.echo(
-                click.style(
-                    f"Warning: cannot validate params for '{name}': {e}",
-                    fg="yellow",
-                )
-            )
-            return value
-
-        # Start from params_file contents, then let value override.
-        # This gives the full picture for required-param checks while
-        # honouring the precedence rule (value wins on collision).
-        merged: dict[str, str] = {}
-        skip_required = False
-
-        if params_file is not None:
-            try:
-                with open(params_file) as fh:
-                    file_data = yaml.safe_load(fh) or {}
-                if isinstance(file_data, dict):
-                    merged = {k: str(v) for k, v in file_data.items() if v is not None}
-                else:
-                    logger.warning(
-                        "params_file '%s' does not contain a mapping — skipping required-param check",
-                        params_file,
-                    )
-                    skip_required = True
-            except Exception as exc:
-                logger.warning(
-                    "Could not read params_file '%s': %s — skipping required-param check",
-                    params_file,
-                    exc,
-                )
-                skip_required = True
-
-        merged.update(value or {})
-
-        errors = validate_params(
-            merged,
-            schema,
-            pipeline_id=node_id,
-            skip_required=skip_required,
-        )
-        if errors:
-            joined = "\n  - ".join(errors)
-            raise ValueError(f"Parameter validation failed:\n  - {joined}")
-
-        return value
 
     def hash(self) -> str:
         data = f"{self.url}{self.version}"
@@ -450,49 +355,6 @@ class NfModule(BaseWorkflow):
     # validate_default=True ensures the params field_validator runs even when
     # params is absent from the input (Pydantic skips field validators for defaults otherwise).
     params: Optional[CoercedParams] = Field(default=None, validate_default=True)
-
-    @field_validator("version", mode="after")
-    @classmethod
-    def validate_version_in_registry(cls, value: str, info: ValidationInfo) -> str:
-        name: str = info.data.get("name", "")
-        short_name = name.removeprefix("nf-core/")
-        if not short_name or short_name == name:
-            return value
-        releases = get_nfcore_module_releases(short_name)
-        valid_versions = {r["version"] for r in releases}
-        if valid_versions and value not in valid_versions:
-            raise ValueError(
-                f"Version '{value}' is not available in the Nextflow registry for "
-                f"module '{name}'. Use one of: {sorted(valid_versions)}"
-            )
-        return value
-
-    @field_validator("params", mode="after")
-    @classmethod
-    def validate_params_against_schema(
-        cls, value: Optional[dict], info: ValidationInfo
-    ) -> Optional[dict]:
-        name: str = info.data.get("name", "")
-        version: str = info.data.get("version", "")
-        node_id: str = info.data.get("id", "")
-
-        if not name or not version:
-            return value
-
-        schema = get_module_schema(name, version)
-        if not schema:
-            return value
-
-        errors = validate_params(
-            value or {},
-            schema,
-            pipeline_id=node_id,
-            skip_required=False,
-        )
-        if errors:
-            joined = "\n  - ".join(errors)
-            raise ValueError(f"Parameter validation failed:\n  - {joined}")
-        return value
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"
@@ -615,128 +477,31 @@ class Transition(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# MetaworkflowConfig
+# Config-level validation
+#
+# MetaworkflowConfig (a top-level pydantic model wrapping the whole document)
+# has been retired in favor of MetaworkflowGraph constructing workflows
+# directly from a raw dict (see graph.py's from_raw_dict). The per-field
+# checks that used to live on that model now live here as plain functions,
+# called explicitly by from_raw_dict — genuinely exercised on every real
+# load, so staying plain functions (not an unused pydantic model) is honest.
 # ---------------------------------------------------------------------------
 
 
-class MetaworkflowConfig(BaseModel):
-    config_version: str
-    workflows: List[Workflow]
-    globals: Optional[GlobalOptions] = None
-    transitions: List[Transition]
+def validate_config_version(config_version: str) -> str:
+    result = re.match(r"^\d+\.\d+\.\d$", config_version)
+    if not result:
+        raise ValueError(f"Invalid config version: {config_version}")
 
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_dict_to_list(cls, data: dict) -> dict:
-        """
-        Accept either list format (legacy) or dict format (new), where
-        dict keys become the `id` field of each item.
-        Missing `type` defaults to WorkflowType.NF_PIPELINE for backward compatibility.
-        """
-        if not data:
-            return data
+    version = Version(result.string)
+    if version < Version(CONFIG_VERSION_MIN):
+        raise ValueError(
+            f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}"
+        )
 
-        value = data.get("workflows")
-        if isinstance(value, dict):
-            items = []
-            for key, item in value.items():
-                if not isinstance(item, dict):
-                    raise ValueError(
-                        f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{str(item)}' instead"
-                    )
-                item.setdefault("type", WorkflowType.NF_PIPELINE)
-                items.append({"id": key, **item})
-            data["workflows"] = items
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict):
-                    item.setdefault("type", WorkflowType.NF_PIPELINE)
-        return data
+    if version > Version(CONFIG_VERSION_MAX):
+        raise ValueError(
+            f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}"
+        )
 
-    @model_validator(mode="after")
-    def transitions_valid(self):
-        all_ids = {w.id for w in self.workflows}
-        for tr in self.transitions:
-            if tr.target not in all_ids:
-                raise ValueError(
-                    f"transition 'target' references unknown workflow id: {tr.target}"
-                )
-            if tr.source and tr.source not in all_ids:
-                raise ValueError(
-                    f"transition 'source' references unknown workflow id: {tr.source}"
-                )
-        return self
-
-    @model_validator(mode="after")
-    def warn_about_module_executor(self):
-
-        if self.globals and self.globals.config_file:
-            return self
-
-        # if no config, check if nf-modules are used
-        for wf in self.workflows:
-            if not wf.type == WorkflowType.NF_MODULE:
-                continue
-
-            if wf.container_engine:
-                continue
-
-            logger.warning(
-                "Running Nextflow module(s) without specifying an executor "
-                "or a global Nextflow config relies on the local environment.\n"
-                "This will cause errors, if module dependencies are not "
-                "available locally and breaks reproducibility"
-            )
-
-        return self
-
-    @field_validator("config_version")
-    @classmethod
-    def config_version_valid(cls, config_version):
-        result = re.match(r"^\d+\.\d+\.\d$", config_version)
-        if not result:
-            raise ValueError(f"Invalid config version: {config_version}")
-
-        version = Version(result.string)
-        if version < Version(CONFIG_VERSION_MIN):
-            raise ValueError(
-                f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}"
-            )
-
-        if version > Version(CONFIG_VERSION_MAX):
-            raise ValueError(
-                f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}"
-            )
-
-        return str(version)
-
-
-# ---------------------------------------------------------------------------
-# I/O helpers
-# ---------------------------------------------------------------------------
-
-
-def load_config(path: Path) -> MetaworkflowConfig:
-    with open(path) as fh:
-        data = yaml.safe_load(fh)
-    return MetaworkflowConfig.model_validate(data)
-
-
-def dump_config(config: MetaworkflowConfig, path: Path):
-    config_dict = {
-        "config_version": config.config_version,
-        "globals": config.globals.model_dump(exclude_none=True)
-        if config.globals
-        else None,
-        "workflows": {
-            w.id: {k: v for k, v in w.model_dump_config().items()}
-            for w in config.workflows
-        },
-        "transitions": [t.model_dump() for t in config.transitions],
-    }
-
-    if not config_dict["globals"]:
-        del config_dict["globals"]
-
-    with open(path, "w") as fh:
-        yaml.safe_dump(config_dict, fh, sort_keys=False)
+    return str(version)

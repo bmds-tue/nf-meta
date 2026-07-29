@@ -15,7 +15,7 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console, Group
 
-from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.graph import MetaworkflowGraph, dump_config
 from nf_meta.core.models import Workflow, GlobalOptions
 from nf_meta.core.errors import WorkflowReferenceError
 from .errors import NfMetaRunnerError
@@ -241,7 +241,7 @@ class SimplePythonRunner(BaseRunner):
         return exit_code == 0
 
     def _hash_graph(self, graph: MetaworkflowGraph) -> str:
-        config_str = str(graph.to_config())
+        config_str = str(dump_config(graph))
         hash = hashlib.sha256(config_str.encode()).hexdigest()[:8]
         return hash
 

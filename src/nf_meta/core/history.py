@@ -43,16 +43,30 @@ class History:
 
     def undo(self, graph: GraphEventHandler) -> tuple[Event]:
         events = self.undo_stack.pop()
-        undo = self._get_inverse_command(events)
-        undo.apply(graph)
+        undo_cmd = self._get_inverse_command(events)
+        try:
+            undo_cmd.apply(graph)
+        except Exception as e:
+            partial = graph.pop_events()
+            self._get_inverse_command(partial).apply(graph)
+            _ = graph.pop_events()
+            self.undo_stack.append(events)  # restore — undo didn't complete
+            raise e
         new_events = graph.pop_events()
         self.redo_stack.append(new_events)
         return new_events
 
     def redo(self, graph: GraphEventHandler) -> tuple[Event]:
         events = self.redo_stack.pop()
-        redo = self._get_inverse_command(events)
-        redo.apply(graph)
+        redo_cmd = self._get_inverse_command(events)
+        try:
+            redo_cmd.apply(graph)
+        except Exception as e:
+            partial = graph.pop_events()
+            self._get_inverse_command(partial).apply(graph)
+            _ = graph.pop_events()
+            self.redo_stack.append(events)  # restore — redo didn't complete
+            raise e
         new_events = graph.pop_events()
         self.undo_stack.append(new_events)
         return new_events

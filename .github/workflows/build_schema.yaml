@@ -1,0 +1,45 @@
+name: Build Schema
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/nf_meta/core/models.py"
+      - "src/nf_meta/core/schema_export.py"
+
+jobs:
+  build-schema:
+    name: Regenerate JSON Schema
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Regenerate schema
+        run: |
+          uv sync
+          uv run nf-meta export-schema schemas/metapipeline.schema.json
+
+      - name: Configure git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Commit schema if changed
+        run: |
+          git add schemas/metapipeline.schema.json
+          git commit -m "ci: regenerate JSON schema" || echo "No changes to commit"
+
+      - name: Push changes
+        run: git push origin HEAD:main

@@ -26,5 +26,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
+      - name: Regenerate schema
+        run: uv run nf-meta export-schema schemas/metapipeline.schema.json
+
       - name: Run tests
         run: uv run pytest --tb=short

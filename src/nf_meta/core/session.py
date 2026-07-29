@@ -1,7 +1,7 @@
-from .errors import GraphValidationError, SessionCommandError
+from .errors import ConfigValidationError, GraphValidationError, SessionCommandError
 from .events import Command
 from .history import History
-from .graph import MetaworkflowGraph
+from .graph import MetaworkflowGraph, from_file, to_file
 from pathlib import Path
 
 
@@ -20,7 +20,7 @@ class EditorSession:
 
         self.config_file = config
         if self.config_file:
-            self.graph = MetaworkflowGraph.from_file(self.config_file)
+            self.graph = from_file(self.config_file)
         else:
             self.graph = MetaworkflowGraph()
 
@@ -29,7 +29,7 @@ class EditorSession:
     def handle_command(self, c: Command):
         try:
             events = self.history.execute(c, self.graph)
-        except (GraphValidationError, ValueError) as e:
+        except (GraphValidationError, ValueError, ConfigValidationError) as e:
             raise SessionCommandError.from_exception(e)
 
         if self.config_file:
@@ -60,7 +60,7 @@ class EditorSession:
         if config:
             self.config_file = config
 
-        self.graph.to_file(self.config_file)
+        to_file(self.graph, self.config_file)
 
 
 SESSION = EditorSession()

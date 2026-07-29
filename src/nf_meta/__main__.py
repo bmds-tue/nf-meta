@@ -1,19 +1,44 @@
 import click
 from functools import wraps
+from pathlib import Path
 from nf_meta.core.errors import (
+    ConfigValidationError,
     GraphValidationError,
-    ValidationError,
     format_errors_for_cli,
 )
-from nf_meta.runner import (
-    run_metapipeline,
-    get_registered_runners,
-    RunOptions,
-    NfMetaRunnerError,
-)
-from nf_meta.core.graph import MetaworkflowGraph
-from nf_meta.core.session import start_session
-from nf_meta.editor import get_registered_editors, EditorOptions, run_editor
+from nf_meta.runner import get_registered_runners
+from nf_meta.core.graph import from_file
+from nf_meta.editor import get_registered_editors
+
+
+def handle_validation_errors(func):
+    """Shared error handling for commands taking a `config` path: renders any
+    validation failure through the unified format_errors_for_cli, with real
+    line numbers when the config file can be read as text."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        config = kwargs.get("config")
+        try:
+            return func(*args, **kwargs)
+        except (GraphValidationError, ConfigValidationError) as e:
+            source_text = None
+            if config:
+                try:
+                    source_text = Path(config).read_text()
+                except OSError:
+                    source_text = None
+            click.echo(
+                format_errors_for_cli(
+                    e, source_text=source_text, filename=str(config or "")
+                )
+            )
+            raise SystemExit(1)
+        except FileNotFoundError as e:
+            click.echo(click.style(str(e), fg="red"))
+            raise SystemExit(1)
+
+    return wrapper
 
 
 @click.group()
@@ -38,36 +63,48 @@ def cli() -> None:
     help="Port for the editor server (auto-assigned if omitted)",
 )
 @click.argument("config", required=False, type=click.Path())
+@handle_validation_errors
 def edit_browser(config, verbose, editor, host, port):
-    try:
-        start_session(config)
-        opts = EditorOptions(editor_name=editor)
-        if host is not None:
-            opts.host = host
-        if port is not None:
-            opts.port = port
-        run_editor(opts)
-    except (GraphValidationError, ValidationError) as e:
-        click.echo(format_errors_for_cli(e))
-        raise SystemExit(1)
-    except FileNotFoundError as e:
-        click.echo(click.style(e, fg="red"))
-        raise SystemExit(1)
+    from nf_meta.editor import EditorOptions, run_editor
+    from nf_meta.core.session import start_session
+
+    start_session(config)
+    opts = EditorOptions(editor_name=editor)
+    if host is not None:
+        opts.host = host
+    if port is not None:
+        opts.port = port
+    run_editor(opts)
+
+
+@click.command("export-schema")
+@click.argument(
+    "output",
+    required=False,
+    type=click.Path(),
+    default="schemas/metapipeline.schema.json",
+)
+def export_schema(output):
+    """Write the metapipeline.yaml JSON Schema to OUTPUT (default:
+    schemas/metapipeline.schema.json)."""
+    import json
+    from nf_meta.core.schema_export import generate_schema
+
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump(generate_schema(), fh, indent=2)
+        fh.write("\n")
+    click.echo(click.style(f"✓ Schema written to {path}", fg="green"))
 
 
 @click.command("validate")
 @click.argument("config", type=click.Path())
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
+@handle_validation_errors
 def validate_config(config, verbose):
-    try:
-        g = MetaworkflowGraph.from_file(config)
-        click.echo(click.style("✓ Config is valid", fg="green"))
-    except (GraphValidationError, ValidationError) as e:
-        click.echo(format_errors_for_cli(e))
-        raise SystemExit(1)
-    except FileNotFoundError as e:
-        click.echo(click.style(e, fg="red"))
-        raise SystemExit(1)
+    g = from_file(config)
+    click.echo(click.style("✓ Config is valid", fg="green"))
 
 
 @click.command("run")
@@ -101,7 +138,10 @@ def validate_config(config, verbose):
     is_flag=True,
     help="Run all workflows as stub runs (passes -stub to Nextflow)",
 )
+@handle_validation_errors
 def run(config, verbose, runner, resume, output_lines, start, target, profile, stub):
+    from nf_meta.runner import run_metapipeline, RunOptions, NfMetaRunnerError
+
     try:
         run_options = RunOptions(
             runner_name=runner,
@@ -113,22 +153,17 @@ def run(config, verbose, runner, resume, output_lines, start, target, profile, s
             start=start,
             target=target,
         )
-        g = MetaworkflowGraph.from_file(config)
+        g = from_file(config)
         run_metapipeline(g, run_options)
-    except (GraphValidationError, ValidationError) as e:
-        click.echo(format_errors_for_cli(e))
-        raise SystemExit(1)
     except NfMetaRunnerError as e:
         click.echo(click.style(e.message, fg="red"))
-        raise SystemExit(1)
-    except FileNotFoundError as e:
-        click.echo(click.style(e, fg="red"))
         raise SystemExit(1)
 
 
 cli.add_command(edit_browser)
 cli.add_command(validate_config)
 cli.add_command(run)
+cli.add_command(export_schema)
 
 
 if __name__ == "__main__":

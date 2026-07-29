@@ -90,20 +90,23 @@ def mock_nfcore(monkeypatch):
     monkeypatch.setattr(
         "nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES
     )
-    monkeypatch.setattr("nf_meta.core.models.url_exists", lambda url, timeout=10: True)
     monkeypatch.setattr(
-        "nf_meta.core.models.github_file_exists", lambda url, path, ref: True
+        "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
     )
     monkeypatch.setattr(
-        "nf_meta.core.models.get_pipeline_schema",
+        "nf_meta.core.dynamic_validation.github_file_exists",
+        lambda url, path, ref: True,
+    )
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_pipeline_schema",
         lambda url, version: FAKE_PIPELINE_SCHEMA,
     )
     monkeypatch.setattr(
-        "nf_meta.core.models.get_module_schema",
+        "nf_meta.core.dynamic_validation.get_module_schema",
         lambda name, version: {},
     )
     monkeypatch.setattr(
-        "nf_meta.core.models.get_nfcore_module_releases",
+        "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
         lambda name: [],
     )
 
@@ -181,7 +184,7 @@ def minimal_yaml_path():
 def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
     """Write a minimal config YAML to a temp file and return its path."""
     data = {
-        "config_version": "0.0.1",
+        "config_version": "0.3.0",
         "workflows": {
             wf_fetchngs.id: {
                 "name": wf_fetchngs.name,
@@ -192,9 +195,9 @@ def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
                 "name": wf_rnaseq.name,
                 "version": wf_rnaseq.version,
                 "url": wf_rnaseq.url,
+                "from": [wf_fetchngs.id],
             },
         },
-        "transitions": [{"source": wf_fetchngs.id, "target": wf_rnaseq.id}],
     }
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(data))

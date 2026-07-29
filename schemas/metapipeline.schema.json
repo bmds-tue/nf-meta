@@ -1,0 +1,310 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "nf-meta metapipeline configuration",
+  "$defs": {
+    "NfModule": {
+      "description": "A Nextflow module step executed with 'nextflow module run'.",
+      "properties": {
+        "type": {
+          "const": "nf-module",
+          "default": "nf-module",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "config_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Config File"
+        },
+        "container_engine": {
+          "anyOf": [
+            {
+              "enum": [
+                "docker",
+                "singularity",
+                "conda",
+                "podman"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Container Engine"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "Workflow id(s) this workflow directly depends on (its predecessors) -- a single id, or a list of ids."
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "NfModule",
+      "type": "object"
+    },
+    "NfPipeline": {
+      "description": "A Nextflow pipeline step executed with 'nextflow run'.",
+      "properties": {
+        "type": {
+          "const": "nf-pipeline",
+          "default": "nf-pipeline",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "config_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Config File"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "params_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params File"
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile"
+        },
+        "main_script": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Main Script"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "Workflow id(s) this workflow directly depends on (its predecessors) -- a single id, or a list of ids."
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "url"
+      ],
+      "title": "NfPipeline",
+      "type": "object"
+    }
+  },
+  "type": "object",
+  "required": [
+    "config_version",
+    "workflows"
+  ],
+  "properties": {
+    "config_version": {
+      "type": "string"
+    },
+    "workflows": {
+      "type": "object",
+      "additionalProperties": {
+        "discriminator": {
+          "mapping": {
+            "nf-module": "#/$defs/NfModule",
+            "nf-pipeline": "#/$defs/NfPipeline"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/NfPipeline"
+          },
+          {
+            "$ref": "#/$defs/NfModule"
+          }
+        ]
+      }
+    },
+    "globals": {
+      "properties": {
+        "profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile"
+        },
+        "config_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Config File"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
+        "nextflow_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nextflow Version"
+        }
+      },
+      "title": "GlobalOptions",
+      "type": "object"
+    }
+  }
+}

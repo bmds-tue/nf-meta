@@ -7,7 +7,7 @@ from nf_meta.core.errors import (
     format_errors_for_cli,
 )
 from nf_meta.runner import get_registered_runners
-from nf_meta.core.graph import from_file
+from nf_meta.core.config import from_file
 from nf_meta.editor import get_registered_editors
 
 
@@ -122,12 +122,12 @@ def validate_config(config, verbose, scope):
         from_file(config, collect_errors=True)
         click.echo(click.style("✓ Config is valid", fg="green"))
     elif scope == "workflow":
-        from nf_meta.core.graph import validated_workflow_from_file
+        from nf_meta.core.config import validated_workflow_from_file
 
         validated_workflow_from_file(config)
         click.echo(click.style("✓ Workflow is valid", fg="green"))
     else:
-        from nf_meta.core.graph import validated_globals_from_file
+        from nf_meta.core.config import validated_globals_from_file
 
         validated_globals_from_file(config)
         click.echo(click.style("✓ Global options are valid", fg="green"))

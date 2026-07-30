@@ -454,6 +454,61 @@ def construct_workflow(
         )
 
 
+def validated_workflow(data: dict) -> Workflow:
+    """Construct and fully validate a single workflow from a flat, raw dict
+    (`id` optional -- the model's own `default_factory` generates one if
+    omitted). Runs the same tier-0/1 construction plus tier-2 dynamic checks
+    a workflow gets as part of a full config build. Returns the validated
+    Workflow, or raises `GraphValidationError`/`ConfigValidationError`.
+    """
+    if not data:
+        raise GraphValidationError("No config data provided")
+    if not isinstance(data, dict):
+        raise GraphValidationError(
+            f"Expected a flat mapping, got {type(data).__name__!r}"
+        )
+    wf, diagnostics = construct_workflow(data, data.get("id", "<unknown>"))
+    if wf is None:
+        raise ConfigValidationError(diagnostics)
+    dynamic_diagnostics = run_dynamic_checks(wf, previous=None)
+    errors = [d for d in dynamic_diagnostics if d.severity == Severity.ERROR]
+    if errors:
+        raise ConfigValidationError(errors)
+    log_warnings(dynamic_diagnostics)
+    return wf
+
+
+def validated_globals(data: dict) -> GlobalOptions:
+    """Construct and validate a `GlobalOptions` block from a flat, raw dict.
+    Returns the validated `GlobalOptions`, or raises
+    `GraphValidationError`/`ConfigValidationError`.
+    """
+    if not data:
+        raise GraphValidationError("No config data provided")
+    if not isinstance(data, dict):
+        raise GraphValidationError(
+            f"Expected a flat mapping, got {type(data).__name__!r}"
+        )
+    try:
+        return GlobalOptions(**data)
+    except ValidationError as e:
+        raise ConfigValidationError(
+            diagnostics_from_pydantic_error(e, workflow_id=None)
+        ) from e
+
+
+def validated_workflow_from_file(cfg_file: Path) -> Workflow:
+    with open(cfg_file) as fh:
+        data = yaml.safe_load(fh)
+    return validated_workflow(data)
+
+
+def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
+    with open(cfg_file) as fh:
+        data = yaml.safe_load(fh)
+    return validated_globals(data)
+
+
 def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
     failing fast: raises immediately on the first problem found (a workflow's

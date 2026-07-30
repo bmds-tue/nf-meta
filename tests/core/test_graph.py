@@ -13,7 +13,9 @@ from nf_meta.core.graph import (  # type: ignore[import]
     dump_config,
     from_file,
     to_file,
+    validated_globals,
     validated_graph,
+    validated_workflow,
 )
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,
@@ -620,6 +622,71 @@ class TestConstructWorkflow:
         assert wf is not None
         assert wf.type == WorkflowType.NF_MODULE
         assert diagnostics == []
+
+
+class TestValidatedWorkflow:
+    def test_valid_snippet_returns_workflow(self, wf_rnaseq):
+        data = {
+            "name": wf_rnaseq.name,
+            "version": wf_rnaseq.version,
+            "params": {"input": "samplesheet.csv", "outdir": "results"},
+        }
+        wf = validated_workflow(data)
+        assert wf.name == wf_rnaseq.name
+
+    def test_id_optional_auto_generated(self, wf_rnaseq):
+        data = {"name": wf_rnaseq.name, "version": wf_rnaseq.version}
+        wf = validated_workflow(data)
+        assert wf.id  # auto-generated, non-empty
+
+    def test_explicit_id_preserved(self, wf_rnaseq):
+        data = {"id": "my_custom_id", "name": wf_rnaseq.name, "version": wf_rnaseq.version}
+        wf = validated_workflow(data)
+        assert wf.id == "my_custom_id"
+
+    def test_construction_failure_raises_config_validation_error(self):
+        with pytest.raises(ConfigValidationError):
+            validated_workflow({"version": "1.0.0"})  # missing name
+
+    def test_tier2_failure_raises_config_validation_error(self, monkeypatch):
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [{"version": "9.9.9-ffffff9"}],
+        )
+        with pytest.raises(ConfigValidationError):
+            validated_workflow(
+                {
+                    "type": WorkflowType.NF_MODULE,
+                    "name": "nf-core/fastqc",
+                    "version": "0.0.0-6c4ed3a",
+                }
+            )
+
+    def test_empty_data_raises(self):
+        with pytest.raises(GraphValidationError):
+            validated_workflow({})
+
+    def test_non_mapping_data_raises(self):
+        with pytest.raises(GraphValidationError):
+            validated_workflow("not-a-mapping")  # type: ignore[arg-type]
+
+
+class TestValidatedGlobals:
+    def test_valid_snippet_returns_globals(self):
+        globals_ = validated_globals({"profile": "docker"})
+        assert globals_.profile == "docker"
+
+    def test_invalid_snippet_raises_config_validation_error(self):
+        with pytest.raises(ConfigValidationError):
+            validated_globals({"config_file": "/nonexistent/path.config"})
+
+    def test_empty_data_raises(self):
+        with pytest.raises(GraphValidationError):
+            validated_globals({})
+
+    def test_non_mapping_data_raises(self):
+        with pytest.raises(GraphValidationError):
+            validated_globals("not-a-mapping")  # type: ignore[arg-type]
 
 
 class TestValidatedGraphCollectErrors:

@@ -23,7 +23,7 @@ _FROM_FIELD_SCHEMA = {
 def _patch_from_field(defs: dict) -> None:
     """Add the `from:` shorthand to each concrete workflow type's schema, and
     remove `id` -- the one place the file format and the construction-time
-    models genuinely diverge: `from_raw_dict` pops `from` before constructing
+    models genuinely diverge: `validated_graph` pops `from` before constructing
     a Workflow (neither NfPipeline nor NfModule has that field), and injects
     `id` from the surrounding mapping key rather than reading it as a nested
     field, so users never write either of these where the schema would

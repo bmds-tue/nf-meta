@@ -319,7 +319,6 @@ class MetaworkflowGraph:
 # Static construction / serialization Functions
 # Concerned with the YAML/dict-boundaries (parsing config file, processing
 # raw dict, graph instantiation, writing config)
-# MetaworkflowGraph itself is a validated graph with mutation methods.
 # ---------------------------------------------------------------------------
 
 

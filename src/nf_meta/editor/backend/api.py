@@ -3,7 +3,8 @@ from typing import Annotated, Optional
 
 from .serializers import serialize_state, serialize_events, Selection
 
-from nf_meta.core.errors import SessionCommandError
+from nf_meta.core.dynamic_validation import run_dynamic_checks
+from nf_meta.core.errors import SessionCommandError, Severity
 from nf_meta.core.session import SESSION
 from nf_meta.core.nf_core_utils import (
     get_nfcore_pipelines,
@@ -106,6 +107,25 @@ def redo_most_recent():
 def update_global_config(globals: GlobalOptions):
     events = SESSION.handle_command(UpdateGlobalOptions(globals))
     return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.post("/node/validate/")
+def validate_node(wf: Workflow):
+    """Validate a single workflow in isolation -- same body shape as
+    `/node/add/`, but non-mutating: no session command, no auto-save."""
+    diagnostics = run_dynamic_checks(wf, previous=None)
+    errors = [d for d in diagnostics if d.severity == Severity.ERROR]
+    if errors:
+        raise SessionCommandError.from_diagnostics(errors)
+    return JSONResponse({"field_errors": [], "graph_errors": []})
+
+
+@api_router.post("/globals/validate/")
+def validate_globals(globals: GlobalOptions):
+    """Validate the globals block in isolation -- same body shape as
+    `/globals/update/`, but non-mutating. Globals have no tier-2 checks, so a
+    body that parses into GlobalOptions is already fully valid."""
+    return JSONResponse({"field_errors": [], "graph_errors": []})
 
 
 @api_router.post("/node/add/")

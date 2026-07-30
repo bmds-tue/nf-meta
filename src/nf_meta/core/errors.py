@@ -1,5 +1,5 @@
 from .models import Reference, WorkflowReference
-from .line_linting import locate_field
+from .line_linting import locate_field, TextPosition
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Optional
@@ -23,6 +23,14 @@ class Diagnostic:
     field: str
     message: str
     severity: Severity
+    # Document-relative path of keys. Callers that know their diagnostics sit
+    # inside a whole config (e.g. under `workflows.<id>.`/`globals.`) pass the
+    # fully-qualified path
+    yaml_path: str | None = None
+
+    def __post_init__(self):
+        if self.yaml_path is None:
+            object.__setattr__(self, "yaml_path", self.field)
 
 
 @dataclass
@@ -36,19 +44,24 @@ class ConfigValidationError(Exception):
 
 
 def diagnostics_from_pydantic_error(
-    e: ValidationError, workflow_id: str | None
+    e: ValidationError, workflow_id: str | None, yaml_path_prefix: str = ""
 ) -> list[Diagnostic]:
     """Adapt a tier-0/1 pydantic.ValidationError into the Diagnostic vocabulary.
 
     workflow_id is taken explicitly since a ValidationError carries no reference
     to the (failed-to-construct) instance — the caller (e.g. graph.py's
     construct_workflow, constructing one workflow at a time) already knows which
-    workflow this is.
+    workflow this is. yaml_path_prefix is prepended to each field to produce
+    the document-relative yaml_path -- pass e.g. "workflows.<id>." when this
+    error belongs to a workflow embedded in a whole config; leave it empty
+    (the default) for an isolated snippet, where the field is already
+    document-relative.
     """
     return [
         Diagnostic(
             workflow_id=workflow_id,
             field=".".join(str(loc) for loc in err["loc"]),
+            yaml_path=f"{yaml_path_prefix}{'.'.join(str(loc) for loc in err['loc'])}",
             message=err["msg"],
             severity=Severity.ERROR,
         )
@@ -58,17 +71,25 @@ def diagnostics_from_pydantic_error(
 
 def diagnostics_from_reference_errors(e: "WorkflowReferenceErrors") -> list[Diagnostic]:
     """Adapt cross-workflow reference errors into Diagnostics, using the actual
-    param name (source_key) for field granularity when available."""
+    param name (source_key) for field granularity when available.
+
+    Cross-workflow references only ever exist within a whole config (an
+    isolated snippet has no other workflows to reference), so yaml_path is
+    always qualified with the `workflows.<id>.` prefix unconditionally.
+    """
     diagnostics = []
     for ref_err in e.errors:
         ref = ref_err.reference
         field = (
-            f"params.{ref.source_key}" if isinstance(ref, WorkflowReference) else "params"
+            f"params.{ref.source_key}"
+            if isinstance(ref, WorkflowReference)
+            else "params"
         )
         diagnostics.append(
             Diagnostic(
                 workflow_id=ref.source_wf_id,
                 field=field,
+                yaml_path=f"workflows.{ref.source_wf_id}.{field}",
                 message=ref_err.message,
                 severity=Severity.ERROR,
             )
@@ -148,19 +169,25 @@ class SessionCommandError(Exception):
         }
 
 
-def format_errors_for_cli(
+@dataclass(frozen=True)
+class PositionedDiagnostic:
+    diagnostic: Diagnostic
+    position: TextPosition | None
+
+
+def collect_positioned_diagnostics(
     e: WorkflowReferenceError
     | WorkflowReferenceErrors
     | GraphValidationError
     | ConfigValidationError,
     source_text: str | None = None,
-    filename: str = "",
-) -> str:
-    """Render any of the CLI-facing validation exceptions in one consistent,
-    compiler-style format: "<file>:<line>:<col>: <severity>: [<tag>] <message>",
-    column-aligned across every line. Lines with no resolvable position (no
-    source_text given, no workflow_id, or the field just isn't found in the
-    text) fall back to a bare filename prefix instead of crashing.
+) -> tuple[list[PositionedDiagnostic], list[str]]:
+    """Normalize any CLI-facing validation exception into positioned
+    diagnostics + bare graph-level messages.
+
+    Each diagnostic's position is resolved via its own yaml_path (already
+    document-relative, set at creation time) -- no context about the
+    document's shape is needed here.
     """
     diagnostics: list[Diagnostic] = []
     graph_messages: list[str] = []
@@ -175,17 +202,32 @@ def format_errors_for_cli(
     elif isinstance(e, GraphValidationError):
         graph_messages = [str(e)]
 
-    located: list[tuple[str, Diagnostic]] = []
+    positioned = []
     for d in diagnostics:
         position = None
-        if source_text is not None and d.workflow_id is not None:
-            position = locate_field(source_text, f"workflows.{d.workflow_id}.{d.field}")
-        location = (
-            f"{filename}:{position.line}:{position.column}"
-            if position is not None
-            else filename
+        if source_text is not None:
+            assert d.yaml_path is not None  # always set by __post_init__
+            position = locate_field(source_text, d.yaml_path)
+        positioned.append(PositionedDiagnostic(d, position))
+    return positioned, graph_messages
+
+
+def render_positioned_diagnostics(
+    positioned: list[PositionedDiagnostic], graph_messages: list[str], filename: str
+) -> str:
+    """Render compiler-style, column-aligned CLI output from already-resolved
+    diagnostics: "<file>:<line>:<col>: <severity>: [<tag>] <message>". Lines
+    with no resolved position fall back to a bare filename prefix.
+    """
+    located: list[tuple[str, Diagnostic]] = [
+        (
+            f"{filename}:{pd.position.line}:{pd.position.column}"
+            if pd.position is not None
+            else filename,
+            pd.diagnostic,
         )
-        located.append((location, d))
+        for pd in positioned
+    ]
 
     # Graph-level messages (e.g. a cycle) have no workflow/field to attribute
     # them to, but still get a bare-filename location so they participate in
@@ -212,3 +254,19 @@ def format_errors_for_cli(
     header = click.style("Validation failed:", fg="red", bold=True)
     body = "\n".join(f" {line}" for line in lines)
     return f"{header}\n{body}"
+
+
+def format_errors_for_cli(
+    e: WorkflowReferenceError
+    | WorkflowReferenceErrors
+    | GraphValidationError
+    | ConfigValidationError,
+    source_text: str | None = None,
+    filename: str = "",
+) -> str:
+    """Render any of the CLI-facing validation exceptions in one consistent,
+    compiler-style format. Convenience wrapper over
+    collect_positioned_diagnostics + render_positioned_diagnostics.
+    """
+    positioned, graph_messages = collect_positioned_diagnostics(e, source_text)
+    return render_positioned_diagnostics(positioned, graph_messages, filename)

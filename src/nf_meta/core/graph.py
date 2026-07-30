@@ -433,20 +433,25 @@ def _extract_items_and_transitions(
 
 
 def construct_workflow(
-    item: dict, workflow_id: str
+    item: dict, workflow_id: str, yaml_path_prefix: str = ""
 ) -> tuple[Workflow | None, list[Diagnostic]]:
     """Attempt to construct one `NfPipeline`/`NfModule` from a raw dict
     (discriminated on `type`). Returns `(workflow, [])` on success, or
     `(None, diagnostics)` on failure -- a reusable building block for
     validating one workflow at a time, whether inside a full-graph build or a
-    standalone snippet.
+    standalone snippet. yaml_path_prefix is forwarded to
+    diagnostics_from_pydantic_error -- pass e.g. "workflows.<id>." when this
+    workflow is embedded in a whole config; leave it empty (the default) for
+    an isolated snippet.
     """
     try:
         if item.get("type") == WorkflowType.NF_MODULE:
             return NfModule(**item), []
         return NfPipeline(**item), []
     except ValidationError as e:
-        return None, diagnostics_from_pydantic_error(e, workflow_id=workflow_id)
+        return None, diagnostics_from_pydantic_error(
+            e, workflow_id=workflow_id, yaml_path_prefix=yaml_path_prefix
+        )
 
 
 def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
@@ -473,7 +478,9 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
     with g.deferred_validation():
         for item in items:
             wf_id = item.get("id", "<unknown>")
-            wf, diagnostics = construct_workflow(item, wf_id)
+            wf, diagnostics = construct_workflow(
+                item, wf_id, yaml_path_prefix=f"workflows.{wf_id}."
+            )
             if wf is None:
                 raise ConfigValidationError(diagnostics)
             g.add_workflow(wf)
@@ -486,7 +493,9 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
                 g.global_options = GlobalOptions(**data["globals"])
             except ValidationError as e:
                 raise ConfigValidationError(
-                    diagnostics_from_pydantic_error(e, workflow_id=None)
+                    diagnostics_from_pydantic_error(
+                        e, workflow_id=None, yaml_path_prefix="globals."
+                    )
                 ) from e
 
         _warn_about_module_executor(g)
@@ -531,7 +540,9 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
     constructed: list[Workflow] = []
     for item in items:
         wf_id = item.get("id", "<unknown>")
-        wf, item_diagnostics = construct_workflow(item, wf_id)
+        wf, item_diagnostics = construct_workflow(
+            item, wf_id, yaml_path_prefix=f"workflows.{wf_id}."
+        )
         if wf is None:
             diagnostics.extend(item_diagnostics)
             continue
@@ -579,7 +590,11 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
         try:
             g.global_options = GlobalOptions(**data["globals"])
         except ValidationError as e:
-            diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None))
+            diagnostics.extend(
+                diagnostics_from_pydantic_error(
+                    e, workflow_id=None, yaml_path_prefix="globals."
+                )
+            )
 
     _warn_about_module_executor(g)
 

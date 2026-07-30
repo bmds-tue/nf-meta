@@ -29,6 +29,35 @@ def _make_ref(source_wf_id="wf_a", target_wf_id="wf_b"):
 
 
 # ---------------------------------------------------------------------------
+# Diagnostic.yaml_path
+# ---------------------------------------------------------------------------
+
+
+class TestDiagnosticYamlPath:
+    def test_defaults_to_field_when_omitted(self):
+        d = Diagnostic(
+            workflow_id="wf_a",
+            field="params.outdir",
+            message="bad param",
+            severity=Severity.ERROR,
+        )
+        assert d.yaml_path == "params.outdir"
+
+    def test_explicit_yaml_path_is_kept_distinct_from_field(self):
+        """field stays short (for the [workflow_id/field] tag); yaml_path can
+        be a different, fully-qualified path (for position lookup)."""
+        d = Diagnostic(
+            workflow_id="wf_a",
+            field="params.outdir",
+            yaml_path="workflows.wf_a.params.outdir",
+            message="bad param",
+            severity=Severity.ERROR,
+        )
+        assert d.field == "params.outdir"
+        assert d.yaml_path == "workflows.wf_a.params.outdir"
+
+
+# ---------------------------------------------------------------------------
 # SessionCommandError.from_exception
 # ---------------------------------------------------------------------------
 
@@ -139,6 +168,22 @@ class TestDiagnosticsFromPydanticError:
         assert all(d.workflow_id == "wf_2" for d in diagnostics)
         assert all(d.severity == Severity.ERROR for d in diagnostics)
 
+    def test_yaml_path_defaults_to_field_without_prefix(self):
+        """Correct for an isolated snippet -- no wrapping document at all."""
+        with pytest.raises(ValidationError) as exc_info:
+            NfPipeline(name="my-org/custom", version="not-a-version", url="https://github.com/my-org/custom")
+        diagnostics = diagnostics_from_pydantic_error(exc_info.value, workflow_id="wf_1")
+        assert diagnostics[0].yaml_path == diagnostics[0].field == "version"
+
+    def test_yaml_path_prefix_qualifies_for_whole_config(self):
+        with pytest.raises(ValidationError) as exc_info:
+            NfPipeline(name="my-org/custom", version="not-a-version", url="https://github.com/my-org/custom")
+        diagnostics = diagnostics_from_pydantic_error(
+            exc_info.value, workflow_id="wf_1", yaml_path_prefix="workflows.wf_1."
+        )
+        assert diagnostics[0].field == "version"
+        assert diagnostics[0].yaml_path == "workflows.wf_1.version"
+
 
 # ---------------------------------------------------------------------------
 # diagnostics_from_reference_errors
@@ -156,6 +201,9 @@ class TestDiagnosticsFromReferenceErrors:
         assert diagnostics[0].workflow_id == "wf_a"
         assert diagnostics[0].field == "params.input"
         assert diagnostics[0].severity == Severity.ERROR
+        # Always unconditionally qualified -- cross-workflow references only
+        # ever exist within a whole config, never an isolated snippet.
+        assert diagnostics[0].yaml_path == "workflows.wf_a.params.input"
 
     def test_falls_back_to_bare_params_for_non_workflow_reference(self):
         ref = Reference(name=None, source_wf_id="wf_a", target_wf_id="wf_b")
@@ -260,6 +308,7 @@ class TestFormatErrorsForCliPositions:
                 Diagnostic(
                     workflow_id="wf_a",
                     field="params.outdir",
+                    yaml_path="workflows.wf_a.params.outdir",
                     message="bad param",
                     severity=Severity.ERROR,
                 )
@@ -287,8 +336,15 @@ class TestFormatErrorsForCliPositions:
         assert lines[0] == "Validation failed:"
         assert lines[1] == " test.yaml: error: [wf_a/params.outdir] bad param"
 
-    def test_no_workflow_id_skips_position_lookup(self):
+    def test_no_workflow_id_still_resolves_via_default_yaml_path(self):
+        """A diagnostic with no workflow_id (e.g. a top-level config_version
+        error) still resolves a real position: yaml_path defaults to field,
+        and "config_version" is a real root-level key here -- no workflow_id
+        special-casing is needed for this to work."""
         source = "config_version: 0.0.2\nworkflows: {}\ntransitions: []\n"
+        expected = locate_field(source, "config_version")
+        assert expected is not None
+
         exc = ConfigValidationError(
             errors=[
                 Diagnostic(
@@ -304,7 +360,7 @@ class TestFormatErrorsForCliPositions:
         )
         lines = output.split("\n")
         assert lines[0] == "Validation failed:"
-        assert lines[1].startswith(" test.yaml:")
+        assert lines[1] == f" test.yaml:{expected.line}:{expected.column}: error: [config_version] bad version"
 
     def test_warning_severity_labeled_distinctly_from_error(self):
         exc = ConfigValidationError(

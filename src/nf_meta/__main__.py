@@ -14,7 +14,12 @@ from nf_meta.editor import get_registered_editors
 def handle_validation_errors(func):
     """Shared error handling for commands taking a `config` path: renders any
     validation failure through the unified format_errors_for_cli, with real
-    line numbers when the config file can be read as text."""
+    line numbers when the config file can be read as text.
+
+    Each Diagnostic already carries its own document-relative yaml_path (set
+    wherever it was created, per whether it belongs to a whole config or an
+    isolated snippet), so no scope-specific handling is needed here at all.
+    """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -101,10 +106,61 @@ def export_schema(output):
 @click.command("validate")
 @click.argument("config", type=click.Path())
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
+@click.option(
+    "--scope",
+    type=click.Choice(["config", "workflow", "globals"]),
+    default="config",
+    help=(
+        "Validate a whole config (default), or an isolated workflow/globals "
+        "YAML snippet -- a flat mapping (e.g. `name:`/`version:`/`params:` at "
+        "the root for a workflow), not a `workflows: {<id>: {...}}` excerpt."
+    ),
+)
 @handle_validation_errors
-def validate_config(config, verbose):
-    from_file(config, collect_errors=True)
-    click.echo(click.style("✓ Config is valid", fg="green"))
+def validate_config(config, verbose, scope):
+    if scope == "config":
+        from_file(config, collect_errors=True)
+        click.echo(click.style("✓ Config is valid", fg="green"))
+        return
+
+    import yaml
+    from pydantic import ValidationError
+    from nf_meta.core.dynamic_validation import log_warnings, run_dynamic_checks
+    from nf_meta.core.errors import (
+        Severity,
+        diagnostics_from_pydantic_error,
+    )
+    from nf_meta.core.graph import construct_workflow
+    from nf_meta.core.models import GlobalOptions
+
+    with open(config) as fh:
+        data = yaml.safe_load(fh)
+
+    if not data:
+        raise GraphValidationError("No config data provided")
+    if not isinstance(data, dict):
+        raise GraphValidationError(
+            f"Expected a flat mapping, got {type(data).__name__!r}"
+        )
+
+    if scope == "workflow":
+        wf, diagnostics = construct_workflow(data, data.get("id", "<unknown>"))
+        if wf is None:
+            raise ConfigValidationError(diagnostics)
+        dynamic_diagnostics = run_dynamic_checks(wf, previous=None)
+        errors = [d for d in dynamic_diagnostics if d.severity == Severity.ERROR]
+        if errors:
+            raise ConfigValidationError(errors)
+        log_warnings(dynamic_diagnostics)
+        click.echo(click.style("✓ Workflow is valid", fg="green"))
+    else:
+        try:
+            GlobalOptions(**data)
+        except ValidationError as e:
+            raise ConfigValidationError(
+                diagnostics_from_pydantic_error(e, workflow_id=None)
+            ) from e
+        click.echo(click.style("✓ Global options are valid", fg="green"))
 
 
 @click.command("run")

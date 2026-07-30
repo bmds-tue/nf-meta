@@ -13,6 +13,7 @@ from .models import (
     NfPipeline,
     Transition,
     Workflow,
+    WorkflowReference,
     WorkflowType,
     validate_config_version,
     CONFIG_VERSION_MAX,
@@ -31,10 +32,7 @@ from .errors import (
     Diagnostic,
     GraphValidationError,
     Severity,
-    WorkflowReferenceError,
-    WorkflowReferenceErrors,
     diagnostics_from_pydantic_error,
-    diagnostics_from_reference_errors,
 )
 from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
 
@@ -82,7 +80,7 @@ class MetaworkflowGraph:
             if wf.params and self._validation_suspended is None:
                 self.validate_param_references(wf)
             self._emit(WorkflowAdded(wf))
-        except GraphValidationError as e:
+        except (GraphValidationError, ConfigValidationError) as e:
             self.G.remove_node(wf.id)
             raise e
 
@@ -154,22 +152,34 @@ class MetaworkflowGraph:
     #        VALIDATION
     # ===========================
     def validate_param_references(self, wf: Workflow):
-        errors = []
+        def diagnostic(ref, message: str) -> Diagnostic:
+            field = (
+                f"params.{ref.source_key}"
+                if isinstance(ref, WorkflowReference)
+                else "params"
+            )
+            return Diagnostic(
+                workflow_id=ref.source_wf_id,
+                field=field,
+                yaml_path=f"workflows.{ref.source_wf_id}.{field}",
+                message=message,
+                severity=Severity.ERROR,
+            )
+
+        diagnostics: list[Diagnostic] = []
         for ref in wf.field_refs:
             if ref.namespace != "params":
                 continue  # output references not yet validated
             referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
             if not referenced_wf:
-                errors.append(
-                    WorkflowReferenceError(
-                        ref, f"Reference to unknown workflow: {ref.target_wf_id}"
-                    )
+                diagnostics.append(
+                    diagnostic(ref, f"Reference to unknown workflow: {ref.target_wf_id}")
                 )
                 continue
 
             if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
-                errors.append(
-                    WorkflowReferenceError(
+                diagnostics.append(
+                    diagnostic(
                         ref,
                         f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}",
                     )
@@ -177,22 +187,18 @@ class MetaworkflowGraph:
                 continue
 
             if not referenced_wf.params or not ref.target_key:
-                errors.append(
-                    WorkflowReferenceError(
-                        ref, f"No referencable params in workflow {referenced_wf.id}"
-                    )
+                diagnostics.append(
+                    diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}")
                 )
                 continue
 
             if not referenced_wf.params.get(ref.target_key):
-                errors.append(
-                    WorkflowReferenceError(
-                        ref, f"Reference to unresolvable param: {ref.target_key}"
-                    )
+                diagnostics.append(
+                    diagnostic(ref, f"Reference to unresolvable param: {ref.target_key}")
                 )
 
-        if errors:
-            raise WorkflowReferenceErrors(errors)
+        if diagnostics:
+            raise ConfigValidationError(diagnostics)
 
     def validate_graph_topology(self):
         # Detect cycles
@@ -634,8 +640,8 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
     for wf in constructed:
         try:
             g.validate_param_references(wf)
-        except WorkflowReferenceErrors as e:
-            diagnostics.extend(diagnostics_from_reference_errors(e))
+        except ConfigValidationError as e:
+            diagnostics.extend(e.errors)
 
     tier2_diagnostics = check_all(constructed)
     diagnostics.extend(d for d in tier2_diagnostics if d.severity == Severity.ERROR)

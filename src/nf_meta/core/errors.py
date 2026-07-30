@@ -1,4 +1,3 @@
-from .models import Reference, WorkflowReference
 from .line_linting import locate_field, TextPosition
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -36,8 +35,9 @@ class Diagnostic:
 @dataclass
 class ConfigValidationError(Exception):
     """A workflow/config-definition-level validation failure — whether from
-    tier-0/1 (pydantic construction) or tier-2 (network-backed) checks. Every
-    consumer treats both tiers identically, so they share one exception type."""
+    tier-0/1 (pydantic construction), tier-2 (network-backed) checks, or
+    cross-workflow reference validation. Every consumer treats all of these
+    identically, so they share one exception type."""
 
     errors: list[Diagnostic]
     graph_messages: list[str] = field(default_factory=list)
@@ -69,45 +69,6 @@ def diagnostics_from_pydantic_error(
     ]
 
 
-def diagnostics_from_reference_errors(e: "WorkflowReferenceErrors") -> list[Diagnostic]:
-    """Adapt cross-workflow reference errors into Diagnostics, using the actual
-    param name (source_key) for field granularity when available.
-
-    Cross-workflow references only ever exist within a whole config (an
-    isolated snippet has no other workflows to reference), so yaml_path is
-    always qualified with the `workflows.<id>.` prefix unconditionally.
-    """
-    diagnostics = []
-    for ref_err in e.errors:
-        ref = ref_err.reference
-        field = (
-            f"params.{ref.source_key}"
-            if isinstance(ref, WorkflowReference)
-            else "params"
-        )
-        diagnostics.append(
-            Diagnostic(
-                workflow_id=ref.source_wf_id,
-                field=field,
-                yaml_path=f"workflows.{ref.source_wf_id}.{field}",
-                message=ref_err.message,
-                severity=Severity.ERROR,
-            )
-        )
-    return diagnostics
-
-
-@dataclass
-class WorkflowReferenceError(GraphValidationError):
-    reference: Reference
-    message: str
-
-
-@dataclass
-class WorkflowReferenceErrors(GraphValidationError):
-    errors: list[WorkflowReferenceError]
-
-
 @dataclass
 class SessionCommandError(Exception):
     @dataclass
@@ -122,26 +83,8 @@ class SessionCommandError(Exception):
     @classmethod
     def from_exception(
         cls,
-        e: WorkflowReferenceError
-        | WorkflowReferenceErrors
-        | GraphValidationError
-        | ValueError
-        | ConfigValidationError,
+        e: GraphValidationError | ValueError | ConfigValidationError,
     ):
-        if isinstance(e, WorkflowReferenceError):
-            e = WorkflowReferenceErrors([e])
-        if isinstance(e, WorkflowReferenceErrors):
-            return cls(
-                field_errors=[
-                    cls.FieldError(
-                        workflow_id=ref_error.reference.source_wf_id,
-                        field="params",  # TODO: For now ok. Think about more finegrained errors for Workflow output/input references
-                        message=ref_error.message,
-                    )
-                    for ref_error in e.errors
-                ],
-                graph_errors=[],
-            )
         if isinstance(e, ConfigValidationError):
             return cls.from_diagnostics(e.errors)
         return cls(field_errors=[], graph_errors=[str(e)])
@@ -176,10 +119,7 @@ class PositionedDiagnostic:
 
 
 def collect_positioned_diagnostics(
-    e: WorkflowReferenceError
-    | WorkflowReferenceErrors
-    | GraphValidationError
-    | ConfigValidationError,
+    e: GraphValidationError | ConfigValidationError,
     source_text: str | None = None,
 ) -> tuple[list[PositionedDiagnostic], list[str]]:
     """Normalize any CLI-facing validation exception into positioned
@@ -192,11 +132,7 @@ def collect_positioned_diagnostics(
     diagnostics: list[Diagnostic] = []
     graph_messages: list[str] = []
 
-    if isinstance(e, WorkflowReferenceError):
-        e = WorkflowReferenceErrors([e])
-    if isinstance(e, WorkflowReferenceErrors):
-        diagnostics = diagnostics_from_reference_errors(e)
-    elif isinstance(e, ConfigValidationError):
+    if isinstance(e, ConfigValidationError):
         diagnostics = e.errors
         graph_messages = e.graph_messages
     elif isinstance(e, GraphValidationError):
@@ -257,10 +193,7 @@ def render_positioned_diagnostics(
 
 
 def format_errors_for_cli(
-    e: WorkflowReferenceError
-    | WorkflowReferenceErrors
-    | GraphValidationError
-    | ConfigValidationError,
+    e: GraphValidationError | ConfigValidationError,
     source_text: str | None = None,
     filename: str = "",
 ) -> str:

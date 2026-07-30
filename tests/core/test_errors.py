@@ -3,29 +3,16 @@ import pytest
 from pydantic import ValidationError
 
 from nf_meta.core.line_linting import locate_field
-from nf_meta.core.models import NfPipeline, Reference, WorkflowReference
+from nf_meta.core.models import NfPipeline
 from nf_meta.core.errors import (
     ConfigValidationError,
     Diagnostic,
     GraphValidationError,
     Severity,
-    WorkflowReferenceError,
-    WorkflowReferenceErrors,
     SessionCommandError,
     diagnostics_from_pydantic_error,
-    diagnostics_from_reference_errors,
     format_errors_for_cli,
 )
-
-
-def _make_ref(source_wf_id="wf_a", target_wf_id="wf_b"):
-    return WorkflowReference(
-        name="${wf_b:params:outdir}",
-        source_wf_id=source_wf_id,
-        target_wf_id=target_wf_id,
-        source_key="input",
-        target_key="outdir",
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -62,20 +49,32 @@ class TestDiagnosticYamlPath:
 # ---------------------------------------------------------------------------
 
 class TestSessionCommandError:
-    def test_from_single_reference_error(self):
-        ref = _make_ref()
-        exc = WorkflowReferenceError(reference=ref, message="unknown workflow")
-        err = SessionCommandError.from_exception(exc)
-        assert len(err.field_errors) == 1
-        assert err.field_errors[0].workflow_id == "wf_a"
-        assert err.field_errors[0].field == "params"
-        assert err.graph_errors == []
-
-    def test_from_reference_errors_collection(self):
-        refs = [WorkflowReferenceError(_make_ref(), "msg1"), WorkflowReferenceError(_make_ref(), "msg2")]
-        exc = WorkflowReferenceErrors(errors=refs)
+    def test_from_config_validation_error_delegates_to_from_diagnostics(self):
+        """ConfigValidationError is now the only exception type carrying
+        multiple errors -- from_exception's dispatch to from_diagnostics is
+        what used to need separate single-vs-collection normalization for
+        WorkflowReferenceError/WorkflowReferenceErrors; that distinction no
+        longer exists since ConfigValidationError.errors is always a list."""
+        exc = ConfigValidationError(
+            errors=[
+                Diagnostic(
+                    workflow_id="wf_a",
+                    field="params",
+                    message="msg1",
+                    severity=Severity.ERROR,
+                ),
+                Diagnostic(
+                    workflow_id="wf_a",
+                    field="params",
+                    message="msg2",
+                    severity=Severity.ERROR,
+                ),
+            ]
+        )
         err = SessionCommandError.from_exception(exc)
         assert len(err.field_errors) == 2
+        assert err.field_errors[0].workflow_id == "wf_a"
+        assert err.graph_errors == []
 
     def test_from_generic_graph_validation_error(self):
         exc = GraphValidationError("cycle detected")
@@ -85,8 +84,16 @@ class TestSessionCommandError:
         assert "cycle" in err.graph_errors[0]
 
     def test_to_dict_structure(self):
-        ref = _make_ref()
-        exc = WorkflowReferenceError(reference=ref, message="test")
+        exc = ConfigValidationError(
+            errors=[
+                Diagnostic(
+                    workflow_id="wf_a",
+                    field="params",
+                    message="test",
+                    severity=Severity.ERROR,
+                )
+            ]
+        )
         err = SessionCommandError.from_exception(exc)
         d = err.to_dict()
         assert "field_errors" in d
@@ -186,35 +193,6 @@ class TestDiagnosticsFromPydanticError:
 
 
 # ---------------------------------------------------------------------------
-# diagnostics_from_reference_errors
-# ---------------------------------------------------------------------------
-
-
-class TestDiagnosticsFromReferenceErrors:
-    def test_uses_source_key_for_field_granularity(self):
-        ref = _make_ref()
-        exc = WorkflowReferenceErrors(
-            errors=[WorkflowReferenceError(reference=ref, message="unknown workflow")]
-        )
-        diagnostics = diagnostics_from_reference_errors(exc)
-        assert len(diagnostics) == 1
-        assert diagnostics[0].workflow_id == "wf_a"
-        assert diagnostics[0].field == "params.input"
-        assert diagnostics[0].severity == Severity.ERROR
-        # Always unconditionally qualified -- cross-workflow references only
-        # ever exist within a whole config, never an isolated snippet.
-        assert diagnostics[0].yaml_path == "workflows.wf_a.params.input"
-
-    def test_falls_back_to_bare_params_for_non_workflow_reference(self):
-        ref = Reference(name=None, source_wf_id="wf_a", target_wf_id="wf_b")
-        exc = WorkflowReferenceErrors(
-            errors=[WorkflowReferenceError(reference=ref, message="bad reference")]
-        )
-        diagnostics = diagnostics_from_reference_errors(exc)
-        assert diagnostics[0].field == "params"
-
-
-# ---------------------------------------------------------------------------
 # format_errors_for_cli — ConfigValidationError
 # ---------------------------------------------------------------------------
 
@@ -256,20 +234,6 @@ class TestFormatErrorsForCliConfig:
 # ---------------------------------------------------------------------------
 
 class TestFormatErrorsForCli:
-    def test_formats_reference_error(self):
-        ref = _make_ref()
-        exc = WorkflowReferenceError(reference=ref, message="missing predecessor")
-        output = format_errors_for_cli(exc)
-        assert "wf_a" in output
-        assert "missing predecessor" in output
-
-    def test_formats_reference_errors_collection(self):
-        refs = [WorkflowReferenceError(_make_ref(), "err1"), WorkflowReferenceError(_make_ref(), "err2")]
-        exc = WorkflowReferenceErrors(errors=refs)
-        output = format_errors_for_cli(exc)
-        assert "err1" in output
-        assert "err2" in output
-
     def test_formats_graph_validation_error(self):
         exc = GraphValidationError("cycle found in graph")
         output = format_errors_for_cli(exc)

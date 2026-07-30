@@ -27,7 +27,6 @@ from nf_meta.core.events import (  # type: ignore[import]
 from nf_meta.core.errors import (  # type: ignore[import]
     ConfigValidationError,
     GraphValidationError,
-    WorkflowReferenceErrors,
 )
 
 
@@ -54,7 +53,7 @@ class TestWorkflowMutations:
             version="3.14.0",
             params={"input": "${nonexistent:params:outdir}/file.csv"},
         )
-        with pytest.raises(WorkflowReferenceErrors):
+        with pytest.raises(ConfigValidationError):
             empty_graph.add_workflow(wf)
         assert empty_graph.get_workflow_by_id(wf.id) is None
 
@@ -196,7 +195,7 @@ class TestParamReferenceValidation:
             version="3.14.0",
             params={"input": "${ghost:params:outdir}/file.csv"},
         )
-        with pytest.raises(WorkflowReferenceErrors):
+        with pytest.raises(ConfigValidationError):
             empty_graph.add_workflow(wf)
 
     def test_ref_to_non_predecessor_raises(self, empty_graph, wf_rnaseq, wf_fetchngs):
@@ -212,7 +211,7 @@ class TestParamReferenceValidation:
             version="3.14.0",
             params={"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"},
         )
-        with pytest.raises(WorkflowReferenceErrors):
+        with pytest.raises(ConfigValidationError):
             empty_graph.add_workflow(rnaseq_with_ref)
 
 

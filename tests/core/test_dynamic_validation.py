@@ -364,3 +364,31 @@ class TestCheckAll:
             d.workflow_id == wf_custom.id and d.severity == Severity.WARNING
             for d in diagnostics
         )
+
+    def test_stamps_yaml_path_with_each_workflows_own_id(
+        self, wf_custom, module_fastqc, monkeypatch
+    ):
+        """check_all is only ever called for whole-config validation (its two
+        call sites in graph.py), so it unconditionally qualifies every
+        diagnostic's yaml_path with its own workflow's `workflows.<id>.`
+        prefix -- no ambiguity, since check_all never runs for an isolated
+        snippet."""
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False
+        )
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
+            lambda name: [],
+        )
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
+            lambda url, version: {},
+        )
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_module_schema",
+            lambda name, version: {},
+        )
+        diagnostics = check_all([wf_custom, module_fastqc])
+        assert diagnostics
+        for d in diagnostics:
+            assert d.yaml_path == f"workflows.{d.workflow_id}.{d.field}"

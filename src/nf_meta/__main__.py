@@ -7,14 +7,19 @@ from nf_meta.core.errors import (
     format_errors_for_cli,
 )
 from nf_meta.runner import get_registered_runners
-from nf_meta.core.graph import from_file
+from nf_meta.core.config import from_file
 from nf_meta.editor import get_registered_editors
 
 
 def handle_validation_errors(func):
     """Shared error handling for commands taking a `config` path: renders any
     validation failure through the unified format_errors_for_cli, with real
-    line numbers when the config file can be read as text."""
+    line numbers when the config file can be read as text.
+
+    Each Diagnostic already carries its own document-relative yaml_path (set
+    wherever it was created, per whether it belongs to a whole config or an
+    isolated snippet), so no scope-specific handling is needed here at all.
+    """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -101,10 +106,31 @@ def export_schema(output):
 @click.command("validate")
 @click.argument("config", type=click.Path())
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
+@click.option(
+    "--scope",
+    type=click.Choice(["config", "workflow", "globals"]),
+    default="config",
+    help=(
+        "Validate a whole config (default), or an isolated workflow/globals "
+        "YAML snippet -- a flat mapping (e.g. `name:`/`version:`/`params:` at "
+        "the root for a workflow), not a `workflows: {<id>: {...}}` excerpt."
+    ),
+)
 @handle_validation_errors
-def validate_config(config, verbose):
-    g = from_file(config)
-    click.echo(click.style("✓ Config is valid", fg="green"))
+def validate_config(config, verbose, scope):
+    if scope == "config":
+        from_file(config, collect_errors=True)
+        click.echo(click.style("✓ Config is valid", fg="green"))
+    elif scope == "workflow":
+        from nf_meta.core.config import validated_workflow_from_file
+
+        validated_workflow_from_file(config)
+        click.echo(click.style("✓ Workflow is valid", fg="green"))
+    else:
+        from nf_meta.core.config import validated_globals_from_file
+
+        validated_globals_from_file(config)
+        click.echo(click.style("✓ Global options are valid", fg="green"))
 
 
 @click.command("run")

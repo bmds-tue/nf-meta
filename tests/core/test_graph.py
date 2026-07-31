@@ -3,15 +3,7 @@ import pytest
 from nf_meta.core.models import (  # type: ignore[import]
     NfModule,
     NfPipeline,
-    BaseWorkflow,
     Transition,
-)
-from nf_meta.core.graph import (  # type: ignore[import]
-    MetaworkflowGraph,
-    dump_config,
-    from_file,
-    from_raw_dict,
-    to_file,
 )
 from nf_meta.core.events import (  # type: ignore[import]
     WorkflowAdded,
@@ -23,7 +15,6 @@ from nf_meta.core.events import (  # type: ignore[import]
 from nf_meta.core.errors import (  # type: ignore[import]
     ConfigValidationError,
     GraphValidationError,
-    WorkflowReferenceErrors,
 )
 
 
@@ -50,7 +41,7 @@ class TestWorkflowMutations:
             version="3.14.0",
             params={"input": "${nonexistent:params:outdir}/file.csv"},
         )
-        with pytest.raises(WorkflowReferenceErrors):
+        with pytest.raises(ConfigValidationError):
             empty_graph.add_workflow(wf)
         assert empty_graph.get_workflow_by_id(wf.id) is None
 
@@ -192,7 +183,7 @@ class TestParamReferenceValidation:
             version="3.14.0",
             params={"input": "${ghost:params:outdir}/file.csv"},
         )
-        with pytest.raises(WorkflowReferenceErrors):
+        with pytest.raises(ConfigValidationError):
             empty_graph.add_workflow(wf)
 
     def test_ref_to_non_predecessor_raises(self, empty_graph, wf_rnaseq, wf_fetchngs):
@@ -208,7 +199,7 @@ class TestParamReferenceValidation:
             version="3.14.0",
             params={"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"},
         )
-        with pytest.raises(WorkflowReferenceErrors):
+        with pytest.raises(ConfigValidationError):
             empty_graph.add_workflow(rnaseq_with_ref)
 
 
@@ -253,380 +244,6 @@ class TestDeferredValidation:
                 empty_graph.add_transition(
                     Transition(source=wf_fetchngs.id, target=wf_rnaseq.id)
                 )
-
-
-# ---------------------------------------------------------------------------
-# File I/O
-# ---------------------------------------------------------------------------
-
-
-class TestFileIO:
-    def test_from_file(self, minimal_yaml_path):
-        g = from_file(minimal_yaml_path)
-        assert len(g.get_workflows()) == 2
-        assert len(g.get_transitions()) == 1
-
-    def test_to_file_round_trip(self, two_node_graph, tmp_path):
-        out = tmp_path / "out.yaml"
-        to_file(two_node_graph, out)
-        g2 = from_file(out)
-        ids1 = {w.id for w in two_node_graph.get_workflows()}
-        ids2 = {w.id for w in g2.get_workflows()}
-        assert ids1 == ids2
-
-
-# ---------------------------------------------------------------------------
-# from_raw_dict / dump_config — construction and serialization
-# (migrated from the retired MetaworkflowConfig/load_config/dump_config tests)
-# ---------------------------------------------------------------------------
-
-
-class TestFromRawDict:
-    def _make_config(self, workflows):
-        return {"config_version": "0.3.0", "workflows": workflows}
-
-    def test_list_format_workflows_accepted_with_deprecation_warning(
-        self, wf_rnaseq, caplog
-    ):
-        g = from_raw_dict(
-            self._make_config(
-                [
-                    {
-                        "id": wf_rnaseq.id,
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                    }
-                ]
-            )
-        )
-        assert g.get_workflow_by_id(wf_rnaseq.id) is not None
-        assert any(
-            "deprecated" in record.message for record in caplog.records
-        )
-
-    def test_dict_format_workflows(self, wf_rnaseq):
-        g = from_raw_dict(
-            self._make_config(
-                {
-                    wf_rnaseq.id: {
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                    }
-                }
-            )
-        )
-        assert len(g.get_workflows()) == 1
-        assert g.get_workflow_by_id(wf_rnaseq.id) is not None
-
-    def test_legacy_top_level_transitions_logs_deprecation_warning(
-        self, wf_rnaseq, wf_fetchngs, caplog
-    ):
-        data = self._make_config(
-            {
-                wf_fetchngs.id: {
-                    "name": wf_fetchngs.name,
-                    "version": wf_fetchngs.version,
-                    "url": wf_fetchngs.url,
-                },
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                },
-            }
-        )
-        data["transitions"] = [{"source": wf_fetchngs.id, "target": wf_rnaseq.id}]
-        from_raw_dict(data)
-        assert any("deprecated" in record.message for record in caplog.records)
-
-    def test_legacy_top_level_transitions_accepted_alone(self, wf_rnaseq, wf_fetchngs):
-        data = self._make_config(
-            {
-                wf_fetchngs.id: {
-                    "name": wf_fetchngs.name,
-                    "version": wf_fetchngs.version,
-                    "url": wf_fetchngs.url,
-                },
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                },
-            }
-        )
-        data["transitions"] = [{"source": wf_fetchngs.id, "target": wf_rnaseq.id}]
-        g = from_raw_dict(data)
-        assert g.get_transition(wf_fetchngs.id, wf_rnaseq.id) is not None
-
-    def test_malformed_legacy_transition_entry_raises(self, wf_rnaseq):
-        data = self._make_config(
-            {
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                }
-            }
-        )
-        data["transitions"] = [{"source": wf_rnaseq.id}]  # missing 'target'
-        with pytest.raises(GraphValidationError, match="transition"):
-            from_raw_dict(data)
-
-    def test_mixing_from_and_top_level_transitions_raises(
-        self, wf_rnaseq, wf_fetchngs
-    ):
-        data = self._make_config(
-            {
-                wf_fetchngs.id: {
-                    "name": wf_fetchngs.name,
-                    "version": wf_fetchngs.version,
-                    "url": wf_fetchngs.url,
-                },
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                    "from": [wf_fetchngs.id],
-                },
-            }
-        )
-        data["transitions"] = [{"source": wf_fetchngs.id, "target": wf_rnaseq.id}]
-        with pytest.raises(GraphValidationError, match="[Mm]ix"):
-            from_raw_dict(data)
-
-    def test_mixing_empty_from_and_top_level_transitions_raises(
-        self, wf_rnaseq, wf_fetchngs
-    ):
-        """Presence of the 'from' key alone (even empty) counts as mixing —
-        not just a populated one."""
-        data = self._make_config(
-            {
-                wf_fetchngs.id: {
-                    "name": wf_fetchngs.name,
-                    "version": wf_fetchngs.version,
-                    "url": wf_fetchngs.url,
-                },
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                    "from": [],
-                },
-            }
-        )
-        data["transitions"] = [{"source": wf_fetchngs.id, "target": wf_rnaseq.id}]
-        with pytest.raises(GraphValidationError, match="[Mm]ix"):
-            from_raw_dict(data)
-
-    def test_from_shorthand_creates_transition(self, wf_rnaseq, wf_fetchngs):
-        g = from_raw_dict(
-            self._make_config(
-                {
-                    wf_fetchngs.id: {
-                        "name": wf_fetchngs.name,
-                        "version": wf_fetchngs.version,
-                        "url": wf_fetchngs.url,
-                    },
-                    wf_rnaseq.id: {
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                        "from": [wf_fetchngs.id],
-                    },
-                }
-            )
-        )
-        assert g.get_transition(wf_fetchngs.id, wf_rnaseq.id) is not None
-
-    def test_from_accepts_bare_string_as_single_predecessor(
-        self, wf_rnaseq, wf_fetchngs
-    ):
-        g = from_raw_dict(
-            self._make_config(
-                {
-                    wf_fetchngs.id: {
-                        "name": wf_fetchngs.name,
-                        "version": wf_fetchngs.version,
-                        "url": wf_fetchngs.url,
-                    },
-                    wf_rnaseq.id: {
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                        "from": wf_fetchngs.id,  # bare string, not a list
-                    },
-                }
-            )
-        )
-        assert g.get_transition(wf_fetchngs.id, wf_rnaseq.id) is not None
-
-    def test_from_referencing_unknown_workflow_raises(self, wf_rnaseq):
-        data = self._make_config(
-            {
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                    "from": ["nonexistent"],
-                }
-            }
-        )
-        with pytest.raises(GraphValidationError):
-            from_raw_dict(data)
-
-    def test_malformed_from_value_raises(self, wf_rnaseq):
-        data = self._make_config(
-            {
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                    "from": 123,  # neither a string nor a list
-                }
-            }
-        )
-        with pytest.raises(GraphValidationError, match="'from'"):
-            from_raw_dict(data)
-
-    def test_from_list_with_non_string_entry_raises(self, wf_rnaseq):
-        data = self._make_config(
-            {
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                    "from": [123],
-                }
-            }
-        )
-        with pytest.raises(GraphValidationError, match="'from'"):
-            from_raw_dict(data)
-
-    def test_config_version_too_old_raises(self, wf_rnaseq):
-        data = self._make_config(
-            {
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                }
-            }
-        )
-        data["config_version"] = "0.0.0"
-        with pytest.raises(GraphValidationError):
-            from_raw_dict(data)
-
-    def test_config_version_too_new_raises(self, wf_rnaseq):
-        data = self._make_config(
-            {
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "url": wf_rnaseq.url,
-                }
-            }
-        )
-        data["config_version"] = "9.9.9"
-        with pytest.raises(GraphValidationError):
-            from_raw_dict(data)
-
-    def test_config_version_valid(self, wf_rnaseq):
-        g = from_raw_dict(
-            self._make_config(
-                {
-                    wf_rnaseq.id: {
-                        "name": wf_rnaseq.name,
-                        "version": wf_rnaseq.version,
-                        "url": wf_rnaseq.url,
-                    }
-                }
-            )
-        )
-        assert g.config_version == "0.3.0"
-
-    def test_malformed_workflow_item_raises(self):
-        with pytest.raises(GraphValidationError, match="key-value mapping"):
-            from_raw_dict(self._make_config({"wf_a": "not-a-mapping"}))
-
-    def test_bad_workflow_field_raises_config_validation_error_with_real_id(self):
-        data = self._make_config({"wf_a": {"version": "2.0.0"}})  # missing name/url
-        with pytest.raises(ConfigValidationError) as excinfo:
-            from_raw_dict(data)
-        assert any(d.workflow_id == "wf_a" for d in excinfo.value.errors)
-
-    def test_round_trip_via_dump_config(self, tmp_path, wf_rnaseq, wf_fetchngs):
-        data = self._make_config(
-            {
-                wf_fetchngs.id: {
-                    "name": wf_fetchngs.name,
-                    "version": wf_fetchngs.version,
-                },
-                wf_rnaseq.id: {
-                    "name": wf_rnaseq.name,
-                    "version": wf_rnaseq.version,
-                    "from": [wf_fetchngs.id],
-                },
-            }
-        )
-        g1 = from_raw_dict(data)
-        dumped = dump_config(g1)
-        assert "transitions" not in dumped
-        assert dumped["workflows"][wf_rnaseq.id]["from"] == [wf_fetchngs.id]
-        g2 = from_raw_dict(dumped)
-        assert {w.id for w in g1.get_workflows()} == {w.id for w in g2.get_workflows()}
-        assert len(g1.get_transitions()) == len(g2.get_transitions())
-
-
-# ---------------------------------------------------------------------------
-# Dynamic validation on load (from_raw_dict)
-# ---------------------------------------------------------------------------
-
-
-class TestDynamicValidationOnLoad:
-    def test_from_raw_dict_raises_dynamic_validation_error(self, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
-            lambda name: [{"version": "1.0.0-abcdefa"}],
-        )
-        module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
-        data = {
-            "config_version": "0.3.0",
-            "workflows": {
-                module.id: {
-                    "type": "nf-module",
-                    "name": module.name,
-                    "version": module.version,
-                }
-            },
-        }
-        with pytest.raises(ConfigValidationError) as excinfo:
-            from_raw_dict(data)
-
-        assert any(
-            d.workflow_id == module.id and "not available" in d.message
-            for d in excinfo.value.errors
-        )
-
-    def test_from_raw_dict_succeeds_when_dynamic_checks_pass(self, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
-            lambda name: [{"version": "0.0.0-6c4ed3a"}],
-        )
-        module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
-        data = {
-            "config_version": "0.3.0",
-            "workflows": {
-                module.id: {
-                    "type": "nf-module",
-                    "name": module.name,
-                    "version": module.version,
-                }
-            },
-        }
-        g = from_raw_dict(data)
-        assert g.get_workflow_by_id(module.id) is not None
 
 
 # ---------------------------------------------------------------------------

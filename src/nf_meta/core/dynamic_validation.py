@@ -10,6 +10,7 @@ preserved exactly as it was in the original Pydantic validators in
 (logged, non-blocking).
 """
 
+import dataclasses
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable, Optional
@@ -341,7 +342,13 @@ def _prefetch(workflows: list[Workflow]) -> None:
 
 
 def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
-    """Full, non-diffed run across all workflows — used by the CLI/batch load path."""
+    """Full, non-diffed run across all workflows — used by the CLI/batch load path.
+
+    Always called against a whole config (never an isolated snippet — see
+    its two call sites in graph.py), so each diagnostic's yaml_path is
+    unconditionally re-stamped with its own workflow's `workflows.<id>.`
+    prefix here, right where results are collected.
+    """
     workflows = list(workflows)
     if not workflows:
         return []
@@ -350,9 +357,12 @@ def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
 
     diagnostics: list[Diagnostic] = []
     with ThreadPoolExecutor(max_workers=len(workflows)) as executor:
-        futures = [executor.submit(run_dynamic_checks, wf) for wf in workflows]
-        for future in futures:
-            diagnostics.extend(future.result())
+        futures = [(wf, executor.submit(run_dynamic_checks, wf)) for wf in workflows]
+        for wf, future in futures:
+            diagnostics.extend(
+                dataclasses.replace(d, yaml_path=f"workflows.{wf.id}.{d.field}")
+                for d in future.result()
+            )
     return diagnostics
 
 

@@ -15,9 +15,9 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console, Group
 
-from nf_meta.core.graph import MetaworkflowGraph, dump_config
+from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.config import dump_config
 from nf_meta.core.models import Workflow, GlobalOptions
-from nf_meta.core.errors import WorkflowReferenceError
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow_version
 from .base_runner import BaseRunner
@@ -147,8 +147,8 @@ class SimplePythonRunner(BaseRunner):
                     continue
                 ref_wf = graph.get_workflow_by_id(ref.target_wf_id)
                 if not ref_wf:
-                    raise WorkflowReferenceError(
-                        ref, f"Reference to unknown workflow: {ref.target_wf_id}"
+                    raise NfMetaRunnerError(
+                        f"Reference to unknown workflow: {ref.target_wf_id}"
                     )
                 if not self._resolved_params_path(ref_wf).exists():
                     errors.append(

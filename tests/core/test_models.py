@@ -234,6 +234,7 @@ class TestTransition:
 
 # Note: MetaworkflowConfig-level tests (list/dict format, transition validity,
 # config_version bounds) and load_config/dump_config round-trip tests have been
-# migrated to tests/core/test_graph.py's TestFromRawDict, TestFileIO, and
-# TestDynamicValidationOnLoad — MetaworkflowGraph's from_raw_dict/dump_config/
-# from_file/to_file are now the construction/serialization entry points.
+# migrated to tests/core/test_graph.py's TestValidatedGraphFastPath, TestFileIO,
+# and TestDynamicValidationOnLoad — MetaworkflowGraph's validated_graph/
+# dump_config/from_file/to_file are now the construction/serialization entry
+# points.

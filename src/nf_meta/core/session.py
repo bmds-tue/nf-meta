@@ -1,7 +1,8 @@
 from .errors import ConfigValidationError, GraphValidationError, SessionCommandError
 from .events import Command
 from .history import History
-from .graph import MetaworkflowGraph, from_file, to_file
+from .graph import MetaworkflowGraph
+from .config import from_file, to_file
 from pathlib import Path
 
 

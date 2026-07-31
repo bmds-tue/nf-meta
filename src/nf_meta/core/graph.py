@@ -1,20 +1,13 @@
 from contextlib import contextmanager
 from typing import Optional
-from pathlib import Path
-import logging
 
 import networkx as nx
-import yaml
-from pydantic import ValidationError
 
 from .models import (
     GlobalOptions,
-    NfModule,
-    NfPipeline,
     Transition,
     Workflow,
-    WorkflowType,
-    validate_config_version,
+    WorkflowReference,
     CONFIG_VERSION_MAX,
 )
 from .events import (
@@ -28,15 +21,11 @@ from .events import (
 )
 from .errors import (
     ConfigValidationError,
+    Diagnostic,
     GraphValidationError,
     Severity,
-    WorkflowReferenceError,
-    WorkflowReferenceErrors,
-    diagnostics_from_pydantic_error,
 )
 from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
-
-logger = logging.getLogger()
 
 
 class MetaworkflowGraph:
@@ -80,7 +69,7 @@ class MetaworkflowGraph:
             if wf.params and self._validation_suspended is None:
                 self.validate_param_references(wf)
             self._emit(WorkflowAdded(wf))
-        except GraphValidationError as e:
+        except (GraphValidationError, ConfigValidationError) as e:
             self.G.remove_node(wf.id)
             raise e
 
@@ -152,22 +141,34 @@ class MetaworkflowGraph:
     #        VALIDATION
     # ===========================
     def validate_param_references(self, wf: Workflow):
-        errors = []
+        def diagnostic(ref, message: str) -> Diagnostic:
+            field = (
+                f"params.{ref.source_key}"
+                if isinstance(ref, WorkflowReference)
+                else "params"
+            )
+            return Diagnostic(
+                workflow_id=ref.source_wf_id,
+                field=field,
+                yaml_path=f"workflows.{ref.source_wf_id}.{field}",
+                message=message,
+                severity=Severity.ERROR,
+            )
+
+        diagnostics: list[Diagnostic] = []
         for ref in wf.field_refs:
             if ref.namespace != "params":
                 continue  # output references not yet validated
             referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
             if not referenced_wf:
-                errors.append(
-                    WorkflowReferenceError(
-                        ref, f"Reference to unknown workflow: {ref.target_wf_id}"
-                    )
+                diagnostics.append(
+                    diagnostic(ref, f"Reference to unknown workflow: {ref.target_wf_id}")
                 )
                 continue
 
             if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
-                errors.append(
-                    WorkflowReferenceError(
+                diagnostics.append(
+                    diagnostic(
                         ref,
                         f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}",
                     )
@@ -175,22 +176,18 @@ class MetaworkflowGraph:
                 continue
 
             if not referenced_wf.params or not ref.target_key:
-                errors.append(
-                    WorkflowReferenceError(
-                        ref, f"No referencable params in workflow {referenced_wf.id}"
-                    )
+                diagnostics.append(
+                    diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}")
                 )
                 continue
 
             if not referenced_wf.params.get(ref.target_key):
-                errors.append(
-                    WorkflowReferenceError(
-                        ref, f"Reference to unresolvable param: {ref.target_key}"
-                    )
+                diagnostics.append(
+                    diagnostic(ref, f"Reference to unresolvable param: {ref.target_key}")
                 )
 
-        if errors:
-            raise WorkflowReferenceErrors(errors)
+        if diagnostics:
+            raise ConfigValidationError(diagnostics)
 
     def validate_graph_topology(self):
         # Detect cycles
@@ -311,205 +308,3 @@ class MetaworkflowGraph:
             touched = self._validation_suspended
             self._validation_suspended = None
             self.validate(touched)
-
-
-# ---------------------------------------------------------------------------
-# Construction / serialization — free functions, not methods
-#
-# MetaworkflowGraph itself stays "a validated graph with mutation methods";
-# the YAML/dict-boundary concerns (parsing raw data into one, projecting one
-# back to a dict) live alongside it in this module instead of on the class,
-# per the retired-MetaworkflowConfig redesign. There is no longer a top-level
-# pydantic model for the whole document — MetaworkflowGraph constructs each
-# workflow directly, one at a time, so a single broken workflow no longer
-# blocks the others from being added.
-# ---------------------------------------------------------------------------
-
-
-def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
-    if g.global_options and g.global_options.config_file:
-        return
-
-    for wf in g.get_workflows():
-        if not wf.type == WorkflowType.NF_MODULE:
-            continue
-        if wf.container_engine:  # type: ignore[union-attr]
-            continue
-        logger.warning(
-            "Running Nextflow module(s) without specifying an executor "
-            "or a global Nextflow config relies on the local environment.\n"
-            "This will cause errors, if module dependencies are not "
-            "available locally and breaks reproducibility"
-        )
-
-
-def from_raw_dict(data: dict) -> "MetaworkflowGraph":
-    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
-
-    Workflows can be declared as a dict keyed by id (`workflows: {<id>: {...}}`,
-    the preferred form) or as a legacy list of definitions each carrying their
-    own `id`. Transitions are declared per-workflow via `from: <id>` or
-    `from: [<id>, ...]`; a top-level `transitions:` key is also still accepted,
-    but mixing both styles in the same file raises rather than merging them.
-
-    Both the list-format `workflows:` and the top-level `transitions:` key are
-    deprecated -- reading either logs a CLI warning. Fix by opening and saving
-    the config in the editor, which always writes the current dict-keyed
-    `workflows:` + per-workflow `from:` form.
-    """
-    if not data:
-        raise GraphValidationError("No config data provided")
-
-    try:
-        config_version = validate_config_version(data.get("config_version", ""))
-    except ValueError as e:
-        raise GraphValidationError(str(e)) from e
-
-    has_top_level_transitions = "transitions" in data
-    if has_top_level_transitions:
-        logger.warning(
-            "Legacy top-level 'transitions:' key is deprecated -- declare each "
-            "workflow's predecessors via its own 'from:' key instead. Update by "
-            "opening and saving the config in the editor."
-        )
-
-    raw_workflows = data.get("workflows") or {}
-    if isinstance(raw_workflows, dict):
-        raw_items: list[tuple[str | None, object]] = list(raw_workflows.items())
-    elif isinstance(raw_workflows, list):
-        logger.warning(
-            "Legacy list-format for 'workflows' is deprecated -- use the dict-"
-            "format keyed by workflow id instead. Update by opening and saving the "
-            "config in the editor."
-        )
-        raw_items = [
-            (item.get("id") if isinstance(item, dict) else None, item)
-            for item in raw_workflows
-        ]
-    else:
-        raise GraphValidationError(
-            f"'workflows:' must be a mapping keyed by workflow id or a list "
-            f"of workflow definitions, got {type(raw_workflows).__name__!r}"
-        )
-
-    items: list[dict] = []
-    pending_transitions: list[tuple[str, str]] = []
-    any_from_key_present = False
-    for key, item in raw_items:
-        if not isinstance(item, dict):
-            raise GraphValidationError(
-                f"Invalid definition of workflow {key}: Must be a key-value "
-                f"mapping, got '{item}' instead"
-            )
-        item = {**item}
-        item.setdefault("type", WorkflowType.NF_PIPELINE)
-        if key is not None:
-            item.setdefault("id", key)  # dict form: the mapping key is authoritative
-        any_from_key_present = any_from_key_present or "from" in item
-        from_ids = item.pop("from", None) or []
-        if isinstance(from_ids, str):
-            from_ids = [from_ids]  # a single predecessor id, not wrapped in a list
-        if not isinstance(from_ids, list) or not all(
-            isinstance(f, str) for f in from_ids
-        ):
-            raise GraphValidationError(
-                f"Invalid 'from' value for workflow {item.get('id', '<unknown>')}: "
-                f"expected a workflow id or a list of workflow ids, got "
-                f"'{from_ids}' instead"
-            )
-        target_id = item.get("id", "<unknown>")
-        pending_transitions.extend((source_id, target_id) for source_id in from_ids)
-        items.append(item)
-
-    if has_top_level_transitions and any_from_key_present:
-        raise GraphValidationError(
-            "Cannot mix the legacy top-level 'transitions:' key with "
-            "per-workflow 'from:' declarations in the same file — use one "
-            "style consistently."
-        )
-
-    if has_top_level_transitions:
-        for tr_data in data.get("transitions") or []:
-            if (
-                not isinstance(tr_data, dict)
-                or not isinstance(tr_data.get("source"), str)
-                or not isinstance(tr_data.get("target"), str)
-            ):
-                raise GraphValidationError(
-                    f"Invalid transition entry: expected a mapping with "
-                    f"string 'source'/'target' keys, got '{tr_data}' instead"
-                )
-            pending_transitions.append((tr_data["source"], tr_data["target"]))
-
-    g = MetaworkflowGraph()
-    g.config_version = config_version
-
-    with g.deferred_validation():
-        for item in items:
-            wf_id = item.get("id", "<unknown>")
-            wf: Workflow
-            try:
-                if item.get("type") == WorkflowType.NF_MODULE:
-                    wf = NfModule(**item)
-                else:
-                    wf = NfPipeline(**item)
-            except ValidationError as e:
-                raise ConfigValidationError(
-                    diagnostics_from_pydantic_error(e, workflow_id=wf_id)
-                ) from e
-            g.add_workflow(wf)
-
-        for source_id, target_id in pending_transitions:
-            g.add_transition(Transition(source=source_id, target=target_id))
-
-        if data.get("globals") is not None:
-            try:
-                g.global_options = GlobalOptions(**data["globals"])
-            except ValidationError as e:
-                raise ConfigValidationError(
-                    diagnostics_from_pydantic_error(e, workflow_id=None)
-                ) from e
-
-        _warn_about_module_executor(g)
-
-    # Reset events accumulated by add_workflow/add_transition during initial load
-    g._events = []
-
-    return g
-
-
-def from_file(cfg_file: Path) -> "MetaworkflowGraph":
-    with open(cfg_file) as fh:
-        data = yaml.safe_load(fh)
-    return from_raw_dict(data)
-
-
-def dump_config(g: "MetaworkflowGraph") -> dict:
-    from_by_target: dict[str, list[str]] = {}
-    for tr in g.get_transitions():
-        from_by_target.setdefault(tr.target, []).append(tr.source)
-
-    workflows_dict = {}
-    for w in g.get_workflows():
-        wf_dict = {k: v for k, v in w.model_dump_config().items()}
-        if w.id in from_by_target:
-            wf_dict["from"] = from_by_target[w.id]
-        workflows_dict[w.id] = wf_dict
-
-    config_dict = {
-        "config_version": g.config_version,
-        "globals": g.global_options.model_dump(exclude_none=True)
-        if g.global_options
-        else None,
-        "workflows": workflows_dict,
-    }
-
-    if not config_dict["globals"]:
-        del config_dict["globals"]
-
-    return config_dict
-
-
-def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
-    with open(file, "w") as fh:
-        yaml.safe_dump(dump_config(g), fh, sort_keys=False)

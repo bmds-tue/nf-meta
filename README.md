@@ -11,15 +11,12 @@ Find a growing collection of examples in our dedicated [showcase repository](htt
 This project proposes a representation for how metapipeline can be generalized in a in `.yml` file format.
 The most important keys for a metapipeline in this format are: 
 * `config_version` - which allows the representation to change over time without breaking
-* `workflows` - lists the nextflow / nf-core pipeline _runs_ 
-* `transitions` - describe the flow through the metapipelines
+* `workflows` - lists the nextflow / nf-core pipeline _runs_. The flow from workflow to workflow is described by transitions defined with the `from:` key
 * `globals` - defines settings that apply to all workflows
 
-More sections could follow, potentially starting with a sort of `adapter` key,
-where transitions or Groovy glue code is described.
 
 ```{yaml}
-config_version: 0.1.0
+config_version: 0.3.0
 globals:
   nextflow_version: 25
 workflows:
@@ -32,15 +29,13 @@ workflows:
       nf_core_pipeline: rnaseq
       nf_core_rnaseq_strandedness: auto
   n02:
+    from: n01
     name: nf-core/rnaseq
     version: dev
     params:
       input: ${n01:params:outdir}/samplesheet/samplesheet.csv
       genome: EB1
-      outdir: out_rnaseq
-transitions:
-- source: n01
-  target: n02
+      outdir: out_rnaseq   
 ```
 
 This project features at it core validation logic for these sort of `.yml` representations.

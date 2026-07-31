@@ -55,9 +55,7 @@
         "params": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
-              },
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -177,9 +175,7 @@
         "params": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
-              },
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -272,9 +268,7 @@
         "params": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
-              },
+              "additionalProperties": true,
               "type": "object"
             },
             {

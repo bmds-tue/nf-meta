@@ -77,7 +77,8 @@ class WorkflowRun:
     def prepare(self) -> None:
         """Write the params file: params_file as base, wf.params (refs) override."""
         self.workdir.mkdir(parents=True, exist_ok=True)
-        file_params = load_params_file(self.wf.params_file) if self.wf.params_file else {}
+        params_file = getattr(self.wf, "params_file", None)
+        file_params = load_params_file(params_file) if params_file else {}
         merged = {**file_params, **(self.wf.params or {})}
         if merged:
             self._params_file = self.workdir / "params.yaml"

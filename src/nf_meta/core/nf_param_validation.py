@@ -9,36 +9,30 @@ logger = logging.getLogger(__name__)
 _VALID_REF_PATTERN = re.compile(r"\$\{([^}]+):(params|outputs):([^}]+)\}")
 
 
-def _check_type(param_name: str, value: str, expected_type: str) -> str | None:
-    """Return an error message if value fails the expected_type check, else None."""
-    if expected_type == "integer":
-        try:
-            int(value)
-        except ValueError:
+def _check_type(param_name: str, value: object, expected_type: str) -> str | None:
+    """Return an error message if value fails the expected_type check, else None.
+
+    Checks the value's real type (bool/int/float/str), the same type Nextflow's
+    ``-params-file`` will hand to nf-schema -- not whether a stringified form of
+    it happens to be parseable, since a quoted numeric string is accepted here
+    but still rejected by nf-schema.
+    """
+    # bool is a subtype of int in Python, so it must be checked before int/float.
+    if expected_type == "boolean":
+        if not isinstance(value, bool):
+            return f"Parameter '{param_name}' = {value!r} is not a valid boolean"
+    elif expected_type == "integer":
+        if isinstance(value, bool) or not isinstance(value, int):
             return f"Parameter '{param_name}' = {value!r} is not a valid integer"
     elif expected_type in ("number", "float"):
-        try:
-            float(value)
-        except ValueError:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
             return f"Parameter '{param_name}' = {value!r} is not a valid number"
-    elif expected_type == "boolean" and value.lower() not in {
-        "true",
-        "false",
-        "1",
-        "0",
-        "yes",
-        "no",
-    }:
-        return (
-            f"Parameter '{param_name}' = {value!r} "
-            "is not a valid boolean (expected true/false/yes/no/0/1)"
-        )
-    # string, array, object, path formats — cannot reliably validate from str
+    # string, array, object, path formats — no further check
     return None
 
 
 def validate_params(
-    params: dict[str, str],
+    params: dict[str, object],
     schema: dict[str, dict],
     *,
     pipeline_id: str,
@@ -52,7 +46,9 @@ def validate_params(
     valid. Cross-workflow reference tokens (``${...}``) skip type and enum checks.
 
     Args:
-        params: Resolved param dict (all values already coerced to str).
+        params: Resolved param dict. Values are real scalars (str/int/float/bool)
+            e.g. a params_file entry may be ``str`` while a workflow-level
+            override is ``int``.
         schema: Flat {param_name: spec} dict from ``get_pipeline_schema``.
         pipeline_id: Workflow ID, used as Diagnostic.workflow_id.
         skip_required: When True, omit the required-param check (use when
@@ -121,7 +117,7 @@ def validate_params(
             continue  # already flagged as unknown above
 
         # Reference tokens are resolved at runtime — skip checks
-        if _VALID_REF_PATTERN.search(value):
+        if isinstance(value, str) and _VALID_REF_PATTERN.search(value):
             continue
 
         enum_values = spec.get("enum")
@@ -129,7 +125,7 @@ def validate_params(
 
         if enum_values is not None:
             str_enum = [str(v) for v in enum_values]
-            if value not in str_enum:
+            if str(value) not in str_enum:
                 diagnostics.append(
                     _diagnostic(
                         param_name,

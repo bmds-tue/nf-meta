@@ -46,19 +46,28 @@ class TestWorkflowConstruction:
 
 
 class TestParamCoercion:
-    def test_int_coerced_to_str(self):
+    def test_int_type_preserved(self):
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"count": 42})
-        assert wf.params["count"] == "42"
+        assert wf.params["count"] == 42
+        assert isinstance(wf.params["count"], int)
 
-    def test_float_coerced_to_str(self):
+    def test_float_type_preserved(self):
         wf = NfPipeline(
             name="nf-core/rnaseq", version="3.14.0", params={"threshold": 0.5}
         )
-        assert wf.params["threshold"] == "0.5"
+        assert wf.params["threshold"] == 0.5
+        assert isinstance(wf.params["threshold"], float)
 
-    def test_bool_coerced_to_str(self):
+    def test_bool_type_preserved(self):
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"flag": True})
-        assert wf.params["flag"] == "True"
+        assert wf.params["flag"] is True
+
+    def test_str_type_preserved(self):
+        wf = NfPipeline(
+            name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"}
+        )
+        assert wf.params["input"] == "samples.csv"
+        assert isinstance(wf.params["input"], str)
 
     def test_unsupported_type_raises(self):
         with pytest.raises(ValidationError):

@@ -116,10 +116,11 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
 
     diagnostics: list[Diagnostic] = []
 
-    # Start from params_file contents, then let value override.
-    # This gives the full picture for required-param checks while
-    # honouring the precedence rule (value wins on collision).
-    merged: dict[str, str] = {}
+    # Start from params_file contents, then let value override. This gives the
+    # full picture for required-param checks while honouring the precedence
+    # rule (value wins on collision). Real scalar types are kept from both
+    # sources -- validate_params checks the same types Nextflow will see.
+    merged: dict[str, object] = {}
     skip_required = False
 
     if params_file is not None:
@@ -127,7 +128,7 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
             with open(params_file) as fh:
                 file_data = yaml.safe_load(fh) or {}
             if isinstance(file_data, dict):
-                merged = {k: str(v) for k, v in file_data.items() if v is not None}
+                merged = {k: v for k, v in file_data.items() if v is not None}
             else:
                 diagnostics.append(
                     Diagnostic(

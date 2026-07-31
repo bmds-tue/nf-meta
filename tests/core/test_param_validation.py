@@ -245,9 +245,17 @@ class TestValidateParams:
         )
 
     def test_valid_integer(self):
-        params = {"input": "/data/sheet.csv", "max_cpus": "8"}
+        params = {"input": "/data/sheet.csv", "max_cpus": 8}
         diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
         assert not any(d.field == "params.max_cpus" for d in diagnostics)
+
+    def test_stringified_integer_is_rejected(self):
+        # A quoted numeric string round-trips through a params-file as a YAML
+        # string, which nf-schema itself rejects for an integer field -- so
+        # nf-meta must flag it too, not just check that it *parses* as an int.
+        params = {"input": "/data/sheet.csv", "max_cpus": "8"}
+        diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+        assert any(d.field == "params.max_cpus" for d in diagnostics)
 
     def test_invalid_enum(self):
         params = {"input": "/data/sheet.csv", "aligner": "bowtie2"}
@@ -270,12 +278,20 @@ class TestValidateParams:
         )
 
     def test_valid_booleans(self):
-        for val in ("true", "false", "True", "False", "1", "0"):
+        for val in (True, False):
             params = {"input": "/data/sheet.csv", "save_unaligned": val}
             diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
             assert not any(
                 d.field == "params.save_unaligned" for d in diagnostics
             ), f"Failed for value {val!r}"
+
+    def test_stringified_boolean_is_rejected(self):
+        for val in ("true", "false", "True", "1", "0"):
+            params = {"input": "/data/sheet.csv", "save_unaligned": val}
+            diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
+            assert any(
+                d.field == "params.save_unaligned" for d in diagnostics
+            ), f"Should have been rejected for value {val!r}"
 
     def test_reference_token_skips_type_check(self):
         # A cross-step reference should not be type-checked

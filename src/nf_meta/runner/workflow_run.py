@@ -21,6 +21,7 @@ from nf_meta.core.models import (
     NfPipeline,
     Workflow,
     WorkflowType,
+    load_params_file,
 )
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow
@@ -74,12 +75,15 @@ class WorkflowRun:
         return run_cls(wf, workdir, globals, extra_profile)
 
     def prepare(self) -> None:
-        """Create workdir and write params file from wf.params. Call before get_cmd()."""
+        """Write the params file: params_file as base, wf.params (refs) override."""
         self.workdir.mkdir(parents=True, exist_ok=True)
-        if self.wf.params:
+        params_file = getattr(self.wf, "params_file", None)
+        file_params = load_params_file(params_file) if params_file else {}
+        merged = {**file_params, **(self.wf.params or {})}
+        if merged:
             self._params_file = self.workdir / "params.yaml"
             with open(self._params_file, "w") as fh:
-                yaml.dump(self.wf.params, fh)
+                yaml.dump(merged, fh)
 
     def get_cmd(self, resume: bool = False, stub: bool = False) -> list[str]:
         raise NotImplementedError
@@ -98,8 +102,6 @@ class NfPipelineRun(WorkflowRun, workflow_type=WorkflowType.NF_PIPELINE):
 
         if resume:
             cmd += ["-resume"]
-        if stub:
-            cmd += ["-stub"]
 
         if self.globals and self.globals.config_file:
             nf_cfg = Path(self.globals.config_file)
@@ -127,6 +129,12 @@ class NfPipelineRun(WorkflowRun, workflow_type=WorkflowType.NF_PIPELINE):
             cmd += ["-main-script", wf.main_script]
 
         cmd += [wf.url, "-r", wf.version, "-latest"]
+        # -stub must come after the pipeline url/-r/-latest args: placed earlier,
+        # some Nextflow versions (e.g. 26.04.x) mis-parse it and clobber the
+        # pipeline's positional argument with -stub's own resolved value.
+        if stub:
+            cmd += ["-stub"]
+        print(cmd)
         return cmd
 
 
@@ -143,8 +151,6 @@ class NfModuleRun(WorkflowRun, workflow_type=WorkflowType.NF_MODULE):
 
         if resume:
             cmd += ["-resume"]
-        if stub:
-            cmd += ["-stub"]
 
         if self.globals and self.globals.config_file:
             nf_cfg = Path(self.globals.config_file)
@@ -162,4 +168,7 @@ class NfModuleRun(WorkflowRun, workflow_type=WorkflowType.NF_MODULE):
             cmd += ["-params-file", str(self._params_file)]
 
         cmd += [f"{wf.name}@{wf.version}"]
+        # -stub after the positional pipeline arg -- see NfPipelineRun.get_cmd.
+        if stub:
+            cmd += ["-stub"]
         return cmd

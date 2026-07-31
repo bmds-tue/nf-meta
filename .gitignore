@@ -1,6 +1,13 @@
 # Test files
 test_run/
 metapipeline_test.yaml
+metapipeline_errors_test.yaml
+
+# nf-meta / Nextflow runtime artifacts
+.nextflow/
+.nextflow.log*
+.nf-meta-cache/
+null/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -759,22 +759,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mkdocs-terminal"
-version = "4.8.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "jinja2" },
-    { name = "markdown" },
-    { name = "mkdocs" },
-    { name = "pygments" },
-    { name = "pymdown-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/52/29/2c172701719d398e9fdb71f3fa7528c4354c9edb4653a4cba9cdddd6c9ad/mkdocs_terminal-4.8.0.tar.gz", hash = "sha256:1015878d3bf9d7d571c377262daf600fb0e0466f128a70515b9e4816076fa726", size = 620332, upload-time = "2026-01-31T00:51:23.301Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/21/7eb37356eeeaa87be873c806ea84794b3b81285e49a6c7c4a250c66729a6/mkdocs_terminal-4.8.0-py3-none-any.whl", hash = "sha256:86af80cc7152aa61e9058db0a84eefae56e769222e81eb5291ad87e89d3f2922", size = 643953, upload-time = "2026-01-31T00:51:21.777Z" },
-]
-
-[[package]]
 name = "mkdocstrings"
 version = "0.30.1"
 source = { registry = "https://pypi.org/simple" }
@@ -889,7 +873,6 @@ dependencies = [
     { name = "click" },
     { name = "fastapi" },
     { name = "flask" },
-    { name = "mkdocs-terminal" },
     { name = "networkx" },
     { name = "numpy" },
     { name = "packaging" },
@@ -923,7 +906,6 @@ requires-dist = [
     { name = "click", specifier = ">=8.3.1" },
     { name = "fastapi", specifier = ">=0.128.0" },
     { name = "flask", specifier = ">=3.1.2" },
-    { name = "mkdocs-terminal", specifier = ">=4.8.0" },
     { name = "networkx", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=2.4.2" },
     { name = "packaging", specifier = ">=26.0" },

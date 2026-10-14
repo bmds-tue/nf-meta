@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block announce %}
+  {% if config.extra.is_dev == "true" or config.extra.is_dev == true %}
+    <strong>Development documentation.</strong>
+    This is the <code>dev</code> version of the nf-meta docs. It is built from the
+    <code>main</code> branch and describes unreleased behaviour that may change or be removed.
+    For the most recent release, see
+    <a href="/nf-meta/latest/">the latest documentation</a>.
+  {% endif %}
+{% endblock %}

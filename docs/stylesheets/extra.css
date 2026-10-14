@@ -1,0 +1,48 @@
+/* Accent colors for the homepage feature-card grid, keyed by card position. */
+.md-typeset .grid.cards>ul>li:nth-child(1) {
+  border-top: 4px solid #1a9655;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(1) .twemoji {
+  color: #1a9655;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(2) {
+  border-top: 4px solid #2f6fed;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(2) .twemoji {
+  color: #2f6fed;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(3) {
+  border-top: 4px solid #8952e0;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(3) .twemoji {
+  color: #8952e0;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(4) {
+  border-top: 4px solid #e08a2f;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(4) .twemoji {
+  color: #e08a2f;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(5) {
+  border-top: 4px solid #e02f2f;
+}
+
+.md-typeset .grid.cards>ul>li:nth-child(5) .twemoji {
+  color: #e02f2f;
+}
+
+/* Keep short identifiers (e.g. table "Key" columns) on one line instead of
+   wrapping once a long "Notes" column forces the table layout to squeeze
+   every column's width. */
+.md-typeset table:not([class]) td:first-child,
+.md-typeset table:not([class]) th:first-child {
+  white-space: nowrap;
+}

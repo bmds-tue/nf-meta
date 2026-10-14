@@ -239,6 +239,7 @@
       }
     },
     "globals": {
+      "description": "Settings applied across every workflow in a metapipeline (the config's\n`globals:` key). `params` is merged under each workflow's own `params` at\nrun time, with the workflow's own values winning on key collision;\n`profile`/`config_file` likewise act as a fallback a workflow can\noverride, not a value forced onto it.",
       "properties": {
         "profile": {
           "anyOf": [

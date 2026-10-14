@@ -46,7 +46,14 @@ def _open_browser_when_ready(host: str, port: int) -> None:
 
 
 class BrowserEditor(BaseEditor):
-    """Default editor: serves the Vue SPA via FastAPI and opens a browser tab."""
+    """The default editor (`EDITOR_NAME = "browser"`). Serves the bundled Vue
+    single-page app via a local FastAPI backend and opens it in a browser tab
+    once the server is reachable.
+
+    With `NF_META_DEVMODE=1` set, proxies to a separately-running frontend
+    dev server (`npm run dev` under `editor/frontend`) instead of the bundled
+    build -- see `docs/getting-started/installation.md`.
+    """
 
     EDITOR_NAME = "browser"
 

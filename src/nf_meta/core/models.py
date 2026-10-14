@@ -32,6 +32,9 @@ CONFIG_VERSION_MAX = "0.3.0"
 
 
 class WorkflowType(StrEnum):
+    """Discriminates the two workflow shapes a config's `type:` key selects
+    between: a full `nextflow run` pipeline, or a single `nextflow module run`."""
+
     NF_PIPELINE = "nf-pipeline"
     NF_MODULE = "nf-module"
 
@@ -140,9 +143,13 @@ class WorkflowReference(Reference):
 
 
 class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
-    """
-    Base class for all metapipeline steps.
-    Concrete types: NfPipeline, NfModule.
+    """Base class for one step in a metapipeline. Concrete types: `NfPipeline`
+    (a `nextflow run` pipeline) and `NfModule` (a `nextflow module run`).
+
+    `params` values keep their declared scalar type (`str`/`int`/`float`/`bool`)
+    through to the generated Nextflow params file, rather than being
+    stringified -- this matters because Nextflow's own schema validation is
+    strict about, e.g., a quoted `"9"` where an integer is expected.
     """
 
     type: WorkflowType
@@ -399,6 +406,12 @@ Workflow = Annotated[NfPipeline | NfModule, Field(discriminator="type")]
 
 
 class GlobalOptions(BaseModel):
+    """Settings applied across every workflow in a metapipeline (the config's
+    `globals:` key). `params` is merged under each workflow's own `params` at
+    run time, with the workflow's own values winning on key collision;
+    `profile`/`config_file` likewise act as a fallback a workflow can
+    override, not a value forced onto it."""
+
     profile: Optional[str] = None
     config_file: Optional[ExistingNfConfigFile] = None
     params: Optional[CoercedParams] = None
@@ -444,6 +457,8 @@ class GlobalOptions(BaseModel):
 
     @property
     def nextflow_version_tuple(self) -> Optional[tuple[int, int, int, int]]:
+        """`nextflow_version` as `(major, minor, patch, is_edge)`, or `None`
+        if unset. Missing minor/patch components default to `0`."""
         v = self.nextflow_version
         if v is None:
             return None
@@ -466,6 +481,12 @@ class GlobalOptions(BaseModel):
 
 
 class Transition(BaseModel):
+    """A directed `source -> target` edge between two workflow ids.
+
+    The legacy top-level `transitions:` representation; equivalent to the
+    target workflow declaring `from: source`. Prefer `from:` in new configs.
+    """
+
     target: str
     source: str
 

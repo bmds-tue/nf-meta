@@ -1,0 +1,116 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "src/**"
+      - ".github/workflows/docs.yml"
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish (e.g. v0.2.4-beta). Leave empty to publish dev from main.
+        required: false
+
+permissions:
+  contents: write # mike pushes to gh-pages
+
+concurrency:
+  group: docs-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      # Tags predating the docs tree cannot build. Skip rather than fail red.
+      - name: Check this ref has docs
+        id: guard
+        run: |
+          if [ -f mkdocs.yml ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No mkdocs.yml at this ref; skipping docs publish."
+          fi
+
+      - name: Derive version, alias and dev flag
+        id: v
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TAG}" ]; then
+            # dev build from main
+            {
+              echo "version=dev"
+              echo "title=dev (main)"
+              echo "aliases="
+              echo "is_dev=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # v0.2.6-beta -> 0.2   (minor series)
+          CLEAN="${TAG#v}"
+          CLEAN="${CLEAN%%-*}"
+          SERIES="$(echo "$CLEAN" | cut -d. -f1,2)"
+
+          # "latest" is whatever release carries GitHub's Latest badge.
+          # Errors (e.g. no release holds the flag) degrade to no alias.
+          CURRENT="$(gh release view --json tagName -q .tagName 2>/dev/null || echo "")"
+          if [ "$CURRENT" = "$TAG" ]; then ALIASES="latest"; else ALIASES=""; fi
+
+          {
+            echo "version=${SERIES}"
+            echo "title=${SERIES} (${TAG})"
+            echo "aliases=${ALIASES}"
+            echo "is_dev=false"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: astral-sh/setup-uv@v6
+        if: steps.guard.outputs.ok == 'true'
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.ok == 'true'
+        with:
+          python-version-file: .python-version
+
+      - run: uv sync --group docs
+        if: steps.guard.outputs.ok == 'true'
+
+      # MUST run before any mike command. Without it mike sees no prior state
+      # and would publish a tree containing only this version.
+      - name: Fetch mike state branch
+        if: steps.guard.outputs.ok == 'true'
+        run: git fetch origin gh-pages:gh-pages || echo "gh-pages does not exist yet"
+
+      - name: Configure git identity
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          NF_META_DOCS_IS_DEV: ${{ steps.v.outputs.is_dev }}
+        run: |
+          uv run mike deploy --push --update-aliases --alias-type=copy \
+            --title "${{ steps.v.outputs.title }}" \
+            "${{ steps.v.outputs.version }}" ${{ steps.v.outputs.aliases }}

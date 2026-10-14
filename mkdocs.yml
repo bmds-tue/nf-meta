@@ -1,0 +1,106 @@
+site_name: nf-meta
+site_description: Metapipeline representation, editor, and runner
+site_url: https://bmds-tue.github.io/nf-meta/
+repo_url: https://github.com/bmds-tue/nf-meta
+repo_name: bmds-tue/nf-meta
+edit_uri: edit/main/docs/
+copyright: Apache-2.0
+
+# Theme-template overrides live under docs/ for colocation, but they are not
+# page content - keep MkDocs from copying them into the built site verbatim.
+exclude_docs: |
+  overrides/
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/weather-night, name: Switch to dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/weather-sunny, name: Switch to light mode }
+  favicon: assets/nf-meta-octo-light.svg
+  logo: assets/nf-meta-octo-light.svg
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            members_order: source
+            filters: ["!^_"]
+            show_source: true
+            inherited_members: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - toc: { permalink: true }
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed: { alternate_style: true }
+  - pymdownx.highlight: { anchor_linenums: true }
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  version:
+    provider: mike
+    default: latest
+  # "true" only when publishing the dev version. Drives the banner in docs/overrides/main.html.
+  is_dev: !ENV [NF_META_DOCS_IS_DEV, "false"]
+
+nav:
+  - Overview: index.md
+  - Installation: getting-started/installation.md
+  - Quickstart: getting-started/quickstart.md
+  - YAML representation:
+      - representation/overview.md
+      - representation/reference.md
+      - representation/interpolation.md
+  - Editor: editor/index.md
+  - Runners:
+      - runners/index.md
+      - runners/python-runner.md
+  - Guides:
+      - guides/writing-a-runner.md
+      - guides/writing-an-editor-plugin.md
+  - API reference:
+      - api/index.md
+      - api/core.md
+      - api/runners.md
+      - api/editor.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md

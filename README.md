@@ -1,28 +1,35 @@
 # nf-meta: metapipeline representation, editor, and runner
 
-This project features a reproducible representation for meta-pipelines, featuring an interactive editor running locally in a browser, as well as a cli based validator and runner.
+A reproducible representation for Nextflow metapipelines — chains of nf-core/Nextflow pipeline
+and module runs — with an interactive browser-based editor and a CLI validator/runner.
 
-**This is a beta version: Things can be unstable and change**
+**This is a beta version: things can be unstable and change.**
 
-Find a growing collection of examples in our dedicated [showcase repository](https://github.com/bmds-tue/nf-meta-showcases/tree/main).
+📖 **[Documentation](https://bmds-tue.github.io/nf-meta/)** — installation, quickstart, the
+full config reference, and the API reference.
+
+Find a growing collection of examples in the dedicated
+[showcase repository](https://github.com/bmds-tue/nf-meta-showcases/tree/main).
+
+![nf-meta editor](assets/nf-meta-screenshot.png)
 
 ## Representation
 
-This project proposes a representation for how metapipeline can be generalized in a in `.yml` file format.
-The most important keys for a metapipeline in this format are: 
-* `config_version` - which allows the representation to change over time without breaking
-* `workflows` - lists the nextflow / nf-core pipeline _runs_. The flow from workflow to workflow is described by transitions defined with the `from:` key
-* `globals` - defines settings that apply to all workflows
+A metapipeline is a `.yaml` file. The most important keys are:
 
+* `config_version` — allows the representation to change over time without breaking
+* `workflows` — the nextflow / nf-core pipeline _runs_. The flow from workflow to workflow is
+  described by each workflow's own `from:` key
+* `globals` — settings that apply to all workflows
 
-```{yaml}
+```yaml
 config_version: 0.3.0
 globals:
-  nextflow_version: 25
+  nextflow_version: "25.10"
 workflows:
   n01:
     name: nf-core/fetchngs
-    version: dev
+    version: 1.12.0
     params:
       input: fetchngs-ids.csv
       outdir: out_fetchngs
@@ -31,76 +38,47 @@ workflows:
   n02:
     from: n01
     name: nf-core/rnaseq
-    version: dev
+    version: 3.14.0
     params:
       input: ${n01:params:outdir}/samplesheet/samplesheet.csv
-      genome: EB1
-      outdir: out_rnaseq   
+      genome: GRCh38
+      outdir: out_rnaseq
 ```
 
-This project features at it core validation logic for these sort of `.yml` representations.
+Fields can reference another workflow's own params, so you write
+`input: ${n01:params:outdir}/samplesheet/samplesheet.csv` instead of hardcoding
+`input: fetchngs_out/samplesheet/samplesheet.csv`.
 
+See the [config reference](https://bmds-tue.github.io/nf-meta/latest/representation/reference/)
+for every key, and [cross-workflow references](https://bmds-tue.github.io/nf-meta/latest/representation/interpolation/)
+for the full `${...}` syntax.
 
-To enable referencing fields form other workflows, constructs like could be made possible:
-```
-    # write this:
-    input: ${n01:params:outdir}/samplesheet/samplesheet.csv
-    # instead of this:
-    input: fetchngs_out/samplesheet/samplesheet.csv
-```
-
-
-## Editor
-
-This project features a small editor which intends to ease the creation and updating
-of these config files, by visualizing the config as a graph and 
-offering user-firendly form for entering and validating values.
-
-![editor](https://raw.githubusercontent.com/bmds-tue/nf-meta/main/assets/nf-meta-screenshot.png)
-
-
-## Metapipeline Runners
+## Runners
 
 Currently:
-* Python Runner: Wraps nextflow commands, exectutes in dag order
+* **Python runner** — wraps `nextflow` commands, executes in DAG order.
 
 Planned:
-1. [nf-cascade](https://github.com/mahesh-panchal/nf-cascade/) runner: Convert config into one nextflow daisy-chaining nextflow script
-2. Seqera Platform runner:
-Start and monitor locally, call and poll a Platform instance with run parameters via API to handle running Nextflow
-3. Meta-Pipeline runner:
-compile config into new monolithic nextflow project, that imports required workflows to achieve most efficient orchestration + graceful errors handling
+1. [nf-cascade](https://github.com/mahesh-panchal/nf-cascade/) runner — convert the config into
+   one daisy-chained Nextflow script.
+2. Seqera Platform runner — start and monitor locally, calling a Platform instance's API with
+   run parameters to handle running Nextflow.
+3. Meta-pipeline runner — compile the config into a new monolithic Nextflow project that
+   imports the required workflows, for the most efficient orchestration and graceful error
+   handling.
 
+Runners are pluggable — see the [runner docs](https://bmds-tue.github.io/nf-meta/latest/runners/)
+to write your own.
 
 ## Install from PyPI
 
-The released version of this package can be installed from the [Python Package Index](https://pypi.org/project/nf-meta/)
-```
+```bash
 # with pip
 pip install nf-meta
 
-# with uv 
+# with uv
 uv add nf-meta
 ```
 
-## Install and run the Development Setup
-
-Install and run the frontend
-```
-$ cd /src/nf_meta/editor/frontend
-$ npm install
-$ npm run dev
-```
-
-Run the cli in dev mode
-```
-NF_META_DEVMODE=1 uv run nf-meta editor [</path/to/metapipeline.yml>]
-```
-
-## Project Structure
-
-
-* Engine: Config Validation, Editor Session with History and exposing API
-* Runners
-* Editor frontend for creating or editing a config
-
+See the [docs](https://bmds-tue.github.io/nf-meta/) for the development setup, the editor, and
+the full API reference.

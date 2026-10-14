@@ -4,51 +4,37 @@
 Create chains of existing [Nextflow](nextflow.io) pipelines and modules in an interactive browser-based editor and export into a YAML-based representation format.
 Validate and run the representation format with the integrated CLI tooling.
 
-<div class="grid cards" markdown>
+<div class="feature-list" markdown>
 
--   :material-replay:{ .lg .middle } **End-to-end Reproducibility**
-
-    ---
-    Community projects like [nf-core](nf-co.re) curate a large number of reproducible best-practice pipelines,
+:material-replay:{ .lg .middle } **End-to-end Reproducibility**
+:   Community projects like [nf-core](nf-co.re) curate a large number of reproducible best-practice pipelines,
     but projects frequently require running many pipelines back to back to produce insights.
     This typically involves ad-hoc scripting or manual intervention to start the next step, breaking the end-to-end reproducibility.
 
     **`nf-meta` represents the chain of analysis steps as a single `.yaml` file, declaring how one pipeline's outputs are consumed by the next to restore reproducibility.**
 
--   :material-wrench:{ .lg .middle } **Reduce complexity of pipelines**
-
-    ---
-
-    Pipelines should focus on their core analysis objective, instead of 
+:material-wrench:{ .lg .middle } **Reduce complexity of pipelines**
+:   Pipelines should focus on their core analysis objective, instead of
     being concerned with what could possibly be run before or after.
     To facilitate multi-step analyses, there is pressure on individual pipelines to incorporate connection logic,
     potentially increasing their complexity and ultimately the maintenance burden.
-    
+
     **`nf-meta` allows moving the connecting logic outside the scope of individual pipelines to reduce their complexity.**
 
--   :material-robot:{ .lg .middle } **Runnable Provenance**
-
-    ---
-    
-    Delegating data analysis work to agentic systems can take work off the shoulders of researchers.
+:material-robot:{ .lg .middle } **Runnable Provenance**
+:   Delegating data analysis work to agentic systems can take work off the shoulders of researchers.
     However, the interpretation of results requires knowing what exactly was run by the agent.
 
     **`nf-meta` can provide provenance of what was run that can be re-run if needed.**
 
--   :material-check:{ .lg .middle } **Harnessing by Validation**
-    
-    ---
-
-    Agentic systems can handle the details of workflows like versions and param types better when given mechanisms to query for metadata and validate produced artifacts,
+:material-check:{ .lg .middle } **Harnessing by Validation**
+:   Agentic systems can handle the details of workflows like versions and param types better when given mechanisms to query for metadata and validate produced artifacts,
     rather than relying only on their internal state.
 
     **`nf-meta` offers metadata retrieval, caching of the important information, as well as upfront validation.**
-    
--   :material-repeat:{ .lg .middle } **Automate the Repetitive**
 
-    ---
-
-    Some project types require frequently running the same set of workflows in sequence. 
+:material-repeat:{ .lg .middle } **Automate the Repetitive**
+:   Some project types require frequently running the same set of workflows in sequence.
     While the transitions are well defined, this requires manual intervention at every step.
 
     **`nf-meta` offers a way to represent the full sequence of workflows with automated handoffs, and run it over the weekend.**

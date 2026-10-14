@@ -29,9 +29,15 @@ console = Console()
 
 
 class SimplePythonRunner(BaseRunner):
-    """
-    Simple default runner for Metapipelines.
-    Executes workflows in dag order from this Python runtime.
+    """The default runner (`RUNNER_NAME = "python"`). Executes each workflow
+    as a `nextflow run`/`nextflow module run` subprocess directly from this
+    Python process, in DAG order, streaming output as it runs.
+
+    Caches each workflow's resolved params (after `${...}` substitution)
+    under `run_options.cachedir`, keyed by a content hash of the workflow's
+    definition. `resume=True` skips any workflow whose working directory
+    already recorded success, and passes Nextflow's own `-resume` through for
+    the ones that do run.
     """
 
     RUNNER_NAME = "python"

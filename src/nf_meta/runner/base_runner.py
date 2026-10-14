@@ -23,11 +23,11 @@ class BaseRunner(ABC):
     Registration happens automatically at class-definition time via
     ``__init_subclass__``. ``run_metapipeline`` looks up the concrete class
     from ``_REGISTRY``, so a new runner becomes available as soon as its
-    module is imported — no changes to ``run_metapipeline`` are needed.
+    module is imported, with no changes to ``run_metapipeline`` needed.
 
-    Subclasses should not override ``__init__``. All ``RunOptions`` fields
-    are unpacked into instance attributes by ``BaseRunner.__init__`` so they
-    are available to every runner without repetition.
+    Subclasses should not override ``__init__``. The ``RunOptions`` passed in
+    is stored as ``self.run_options``, available to every runner without
+    repeating the constructor.
     """
 
     RUNNER_NAME: ClassVar[str]
@@ -47,8 +47,14 @@ class BaseRunner(ABC):
 
     @abstractmethod
     def run(self, g: MetaworkflowGraph) -> None:
-        """Execute the metapipeline from scratch."""
+        """Execute every workflow in `g` from scratch, in dependency order.
+        Called by `run_metapipeline` when `run_options.resume` is falsy.
+        Exceptions are not caught by the caller -- let a failure raise rather
+        than returning normally with partial results."""
 
     @abstractmethod
     def resume(self, g: MetaworkflowGraph) -> None:
-        """Resume a previously interrupted metapipeline run."""
+        """Continue a previously interrupted run of `g`, skipping whatever
+        the implementation can determine already completed successfully.
+        Called by `run_metapipeline` when `run_options.resume` is truthy.
+        Same exception policy as `run`."""

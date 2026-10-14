@@ -13,7 +13,7 @@ class BaseEditor(ABC):
     Subclasses register themselves by defining an ``EDITOR_NAME`` class
     attribute. Registration happens automatically at class-definition time
     via ``__init_subclass__``, so a new editor becomes available as soon as
-    its module is imported — no changes to the dispatch logic are needed.
+    its module is imported, with no changes to the dispatch logic needed.
 
     Example::
 

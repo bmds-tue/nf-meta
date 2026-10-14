@@ -8,16 +8,29 @@ from pydantic import ValidationError
 
 
 class GraphValidationError(Exception):
-    pass
+    """A structural problem with the graph itself: a cycle, an edge to a
+    nonexistent node, or a malformed `workflows:`/`from:`/`transitions:`
+    shape. Distinct from `ConfigValidationError`, which carries per-field
+    `Diagnostic`s about individual workflow/globals content."""
 
 
 class Severity(StrEnum):
+    """A `Diagnostic`'s severity: `ERROR` blocks (raises
+    `ConfigValidationError`); `WARNING` is logged but doesn't stop
+    construction."""
+
     ERROR = "error"
     WARNING = "warning"
 
 
 @dataclass(frozen=True)
 class Diagnostic:
+    """One validation problem with a single field of a single workflow (or of
+    `globals`, when `workflow_id` is `None`). The common vocabulary every
+    validation tier (pydantic construction, dynamic/network checks,
+    cross-workflow reference checks) reports through, so callers handle one
+    shape regardless of where a problem originated."""
+
     workflow_id: str | None
     field: str
     message: str
@@ -34,7 +47,7 @@ class Diagnostic:
 
 @dataclass
 class ConfigValidationError(Exception):
-    """A workflow/config-definition-level validation failure — whether from
+    """A workflow/config-definition-level validation failure, whether from
     tier-0/1 (pydantic construction), tier-2 (network-backed) checks, or
     cross-workflow reference validation. Every consumer treats all of these
     identically, so they share one exception type."""

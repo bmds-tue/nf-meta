@@ -215,12 +215,16 @@ def validated_globals(data: dict) -> GlobalOptions:
 
 
 def validated_workflow_from_file(cfg_file: Path) -> Workflow:
+    """Read `cfg_file` as YAML and validate it as a standalone workflow
+    snippet. See `validated_workflow`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
     return validated_workflow(data)
 
 
 def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
+    """Read `cfg_file` as YAML and validate it as a standalone globals
+    snippet. See `validated_globals`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
     return validated_globals(data)
@@ -401,12 +405,22 @@ def validated_graph(data: dict, *, collect_errors: bool = False) -> "Metaworkflo
 
 
 def from_file(cfg_file: Path, *, collect_errors: bool = False) -> "MetaworkflowGraph":
+    """Read `cfg_file` as YAML and build+validate a `MetaworkflowGraph` from
+    it. Reads the whole file into memory; makes no other side effects. See
+    `validated_graph` for the validation contract and `collect_errors`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
     return validated_graph(data, collect_errors=collect_errors)
 
 
 def dump_config(g: "MetaworkflowGraph") -> dict:
+    """Project a `MetaworkflowGraph` back to the config's dict shape (the
+    inverse of `validated_graph`): `config_version`, `globals` (omitted if
+    empty), and `workflows` keyed by id with each workflow's own `from:` list
+    reconstructed from the graph's edges. Always writes the current
+    dict-keyed `workflows:` + per-workflow `from:` form, never the legacy
+    list/top-level-`transitions:` shapes, even if the graph was loaded from
+    one of those."""
     from_by_target: dict[str, list[str]] = {}
     for tr in g.get_transitions():
         from_by_target.setdefault(tr.target, []).append(tr.source)
@@ -439,6 +453,9 @@ SCHEMA_URL = (
 
 
 def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
+    """Write `g` to `file` as YAML (via `dump_config`), prefixed with a
+    `# yaml-language-server: $schema=...` comment pointing at the published
+    JSON Schema for editor autocompletion. Overwrites `file` if it exists."""
     with open(file, "w") as fh:
         fh.write(f"# yaml-language-server: $schema={SCHEMA_URL}\n")
         yaml.safe_dump(dump_config(g), fh, sort_keys=False)

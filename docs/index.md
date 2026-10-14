@@ -1,13 +1,13 @@
 # nf-meta
 
 **A reproducible representation, runner, and editor for metapipelines**:
-Create chains of existing [Nextflow](nextflow.io) pipelines and modules in an interactive browser-based editor and export into a YAML-based representation format.
+Create chains of existing [Nextflow](https://nextflow.io) pipelines and modules in an interactive browser-based editor and export into a YAML-based representation format.
 Validate and run the representation format with the integrated CLI tooling.
 
 <div class="feature-list" markdown>
 
 :material-replay:{ .lg .middle } **End-to-end Reproducibility**
-:   Community projects like [nf-core](nf-co.re) curate a large number of reproducible best-practice pipelines,
+:   Community projects like [nf-core](https://nf-co.re) curate a large number of reproducible best-practice pipelines,
     but projects frequently require running many pipelines back to back to produce insights.
     This typically involves ad-hoc scripting or manual intervention to start the next step, breaking the end-to-end reproducibility.
 

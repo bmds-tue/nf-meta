@@ -13,7 +13,7 @@ uv add nf-meta
 ```
 
 !!! note
-    nf-meta orchestrates [Nextflow](https://www.nextflow.io/) runs. It does not bundle
+    nf-meta orchestrates [Nextflow](https://nextflow.io) runs. It does not bundle
     Nextflow itself. Running a metapipeline (`nf-meta run`) requires a working `nextflow`
     on `PATH`, matching whatever `globals.nextflow_version` your config declares (if set).
     Validating a config (`nf-meta validate`) does not require Nextflow to be installed.

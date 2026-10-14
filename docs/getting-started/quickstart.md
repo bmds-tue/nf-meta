@@ -6,7 +6,7 @@ The resulting metapipeline is validated and executed via the CLI.
 ## Prerequisites
 
 - nf-meta installed (see [Installation](installation.md))
-- [Nextflow](https://www.nextflow.io/) installed, required for `nf-meta run` but not for the
+- [Nextflow](https://nextflow.io) installed, required for `nf-meta run` but not for the
   `nf-meta validate` or `editor` commands.
 
 ## 1. Write a config

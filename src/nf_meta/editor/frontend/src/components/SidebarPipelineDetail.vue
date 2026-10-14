@@ -63,7 +63,8 @@ async function submitForm(e: SubmitEventPromise) {
         emit('saved')
       }
     } else if (result.fieldErrors) {
-      errors.value = extractFieldErrors(result.fieldErrors, form.value.id ?? '')
+      // A new node's id is assigned by the backend, so its errors can't be matched by id
+      errors.value = extractFieldErrors(result.fieldErrors, props.isNew ? null : form.value.id ?? '')
     }
   } finally {
     saving.value = false

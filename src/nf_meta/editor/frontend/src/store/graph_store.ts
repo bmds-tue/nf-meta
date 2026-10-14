@@ -75,6 +75,9 @@ export const useGraphStore = defineStore('graph', () => {
                 for (const err of result.graphErrors ?? []) {
                     messageStore.add(err, 'error')
                 }
+                if (result.fieldErrors?.length) {
+                    messageStore.add('Validation failed. See highlighted fields', 'error')
+                }
             } else {
                 messageStore.add(result.message ?? 'Request failed', 'error')
             }

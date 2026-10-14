@@ -7,7 +7,8 @@ import { WorkflowType } from './types'
  *
  * Filtering: only errors whose workflow_id matches the given workflowId, or
  * whose workflow_id is null (errors that apply globally / have no specific owner),
- * are included.
+ * are included. Pass workflowId = null to include all errors, e.g. for a node
+ * that hasn't been saved yet and so has no id to match against.
  *
  * Prefix stripping: the API encodes the discriminated-union type tag into field
  * paths (e.g. "nf-pipeline.url", "nf-module.params"). When the first path
@@ -22,10 +23,10 @@ import { WorkflowType } from './types'
  * Returns a Record mapping each field name to the list of error messages for
  * that field, ready to pass as :error-messages to Vuetify inputs.
  */
-export function extractFieldErrors(fieldErrors: FieldError[], workflowId: string): Record<string, string[]> {
+export function extractFieldErrors(fieldErrors: FieldError[], workflowId: string | null): Record<string, string[]> {
     const result: Record<string, string[]> = {}
     const discriminators = new Set<string>(Object.values(WorkflowType))
-    for (const err of fieldErrors.filter(e => e.workflow_id === workflowId || e.workflow_id === null)) {
+    for (const err of fieldErrors.filter(e => workflowId === null || e.workflow_id === workflowId || e.workflow_id === null)) {
         const parts = err.field.split('.')
         const stripped = parts.length > 1 && discriminators.has(parts[0]!)
             ? parts.slice(1).join('.')

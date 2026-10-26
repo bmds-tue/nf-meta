@@ -1,5 +1,3 @@
-import re
-
 import pytest
 import yaml
 
@@ -201,15 +199,29 @@ class TestModuleCommand:
 
 
 # ---------------------------------------------------------------------------
-# Resume (plans/P0-findings.md, H1/H12)
+# Locations: -log, -w, NXF_CACHE_DIR (plans/P0-findings.md, H5/H3/H12)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P2: each step needs its own NXF_CACHE_DIR, or a bare -resume in the "
-    "shared launch dir resumes the most recent session, usually another step's",
-)
-def test_resume_uses_a_per_step_nextflow_cache_dir(build, wf_rnaseq):
-    cmd = build(wf_rnaseq, resume=True)
-    assert re.search(re.escape(wf_rnaseq.id), cmd.env.get("NXF_CACHE_DIR", ""))
+class TestLocations:
+    def test_log_file_is_global_option_before_subcommand(self, build, wf_rnaseq, tmp_path):
+        argv = build(wf_rnaseq, log_file=tmp_path / "nf.log").argv
+        assert argv[:4] == ["nextflow", "-log", str(tmp_path / "nf.log"), "run"]
+
+    def test_log_file_before_module_subcommand(self, build, module_fastqc, tmp_path):
+        argv = build(module_fastqc, log_file=tmp_path / "nf.log").argv
+        assert argv[:5] == ["nextflow", "-log", str(tmp_path / "nf.log"), "module", "run"]
+
+    def test_work_dir_adds_w_flag(self, build, wf_rnaseq, tmp_path):
+        argv = build(wf_rnaseq, work_dir=tmp_path / "work").argv
+        assert argv[argv.index("-w") + 1] == str(tmp_path / "work")
+
+    def test_nextflow_cache_dir_sets_env(self, build, wf_rnaseq, tmp_path):
+        cmd = build(wf_rnaseq, nextflow_cache_dir=tmp_path / "nxf")
+        assert cmd.env == {"NXF_CACHE_DIR": str(tmp_path / "nxf")}
+
+    def test_defaults_leave_nextflow_defaults(self, build, wf_rnaseq):
+        cmd = build(wf_rnaseq)
+        assert cmd.env == {}
+        assert "-w" not in cmd.argv
+        assert "-log" not in cmd.argv

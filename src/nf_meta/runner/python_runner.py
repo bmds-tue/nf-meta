@@ -1,5 +1,7 @@
 import hashlib
+import json
 import logging
+import os
 import subprocess
 import threading
 from collections import deque
@@ -15,16 +17,29 @@ from rich.console import Console, Group
 
 from nf_meta.core.graph import MIN_NEXTFLOW_FOR_MODULES, MetaworkflowGraph
 from nf_meta.core.config import dump_config
-from nf_meta.core.models import Workflow, WorkflowType
+from nf_meta.core.models import GlobalOptions, Workflow, WorkflowType
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
 from .base_runner import BaseRunner, PlannedStep
 from .engines import StepCommand, engine_for
+from .paths import absolutize_input_paths, declared_path, is_url, param_schema
 from .spec import StepSpec, build_step_spec, resolve_references
 
 
 logger = logging.getLogger(__name__)
 console = Console()
+
+DEFAULT_OUT_DIR = "nf-meta-out"
+LEGACY_CACHE_DIR = ".nf-meta-cache"
+
+
+def _file_digest(path) -> str:
+    if not path:
+        return ""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return f"missing:{path}"
 
 
 class SimplePythonRunner(BaseRunner):
@@ -32,11 +47,16 @@ class SimplePythonRunner(BaseRunner):
     as a `nextflow run`/`nextflow module run` subprocess directly from this
     Python process, in DAG order, streaming output as it runs.
 
-    Caches each workflow's resolved params (after `${...}` substitution)
-    under `run_options.cachedir`, keyed by a content hash of the workflow's
-    definition. `resume=True` skips any workflow whose working directory
-    already recorded success, and passes Nextflow's own `-resume` through for
-    the ones that do run.
+    Every step runs Nextflow from the out dir (`run_options.out_dir`, default
+    `<project dir>/nf-meta-out`), sharing its `work/` dir. Relative input
+    paths are made absolute against the project dir first. nf-meta's own state
+    lives in `<out dir>/.nf-meta/`.
+
+    `resume=True` works on two levels: a step that already succeeded with an
+    identical step key (its definition, the content of its config and params
+    files, the globals and all upstream step keys) is skipped; a step that
+    runs is started with `-resume`, and each step has its own Nextflow cache
+    dir, so Nextflow resumes that step's last run.
     """
 
     RUNNER_NAME = "python"
@@ -49,17 +69,62 @@ class SimplePythonRunner(BaseRunner):
             and not Path(run_dir / self.ERROR_FILE).exists()
         )
 
-    def _workflow_dir(self, wf: Workflow) -> Path:
-        safe_name = wf.name.replace("/", "_")
-        return (
-            self.run_options.cachedir / f"{safe_name}_{wf.version}_{wf.hash()}"
-        ).resolve()
+    def __init__(self, run_options) -> None:
+        super().__init__(run_options)
+        self.out_dir: Optional[Path] = (
+            Path(run_options.out_dir).resolve() if run_options.out_dir else None
+        )
+
+    @property
+    def state_root(self) -> Path:
+        if self.out_dir is None:
+            raise NfMetaRunnerError("Out dir not set; call plan() first.")
+        return self.out_dir / ".nf-meta"
+
+    def _resolve_out_dir(self, graph: MetaworkflowGraph) -> Path:
+        if self.out_dir is not None:
+            return self.out_dir
+        if graph.project_dir is None:
+            raise NfMetaRunnerError(
+                "An out dir is required for a config loaded from a URL (--out)."
+            )
+        return (graph.project_dir / DEFAULT_OUT_DIR).resolve()
+
+    def _state_dir(self, wf: Workflow, step_key: str) -> Path:
+        return self.state_root / "steps" / f"{wf.id}_{step_key}"
+
+    def _nextflow_cache_dir(self, wf: Workflow) -> Path:
+        return self.state_root / "nextflow" / wf.id
+
+    def _step_key(
+        self,
+        wf: Workflow,
+        globals: Optional[GlobalOptions],
+        upstream_keys: list[str],
+    ) -> str:
+        """Hash of everything that defines a step's result: the resolved step,
+        the content of its config and params files, the globals, run-level
+        profile and stub flag, and the keys of all upstream steps."""
+        data = {
+            "workflow": wf.hash(),
+            "config_file": _file_digest(wf.config_file),
+            "params_file": _file_digest(getattr(wf, "params_file", None)),
+            "globals": globals.model_dump(mode="json") if globals else None,
+            "globals_config": _file_digest(globals.config_file if globals else None),
+            "profile": self.run_options.nf_profile or "",
+            "stub": self.run_options.stub,
+            "upstream": sorted(upstream_keys),
+        }
+        blob = json.dumps(data, sort_keys=True, default=str)
+        return hashlib.sha256(blob.encode()).hexdigest()[:8]
 
     def _resolved_params_path(self, wf: Workflow) -> Path:
-        return self.run_options.cachedir / f"{wf.id}_{wf.hash()}_resolved.yaml"
+        return self.state_root / "resolved" / f"{wf.id}_{wf.hash()}.yaml"
 
     def _write_resolved_params(self, raw_wf: Workflow, params: dict) -> None:
-        with open(self._resolved_params_path(raw_wf), "w") as f:
+        path = self._resolved_params_path(raw_wf)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
             yaml.dump(params, f)
 
     def _load_resolved_params(self, wf: Workflow) -> Optional[dict]:
@@ -96,9 +161,19 @@ class SimplePythonRunner(BaseRunner):
                 + "\n".join(errors)
             )
 
-    def _stream_proc_out(self, cmd: list[str]) -> tuple[int, str, str]:
+    def _stream_proc_out(
+        self,
+        cmd: list[str],
+        cwd: Optional[Path] = None,
+        env: Optional[dict[str, str]] = None,
+    ) -> tuple[int, str, str]:
         process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            cmd,
+            cwd=cwd,
+            env={**os.environ, **env} if env else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
 
         tail: deque[str] = deque(maxlen=self.run_options.output_lines)
@@ -141,11 +216,12 @@ class SimplePythonRunner(BaseRunner):
         """Run one step's command, streaming its output. Writes `OUT_FILE`
         and, on failure, `ERROR_FILE` to the step's state dir."""
         spec.state_dir.mkdir(parents=True, exist_ok=True)
+        command.cwd.mkdir(parents=True, exist_ok=True)
         command.write_files()
 
         argv = [check_nextflow(), *command.argv[1:]]
         logger.info(f"Running nextflow command: {argv}")
-        exit_code, out, err = self._stream_proc_out(argv)
+        exit_code, out, err = self._stream_proc_out(argv, cwd=command.cwd, env=command.env)
 
         with (spec.state_dir / self.OUT_FILE).open("w") as f:
             f.write(out)
@@ -186,45 +262,89 @@ class SimplePythonRunner(BaseRunner):
 
         Raises:
             NfMetaRunnerError: if a step outside the selection is referenced
-                but has no cached run.
+                but has no cached run, if no out dir can be determined, or if
+                a config loaded from a URL has relative input paths.
         """
-        self.run_options.cachedir = Path(self.run_options.cachedir)
+        self.out_dir = self._resolve_out_dir(graph)
+        project_dir = graph.project_dir
+        globals = graph.global_options
         workflows = self._selected_workflows(graph)
         subset_ids = {wf.id for wf in workflows}
         self._validate_cross_boundary_refs(graph, workflows, subset_ids)
 
-        # Resolved params per workflow id, seeded from cached runs of excluded workflows
+        # Resolved params and step keys per workflow id, seeded from cached runs
+        # of excluded workflows
         resolved: dict[str, dict] = {}
+        keys: dict[str, str] = {}
         for wf in graph.get_workflows():
             if wf.id not in subset_ids:
+                keys[wf.id] = wf.hash()
                 cached = self._load_resolved_params(wf)
                 if cached is not None:
                     resolved[wf.id] = cached
 
         planned: list[PlannedStep] = []
         for wf in workflows:
+            schema = param_schema(wf)
+            if project_dir is not None and wf.params:
+                wf = wf.model_copy(
+                    update={"params": absolutize_input_paths(wf.params, project_dir, schema)}
+                )
+            elif project_dir is None:
+                self._reject_relative_inputs(wf, schema)
+
             wf_resolved = resolve_references(wf, graph, resolved=resolved)
             resolved[wf.id] = wf_resolved.params or {}
 
+            upstream = [keys[p.id] for p in graph.predecessors(wf) if p.id in keys]
+            key = self._step_key(wf_resolved, globals, upstream)
+            keys[wf.id] = key
+            state_dir = self._state_dir(wf, key)
+
             spec = build_step_spec(
                 wf_resolved,
-                graph.global_options,
-                state_dir=self._workflow_dir(wf_resolved),
-                launch_dir=Path.cwd(),
+                globals,
+                state_dir=state_dir,
+                launch_dir=self.out_dir,
+                work_dir=self.out_dir / "work",
+                log_file=state_dir / "nextflow.log",
+                nextflow_cache_dir=self._nextflow_cache_dir(wf),
+                project_dir=project_dir,
+                schema=schema,
                 extra_profile=self.run_options.nf_profile or "",
                 resume=resume,
                 stub=self.run_options.stub,
             )
             planned.append(
                 PlannedStep(
-                    workflow=wf,
+                    workflow=graph.get_workflow_by_id(wf.id) or wf,
                     resolved_params=wf_resolved.params or {},
                     spec=spec,
                     command=engine_for(spec.workflow_type).build(spec),
-                    skip=resume and self._check_run_success(run_dir=spec.state_dir),
+                    skip=resume and self._check_run_success(run_dir=state_dir),
                 )
             )
         return planned
+
+    @staticmethod
+    def _reject_relative_inputs(wf: Workflow, schema: dict[str, dict]) -> None:
+        relative = [
+            f"{wf.id}.{key} = {value!r}"
+            for key, value in (wf.params or {}).items()
+            if declared_path(schema.get(key))
+            and key != "outdir"
+            and isinstance(value, str)
+            and value
+            and "${" not in value
+            and not is_url(value)
+            and not Path(value).is_absolute()
+        ]
+        if relative:
+            raise NfMetaRunnerError(
+                "Relative input paths in a config loaded from a URL: "
+                + ", ".join(relative)
+                + ". Use absolute paths or URLs, or declare them as inputs."
+            )
 
     def _check_nextflow(self, graph: MetaworkflowGraph, steps: list[PlannedStep]) -> None:
         if graph.global_options.nextflow_version_tuple:
@@ -241,7 +361,7 @@ class SimplePythonRunner(BaseRunner):
     def run(self, graph: MetaworkflowGraph, resume=False):
         steps = self.plan(graph, resume=resume)
         self._check_nextflow(graph, steps)
-        self.run_options.cachedir.mkdir(parents=True, exist_ok=True)
+        self._notice_legacy_cache(graph)
 
         for i, step in enumerate(steps):
             step_label = f"Step {i + 1}/{len(steps)} - {step.workflow.name}"
@@ -264,6 +384,17 @@ class SimplePythonRunner(BaseRunner):
 
         console.print("[bold green]All workflows completed successfully[/bold green]")
         logger.info("All workflows completed")
+
+    def _notice_legacy_cache(self, graph: MetaworkflowGraph) -> None:
+        candidates = {Path.cwd() / LEGACY_CACHE_DIR}
+        if graph.project_dir is not None:
+            candidates.add(graph.project_dir / LEGACY_CACHE_DIR)
+        for old in candidates:
+            if old.is_dir():
+                console.print(
+                    f"[yellow]Note:[/yellow] {old} is from an older nf-meta and is no "
+                    f"longer used; results now go to {self.out_dir}."
+                )
 
     def resume(self, graph: MetaworkflowGraph):
         self.run(graph, resume=True)

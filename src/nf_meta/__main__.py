@@ -165,13 +165,30 @@ def validate_config(config, verbose, scope):
     help="Run all workflows as stub runs (passes -stub to Nextflow)",
 )
 @click.option(
+    "--out",
+    "-o",
+    "out_dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory to run in and write results to (default: nf-meta-out next to the config)",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Print each step's command and params file without running anything",
 )
 @handle_validation_errors
 def run(
-    config, verbose, runner, resume, output_lines, start, target, profile, stub, dry_run
+    config,
+    verbose,
+    runner,
+    resume,
+    output_lines,
+    start,
+    target,
+    profile,
+    stub,
+    out_dir,
+    dry_run,
 ):
     from nf_meta.runner import (
         plan_metapipeline,
@@ -190,6 +207,7 @@ def run(
             resume=resume,
             start=start,
             target=target,
+            out_dir=out_dir,
         )
         g = from_file(config)
         if dry_run:
@@ -211,7 +229,8 @@ def _print_plan(steps) -> None:
             header += " -- skipped, already done"
         click.echo(click.style(header, bold=True))
         click.echo(f"  cwd: {step.command.cwd}")
-        click.echo(f"  {shlex.join(step.command.argv)}")
+        env = " ".join(f"{k}={shlex.quote(v)}" for k, v in step.command.env.items())
+        click.echo(f"  {env + ' ' if env else ''}{shlex.join(step.command.argv)}")
         if step.command.params_file:
             click.echo(f"  {step.command.params_file}:")
             for line in yaml.safe_dump(step.command.params, sort_keys=False).splitlines():

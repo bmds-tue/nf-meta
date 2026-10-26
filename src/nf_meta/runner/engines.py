@@ -64,6 +64,24 @@ class Engine(ABC):
         return spec.state_dir / PARAMS_FILE if spec.params else None
 
 
+def _nextflow(spec: StepSpec, *subcommand: str) -> list[str]:
+    """`nextflow [-log <file>] <subcommand...> -ansi-log false [-w <dir>]`.
+    `-log` is a global option and must precede the subcommand."""
+    argv = ["nextflow"]
+    if spec.log_file:
+        argv += ["-log", str(spec.log_file)]
+    argv += [*subcommand, "-ansi-log", "false"]
+    if spec.work_dir:
+        argv += ["-w", str(spec.work_dir)]
+    return argv
+
+
+def _env(spec: StepSpec) -> dict[str, str]:
+    if spec.nextflow_cache_dir is None:
+        return {}
+    return {"NXF_CACHE_DIR": str(spec.nextflow_cache_dir)}
+
+
 def engine_for(workflow_type: WorkflowType) -> Engine:
     """Return the engine registered for `workflow_type`.
 
@@ -86,7 +104,7 @@ class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
         wf = cast(NfPipeline, spec.workflow)
         params_file = self._params_file(spec)
 
-        argv = ["nextflow", "run", "-ansi-log", "false"]
+        argv = _nextflow(spec, "run")
         if spec.resume:
             argv += ["-resume"]
         for cfg in spec.config_files:
@@ -107,7 +125,11 @@ class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
             argv += ["-stub"]
 
         return StepCommand(
-            argv=argv, cwd=spec.launch_dir, params_file=params_file, params=spec.params
+            argv=argv,
+            cwd=spec.launch_dir,
+            env=_env(spec),
+            params_file=params_file,
+            params=spec.params,
         )
 
 
@@ -118,7 +140,7 @@ class NextflowModuleEngine(Engine, workflow_type=WorkflowType.NF_MODULE):
         wf = cast(NfModule, spec.workflow)
         params_file = self._params_file(spec)
 
-        argv = ["nextflow", "module", "run", "-ansi-log", "false"]
+        argv = _nextflow(spec, "module", "run")
         if spec.resume:
             argv += ["-resume"]
         for cfg in spec.config_files:
@@ -133,5 +155,9 @@ class NextflowModuleEngine(Engine, workflow_type=WorkflowType.NF_MODULE):
             argv += ["-stub"]
 
         return StepCommand(
-            argv=argv, cwd=spec.launch_dir, params_file=params_file, params=spec.params
+            argv=argv,
+            cwd=spec.launch_dir,
+            env=_env(spec),
+            params_file=params_file,
+            params=spec.params,
         )

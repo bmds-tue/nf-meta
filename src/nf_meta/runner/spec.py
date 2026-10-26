@@ -5,6 +5,7 @@ from typing import Any, Optional
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import GlobalOptions, Workflow, WorkflowType, load_params_file
 from .errors import NfMetaRunnerError
+from .paths import absolutize_input_paths
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,9 @@ class StepSpec:
         work_dir: Nextflow work dir (`-w`), or `None` for Nextflow's default.
         state_dir: Directory for nf-meta's per-step files (params file, output
             and error logs).
+        log_file: Nextflow log file (`-log`), or `None` for Nextflow's default.
+        nextflow_cache_dir: `NXF_CACHE_DIR` for this step (Nextflow's run
+            history and task cache), or `None` for Nextflow's default.
         resume: Pass `-resume` to Nextflow.
         stub: Pass `-stub` to Nextflow.
     """
@@ -36,6 +40,8 @@ class StepSpec:
     launch_dir: Path
     work_dir: Optional[Path]
     state_dir: Path
+    log_file: Optional[Path] = None
+    nextflow_cache_dir: Optional[Path] = None
     resume: bool = False
     stub: bool = False
 
@@ -119,12 +125,20 @@ def build_step_spec(
     state_dir: Path,
     launch_dir: Path,
     work_dir: Optional[Path] = None,
+    log_file: Optional[Path] = None,
+    nextflow_cache_dir: Optional[Path] = None,
+    project_dir: Optional[Path] = None,
+    schema: Optional[dict[str, dict]] = None,
     extra_profile: str = "",
     resume: bool = False,
     stub: bool = False,
 ) -> StepSpec:
     """Combine a step whose references are already resolved with the run's
     globals and locations into a `StepSpec`.
+
+    With a `project_dir`, relative input paths in the step's `params_file` and
+    in `globals.params` are made absolute against it (`paths.is_input_path`,
+    using `schema`). The step's own params are taken as they are.
 
     Raises:
         NfMetaRunnerError: if the global config file doesn't exist.
@@ -133,6 +147,8 @@ def build_step_spec(
     params: dict[str, Any] = dict(load_params_file(params_file)) if params_file else {}
     if globals and globals.params:
         params.update(globals.params)
+    if project_dir is not None:
+        params = absolutize_input_paths(params, project_dir, schema)
     params.update(wf.params or {})
 
     profile = getattr(wf, "profile", None)
@@ -161,6 +177,8 @@ def build_step_spec(
         launch_dir=launch_dir,
         work_dir=work_dir,
         state_dir=state_dir,
+        log_file=log_file,
+        nextflow_cache_dir=nextflow_cache_dir,
         resume=resume,
         stub=stub,
     )

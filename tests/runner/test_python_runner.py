@@ -13,7 +13,7 @@ from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 
 @pytest.fixture
 def runner(mock_nextflow, tmp_path):
-    return SimplePythonRunner(RunOptions(cachedir=tmp_path))
+    return SimplePythonRunner(RunOptions(out_dir=tmp_path))
 
 
 @pytest.fixture
@@ -33,10 +33,12 @@ def graph_two(wf_rnaseq, wf_fetchngs):
 
 
 class TestHelpers:
-    def test_workflow_dir_contains_name_and_version(self, runner, wf_rnaseq):
-        d = runner._workflow_dir(wf_rnaseq)
-        assert "rnaseq" in str(d)
-        assert wf_rnaseq.version in str(d)
+    def test_state_dir_is_under_out_dir_and_named_by_step_id(
+        self, runner, graph_two, wf_rnaseq, tmp_path
+    ):
+        state_dir = runner.plan(graph_two)[1].spec.state_dir
+        assert state_dir.parent == tmp_path / ".nf-meta" / "steps"
+        assert state_dir.name.startswith(f"{wf_rnaseq.id}_")
 
     def test_check_run_success_true(self, runner, tmp_path):
         run_dir = tmp_path / "run"
@@ -223,7 +225,7 @@ class TestExecute:
         wf = wf_rnaseq.model_copy(update={"params": {"input": "samples.csv"}})
         seen = {}
 
-        def capture(argv):
+        def capture(argv, **kwargs):
             params_file = argv[argv.index("-params-file") + 1]
             seen["params"] = yaml.safe_load(open(params_file))
             return (0, "out", "")
@@ -261,7 +263,7 @@ class TestPlan:
         assert list(tmp_path.iterdir()) == []
 
     def test_marks_succeeded_steps_skipped_on_resume(self, runner, graph_two, wf_fetchngs):
-        state_dir = runner._workflow_dir(wf_fetchngs)
+        state_dir = runner.plan(graph_two)[0].spec.state_dir
         state_dir.mkdir(parents=True)
         (state_dir / SimplePythonRunner.OUT_FILE).write_text("done")
         skips = {s.workflow.id: s.skip for s in runner.plan(graph_two, resume=True)}
@@ -309,7 +311,7 @@ class TestRun:
     def test_run_skips_succeeded_workflow_when_resuming(
         self, runner, graph_two, wf_fetchngs
     ):
-        wf_dir = runner._workflow_dir(wf_fetchngs)
+        wf_dir = runner.plan(graph_two)[0].spec.state_dir
         wf_dir.mkdir(parents=True, exist_ok=True)
         (wf_dir / SimplePythonRunner.OUT_FILE).write_text("done")
 

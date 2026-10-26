@@ -227,6 +227,21 @@ class TestRunDryRun:
 
         assert result.exit_code == 0, result.output
         assert "Step 1/2: n01 (nf-core/fetchngs)" in result.output
-        assert "nextflow run -ansi-log false" in result.output
+        assert f"cwd: {tmp_path / 'nf-meta-out'}" in result.output
+        assert "NXF_CACHE_DIR=" in result.output
+        assert " run -ansi-log false -w " in result.output
         assert "input: out_fetchngs/samplesheet.csv" in result.output
         assert sorted(p.name for p in tmp_path.iterdir()) == ["metapipeline.yaml"]
+
+    def test_out_option_sets_launch_dir(self, tmp_path, monkeypatch):
+        path = _write(
+            tmp_path,
+            "config_version: 0.3.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n"
+            "    version: 1.12.0\n",
+        )
+        out = tmp_path / "results"
+        result = CliRunner().invoke(
+            cli, ["run", "-r", "python", "--dry-run", "--out", str(out), str(path)]
+        )
+        assert result.exit_code == 0, result.output
+        assert f"cwd: {out}" in result.output

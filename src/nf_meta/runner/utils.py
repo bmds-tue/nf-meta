@@ -25,9 +25,10 @@ class RunOptions:
     Attributes:
         runner_name: Name of the runner backend to use. Must match a key
             registered in ``base_runner._REGISTRY``.
-        cachedir: Directory used for all per-workflow working directories,
-            resolved-param cache files, and Nextflow work directories.
-            Created automatically if it does not exist.
+        out_dir: Directory every step runs in: step outputs with relative
+            `outdir`s land here, plus Nextflow's work dir (`work/`) and
+            nf-meta's state (`.nf-meta/`). `None` means
+            `<project dir>/nf-meta-out`. Created if it does not exist.
         verbose: Enables verbose logging output.
         output_lines: Number of most-recent output lines shown in the live
             scrolling panel while a workflow step is running. Only has an
@@ -53,7 +54,7 @@ class RunOptions:
     """
 
     runner_name: str = "python"
-    cachedir: Path = Path(".nf-meta-cache")
+    out_dir: Optional[Path] = None
     verbose: bool = False
     output_lines: int = 20
     start: Optional[str] = None

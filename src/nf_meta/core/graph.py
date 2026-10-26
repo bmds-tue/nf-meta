@@ -5,6 +5,7 @@ import networkx as nx
 
 from .models import (
     GlobalOptions,
+    NfModule,
     Transition,
     Workflow,
     WorkflowReference,
@@ -26,6 +27,19 @@ from .errors import (
     Severity,
 )
 from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
+
+
+MIN_NEXTFLOW_FOR_MODULES = (26, 4)
+
+
+def _nextflow_too_old_for_modules(nextflow_version) -> bool:
+    """Whether a configured `nextflow_version` is known to predate `nextflow
+    module` (26.04). A bare major version (`26`) is not known to be too old."""
+    parts = str(nextflow_version).removesuffix("-edge").split(".")
+    major = int(parts[0])
+    if major != MIN_NEXTFLOW_FOR_MODULES[0]:
+        return major < MIN_NEXTFLOW_FOR_MODULES[0]
+    return len(parts) > 1 and int(parts[1]) < MIN_NEXTFLOW_FOR_MODULES[1]
 
 
 class MetaworkflowGraph:
@@ -77,6 +91,7 @@ class MetaworkflowGraph:
         if self._validation_suspended is not None:
             self._validation_suspended.add(wf.id)
         else:
+            self.validate_module_nextflow_version(self.global_options, [wf])
             diagnostics = run_dynamic_checks(wf, previous=None)
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
@@ -107,6 +122,7 @@ class MetaworkflowGraph:
         if self._validation_suspended is not None:
             self._validation_suspended.add(wf.id)
         else:
+            self.validate_module_nextflow_version(self.global_options, [wf])
             diagnostics = run_dynamic_checks(wf, previous=old_wf)
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
@@ -173,9 +189,11 @@ class MetaworkflowGraph:
             self.validate_param_references(source_wf)  # type: ignore
 
     def update_global_options(self, glob: GlobalOptions):
-        """Replace the graph's `GlobalOptions` wholesale. Not validated against
-        individual workflows -- per-workflow effects (e.g. a shared `profile`)
-        are only checked when that workflow is itself next validated."""
+        """Replace the graph's `GlobalOptions` wholesale. Raises
+        `ConfigValidationError` if `nextflow_version` is too old for the
+        graph's `nf-module` steps; otherwise not validated against individual
+        workflows."""
+        self.validate_module_nextflow_version(glob, self.get_workflows())
         old_globals = self.global_options
         self.global_options = glob
         self._emit(GlobalOptionsUpdated(new_globals=glob, old_globals=old_globals))
@@ -240,6 +258,39 @@ class MetaworkflowGraph:
         if diagnostics:
             raise ConfigValidationError(diagnostics)
 
+    def module_nextflow_version_diagnostics(
+        self, glob: Optional[GlobalOptions], workflows: list[Workflow]
+    ) -> list[Diagnostic]:
+        """Return an error if `glob.nextflow_version` predates `nextflow
+        module` (26.04) while `workflows` contains an `nf-module` step."""
+        version = glob.nextflow_version if glob else None
+        if version is None or not _nextflow_too_old_for_modules(version):
+            return []
+        modules = [wf.id for wf in workflows if isinstance(wf, NfModule)]
+        if not modules:
+            return []
+        return [
+            Diagnostic(
+                workflow_id=None,
+                field="nextflow_version",
+                yaml_path="globals.nextflow_version",
+                message=(
+                    f"nextflow_version '{version}' is too old for nf-module steps "
+                    f"({', '.join(modules)}): `nextflow module` needs Nextflow >= 26.04"
+                ),
+                severity=Severity.ERROR,
+            )
+        ]
+
+    def validate_module_nextflow_version(
+        self, glob: Optional[GlobalOptions], workflows: list[Workflow]
+    ):
+        """Raise `ConfigValidationError` for the problem described in
+        `module_nextflow_version_diagnostics`."""
+        diagnostics = self.module_nextflow_version_diagnostics(glob, workflows)
+        if diagnostics:
+            raise ConfigValidationError(diagnostics)
+
     def validate_graph_topology(self):
         """Raise `GraphValidationError` if the graph contains a cycle."""
         # Detect cycles
@@ -278,6 +329,8 @@ class MetaworkflowGraph:
         for n in self.G.nodes:
             wf = self.get_workflow_by_id(n)
             self.validate_param_references(wf)  # type: ignore
+
+        self.validate_module_nextflow_version(self.global_options, self.get_workflows())
 
         if touched:
             # Batched, concurrent dynamic check scoped to only the workflows

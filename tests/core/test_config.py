@@ -599,3 +599,22 @@ class TestDynamicValidationOnLoad:
         }
         g = validated_graph(data)
         assert g.get_workflow_by_id(module.id) is not None
+
+
+# ---------------------------------------------------------------------------
+# nf-module steps need Nextflow >= 26.04
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("collect_errors", [False, True])
+def test_module_with_old_nextflow_version_rejected(collect_errors):
+    data = {
+        "config_version": "0.3.0",
+        "globals": {"nextflow_version": "25.10"},
+        "workflows": {
+            "m1": {"type": "nf-module", "name": "nf-core/fastqc", "version": "0.0.0-6c4ed3a"}
+        },
+    }
+    with pytest.raises(ConfigValidationError) as exc:
+        validated_graph(data, collect_errors=collect_errors)
+    assert any(d.yaml_path == "globals.nextflow_version" for d in exc.value.errors)

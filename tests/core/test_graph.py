@@ -1,6 +1,7 @@
 import pytest
 
 from nf_meta.core.models import (  # type: ignore[import]
+    GlobalOptions,
     NfModule,
     NfPipeline,
     Transition,
@@ -403,3 +404,42 @@ class TestUtilities:
 
     def test_get_transition_missing_returns_none(self, empty_graph):
         assert empty_graph.get_transition("a", "b") is None
+
+
+# ---------------------------------------------------------------------------
+# nf-module steps need Nextflow >= 26.04
+# ---------------------------------------------------------------------------
+
+
+class TestModuleNextflowVersion:
+    @pytest.mark.parametrize("version", ["25", "25.10.4", "26.03", "26.3.1"])
+    def test_add_module_with_old_version_raises(self, empty_graph, module_fastqc, version):
+        empty_graph.global_options = GlobalOptions(nextflow_version=version)
+        with pytest.raises(ConfigValidationError, match="26.04"):
+            empty_graph.add_workflow(module_fastqc)
+        assert empty_graph.get_workflow_by_id(module_fastqc.id) is None
+
+    @pytest.mark.parametrize("version", [None, "26", "26.04", "26.10.3", "27"])
+    def test_add_module_with_recent_or_unset_version(self, empty_graph, module_fastqc, version):
+        empty_graph.global_options = GlobalOptions(nextflow_version=version)
+        empty_graph.add_workflow(module_fastqc)
+        assert empty_graph.get_workflow_by_id(module_fastqc.id) is not None
+
+    def test_old_version_fine_without_modules(self, empty_graph, wf_rnaseq):
+        empty_graph.global_options = GlobalOptions(nextflow_version="25")
+        empty_graph.add_workflow(wf_rnaseq)
+
+    def test_lowering_globals_version_with_module_raises(self, empty_graph, module_fastqc):
+        empty_graph.add_workflow(module_fastqc)
+        before = empty_graph.global_options
+        with pytest.raises(ConfigValidationError, match="26.04"):
+            empty_graph.update_global_options(GlobalOptions(nextflow_version="25.10"))
+        assert empty_graph.global_options is before
+
+    def test_diagnostic_points_at_globals(self, empty_graph, module_fastqc):
+        diagnostics = empty_graph.module_nextflow_version_diagnostics(
+            GlobalOptions(nextflow_version="25"), [module_fastqc]
+        )
+        assert [(d.workflow_id, d.yaml_path) for d in diagnostics] == [
+            (None, "globals.nextflow_version")
+        ]

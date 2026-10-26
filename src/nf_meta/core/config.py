@@ -372,6 +372,9 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
                 )
             )
 
+    diagnostics.extend(
+        g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows())
+    )
     _warn_about_module_executor(g)
 
     if diagnostics or graph_messages:

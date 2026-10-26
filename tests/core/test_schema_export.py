@@ -40,7 +40,7 @@ class TestGenerateSchema:
         )
         data = {
             "config_version": "0.3.0",
-            "globals": {"profile": "docker", "nextflow_version": "25.10.4"},
+            "globals": {"profile": "docker", "nextflow_version": "26.04.0"},
             "workflows": {
                 "wf_a": {
                     "name": "nf-core/fetchngs",

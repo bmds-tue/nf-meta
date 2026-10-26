@@ -29,6 +29,7 @@ from .models import (
     WorkflowType,
     validate_config_version,
     CONFIG_VERSION_MAX,
+    INPUTS_MIN_CONFIG_VERSION,
 )
 from .errors import (
     ConfigValidationError,
@@ -38,6 +39,8 @@ from .errors import (
     diagnostics_from_pydantic_error,
 )
 from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
+from .inputs import InputDefinition
+from packaging.version import Version
 
 logger = logging.getLogger()
 
@@ -233,7 +236,58 @@ def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
     return validated_globals(data)
 
 
-def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
+def parse_inputs(data: dict, config_version: str) -> tuple[dict[str, InputDefinition], list[Diagnostic]]:
+    """Parse the config's `inputs:` section. Returns the definitions that
+    parsed and a diagnostic per problem (malformed entries, or `inputs:` in a
+    config version that predates it)."""
+    raw = data.get("inputs")
+    if raw is None:
+        return {}, []
+    if not isinstance(raw, dict):
+        return {}, [
+            Diagnostic(
+                workflow_id=None,
+                field="inputs",
+                yaml_path="inputs",
+                message=f"'inputs:' must be a mapping keyed by input name, got {type(raw).__name__!r}",
+                severity=Severity.ERROR,
+            )
+        ]
+
+    diagnostics: list[Diagnostic] = []
+    if raw and Version(config_version) < Version(INPUTS_MIN_CONFIG_VERSION):
+        diagnostics.append(
+            Diagnostic(
+                workflow_id=None,
+                field="inputs",
+                yaml_path="inputs",
+                message=f"'inputs:' needs config_version {INPUTS_MIN_CONFIG_VERSION} or later",
+                severity=Severity.ERROR,
+            )
+        )
+
+    definitions: dict[str, InputDefinition] = {}
+    for name, entry in raw.items():
+        try:
+            definitions[str(name)] = InputDefinition.from_config(entry)
+        except ValidationError as e:
+            diagnostics.extend(
+                diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix=f"inputs.{name}.")
+            )
+        except (TypeError, ValueError) as e:
+            diagnostics.append(
+                Diagnostic(
+                    workflow_id=None,
+                    field=str(name),
+                    yaml_path=f"inputs.{name}",
+                    message=str(e),
+                    severity=Severity.ERROR,
+                )
+            )
+    return definitions, diagnostics
+
+
+def _fast_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
     failing fast: raises immediately on the first problem found (a workflow's
     construction, graph topology, cross-workflow references, or a tier-2
@@ -252,6 +306,7 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
     items, pending_transitions = _extract_items_and_transitions(data)
 
     g = MetaworkflowGraph()
+    g.project_dir = project_dir
     g.config_version = config_version
 
     with g.deferred_validation():
@@ -277,6 +332,12 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
                     )
                 ) from e
 
+        inputs, input_errors = parse_inputs(data, config_version)
+        if input_errors:
+            raise ConfigValidationError(input_errors)
+        g.inputs = inputs
+        g._inputs_touched = bool(inputs)
+
         _warn_about_module_executor(g)
 
     # Reset events accumulated by add_workflow/add_transition during initial load
@@ -285,7 +346,7 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
     return g
 
 
-def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
+def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
     collecting every problem instead of stopping at the first -- used by the
     CLI's `validate` command so one run can show a construction error, a
@@ -312,6 +373,7 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
     items, pending_transitions = _extract_items_and_transitions(data)
 
     g = MetaworkflowGraph()
+    g.project_dir = project_dir
     g.config_version = config_version
 
     diagnostics: list[Diagnostic] = []
@@ -361,7 +423,16 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
         except ConfigValidationError as e:
             diagnostics.extend(e.errors)
 
-    tier2_diagnostics = check_all(constructed)
+    inputs, input_errors = parse_inputs(data, config_version)
+    diagnostics.extend(input_errors)
+    g.inputs = inputs
+    input_diagnostics = g.input_diagnostics()
+    if inputs:
+        input_diagnostics += g.effective_inputs()[1]
+    diagnostics.extend(d for d in input_diagnostics if d.severity == Severity.ERROR)
+    log_warnings(input_diagnostics)
+
+    tier2_diagnostics = check_all([g.with_input_placeholders(wf) for wf in constructed])
     diagnostics.extend(d for d in tier2_diagnostics if d.severity == Severity.ERROR)
     log_warnings(tier2_diagnostics)
 
@@ -460,9 +531,9 @@ def validated_graph(
     """
     project_dir = (project_dir or Path.cwd()).resolve()
     data = _resolve_config_paths(data, project_dir)
-    g = _full_validated_graph(data) if collect_errors else _fast_validated_graph(data)
-    g.project_dir = project_dir
-    return g
+    if collect_errors:
+        return _full_validated_graph(data, project_dir)
+    return _fast_validated_graph(data, project_dir)
 
 
 def is_remote_config(location: str | Path) -> bool:
@@ -497,8 +568,8 @@ def from_file(cfg_file: str | Path, *, collect_errors: bool = False) -> "Metawor
 
 def dump_config(g: "MetaworkflowGraph") -> dict:
     """Project a `MetaworkflowGraph` back to the config's dict shape (the
-    inverse of `validated_graph`): `config_version`, `globals` (omitted if
-    empty), and `workflows` keyed by id with each workflow's own `from:` list
+    inverse of `validated_graph`): `config_version`, `globals` and `inputs`
+    (each omitted if empty), and `workflows` keyed by id with each workflow's own `from:` list
     reconstructed from the graph's edges. Always writes the current
     dict-keyed `workflows:` + per-workflow `from:` form, never the legacy
     list/top-level-`transitions:` shapes, even if the graph was loaded from
@@ -519,11 +590,14 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
         "globals": g.global_options.model_dump(exclude_none=True)
         if g.global_options
         else None,
+        "inputs": {name: d.model_dump_config() for name, d in g.inputs.items()},
         "workflows": workflows_dict,
     }
 
     if not config_dict["globals"]:
         del config_dict["globals"]
+    if not config_dict["inputs"]:
+        del config_dict["inputs"]
 
     return config_dict
 

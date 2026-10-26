@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 import networkx as nx
+from packaging.version import Version
 
 from .models import (
     GlobalOptions,
@@ -11,8 +12,12 @@ from .models import (
     Workflow,
     WorkflowReference,
     CONFIG_VERSION_MAX,
+    INPUTS_MIN_CONFIG_VERSION,
 )
 from .events import (
+    InputAdded,
+    InputRemoved,
+    InputUpdated,
     Event,
     WorkflowAdded,
     WorkflowRemoved,
@@ -27,7 +32,9 @@ from .errors import (
     GraphValidationError,
     Severity,
 )
-from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
+from .dynamic_validation import check_all, check_inputs, log_warnings, run_dynamic_checks
+from .inputs import Binding, Input, InputDefinition, input_refs
+from .refs import INPUT_REF_PATTERN
 
 
 MIN_NEXTFLOW_FOR_MODULES = (26, 4)
@@ -65,11 +72,13 @@ class MetaworkflowGraph:
         self.G: nx.DiGraph = nx.DiGraph()
         self.global_options = GlobalOptions()
         self.config_version: str = CONFIG_VERSION_MAX
+        self.inputs: dict[str, InputDefinition] = {}
         self._events: list[Event] = []
         # None = not suspended. A set = suspended, accumulating the ids of
         # workflows touched while suspended, so deferred_validation's exit
         # can scope the batched dynamic check to only those (see validate()).
         self._validation_suspended: Optional[set[str]] = None
+        self._inputs_touched = False
 
     def _emit(self, event: Event):
         self._events.append(event)
@@ -96,7 +105,7 @@ class MetaworkflowGraph:
             self._validation_suspended.add(wf.id)
         else:
             self.validate_module_nextflow_version(self.global_options, [wf])
-            diagnostics = run_dynamic_checks(wf, previous=None)
+            diagnostics = run_dynamic_checks(self.with_input_placeholders(wf), previous=None)
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
             log_warnings(diagnostics)
@@ -104,8 +113,10 @@ class MetaworkflowGraph:
         self.G.add_node(wf.id, workflow=wf.model_copy())
 
         try:
-            if wf.params and self._validation_suspended is None:
-                self.validate_param_references(wf)
+            if self._validation_suspended is None:
+                if wf.params:
+                    self.validate_param_references(wf)
+                self.validate_inputs(dynamic=False)
             self._emit(WorkflowAdded(wf))
         except (GraphValidationError, ConfigValidationError) as e:
             self.G.remove_node(wf.id)
@@ -127,7 +138,10 @@ class MetaworkflowGraph:
             self._validation_suspended.add(wf.id)
         else:
             self.validate_module_nextflow_version(self.global_options, [wf])
-            diagnostics = run_dynamic_checks(wf, previous=old_wf)
+            diagnostics = run_dynamic_checks(
+                self.with_input_placeholders(wf),
+                previous=self.with_input_placeholders(old_wf),  # type: ignore[arg-type]
+            )
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
             log_warnings(diagnostics)
@@ -135,6 +149,12 @@ class MetaworkflowGraph:
                 self.validate_param_references(wf)
 
         self.G.nodes[wf.id]["workflow"] = wf.model_copy()
+        if self._validation_suspended is None:
+            try:
+                self.validate_inputs(dynamic=False)
+            except ConfigValidationError:
+                self.G.nodes[wf.id]["workflow"] = old_wf
+                raise
         self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))  # type: ignore
 
     def remove_workflow(self, wf_id: str, recursive=False):
@@ -201,6 +221,210 @@ class MetaworkflowGraph:
         old_globals = self.global_options
         self.global_options = glob
         self._emit(GlobalOptionsUpdated(new_globals=glob, old_globals=old_globals))
+
+    # ===========================
+    #          INPUTS
+    # ===========================
+    def add_input(self, name: str, definition: InputDefinition):
+        """Declare input `name`. Raises `ValueError` if it already exists and
+        `ConfigValidationError` if it makes the graph invalid (the graph is
+        then unchanged). Raises the config version to the first one that
+        supports inputs if needed."""
+        if name in self.inputs:
+            raise ValueError(f"Input '{name}' already exists")
+        self.inputs[name] = definition
+        try:
+            self._after_input_change([b.step_id for b in definition.bindings])
+        except Exception:
+            del self.inputs[name]
+            raise
+        self._ensure_inputs_config_version()
+        self._emit(InputAdded(name, definition))
+
+    def update_input(self, name: str, definition: InputDefinition):
+        """Replace input `name`'s declaration. Same validation as `add_input`;
+        raises `ValueError` if it doesn't exist."""
+        if name not in self.inputs:
+            raise ValueError(f"Input '{name}' does not exist")
+        old = self.inputs[name]
+        self.inputs[name] = definition
+        affected = [b.step_id for b in (*old.bindings, *definition.bindings)]
+        try:
+            self._after_input_change(affected)
+        except Exception:
+            self.inputs[name] = old
+            raise
+        self._emit(InputUpdated(name, new_definition=definition, old_definition=old))
+
+    def remove_input(self, name: str):
+        """Remove input `name`. Raises `ValueError` if it doesn't exist and
+        `ConfigValidationError` if a param still refers to it."""
+        if name not in self.inputs:
+            raise ValueError(f"Input '{name}' does not exist")
+        old = self.inputs.pop(name)
+        try:
+            self._after_input_change([b.step_id for b in old.bindings])
+        except Exception:
+            self.inputs[name] = old
+            raise
+        self._emit(InputRemoved(name, old))
+
+    def _after_input_change(self, affected_step_ids: list[str]) -> None:
+        if self._validation_suspended is not None:
+            self._validation_suspended.update(affected_step_ids)
+            self._inputs_touched = True
+            return
+        self.validate_inputs(dynamic=True)
+        workflows = [
+            self.with_input_placeholders(wf)
+            for wf in (self.get_workflow_by_id(i) for i in set(affected_step_ids))
+            if wf is not None
+        ]
+        diagnostics = check_all(workflows)
+        if any(d.severity == Severity.ERROR for d in diagnostics):
+            raise ConfigValidationError(diagnostics)
+
+    def _ensure_inputs_config_version(self) -> None:
+        if Version(self.config_version) < Version(INPUTS_MIN_CONFIG_VERSION):
+            self.config_version = INPUTS_MIN_CONFIG_VERSION
+
+    def input_bindings(self) -> dict[str, tuple[Binding, ...]]:
+        """Every input's bindings, from `bind:` and from `${inputs:<name>}`
+        tokens in step params, sorted."""
+        found: dict[str, set[Binding]] = {
+            name: set(d.bindings) for name, d in self.inputs.items()
+        }
+        for wf in self.get_workflows():
+            for param, names in input_refs(getattr(wf, "params", None)).items():
+                for name in names:
+                    found.setdefault(name, set()).add(Binding(wf.id, param))
+        return {name: tuple(sorted(bindings)) for name, bindings in found.items()}
+
+    def bound_params(self, wf_id: str) -> dict[str, str]:
+        """Params of step `wf_id` filled via an input's `bind:`, as
+        param → input name."""
+        return {
+            b.param: name
+            for name, d in self.inputs.items()
+            for b in d.bindings
+            if b.step_id == wf_id
+        }
+
+    def with_input_placeholders(self, wf: Workflow) -> Workflow:
+        """`wf` with a `${inputs:<name>}` placeholder for every param filled via
+        `bind:` that has no value of its own, so param validation treats it as
+        set."""
+        missing = {
+            param: f"${{inputs:{name}}}"
+            for param, name in self.bound_params(wf.id).items()
+            if param not in (wf.params or {})
+        }
+        if not missing:
+            return wf
+        return wf.model_copy(update={"params": {**(wf.params or {}), **missing}})
+
+    def effective_inputs(self) -> tuple[dict[str, Input], list[Diagnostic]]:
+        """Every input with its effective schema (inherited from the params it
+        fills; needs their schemas, so this may use the network), plus the
+        problems found doing so."""
+        bindings = self.input_bindings()
+        declared = {b for d in self.inputs.values() for b in d.bindings}
+        whole_value = set(declared)
+        for wf in self.get_workflows():
+            for param, value in (getattr(wf, "params", None) or {}).items():
+                if isinstance(value, str) and INPUT_REF_PATTERN.fullmatch(value):
+                    whole_value.add(Binding(wf.id, param))
+        workflows = {wf.id: wf for wf in self.get_workflows()}
+        return check_inputs(
+            {n: d for n, d in self.inputs.items()},
+            {n: b for n, b in bindings.items() if n in self.inputs},
+            whole_value,
+            declared,
+            workflows,
+            self.project_dir,
+        )
+
+    def input_diagnostics(self) -> list[Diagnostic]:
+        """Problems with inputs that need no network: bindings to missing
+        steps, references to undeclared inputs, params bound twice (errors);
+        unused inputs and bound params that also have their own value
+        (warnings)."""
+        diagnostics: list[Diagnostic] = []
+
+        def add(message, *, name=None, wf_id=None, param=None, severity=Severity.ERROR):
+            if wf_id is not None:
+                field, yaml_path = f"params.{param}", f"workflows.{wf_id}.params.{param}"
+            else:
+                field = "bind" if param else ""
+                yaml_path = f"inputs.{name}.bind" if param else f"inputs.{name}"
+            diagnostics.append(
+                Diagnostic(
+                    workflow_id=wf_id,
+                    field=field,
+                    yaml_path=yaml_path,
+                    message=message,
+                    severity=severity,
+                )
+            )
+
+        bindings = self.input_bindings()
+        for name, found in bindings.items():
+            if name not in self.inputs:
+                for b in found:
+                    add(f"Reference to undeclared input '{name}'", wf_id=b.step_id, param=b.param)
+
+        owners: dict[Binding, set[str]] = {}
+        for name, found in bindings.items():
+            for b in found:
+                owners.setdefault(b, set()).add(name)
+        for b, names in sorted(owners.items()):
+            if len(names) > 1:
+                add(
+                    f"Param '{b}' is bound to more than one input: {', '.join(sorted(names))}",
+                    wf_id=b.step_id if b.step_id in self.G else None,
+                    name=sorted(names)[0],
+                    param=b.param,
+                )
+
+        for name, definition in self.inputs.items():
+            if not bindings.get(name):
+                add(f"Input '{name}' is not used by any step", name=name, severity=Severity.WARNING)
+            for b in definition.bindings:
+                wf = self.get_workflow_by_id(b.step_id)
+                if wf is None:
+                    add(
+                        f"Input '{name}' is bound to '{b}', but there is no step '{b.step_id}'",
+                        name=name,
+                        param=b.param,
+                    )
+                    continue
+                value = (getattr(wf, "params", None) or {}).get(b.param)
+                if value is not None and value != f"${{inputs:{name}}}":
+                    add(
+                        f"Param '{b}' has its own value but is bound to input '{name}'; "
+                        "the input's value is used",
+                        wf_id=b.step_id,
+                        param=b.param,
+                        severity=Severity.WARNING,
+                    )
+        return diagnostics
+
+    def validate_inputs(self, dynamic: bool = True):
+        """Raise `ConfigValidationError` for any input error (see
+        `input_diagnostics`, and with `dynamic`, `effective_inputs`); log
+        warnings."""
+        if not self.inputs and not any(
+            input_refs(getattr(wf, "params", None)) for wf in self.get_workflows()
+        ):
+            return
+        diagnostics = self.input_diagnostics()
+        if dynamic and self.inputs:
+            diagnostics += self.effective_inputs()[1]
+        if any(d.severity == Severity.ERROR for d in diagnostics):
+            raise ConfigValidationError(
+                [d for d in diagnostics if d.severity == Severity.ERROR]
+            )
+        log_warnings(diagnostics)
 
     # ===========================
     #        VALIDATION
@@ -335,6 +559,8 @@ class MetaworkflowGraph:
             self.validate_param_references(wf)  # type: ignore
 
         self.validate_module_nextflow_version(self.global_options, self.get_workflows())
+        self.validate_inputs(dynamic=bool(touched) or self._inputs_touched)
+        self._inputs_touched = False
 
         if touched:
             # Batched, concurrent dynamic check scoped to only the workflows
@@ -342,7 +568,7 @@ class MetaworkflowGraph:
             # later in the same suspended block is filtered out (nothing to
             # check).
             raw = [self.get_workflow_by_id(n) for n in touched if n in self.G.nodes]
-            workflows = [wf for wf in raw if wf is not None]
+            workflows = [self.with_input_placeholders(wf) for wf in raw if wf is not None]
             diagnostics = check_all(workflows)
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
@@ -434,7 +660,12 @@ class MetaworkflowGraph:
         self._validation_suspended = set()
         try:
             yield self
-        finally:
-            touched = self._validation_suspended
+        except BaseException:
+            # Don't validate a half-built graph: its errors would replace the
+            # one being raised.
             self._validation_suspended = None
-            self.validate(touched)
+            self._inputs_touched = False
+            raise
+        touched = self._validation_suspended
+        self._validation_suspended = None
+        self.validate(touched)

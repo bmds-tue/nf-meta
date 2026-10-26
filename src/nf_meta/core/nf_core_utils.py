@@ -382,12 +382,21 @@ def _get_auth_headers(host: str) -> dict:
     return {}
 
 
+_EXTRA_SPEC_KEYWORDS = ("exists", "mimetype", "schema", "minimum", "maximum", "description")
+
+
+def _extra_spec_keywords(spec: dict) -> dict:
+    return {k: spec[k] for k in _EXTRA_SPEC_KEYWORDS if k in spec}
+
+
 def _parse_nextflow_schema(data: dict) -> dict[str, dict]:
     """
     Flatten a nextflow_schema.json into {param_name: spec}.
 
     Handles both ``definitions`` (draft-07) and ``$defs`` (2020-12) keys.
-    Each spec dict contains: type, required, enum, pattern, format, default, hidden.
+    Each spec dict contains: type, required, enum, pattern, format, default,
+    hidden, plus exists, mimetype, schema, minimum, maximum and description
+    where the schema sets them.
     """
     result: dict[str, dict] = {}
 
@@ -404,6 +413,7 @@ def _parse_nextflow_schema(data: dict) -> dict[str, dict]:
                 "required": param_name in required_in_group,
                 "enum": spec.get("enum"),
                 "pattern": spec.get("pattern"),
+                **_extra_spec_keywords(spec),
                 "format": spec.get("format"),
                 "default": spec.get("default"),
                 "hidden": spec.get("hidden", False),
@@ -418,6 +428,7 @@ def _parse_nextflow_schema(data: dict) -> dict[str, dict]:
             "required": param_name in top_required,
             "enum": spec.get("enum"),
             "pattern": spec.get("pattern"),
+            **_extra_spec_keywords(spec),
             "format": spec.get("format"),
             "default": spec.get("default"),
             "hidden": spec.get("hidden", False),

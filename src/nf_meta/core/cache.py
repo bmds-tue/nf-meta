@@ -12,8 +12,12 @@ GLOBAL_CACHE_DIR: Path = Path(
 )
 
 
+# Bump when the shape of cached (parsed) schemas changes, to ignore old entries.
+_SCHEMA_CACHE_FORMAT = 2
+
+
 def schema_cache_path(url: str, version: str) -> Path:
-    key = hashlib.sha256(f"{url}@{version}".encode()).hexdigest()[:16]
+    key = hashlib.sha256(f"v{_SCHEMA_CACHE_FORMAT}:{url}@{version}".encode()).hexdigest()[:16]
     return GLOBAL_CACHE_DIR / "schemas" / f"{key}.json"
 
 

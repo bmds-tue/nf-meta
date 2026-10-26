@@ -11,6 +11,7 @@ preserved exactly as it was in the original Pydantic validators in
 """
 
 import dataclasses
+from pathlib import Path
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable, Optional
@@ -18,6 +19,7 @@ from typing import Callable, Iterable, Optional
 import yaml
 
 from .errors import Diagnostic, Severity
+from .inputs import Binding, Input, InputDefinition, effective_input
 from .models import NfModule, NfPipeline, Workflow
 from .nf_core_utils import (
     PipelineSchemaError,
@@ -371,3 +373,72 @@ def log_warnings(diagnostics: Iterable[Diagnostic]) -> None:
     for d in diagnostics:
         if d.severity == Severity.WARNING:
             logger.warning("[%s] %s: %s", d.workflow_id, d.field, d.message)
+
+
+# ---------------------------------------------------------------------------
+# Inputs
+# ---------------------------------------------------------------------------
+
+
+def _param_schema(wf: Workflow) -> Optional[dict[str, dict]]:
+    """`wf`'s flat param schema, or `None` if it can't be fetched."""
+    try:
+        if isinstance(wf, NfPipeline) and wf.url:
+            return get_pipeline_schema(wf.url, wf.version)
+        if isinstance(wf, NfModule):
+            return get_module_schema(wf.name, wf.version) or None
+    except Exception:
+        return None
+    return None
+
+
+def check_inputs(
+    definitions: dict[str, InputDefinition],
+    bindings: dict[str, tuple[Binding, ...]],
+    whole_value: set[Binding],
+    declared: set[Binding],
+    workflows: dict[str, Workflow],
+    project_dir: Optional[Path] = None,
+) -> tuple[dict[str, Input], list[Diagnostic]]:
+    """Compute every input's effective schema and report problems that need
+    the bound steps' param schemas.
+
+    Args:
+        definitions: Inputs as declared, by name.
+        bindings: All bindings of each input (both directions).
+        whole_value: Bindings whose param takes the input's value whole; only
+            these pass their param's schema on to the input.
+        declared: Bindings declared with `bind:` (checked to name a real param).
+        workflows: The graph's workflows by id.
+        project_dir: Where relative default paths are looked up.
+    """
+    schemas = {wf_id: _param_schema(wf) for wf_id, wf in workflows.items()}
+    inputs: dict[str, Input] = {}
+    diagnostics: list[Diagnostic] = []
+    for name, definition in definitions.items():
+        specs: dict[Binding, Optional[dict]] = {}
+        for binding in bindings.get(name, ()):
+            if binding.step_id not in workflows:
+                continue  # reported by the graph's static input checks
+            schema = schemas[binding.step_id]
+            spec = schema.get(binding.param) if schema else None
+            if schema is not None and spec is None and binding in declared:
+                diagnostics.append(
+                    Diagnostic(
+                        workflow_id=None,
+                        field="bind",
+                        yaml_path=f"inputs.{name}.bind",
+                        message=(
+                            f"Input '{name}' is bound to '{binding}', but step "
+                            f"'{binding.step_id}' has no param '{binding.param}'"
+                        ),
+                        severity=Severity.ERROR,
+                    )
+                )
+            if binding in whole_value:
+                specs[binding] = spec
+        inputs[name], input_diagnostics = effective_input(
+            name, definition, bindings.get(name, ()), specs, project_dir
+        )
+        diagnostics.extend(input_diagnostics)
+    return inputs, diagnostics

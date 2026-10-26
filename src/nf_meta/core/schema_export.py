@@ -6,6 +6,7 @@ layer describing the YAML file as a whole.
 
 from pydantic import TypeAdapter
 
+from .inputs import InputDefinition
 from .models import GlobalOptions, Workflow
 
 _FROM_FIELD_SCHEMA = {
@@ -39,6 +40,22 @@ def _patch_from_field(defs: dict) -> None:
             def_schema["required"] = [r for r in def_schema["required"] if r != "id"]
 
 
+def _input_schema() -> dict:
+    """JSON Schema of one `inputs:` entry, as written (`schema`, not `schema_`)."""
+    schema = InputDefinition.model_json_schema()
+    properties = schema.get("properties", {})
+    if "schema_" in properties:
+        properties["schema"] = properties.pop("schema_")
+    properties["bind"] = {
+        "anyOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "string"}},
+        ],
+        "description": "Step params this input fills, as '<step_id>.<param>'.",
+    }
+    return schema
+
+
 def generate_schema() -> dict:
     """Build the full JSON Schema document for metapipeline.yaml."""
     workflow_schema = TypeAdapter(Workflow).json_schema()
@@ -63,5 +80,9 @@ def generate_schema() -> dict:
                 "additionalProperties": workflow_schema,
             },
             "globals": GlobalOptions.model_json_schema(),
+            "inputs": {
+                "type": "object",
+                "additionalProperties": {"anyOf": [_input_schema(), {"type": "null"}]},
+            },
         },
     }

@@ -1,11 +1,36 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import ClassVar
 
 from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.models import Workflow
+from .engines import StepCommand
+from .errors import NfMetaRunnerError
+from .spec import StepSpec
 from .utils import RunOptions
 
 
 _REGISTRY: dict[str, type["BaseRunner"]] = {}
+
+
+@dataclass(frozen=True)
+class PlannedStep:
+    """One step of a planned run.
+
+    Attributes:
+        workflow: The step as configured (references unresolved).
+        resolved_params: The step's params with references resolved, before
+            globals are merged in.
+        spec: The step's final settings.
+        command: What would be executed.
+        skip: The step already succeeded and would be skipped (resume only).
+    """
+
+    workflow: Workflow
+    resolved_params: dict
+    spec: StepSpec
+    command: StepCommand
+    skip: bool = False
 
 
 class BaseRunner(ABC):
@@ -58,3 +83,11 @@ class BaseRunner(ABC):
         the implementation can determine already completed successfully.
         Called by `run_metapipeline` when `run_options.resume` is truthy.
         Same exception policy as `run`."""
+
+    def plan(self, g: MetaworkflowGraph, resume: bool = False) -> list[PlannedStep]:
+        """Return what `run` (or `resume`, with `resume=True`) would execute,
+        in order, without side effects. Used for dry runs. Runners that can't
+        plan ahead keep this default, which raises `NfMetaRunnerError`."""
+        raise NfMetaRunnerError(
+            f"Runner '{self.RUNNER_NAME}' does not support dry runs."
+        )

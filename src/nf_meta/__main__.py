@@ -164,9 +164,21 @@ def validate_config(config, verbose, scope):
     is_flag=True,
     help="Run all workflows as stub runs (passes -stub to Nextflow)",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print each step's command and params file without running anything",
+)
 @handle_validation_errors
-def run(config, verbose, runner, resume, output_lines, start, target, profile, stub):
-    from nf_meta.runner import run_metapipeline, RunOptions, NfMetaRunnerError
+def run(
+    config, verbose, runner, resume, output_lines, start, target, profile, stub, dry_run
+):
+    from nf_meta.runner import (
+        plan_metapipeline,
+        run_metapipeline,
+        RunOptions,
+        NfMetaRunnerError,
+    )
 
     try:
         run_options = RunOptions(
@@ -180,10 +192,31 @@ def run(config, verbose, runner, resume, output_lines, start, target, profile, s
             target=target,
         )
         g = from_file(config)
-        run_metapipeline(g, run_options)
+        if dry_run:
+            _print_plan(plan_metapipeline(g, run_options))
+        else:
+            run_metapipeline(g, run_options)
     except NfMetaRunnerError as e:
         click.echo(click.style(e.message, fg="red"))
         raise SystemExit(1)
+
+
+def _print_plan(steps) -> None:
+    import shlex
+    import yaml
+
+    for i, step in enumerate(steps, start=1):
+        header = f"Step {i}/{len(steps)}: {step.workflow.id} ({step.workflow.name})"
+        if step.skip:
+            header += " -- skipped, already done"
+        click.echo(click.style(header, bold=True))
+        click.echo(f"  cwd: {step.command.cwd}")
+        click.echo(f"  {shlex.join(step.command.argv)}")
+        if step.command.params_file:
+            click.echo(f"  {step.command.params_file}:")
+            for line in yaml.safe_dump(step.command.params, sort_keys=False).splitlines():
+                click.echo(f"    {line}")
+        click.echo()
 
 
 cli.add_command(edit_browser)

@@ -1,10 +1,8 @@
 import hashlib
 import logging
-import os
 import subprocess
 import threading
 from collections import deque
-from contextlib import contextmanager
 from typing import Optional
 from pathlib import Path
 
@@ -15,13 +13,14 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console, Group
 
-from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.graph import MIN_NEXTFLOW_FOR_MODULES, MetaworkflowGraph
 from nf_meta.core.config import dump_config
-from nf_meta.core.models import Workflow, GlobalOptions
+from nf_meta.core.models import Workflow, WorkflowType
 from .errors import NfMetaRunnerError
-from .utils import check_nextflow_version
-from .base_runner import BaseRunner
-from .workflow_run import WorkflowRun
+from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
+from .base_runner import BaseRunner, PlannedStep
+from .engines import StepCommand, engine_for
+from .spec import StepSpec, build_step_spec, resolve_references
 
 
 logger = logging.getLogger(__name__)
@@ -43,16 +42,6 @@ class SimplePythonRunner(BaseRunner):
     RUNNER_NAME = "python"
     OUT_FILE = "OUT.txt"
     ERROR_FILE = "ERROR.txt"
-
-    @contextmanager
-    def _chdir(self, path: Path):
-        origin = Path()
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-            os.chdir(path)
-            yield
-        finally:
-            os.chdir(origin)
 
     def _check_run_success(self, run_dir: Path = Path(".")):
         return (
@@ -79,67 +68,6 @@ class SimplePythonRunner(BaseRunner):
             return None
         with open(path) as f:
             return yaml.safe_load(f) or {}
-
-    def _resolve_field_refs(
-        self,
-        wf: Workflow,
-        graph: MetaworkflowGraph,
-        resolved: Optional[dict[str, dict]] = None,
-        work_directories: Optional[dict[str, Path]] = None,
-    ) -> Workflow:
-        wf_resolved = wf.model_copy(deep=True)
-        for ref in wf_resolved.field_refs:
-            if ref.namespace != "params":
-                raise NfMetaRunnerError(
-                    f"Unsupported reference namespace '{ref.namespace}' in '{ref.name}'. "
-                    "Only 'params' references are currently supported."
-                )
-            wf_ref = graph.get_workflow_by_id(ref.target_wf_id)
-            if not wf_ref:
-                raise ValueError(
-                    f"Resolving reference {ref.name} failed: "
-                    f"referenced workflow '{ref.target_wf_id}' does not exist"
-                )
-
-            # Prefer already-resolved values (from prior steps or cache) over raw config
-            values_source: dict = (resolved or {}).get(ref.target_wf_id) or (
-                wf_ref.params or {}
-            )
-
-            if not values_source:
-                raise ValueError(
-                    f"Resolving reference {ref.name} failed: "
-                    f"source workflow '{wf_ref.id}' has no resolved values for namespace '{ref.namespace}'"
-                )
-            if not wf_resolved.params:
-                raise ValueError(
-                    f"Resolving reference {ref.name} failed: "
-                    f"referencing workflow '{wf_resolved.id}' has no params to substitute into"
-                )
-
-            ref_value = values_source.get(ref.target_key)
-            source_value = wf_resolved.params.get(ref.source_key)
-
-            if ref_value is None:
-                raise ValueError(
-                    f"Resolving reference {ref.name} failed: "
-                    f"key '{ref.target_key}' not found in workflow '{ref.target_wf_id}' {ref.namespace}"
-                )
-            if source_value is None:
-                raise ValueError(
-                    f"Resolving reference {ref.name} failed: "
-                    f"source key '{ref.source_key}' not found in workflow '{ref.source_wf_id}' params"
-                )
-
-            # ref_value may be a non-str scalar now
-            resolved_value = source_value.replace(ref.name, str(ref_value))
-            if work_directories:
-                resolved_value = str(
-                    work_directories[ref.target_wf_id] / resolved_value
-                )
-            wf_resolved.params[ref.source_key] = resolved_value
-
-        return wf_resolved
 
     def _validate_cross_boundary_refs(
         self,
@@ -209,41 +137,27 @@ class SimplePythonRunner(BaseRunner):
 
         return (process.returncode, stdout, stderr)
 
-    def _run_workflow(
-        self,
-        wf: Workflow,
-        globals: Optional[GlobalOptions] = None,
-        resume: bool = True,
-    ) -> bool:
-        wf_dir = self._workflow_dir(wf)
+    def _execute(self, spec: StepSpec, command: StepCommand) -> bool:
+        """Run one step's command, streaming its output. Writes `OUT_FILE`
+        and, on failure, `ERROR_FILE` to the step's state dir."""
+        spec.state_dir.mkdir(parents=True, exist_ok=True)
+        command.write_files()
 
-        # Merge global params into wf for this run. This happens after _write_resolved_params
-        # so the cache only holds wf-specific params (used for cross-step reference resolution).
-        if globals and globals.params:
-            merged = {**globals.params, **(wf.params or {})}
-            wf = wf.model_copy(update={"params": merged})
+        argv = [check_nextflow(), *command.argv[1:]]
+        logger.info(f"Running nextflow command: {argv}")
+        exit_code, out, err = self._stream_proc_out(argv)
 
-        run = WorkflowRun.for_step(
-            wf, wf_dir, globals, extra_profile=self.run_options.nf_profile or ""
-        )
-        run.prepare()
-
-        cmd = run.get_cmd(resume=resume, stub=self.run_options.stub)
-        logger.info(f"Running nextflow command: {cmd}")
-
-        exit_code, out, err = self._stream_proc_out(cmd)
-
-        with (wf_dir / self.OUT_FILE).open("w") as f:
+        with (spec.state_dir / self.OUT_FILE).open("w") as f:
             f.write(out)
 
         if exit_code != 0:
             logger.error(
-                f"Command exited with code {exit_code}. Workflow dir: {wf_dir.absolute()}"
+                f"Command exited with code {exit_code}. Workflow dir: {spec.state_dir}"
             )
-            with (wf_dir / self.ERROR_FILE).open("w") as f:
+            with (spec.state_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
         else:
-            (wf_dir / self.ERROR_FILE).unlink(missing_ok=True)
+            (spec.state_dir / self.ERROR_FILE).unlink(missing_ok=True)
 
         return exit_code == 0
 
@@ -252,14 +166,7 @@ class SimplePythonRunner(BaseRunner):
         hash = hashlib.sha256(config_str.encode()).hexdigest()[:8]
         return hash
 
-    def run(self, graph: MetaworkflowGraph, resume=False):
-
-        self.run_options.cachedir = Path(self.run_options.cachedir)
-        self.run_options.cachedir.mkdir(parents=True, exist_ok=True)
-
-        if graph.global_options.nextflow_version_tuple:
-            _ = check_nextflow_version(graph.global_options.nextflow_version_tuple)
-
+    def _selected_workflows(self, graph: MetaworkflowGraph) -> list[Workflow]:
         workflows = graph.get_workflows_sorted()
         if self.run_options.start or self.run_options.target:
             logger.info(
@@ -271,12 +178,22 @@ class SimplePythonRunner(BaseRunner):
             logger.info(
                 f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}"
             )
+        return workflows
 
+    def plan(self, graph: MetaworkflowGraph, resume: bool = False) -> list[PlannedStep]:
+        """Resolve every selected step to its spec and command, in DAG order,
+        without writing files or running anything.
+
+        Raises:
+            NfMetaRunnerError: if a step outside the selection is referenced
+                but has no cached run.
+        """
+        self.run_options.cachedir = Path(self.run_options.cachedir)
+        workflows = self._selected_workflows(graph)
         subset_ids = {wf.id for wf in workflows}
-
         self._validate_cross_boundary_refs(graph, workflows, subset_ids)
 
-        # Cache of resolved field values per workflow id, seeded from excluded-workflow cache files
+        # Resolved params per workflow id, seeded from cached runs of excluded workflows
         resolved: dict[str, dict] = {}
         for wf in graph.get_workflows():
             if wf.id not in subset_ids:
@@ -284,27 +201,64 @@ class SimplePythonRunner(BaseRunner):
                 if cached is not None:
                     resolved[wf.id] = cached
 
-        for i, wf in enumerate(workflows):
-            step_label = f"Step {i + 1}/{len(workflows)} - {wf.name}"
+        planned: list[PlannedStep] = []
+        for wf in workflows:
+            wf_resolved = resolve_references(wf, graph, resolved=resolved)
+            resolved[wf.id] = wf_resolved.params or {}
 
-            raw_wf = wf
-            wf = self._resolve_field_refs(wf, graph, resolved=resolved)
-            logger.debug(f"Resolved workflow {wf.id}")
+            spec = build_step_spec(
+                wf_resolved,
+                graph.global_options,
+                state_dir=self._workflow_dir(wf_resolved),
+                launch_dir=Path.cwd(),
+                extra_profile=self.run_options.nf_profile or "",
+                resume=resume,
+                stub=self.run_options.stub,
+            )
+            planned.append(
+                PlannedStep(
+                    workflow=wf,
+                    resolved_params=wf_resolved.params or {},
+                    spec=spec,
+                    command=engine_for(spec.workflow_type).build(spec),
+                    skip=resume and self._check_run_success(run_dir=spec.state_dir),
+                )
+            )
+        return planned
 
-            resolved[wf.id] = wf.params or {}
-            self._write_resolved_params(raw_wf, wf.params or {})
+    def _check_nextflow(self, graph: MetaworkflowGraph, steps: list[PlannedStep]) -> None:
+        if graph.global_options.nextflow_version_tuple:
+            check_nextflow_version(graph.global_options.nextflow_version_tuple)
 
-            if resume and self._check_run_success(run_dir=self._workflow_dir(wf)):
+        if any(s.spec.workflow_type == WorkflowType.NF_MODULE for s in steps):
+            installed = get_installed_nextflow_version()
+            if installed[:2] < MIN_NEXTFLOW_FOR_MODULES:
+                raise NfMetaRunnerError(
+                    "nf-module steps need Nextflow >= 26.04, installed: "
+                    + ".".join(str(v) for v in installed[:3])
+                )
+
+    def run(self, graph: MetaworkflowGraph, resume=False):
+        steps = self.plan(graph, resume=resume)
+        self._check_nextflow(graph, steps)
+        self.run_options.cachedir.mkdir(parents=True, exist_ok=True)
+
+        for i, step in enumerate(steps):
+            step_label = f"Step {i + 1}/{len(steps)} - {step.workflow.name}"
+            self._write_resolved_params(step.workflow, step.resolved_params)
+
+            if step.skip:
                 logger.info(f"{step_label}: Skipping (already succeeded)")
                 console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
                 continue
 
             console.print(f"[bold blue]▶[/bold blue] {step_label}")
-            success = self._run_workflow(wf, graph.global_options, resume=resume)
-
-            if not success:
+            if not self._execute(step.spec, step.command):
                 console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")
-                return
+                raise NfMetaRunnerError(
+                    f"Workflow '{step.workflow.id}' ({step.workflow.name}) failed. "
+                    f"Output and errors: {step.spec.state_dir}"
+                )
 
             console.print(f"[green]✓[/green] {step_label}: Done")
 

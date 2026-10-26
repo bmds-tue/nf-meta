@@ -1,4 +1,4 @@
-from .base_runner import _REGISTRY
+from .base_runner import _REGISTRY, BaseRunner, PlannedStep
 from .errors import NfMetaRunnerError
 from .utils import RunOptions
 
@@ -9,12 +9,17 @@ from nf_meta.core.graph import MetaworkflowGraph
 logger = logging.getLogger(__name__)
 
 
-def run_metapipeline(
-    g: MetaworkflowGraph,
-    run_options: RunOptions = RunOptions(),
-) -> None:
-    logger.info("Started runner")
+def _make_runner(run_options: RunOptions) -> BaseRunner:
+    runner_cls = _REGISTRY.get(run_options.runner_name)
+    if runner_cls is None:
+        available = ", ".join(f"'{k}'" for k in _REGISTRY)
+        raise NfMetaRunnerError(
+            f"Unknown runner '{run_options.runner_name}'. Available: {available}"
+        )
+    return runner_cls(run_options)
 
+
+def _check_start_target(g: MetaworkflowGraph, run_options: RunOptions) -> None:
     errors = []
     if run_options.start:
         if not g.get_workflow_by_id(run_options.start):
@@ -35,14 +40,24 @@ def run_metapipeline(
     if errors:
         raise NfMetaRunnerError("\n".join(errors))
 
-    runner_cls = _REGISTRY.get(run_options.runner_name)
-    if runner_cls is None:
-        available = ", ".join(f"'{k}'" for k in _REGISTRY)
-        raise NfMetaRunnerError(
-            f"Unknown runner '{run_options.runner_name}'. Available: {available}"
-        )
 
-    runner = runner_cls(run_options)
+def plan_metapipeline(
+    g: MetaworkflowGraph,
+    run_options: RunOptions = RunOptions(),
+) -> list[PlannedStep]:
+    """Return the steps `run_metapipeline` would execute with these options,
+    without running anything."""
+    _check_start_target(g, run_options)
+    return _make_runner(run_options).plan(g, resume=run_options.resume)
+
+
+def run_metapipeline(
+    g: MetaworkflowGraph,
+    run_options: RunOptions = RunOptions(),
+) -> None:
+    logger.info("Started runner")
+    _check_start_target(g, run_options)
+    runner = _make_runner(run_options)
 
     if run_options.resume:
         runner.resume(g)

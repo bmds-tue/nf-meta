@@ -201,3 +201,32 @@ class TestValidateCommand:
 
         assert result.exit_code == 1
         assert "ix" in result.output  # "Mix"/"mix"
+
+
+class TestRunDryRun:
+    def test_prints_commands_without_running(self, tmp_path, monkeypatch):
+        text = (
+            "config_version: 0.3.0\n"
+            "workflows:\n"
+            "  n01:\n"
+            "    name: nf-core/fetchngs\n"
+            "    version: 1.12.0\n"
+            "    params:\n"
+            "      outdir: out_fetchngs\n"
+            "  n02:\n"
+            "    name: nf-core/rnaseq\n"
+            "    version: 3.14.0\n"
+            "    from: n01\n"
+            "    params:\n"
+            "      input: ${n01:params:outdir}/samplesheet.csv\n"
+        )
+        path = _write(tmp_path, text)
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(cli, ["run", "-r", "python", "--dry-run", str(path)])
+
+        assert result.exit_code == 0, result.output
+        assert "Step 1/2: n01 (nf-core/fetchngs)" in result.output
+        assert "nextflow run -ansi-log false" in result.output
+        assert "input: out_fetchngs/samplesheet.csv" in result.output
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["metapipeline.yaml"]

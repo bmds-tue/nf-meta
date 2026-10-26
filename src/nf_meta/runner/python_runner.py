@@ -17,6 +17,7 @@ from rich.console import Console, Group
 
 from nf_meta.core.graph import MIN_NEXTFLOW_FOR_MODULES, MetaworkflowGraph
 from nf_meta.core.config import dump_config
+from nf_meta.core.inputs import input_refs, substitute_inputs
 from nf_meta.core.models import GlobalOptions, Workflow, WorkflowType
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
@@ -283,8 +284,15 @@ class SimplePythonRunner(BaseRunner):
                 if cached is not None:
                     resolved[wf.id] = cached
 
+        input_values = self._input_values(graph, workflows)
+
         planned: list[PlannedStep] = []
         for wf in workflows:
+            bound = graph.bound_params(wf.id)
+            if bound or input_refs(wf.params):
+                wf = wf.model_copy(
+                    update={"params": substitute_inputs(wf.params, bound, input_values)}
+                )
             schema = param_schema(wf)
             if project_dir is not None and wf.params:
                 wf = wf.model_copy(
@@ -325,6 +333,36 @@ class SimplePythonRunner(BaseRunner):
                 )
             )
         return planned
+
+    @staticmethod
+    def _input_values(graph: MetaworkflowGraph, workflows: list[Workflow]) -> dict:
+        """Values of the inputs used by `workflows`: their defaults.
+
+        Raises:
+            NfMetaRunnerError: if a used input has no value, or its value is
+                invalid.
+        """
+        if not graph.inputs:
+            return {}
+        inputs, _ = graph.effective_inputs()
+        selected = {wf.id for wf in workflows}
+        used = [
+            inp for inp in inputs.values() if any(b.step_id in selected for b in inp.bindings)
+        ]
+        missing = sorted(inp.name for inp in used if inp.default is None)
+        if missing:
+            raise NfMetaRunnerError(
+                f"No value for input(s): {', '.join(missing)}. "
+                "Give them a default in the config's `inputs:` section."
+            )
+        problems = [
+            message
+            for inp in used
+            for message in inp.validate(inp.default, project_dir=graph.project_dir)
+        ]
+        if problems:
+            raise NfMetaRunnerError("Invalid input values:\n  " + "\n  ".join(problems))
+        return {inp.name: inp.default for inp in used}
 
     @staticmethod
     def _reject_relative_inputs(wf: Workflow, schema: dict[str, dict]) -> None:

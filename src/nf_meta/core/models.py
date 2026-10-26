@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from packaging.version import Version
-from typing import Optional, Any, Annotated, Literal
-import logging
+from typing import Optional, Any, Annotated, ClassVar, Literal
 import re
 import uuid
 import hashlib
@@ -26,7 +25,6 @@ from pydantic.functional_serializers import PlainSerializer
 from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 from nf_meta.core.refs import RESERVED_STEP_IDS, STEP_REF_PATTERN
 
-logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.4.0"
@@ -42,8 +40,6 @@ class WorkflowType(StrEnum):
     NF_MODULE = "nf-module"
 
 
-# Captures: ${<wf_id>:<namespace>:<key>}  where namespace is "params" or "outputs"
-_VALID_REF_PATTERN = STEP_REF_PATTERN
 
 
 def is_existing_file_abs(
@@ -69,9 +65,6 @@ def is_existing_file_abs(
 SerializeToStr = PlainSerializer(
     lambda v: str(v) if v else None, return_type=Optional[str]
 )
-ExistingAbsoluteFile = Annotated[
-    Optional[Path], AfterValidator(lambda v: is_existing_file_abs(v)), SerializeToStr
-]
 ExistingYamlFile = Annotated[
     Optional[Path],
     AfterValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml"))),
@@ -118,6 +111,13 @@ def load_params_file(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _params_last(data: dict) -> dict:
+    """Move `params` to the end, where it reads best in a config file."""
+    if "params" in data:
+        data["params"] = data.pop("params")
+    return data
+
+
 def create_id():
     return str(uuid.uuid4())[:8]
 
@@ -159,15 +159,18 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
     config_file: Optional[ExistingNfConfigFile] = None
+    # validate_default=True ensures the params validator runs even when params
+    # is absent from the input (Pydantic skips field validators for defaults otherwise).
+    params: Optional[CoercedParams] = Field(default=None, validate_default=True)
 
     @computed_field  # type: ignore[misc]
     @property
     def field_refs(self) -> list[WorkflowReference]:
-        if not getattr(self, "params", False):
+        if not self.params:
             return []
         refs = []
         for k, v in self.params.items():
-            match = _VALID_REF_PATTERN.search(str(v))
+            match = STEP_REF_PATTERN.search(str(v))
             if match:
                 refs.append(
                     WorkflowReference(
@@ -199,11 +202,9 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
             "to ensure reproducibility."
         )
 
+    @abstractmethod
     def hash(self) -> str:
-        data = f"{self.name}{self.version}"
-        data += json.dumps(self.params, sort_keys=True, default=str)
-        data += str(self.config_file.absolute()) if self.config_file else ""
-        return hashlib.sha256(data.encode()).hexdigest()[:8]
+        """Short content hash of everything that defines this step's result."""
 
     @abstractmethod
     def model_dump_config(self) -> dict: ...
@@ -230,10 +231,6 @@ class NfPipeline(BaseWorkflow):
     params_file: Optional[ExistingYamlFile] = None
     profile: Optional[str] = None
     main_script: Optional[str] = None
-    # Declared after url/params_file so that field_validator("params") can access
-    # both via info.data (Pydantic validates fields in declaration order).
-    # validate_default=True ensures the validator runs even when params is omitted.
-    params: Optional[CoercedParams] = Field(default=None, validate_default=True)
 
     @computed_field  # type: ignore[misc]
     @property
@@ -320,7 +317,7 @@ class NfPipeline(BaseWorkflow):
             "profile",
             "main_script",
         }
-        result = self.model_dump(include=fields, exclude_none=True)
+        result = _params_last(self.model_dump(include=fields, exclude_none=True))
         if self.is_nfcore:
             result.pop("url", None)
         # type omitted for pipelines — loader defaults to WorkflowType.NF_PIPELINE
@@ -356,9 +353,9 @@ class NfModule(BaseWorkflow):
     container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = (
         None
     )
-    # validate_default=True ensures the params field_validator runs even when
-    # params is absent from the input (Pydantic skips field validators for defaults otherwise).
-    params: Optional[CoercedParams] = Field(default=None, validate_default=True)
+
+    # `nextflow module` exists from this Nextflow version (major, minor) on
+    MIN_NEXTFLOW_VERSION: ClassVar[tuple[int, int]] = (26, 4)
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"
@@ -369,7 +366,7 @@ class NfModule(BaseWorkflow):
 
     def model_dump_config(self) -> dict:
         fields = {"name", "version", "params", "config_file", "container_engine"}
-        result = self.model_dump(include=fields, exclude_none=True)
+        result = _params_last(self.model_dump(include=fields, exclude_none=True))
         result["type"] = (
             self.type
         )  # always written — required to distinguish from NfPipeline on load
@@ -447,6 +444,18 @@ class GlobalOptions(BaseModel):
             raise ValueError(f"Non-integer component in nextflow_version '{v}'.")
 
         return v
+
+    def nextflow_version_below(self, minimum: tuple[int, int]) -> bool:
+        """Whether `nextflow_version` is known to be older than `minimum`
+        (major, minor). A bare major version (`26`) only counts as older if
+        its major is lower."""
+        version = self.nextflow_version_tuple
+        if version is None:
+            return False
+        if version[0] != minimum[0]:
+            return version[0] < minimum[0]
+        has_minor = "." in str(self.nextflow_version)
+        return has_minor and version[1] < minimum[1]
 
     @property
     def nextflow_version_tuple(self) -> Optional[tuple[int, int, int, int]]:

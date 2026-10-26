@@ -34,6 +34,19 @@
           "default": null,
           "title": "Config File"
         },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
         "container_engine": {
           "anyOf": [
             {
@@ -51,19 +64,6 @@
           ],
           "default": null,
           "title": "Container Engine"
-        },
-        "params": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Params"
         },
         "from": {
           "anyOf": [
@@ -119,6 +119,19 @@
           "default": null,
           "title": "Config File"
         },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
         "url": {
           "title": "Url",
           "type": "string"
@@ -171,19 +184,6 @@
           ],
           "default": null,
           "title": "Main Script"
-        },
-        "params": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Params"
         },
         "from": {
           "anyOf": [

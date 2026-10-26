@@ -37,17 +37,8 @@ from .inputs import Binding, Input, InputDefinition, input_refs
 from .refs import ANY_BRACE_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
 
 
-MIN_NEXTFLOW_FOR_MODULES = (26, 4)
-
-
-def _nextflow_too_old_for_modules(nextflow_version) -> bool:
-    """Whether a configured `nextflow_version` is known to predate `nextflow
-    module` (26.04). A bare major version (`26`) is not known to be too old."""
-    parts = str(nextflow_version).removesuffix("-edge").split(".")
-    major = int(parts[0])
-    if major != MIN_NEXTFLOW_FOR_MODULES[0]:
-        return major < MIN_NEXTFLOW_FOR_MODULES[0]
-    return len(parts) > 1 and int(parts[1]) < MIN_NEXTFLOW_FOR_MODULES[1]
+def _format_version(version: tuple[int, int]) -> str:
+    return f"{version[0]}.{version[1]:02d}"
 
 
 class MetaworkflowGraph:
@@ -297,7 +288,7 @@ class MetaworkflowGraph:
             name: set(d.bindings) for name, d in self.inputs.items()
         }
         for wf in self.get_workflows():
-            for param, names in input_refs(getattr(wf, "params", None)).items():
+            for param, names in input_refs(wf.params).items():
                 for name in names:
                     found.setdefault(name, set()).add(Binding(wf.id, param))
         return {name: tuple(sorted(bindings)) for name, bindings in found.items()}
@@ -333,7 +324,7 @@ class MetaworkflowGraph:
         declared = {b for d in self.inputs.values() for b in d.bindings}
         whole_value = set(declared)
         for wf in self.get_workflows():
-            for param, value in (getattr(wf, "params", None) or {}).items():
+            for param, value in (wf.params or {}).items():
                 if isinstance(value, str) and INPUT_REF_PATTERN.fullmatch(value):
                     whole_value.add(Binding(wf.id, param))
         workflows = {wf.id: wf for wf in self.get_workflows()}
@@ -400,7 +391,7 @@ class MetaworkflowGraph:
                         param=b.param,
                     )
                     continue
-                value = (getattr(wf, "params", None) or {}).get(b.param)
+                value = (wf.params or {}).get(b.param)
                 if value is not None and value != f"${{inputs:{name}}}":
                     add(
                         f"Param '{b}' has its own value but is bound to input '{name}'; "
@@ -416,7 +407,7 @@ class MetaworkflowGraph:
         `input_diagnostics`, and with `dynamic`, `effective_inputs`); log
         warnings."""
         if not self.inputs and not any(
-            input_refs(getattr(wf, "params", None)) for wf in self.get_workflows()
+            input_refs(wf.params) for wf in self.get_workflows()
         ):
             return
         diagnostics = self.input_diagnostics()
@@ -456,7 +447,7 @@ class MetaworkflowGraph:
             )
 
         diagnostics: list[Diagnostic] = []
-        for key, value in (getattr(wf, "params", None) or {}).items():
+        for key, value in (wf.params or {}).items():
             for token in ANY_BRACE_PATTERN.findall(str(value)):
                 if STEP_REF_PATTERN.fullmatch(token) or INPUT_REF_PATTERN.fullmatch(token):
                     continue
@@ -513,9 +504,9 @@ class MetaworkflowGraph:
     ) -> list[Diagnostic]:
         """Return an error if `glob.nextflow_version` predates `nextflow
         module` (26.04) while `workflows` contains an `nf-module` step."""
-        version = glob.nextflow_version if glob else None
-        if version is None or not _nextflow_too_old_for_modules(version):
+        if glob is None or not glob.nextflow_version_below(NfModule.MIN_NEXTFLOW_VERSION):
             return []
+        version = glob.nextflow_version
         modules = [wf.id for wf in workflows if isinstance(wf, NfModule)]
         if not modules:
             return []
@@ -526,7 +517,8 @@ class MetaworkflowGraph:
                 yaml_path="globals.nextflow_version",
                 message=(
                     f"nextflow_version '{version}' is too old for nf-module steps "
-                    f"({', '.join(modules)}): `nextflow module` needs Nextflow >= 26.04"
+                    f"({', '.join(modules)}): `nextflow module` needs Nextflow >= "
+                    f"{_format_version(NfModule.MIN_NEXTFLOW_VERSION)}"
                 ),
                 severity=Severity.ERROR,
             )

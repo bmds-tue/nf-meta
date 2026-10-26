@@ -15,10 +15,10 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console, Group
 
-from nf_meta.core.graph import MIN_NEXTFLOW_FOR_MODULES, MetaworkflowGraph
+from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.config import dump_config
 from nf_meta.core.inputs import input_refs, substitute_inputs
-from nf_meta.core.models import GlobalOptions, Workflow, WorkflowType
+from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType
 from .errors import NfMetaRunnerError
 from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
 from .base_runner import BaseRunner, PlannedStep
@@ -390,9 +390,10 @@ class SimplePythonRunner(BaseRunner):
 
         if any(s.spec.workflow_type == WorkflowType.NF_MODULE for s in steps):
             installed = get_installed_nextflow_version()
-            if installed[:2] < MIN_NEXTFLOW_FOR_MODULES:
+            minimum = NfModule.MIN_NEXTFLOW_VERSION
+            if installed[:2] < minimum:
                 raise NfMetaRunnerError(
-                    "nf-module steps need Nextflow >= 26.04, installed: "
+                    f"nf-module steps need Nextflow >= {minimum[0]}.{minimum[1]:02d}, installed: "
                     + ".".join(str(v) for v in installed[:3])
                 )
 

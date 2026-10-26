@@ -275,3 +275,27 @@ class TestValidateWarnings:
         assert result.exit_code == 1
         assert "Validation failed (1 error, 1 warning):" in result.output
         assert result.output.index("error:") < result.output.index("warning:")
+
+
+class TestWarningsInOtherCommands:
+    def test_run_prints_warnings_like_validate(self, tmp_path, monkeypatch):
+        path = _write(tmp_path, TestValidateWarnings.CONFIG)
+        (tmp_path / "ids.csv").write_text("")
+        monkeypatch.chdir(tmp_path)
+        result = CliRunner().invoke(cli, ["run", "-r", "python", "--dry-run", str(path)])
+        assert result.exit_code == 0, result.output
+        assert result.output.startswith("Warnings:\n")
+        assert f"{path}:3:3: warning: Input 'spare' is not used by any step" in result.output
+
+    def test_validate_workflow_scope_reports_warnings(self, tmp_path, monkeypatch):
+        from nf_meta.core.errors import Diagnostic, Severity
+
+        warning = Diagnostic(None, "url", "unreachable", Severity.WARNING)
+        monkeypatch.setattr(
+            "nf_meta.core.config.run_dynamic_checks", lambda wf, previous=None: [warning]
+        )
+        path = _write(tmp_path, "name: nf-core/fetchngs\nversion: 1.12.0\n")
+        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        assert result.exit_code == 0, result.output
+        assert "warning: [url] unreachable" in result.output
+        assert "Workflow is valid with 1 warning" in result.output

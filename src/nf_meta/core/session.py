@@ -1,4 +1,9 @@
-from .errors import ConfigValidationError, GraphValidationError, SessionCommandError
+from .errors import (
+    ConfigValidationError,
+    Diagnostic,
+    GraphValidationError,
+    SessionCommandError,
+)
 from .events import Command
 from .history import History
 from .graph import MetaworkflowGraph
@@ -12,6 +17,8 @@ class EditorSession:
         self.config_file: Path = config_file
         self.graph: MetaworkflowGraph = None
         self.history: History = None
+        # Warnings found when the config was loaded
+        self.warnings: list[Diagnostic] = []
 
     def load_config(self, config: Path):
         self.start(config)
@@ -21,9 +28,10 @@ class EditorSession:
 
         self.config_file = config
         if self.config_file:
-            self.graph = from_file(self.config_file)
+            self.graph = from_file(self.config_file, collect_errors=True)
         else:
             self.graph = MetaworkflowGraph()
+        self.warnings = self.graph.warnings
 
         self.history = History()
 

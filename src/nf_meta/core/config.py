@@ -246,12 +246,16 @@ def construct_workflow(
         )
 
 
-def validated_workflow(data: dict) -> Workflow:
+def validated_workflow(
+    data: dict, warnings: Optional[list[Diagnostic]] = None
+) -> Workflow:
     """Construct and fully validate a single workflow from a flat, raw dict
     (`id` optional -- the model's own `default_factory` generates one if
     omitted). Runs the same tier-0/1 construction plus tier-2 dynamic checks
     a workflow gets as part of a full config build. Returns the validated
     Workflow, or raises `GraphValidationError`/`ConfigValidationError`.
+
+    Warnings are appended to `warnings` when given, else logged.
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -264,9 +268,13 @@ def validated_workflow(data: dict) -> Workflow:
         raise ConfigValidationError(diagnostics)
     dynamic_diagnostics = run_dynamic_checks(wf, previous=None)
     errors = [d for d in dynamic_diagnostics if d.severity == Severity.ERROR]
+    found_warnings = [d for d in dynamic_diagnostics if d.severity == Severity.WARNING]
     if errors:
-        raise ConfigValidationError(errors)
-    log_warnings(dynamic_diagnostics)
+        raise ConfigValidationError(errors, warnings=found_warnings)
+    if warnings is None:
+        log_warnings(found_warnings)
+    else:
+        warnings.extend(found_warnings)
     return wf
 
 
@@ -289,12 +297,14 @@ def validated_globals(data: dict) -> GlobalOptions:
         ) from e
 
 
-def validated_workflow_from_file(cfg_file: Path) -> Workflow:
+def validated_workflow_from_file(
+    cfg_file: Path, warnings: Optional[list[Diagnostic]] = None
+) -> Workflow:
     """Read `cfg_file` as YAML and validate it as a standalone workflow
     snippet. See `validated_workflow`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
-    return validated_workflow(data)
+    return validated_workflow(data, warnings)
 
 
 def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:

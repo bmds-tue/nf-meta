@@ -18,6 +18,32 @@ def _read_text(path) -> str | None:
         return None
 
 
+def _echo_warnings(warnings, config) -> int:
+    """Print `warnings` in the same format as validation errors; return how
+    many there were."""
+    from nf_meta.core.errors import format_warnings_for_cli
+
+    if warnings:
+        click.echo(
+            format_warnings_for_cli(
+                warnings, source_text=_read_text(config), filename=str(config)
+            )
+        )
+    return len(warnings)
+
+
+def _echo_valid(what: str, n_warnings: int) -> None:
+    from nf_meta.core.errors import WARNING_COLOR
+
+    if n_warnings:
+        plural = "" if n_warnings == 1 else "s"
+        click.echo(
+            click.style(f"✓ {what} is valid with {n_warnings} warning{plural}", fg=WARNING_COLOR)
+        )
+    else:
+        click.echo(click.style(f"✓ {what} is valid", fg="green"))
+
+
 def handle_validation_errors(func):
     """Shared error handling for commands taking a `config` path: renders any
     validation failure through the unified format_errors_for_cli, with real
@@ -75,7 +101,8 @@ def edit_browser(config, verbose, editor, host, port):
     from nf_meta.editor import EditorOptions, run_editor
     from nf_meta.core.session import start_session
 
-    start_session(config)
+    session = start_session(config)
+    _echo_warnings(session.warnings, config)
     opts = EditorOptions(editor_name=editor)
     if host is not None:
         opts.host = host
@@ -121,29 +148,14 @@ def export_schema(output):
 @handle_validation_errors
 def validate_config(config, verbose, scope):
     if scope == "config":
-        from nf_meta.core.errors import WARNING_COLOR, format_warnings_for_cli
-
         g = from_file(config, collect_errors=True)
-        if g.warnings:
-            click.echo(
-                format_warnings_for_cli(
-                    g.warnings, source_text=_read_text(config), filename=str(config)
-                )
-            )
-            n = len(g.warnings)
-            click.echo(
-                click.style(
-                    f"✓ Config is valid with {n} warning{'' if n == 1 else 's'}",
-                    fg=WARNING_COLOR,
-                )
-            )
-        else:
-            click.echo(click.style("✓ Config is valid", fg="green"))
+        _echo_valid("Config", _echo_warnings(g.warnings, config))
     elif scope == "workflow":
         from nf_meta.core.config import validated_workflow_from_file
 
-        validated_workflow_from_file(config)
-        click.echo(click.style("✓ Workflow is valid", fg="green"))
+        warnings: list = []
+        validated_workflow_from_file(config, warnings)
+        _echo_valid("Workflow", _echo_warnings(warnings, config))
     else:
         from nf_meta.core.config import validated_globals_from_file
 
@@ -227,7 +239,8 @@ def run(
             target=target,
             out_dir=out_dir,
         )
-        g = from_file(config)
+        g = from_file(config, collect_errors=True)
+        _echo_warnings(g.warnings, config)
         if dry_run:
             _print_plan(plan_metapipeline(g, run_options))
         else:

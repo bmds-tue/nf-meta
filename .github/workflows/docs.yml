@@ -114,3 +114,9 @@ jobs:
           uv run mike deploy --push --update-aliases --alias-type=copy \
             --title "${{ steps.v.outputs.title }}" \
             "${{ steps.v.outputs.version }}" ${{ steps.v.outputs.aliases }}
+
+      # Writes the root index.html redirecting the bare site URL to `latest`;
+      # without it the site root 404s. Idempotent, so safe on every release.
+      - name: Point site root at latest
+        if: steps.guard.outputs.ok == 'true' && steps.v.outputs.aliases == 'latest'
+        run: uv run mike set-default --push latest

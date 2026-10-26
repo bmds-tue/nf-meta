@@ -24,11 +24,19 @@ from pydantic import (
 from pydantic.functional_serializers import PlainSerializer
 
 from nf_meta.core.nf_core_utils import get_nfcore_pipelines
+from nf_meta.core.refs import (
+    ANY_BRACE_PATTERN,
+    INPUT_REF_PATTERN,
+    RESERVED_STEP_IDS,
+    STEP_REF_PATTERN,
+)
 
 logger = logging.getLogger()
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.3.0"
+CONFIG_VERSION_MAX = "0.4.0"
+# First config version that may declare `inputs:`
+INPUTS_MIN_CONFIG_VERSION = "0.4.0"
 
 
 class WorkflowType(StrEnum):
@@ -40,8 +48,8 @@ class WorkflowType(StrEnum):
 
 
 # Captures: ${<wf_id>:<namespace>:<key>}  where namespace is "params" or "outputs"
-_VALID_REF_PATTERN = re.compile(r"\$\{([^}]+):(params|outputs):([^}]+)\}")
-_ANY_BRACE_PATTERN = re.compile(r"\$\{[^}]*\}")
+_VALID_REF_PATTERN = STEP_REF_PATTERN
+_ANY_BRACE_PATTERN = ANY_BRACE_PATTERN
 
 
 def is_existing_file_abs(
@@ -179,6 +187,13 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
                 )
         return refs
 
+    @field_validator("id", mode="after")
+    @classmethod
+    def validate_id_not_reserved(cls, value: str) -> str:
+        if value in RESERVED_STEP_IDS:
+            raise ValueError(f"'{value}' is reserved and can't be used as a workflow id")
+        return value
+
     @field_validator("version", mode="after")
     @classmethod
     def validate_version_ref(cls, value: str) -> str:
@@ -196,10 +211,11 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
             return self
         for k, v in self.params.items():
             for token in _ANY_BRACE_PATTERN.findall(str(v)):
-                if not _VALID_REF_PATTERN.search(token):
+                if not (_VALID_REF_PATTERN.search(token) or INPUT_REF_PATTERN.search(token)):
                     logger.warning(
                         "Potentially invalid reference in workflow %s, "
-                        "param '%s': %s — expected ${<wf_id>:(params|outputs):<key>}",
+                        "param '%s': %s — expected ${<wf_id>:(params|outputs):<key>} "
+                        "or ${inputs:<name>}",
                         self.id,
                         k,
                         token,

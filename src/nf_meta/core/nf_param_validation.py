@@ -1,12 +1,10 @@
 import logging
-import re
 
 from .errors import Diagnostic, Severity
+from .refs import contains_reference
 
 logger = logging.getLogger(__name__)
 
-# Matches ${<wf_id>:<namespace>:<key>} — same pattern as models.py
-_VALID_REF_PATTERN = re.compile(r"\$\{([^}]+):(params|outputs):([^}]+)\}")
 
 
 def _check_type(param_name: str, value: object, expected_type: str) -> str | None:
@@ -43,7 +41,8 @@ def validate_params(
 
     Returns a list of Diagnostic, one per failing param (field=f"params.{param_name}",
     message still names the param explicitly). An empty list means all params are
-    valid. Cross-workflow reference tokens (``${...}``) skip type and enum checks.
+    valid. Values containing a step or input reference (``${...}``) skip type
+    and enum checks.
 
     Args:
         params: Resolved param dict. Values are real scalars (str/int/float/bool)
@@ -116,8 +115,8 @@ def validate_params(
         if spec is None:
             continue  # already flagged as unknown above
 
-        # Reference tokens are resolved at runtime — skip checks
-        if isinstance(value, str) and _VALID_REF_PATTERN.search(value):
+        # Step and input references are resolved at runtime — skip checks
+        if contains_reference(value):
             continue
 
         enum_values = spec.get("enum")

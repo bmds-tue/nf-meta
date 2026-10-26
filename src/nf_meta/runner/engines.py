@@ -91,7 +91,8 @@ class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
             argv += ["-resume"]
         for cfg in spec.config_files:
             argv += ["-c", str(cfg)]
-        argv += ["-profile", ",".join(spec.profiles)]
+        if spec.profiles:
+            argv += ["-profile", ",".join(spec.profiles)]
         if params_file:
             argv += ["-params-file", str(params_file)]
         if wf.main_script:

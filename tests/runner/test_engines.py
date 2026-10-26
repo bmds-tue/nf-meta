@@ -112,6 +112,9 @@ class TestPipelineCommand:
         argv = build(wf, GlobalOptions(profile="docker")).argv
         assert argv[argv.index("-profile") + 1] == "singularity"
 
+    def test_no_profile_flag_without_profiles(self, build, wf_rnaseq):
+        assert "-profile" not in build(wf_rnaseq).argv
+
     def test_wf_and_extra_profile_combined(self, build, wf_rnaseq):
         wf = wf_rnaseq.model_copy(update={"profile": "docker"})
         argv = build(wf, extra_profile="test").argv

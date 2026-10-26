@@ -10,9 +10,12 @@ happens directly, one workflow at a time, so a single broken workflow no
 longer blocks the others from being added.
 """
 
+import copy
 import logging
 from pathlib import Path
+from typing import Optional
 
+import requests
 import yaml
 from pydantic import ValidationError
 
@@ -383,7 +386,57 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
     return g
 
 
-def validated_graph(data: dict, *, collect_errors: bool = False) -> "MetaworkflowGraph":
+_PATH_KEYS = ("config_file", "params_file")
+
+
+def _workflow_items(data: dict) -> list[tuple[str, dict]]:
+    workflows = data.get("workflows")
+    if isinstance(workflows, dict):
+        return [(str(k), v) for k, v in workflows.items() if isinstance(v, dict)]
+    if isinstance(workflows, list):
+        return [(str(w.get("id", "<unknown>")), w) for w in workflows if isinstance(w, dict)]
+    return []
+
+
+def _resolve_config_paths(data: dict, project_dir: Optional[Path]) -> dict:
+    """Return `data` with relative `config_file`/`params_file` values made
+    absolute against `project_dir`. With no project dir (remote config), a
+    relative path is an error."""
+    data = copy.deepcopy(data)
+    sections: list[tuple[str, dict]] = []
+    if isinstance(data.get("globals"), dict):
+        sections.append(("globals.", data["globals"]))
+    sections += [(f"workflows.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
+
+    diagnostics = []
+    for prefix, section in sections:
+        for key in _PATH_KEYS:
+            value = section.get(key)
+            if not isinstance(value, str) or not value or Path(value).is_absolute():
+                continue
+            if project_dir is not None:
+                section[key] = str(project_dir / value)
+                continue
+            diagnostics.append(
+                Diagnostic(
+                    workflow_id=None if prefix == "globals." else prefix.split(".")[1],
+                    field=key,
+                    yaml_path=f"{prefix}{key}",
+                    message=(
+                        f"Relative path '{value}' in a config loaded from a URL: "
+                        "use an absolute path or declare it as an input"
+                    ),
+                    severity=Severity.ERROR,
+                )
+            )
+    if diagnostics:
+        raise ConfigValidationError(diagnostics)
+    return data
+
+
+def validated_graph(
+    data: dict, *, collect_errors: bool = False, project_dir: Optional[Path] = None
+) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
 
     Workflows can be declared as a dict keyed by id (`workflows: {<id>: {...}}`,
@@ -401,19 +454,45 @@ def validated_graph(data: dict, *, collect_errors: bool = False) -> "Metaworkflo
     problem found. Pass `collect_errors=True` for a best-effort pass that
     collects every problem instead of stopping at the first -- used by the
     CLI's `validate` command.
+
+    Relative `config_file`/`params_file` paths resolve against `project_dir`
+    (default: the current directory), which is recorded on the graph.
     """
-    if collect_errors:
-        return _full_validated_graph(data)
-    return _fast_validated_graph(data)
+    project_dir = (project_dir or Path.cwd()).resolve()
+    data = _resolve_config_paths(data, project_dir)
+    g = _full_validated_graph(data) if collect_errors else _fast_validated_graph(data)
+    g.project_dir = project_dir
+    return g
 
 
-def from_file(cfg_file: Path, *, collect_errors: bool = False) -> "MetaworkflowGraph":
-    """Read `cfg_file` as YAML and build+validate a `MetaworkflowGraph` from
-    it. Reads the whole file into memory; makes no other side effects. See
-    `validated_graph` for the validation contract and `collect_errors`."""
-    with open(cfg_file) as fh:
+def is_remote_config(location: str | Path) -> bool:
+    return str(location).startswith(("https://", "http://"))
+
+
+def from_file(cfg_file: str | Path, *, collect_errors: bool = False) -> "MetaworkflowGraph":
+    """Read the config at `cfg_file` (a path, or an `http(s)://` URL) and
+    build+validate a `MetaworkflowGraph` from it. See `validated_graph` for
+    the validation contract and `collect_errors`.
+
+    Relative paths in a local config resolve against the config's folder,
+    which becomes the graph's `project_dir`. A config loaded from a URL has
+    no project dir, and relative `config_file`/`params_file` paths in it are
+    an error.
+    """
+    if is_remote_config(cfg_file):
+        response = requests.get(str(cfg_file), timeout=30)
+        response.raise_for_status()
+        data = _resolve_config_paths(yaml.safe_load(response.text), project_dir=None)
+        if collect_errors:
+            return _full_validated_graph(data)
+        return _fast_validated_graph(data)
+
+    path = Path(cfg_file)
+    with open(path) as fh:
         data = yaml.safe_load(fh)
-    return validated_graph(data, collect_errors=collect_errors)
+    return validated_graph(
+        data, collect_errors=collect_errors, project_dir=path.parent.resolve()
+    )
 
 
 def dump_config(g: "MetaworkflowGraph") -> dict:

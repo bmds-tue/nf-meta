@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional
 
 import networkx as nx
@@ -58,6 +59,9 @@ class MetaworkflowGraph:
     """
 
     def __init__(self):
+        # Folder that relative paths in the config resolve against; None for a
+        # config loaded from a URL.
+        self.project_dir: Optional[Path] = None
         self.G: nx.DiGraph = nx.DiGraph()
         self.global_options = GlobalOptions()
         self.config_version: str = CONFIG_VERSION_MAX

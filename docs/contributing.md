@@ -47,6 +47,13 @@ It must not be edited it by hand.
       missing or edited out, `mike` sees no prior versions and republishes a
       tree containing *only* the version it just built, wiping every other
       published version.
+- [ ] Site root (`https://bmds-tue.github.io/nf-meta/`) returns 404 while
+      `/latest/` works → `gh-pages` has no root `index.html`. It is written by
+      the "Point site root at latest" step, which only runs on the release
+      holding the `latest` alias; re-run the `docs` workflow manually with that
+      release's tag to restore it.
+- [ ] Pages serves with `max-age=600`, so a fresh deploy can take up to ~10
+      minutes to show in a browser — hard-refresh before assuming it failed.
 - [ ] Check the released version didn't get the dev banner — `NF_META_DOCS_IS_DEV`
       should read `false` in that run's "Publish" step logs whenever a tag is
       present.

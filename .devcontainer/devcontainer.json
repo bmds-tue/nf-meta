@@ -5,6 +5,10 @@
     // Node.js LTS is required by the Claude Code CLI
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
+    },
+    // Java is required by Nextflow (installed in post-create.sh)
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "17"
     }
   },
   "remoteEnv": {

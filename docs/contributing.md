@@ -12,6 +12,16 @@ uv run pytest
 uv run mypy src/nf_meta
 ```
 
+Tests that run real Nextflow are marked `nextflow` and deselected by default. They need Java 17+
+and Nextflow on `PATH` (the devcontainer installs both) and skip themselves otherwise:
+
+```bash
+uv run pytest -m nextflow
+```
+
+They pin down Nextflow behavior the runner relies on (resume sessions, launch-dir-relative
+paths); see `tests/integration/test_nextflow_assumptions.py`. CI runs them in a separate job.
+
 ## Documentation
 
 Docs sources live in `docs/` on `main`, built with [MkDocs](https://www.mkdocs.org/) (using the [material theme](https://github.com/squidfunk/mkdocs-material)) and

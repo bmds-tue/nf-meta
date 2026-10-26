@@ -31,3 +31,43 @@ jobs:
 
       - name: Run tests
         run: uv run pytest --tb=short
+
+  nextflow-integration:
+    name: Nextflow integration tests (${{ matrix.nextflow }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nextflow: ["25.10.9", "26.10.3"]
+    env:
+      NXF_VER: ${{ matrix.nextflow }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Nextflow
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cd "$HOME/.local/bin" && curl -fsSL https://get.nextflow.io | bash && chmod +x nextflow
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run Nextflow integration tests
+        run: uv run pytest -m nextflow tests/integration --tb=short

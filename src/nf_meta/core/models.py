@@ -24,12 +24,7 @@ from pydantic import (
 from pydantic.functional_serializers import PlainSerializer
 
 from nf_meta.core.nf_core_utils import get_nfcore_pipelines
-from nf_meta.core.refs import (
-    ANY_BRACE_PATTERN,
-    INPUT_REF_PATTERN,
-    RESERVED_STEP_IDS,
-    STEP_REF_PATTERN,
-)
+from nf_meta.core.refs import RESERVED_STEP_IDS, STEP_REF_PATTERN
 
 logger = logging.getLogger()
 
@@ -49,7 +44,6 @@ class WorkflowType(StrEnum):
 
 # Captures: ${<wf_id>:<namespace>:<key>}  where namespace is "params" or "outputs"
 _VALID_REF_PATTERN = STEP_REF_PATTERN
-_ANY_BRACE_PATTERN = ANY_BRACE_PATTERN
 
 
 def is_existing_file_abs(
@@ -204,23 +198,6 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
             "Use a release tag (e.g. '1.2.3', 'v1.2.3') or a commit SHA "
             "to ensure reproducibility."
         )
-
-    @model_validator(mode="after")
-    def warn_malformed_refs(self) -> "BaseWorkflow":
-        if not self.params:
-            return self
-        for k, v in self.params.items():
-            for token in _ANY_BRACE_PATTERN.findall(str(v)):
-                if not (_VALID_REF_PATTERN.search(token) or INPUT_REF_PATTERN.search(token)):
-                    logger.warning(
-                        "Potentially invalid reference in workflow %s, "
-                        "param '%s': %s — expected ${<wf_id>:(params|outputs):<key>} "
-                        "or ${inputs:<name>}",
-                        self.id,
-                        k,
-                        token,
-                    )
-        return self
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"

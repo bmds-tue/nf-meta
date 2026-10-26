@@ -14,6 +14,7 @@ from nf_meta.core.config import (  # type: ignore[import]
 from nf_meta.core.errors import (  # type: ignore[import]
     ConfigValidationError,
     GraphValidationError,
+    Severity,
 )
 
 
@@ -618,3 +619,74 @@ def test_module_with_old_nextflow_version_rejected(collect_errors):
     with pytest.raises(ConfigValidationError) as exc:
         validated_graph(data, collect_errors=collect_errors)
     assert any(d.yaml_path == "globals.nextflow_version" for d in exc.value.errors)
+
+
+# ---------------------------------------------------------------------------
+# Unknown keys, malformed references, collected warnings
+# ---------------------------------------------------------------------------
+
+
+def _config(**extra):
+    data = {
+        "config_version": "0.4.0",
+        "workflows": {
+            "n01": {"name": "nf-core/fetchngs", "version": "1.12.0",
+                    "params": {"input": "ids.csv", "outdir": "o"}},
+        },
+    }
+    data.update(extra)
+    return data
+
+
+@pytest.mark.parametrize("collect_errors", [False, True])
+def test_unknown_top_level_key_rejected_with_suggestion(collect_errors):
+    with pytest.raises(ConfigValidationError) as exc:
+        validated_graph(_config(input={}), collect_errors=collect_errors)
+    assert [d.yaml_path for d in exc.value.errors] == ["input"]
+    assert "Did you mean 'inputs'?" in exc.value.errors[0].message
+
+
+@pytest.mark.parametrize("collect_errors", [False, True])
+def test_unknown_keys_in_globals_and_workflows_rejected(collect_errors):
+    data = _config(globals={"profle": "docker"})
+    data["workflows"]["n01"]["parms"] = {}
+    with pytest.raises(ConfigValidationError) as exc:
+        validated_graph(data, collect_errors=collect_errors)
+    paths = {d.yaml_path for d in exc.value.errors}
+    assert "globals.profle" in paths or "workflows.n01.parms" in paths
+    if collect_errors:
+        assert paths == {"globals.profle", "workflows.n01.parms"}
+
+
+@pytest.mark.parametrize("collect_errors", [False, True])
+def test_malformed_reference_is_an_error(collect_errors):
+    data = _config()
+    data["workflows"]["n01"]["params"]["input"] = "${input:ids}"
+    with pytest.raises(ConfigValidationError) as exc:
+        validated_graph(data, collect_errors=collect_errors)
+    assert exc.value.errors[0].yaml_path == "workflows.n01.params.input"
+    assert "Did you mean '${inputs:ids}'?" in exc.value.errors[0].message
+
+
+def test_collect_errors_returns_warnings_on_the_graph():
+    data = _config(inputs={"spare": {"type": "string"}})
+    g = validated_graph(data, collect_errors=True)
+    assert [(d.severity, d.yaml_path) for d in g.warnings] == [
+        (Severity.WARNING, "inputs.spare")
+    ]
+
+
+def test_legacy_transitions_reported_as_warning():
+    data = _config()
+    data["workflows"]["n02"] = {"name": "nf-core/rnaseq", "version": "3.14.0",
+                                "params": {"input": "s.csv", "outdir": "o2"}}
+    data["transitions"] = [{"source": "n01", "target": "n02"}]
+    g = validated_graph(data, collect_errors=True)
+    assert [d.yaml_path for d in g.warnings] == ["transitions"]
+
+
+def test_errors_carry_warnings_too():
+    data = _config(inputs={"spare": {"type": "string"}}, input={})
+    with pytest.raises(ConfigValidationError) as exc:
+        validated_graph(data, collect_errors=True)
+    assert [d.yaml_path for d in exc.value.warnings] == ["inputs.spare"]

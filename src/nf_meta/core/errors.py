@@ -54,6 +54,9 @@ class ConfigValidationError(Exception):
 
     errors: list[Diagnostic]
     graph_messages: list[str] = field(default_factory=list)
+    # Warnings found alongside the errors (only collected by the
+    # collect-everything validation path).
+    warnings: list[Diagnostic] = field(default_factory=list)
 
 
 def diagnostics_from_pydantic_error(
@@ -146,7 +149,7 @@ def collect_positioned_diagnostics(
     graph_messages: list[str] = []
 
     if isinstance(e, ConfigValidationError):
-        diagnostics = e.errors
+        diagnostics = [*e.errors, *e.warnings]
         graph_messages = e.graph_messages
     elif isinstance(e, GraphValidationError):
         graph_messages = [str(e)]
@@ -161,13 +164,29 @@ def collect_positioned_diagnostics(
     return positioned, graph_messages
 
 
+# 256-colour orange: stands out from red errors more than yellow does
+WARNING_COLOR = 208
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
 def render_positioned_diagnostics(
     positioned: list[PositionedDiagnostic], graph_messages: list[str], filename: str
 ) -> str:
     """Render compiler-style, column-aligned CLI output from already-resolved
-    diagnostics: "<file>:<line>:<col>: <severity>: [<tag>] <message>". Lines
-    with no resolved position fall back to a bare filename prefix.
+    diagnostics: "<file>:<line>:<col>: <severity>: [<tag>] <message>". Errors
+    come first, then warnings, each in document order. Lines with no resolved
+    position fall back to a bare filename prefix. The header counts errors and
+    warnings; with no errors it reads "Warnings:".
     """
+
+    def order(pd: PositionedDiagnostic):
+        is_warning = pd.diagnostic.severity == Severity.WARNING
+        position = (pd.position.line, pd.position.column) if pd.position else (0, 0)
+        return (is_warning, position)
+
     located: list[tuple[str, Diagnostic]] = [
         (
             f"{filename}:{pd.position.line}:{pd.position.column}"
@@ -175,7 +194,7 @@ def render_positioned_diagnostics(
             else filename,
             pd.diagnostic,
         )
-        for pd in positioned
+        for pd in sorted(positioned, key=order)
     ]
 
     # Graph-level messages (e.g. a cycle) have no workflow/field to attribute
@@ -186,23 +205,43 @@ def render_positioned_diagnostics(
         location_lengths.append(len(filename))
     width = max(location_lengths, default=0)
 
-    lines = []
+    error_lines, warning_lines = [], []
     for location, d in located:
         tag = f"{d.workflow_id}/{d.field}" if d.workflow_id is not None else d.field
-        severity_color = "red" if d.severity == Severity.ERROR else "yellow"
-        severity_label = click.style(d.severity.value, fg=severity_color, bold=True)
-        lines.append(f"{location.ljust(width)}: {severity_label}: [{tag}] {d.message}")
+        tag_text = f"[{tag}] " if tag else ""
+        if d.severity == Severity.ERROR:
+            label = click.style("error", fg="red", bold=True)
+            error_lines.append(f"{location.ljust(width)}: {label}: {tag_text}{d.message}")
+        else:
+            label = click.style("warning", fg=WARNING_COLOR, bold=True)
+            warning_lines.append(f"{location.ljust(width)}: {label}: {tag_text}{d.message}")
 
     for message in graph_messages:
-        severity_label = click.style("error", fg="red", bold=True)
-        lines.append(f"{filename.ljust(width)}: {severity_label}: {message}")
+        label = click.style("error", fg="red", bold=True)
+        error_lines.append(f"{filename.ljust(width)}: {label}: {message}")
 
-    if not lines:
+    if not error_lines and not warning_lines:
         return ""
 
-    header = click.style("Validation failed:", fg="red", bold=True)
-    body = "\n".join(f" {line}" for line in lines)
+    if error_lines:
+        counts = _plural(len(error_lines), "error")
+        if warning_lines:
+            counts += f", {_plural(len(warning_lines), 'warning')}"
+        header = click.style(f"Validation failed ({counts}):", fg="red", bold=True)
+    else:
+        header = click.style("Warnings:", fg=WARNING_COLOR, bold=True)
+    body = "\n".join(f" {line}" for line in [*error_lines, *warning_lines])
     return f"{header}\n{body}"
+
+
+def format_warnings_for_cli(
+    warnings: list[Diagnostic], source_text: str | None = None, filename: str = ""
+) -> str:
+    """Render warnings in the same format as `format_errors_for_cli`."""
+    positioned, graph_messages = collect_positioned_diagnostics(
+        ConfigValidationError(errors=[], warnings=warnings), source_text
+    )
+    return render_positioned_diagnostics(positioned, graph_messages, filename)
 
 
 def format_errors_for_cli(

@@ -34,7 +34,7 @@ from .errors import (
 )
 from .dynamic_validation import check_all, check_inputs, log_warnings, run_dynamic_checks
 from .inputs import Binding, Input, InputDefinition, input_refs
-from .refs import INPUT_REF_PATTERN
+from .refs import ANY_BRACE_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
 
 
 MIN_NEXTFLOW_FOR_MODULES = (26, 4)
@@ -73,6 +73,8 @@ class MetaworkflowGraph:
         self.global_options = GlobalOptions()
         self.config_version: str = CONFIG_VERSION_MAX
         self.inputs: dict[str, InputDefinition] = {}
+        # Warnings found when the graph was loaded with collect_errors=True
+        self.warnings: list[Diagnostic] = []
         self._events: list[Event] = []
         # None = not suspended. A set = suspended, accumulating the ids of
         # workflows touched while suspended, so deferred_validation's exit
@@ -430,7 +432,8 @@ class MetaworkflowGraph:
     #        VALIDATION
     # ===========================
     def validate_param_references(self, wf: Workflow):
-        """Check that every `${wf_id:params:key}` reference in `wf.params`
+        """Check that every `${...}` token in `wf.params` is a well-formed step
+        or input reference, and that every `${wf_id:params:key}` reference
         points at a real, already-resolvable predecessor param.
 
         Raises `ConfigValidationError` (carrying one `Diagnostic` per bad
@@ -453,6 +456,25 @@ class MetaworkflowGraph:
             )
 
         diagnostics: list[Diagnostic] = []
+        for key, value in (getattr(wf, "params", None) or {}).items():
+            for token in ANY_BRACE_PATTERN.findall(str(value)):
+                if STEP_REF_PATTERN.fullmatch(token) or INPUT_REF_PATTERN.fullmatch(token):
+                    continue
+                hint = ""
+                if token.startswith("${input:"):
+                    hint = f" Did you mean '${{inputs:{token[len('${input:'):]}'?"
+                diagnostics.append(
+                    Diagnostic(
+                        workflow_id=wf.id,
+                        field=f"params.{key}",
+                        yaml_path=f"workflows.{wf.id}.params.{key}",
+                        message=(
+                            f"Invalid reference '{token}': expected "
+                            "${<workflow_id>:params:<key>} or ${inputs:<name>}." + hint
+                        ),
+                        severity=Severity.ERROR,
+                    )
+                )
         for ref in wf.field_refs:
             if ref.namespace != "params":
                 continue  # output references not yet validated

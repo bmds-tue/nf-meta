@@ -11,6 +11,7 @@ longer blocks the others from being added.
 """
 
 import copy
+import difflib
 import logging
 from pathlib import Path
 from typing import Optional
@@ -45,25 +46,77 @@ from packaging.version import Version
 logger = logging.getLogger()
 
 
-def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
+def _module_executor_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
     if g.global_options and g.global_options.config_file:
-        return
-
-    for wf in g.get_workflows():
-        if not wf.type == WorkflowType.NF_MODULE:
-            continue
-        if wf.container_engine:  # type: ignore[union-attr]
-            continue
-        logger.warning(
-            "Running Nextflow module(s) without specifying an executor "
-            "or a global Nextflow config relies on the local environment.\n"
-            "This will cause errors, if module dependencies are not "
-            "available locally and breaks reproducibility"
+        return []
+    return [
+        Diagnostic(
+            workflow_id=wf.id,
+            field="container_engine",
+            yaml_path=f"workflows.{wf.id}",
+            message=(
+                "Module runs without a container_engine or a global Nextflow config "
+                "rely on the local environment: missing dependencies cause errors, "
+                "and results aren't reproducible"
+            ),
+            severity=Severity.WARNING,
         )
+        for wf in g.get_workflows()
+        if wf.type == WorkflowType.NF_MODULE and not wf.container_engine  # type: ignore[union-attr]
+    ]
+
+
+def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
+    log_warnings(_module_executor_warnings(g))
+
+
+TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", "workflows", "transitions")
+# Keys a workflow entry may have besides its model's fields
+_EXTRA_WORKFLOW_KEYS = ("from", "id", "type")
+
+
+def _unknown_key(key: str, allowed, yaml_path: str, where: str, workflow_id=None) -> Diagnostic:
+    close = difflib.get_close_matches(str(key), list(allowed), n=1, cutoff=0.6)
+    hint = f" Did you mean '{close[0]}'?" if close else ""
+    return Diagnostic(
+        workflow_id=workflow_id,
+        field=str(key),
+        yaml_path=yaml_path,
+        message=f"Unknown key '{key}' {where}.{hint}",
+        severity=Severity.ERROR,
+    )
+
+
+def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
+    """Errors for keys the config format doesn't know: at the top level, in
+    `globals`, and in each workflow entry. (Unknown keys in `inputs` entries
+    are reported when they are parsed.)"""
+    diagnostics = [
+        _unknown_key(key, TOP_LEVEL_KEYS, str(key), "at the top level")
+        for key in data
+        if key not in TOP_LEVEL_KEYS
+    ]
+    globals_ = data.get("globals")
+    if isinstance(globals_, dict):
+        global_keys = list(GlobalOptions.model_fields)
+        diagnostics += [
+            _unknown_key(key, global_keys, f"globals.{key}", "in globals")
+            for key in globals_
+            if key not in global_keys
+        ]
+    for wf_id, item in _workflow_items(data):
+        model = NfModule if item.get("type") == WorkflowType.NF_MODULE else NfPipeline
+        allowed = [*model.model_fields, *_EXTRA_WORKFLOW_KEYS]
+        diagnostics += [
+            _unknown_key(key, allowed, f"workflows.{wf_id}.{key}", f"in workflow '{wf_id}'", wf_id)
+            for key in item
+            if key not in allowed
+        ]
+    return diagnostics
 
 
 def _extract_items_and_transitions(
-    data: dict,
+    data: dict, warnings: Optional[list[Diagnostic]] = None
 ) -> tuple[list[dict], list[tuple[str, str]]]:
     """Normalize `workflows:`/`transitions:`/`from:` into a flat list of
     workflow-definition dicts (`type`/`id` defaulted) and a list of pending
@@ -76,22 +129,38 @@ def _extract_items_and_transitions(
     ordinary per-workflow mistakes, so every caller lets them raise immediately
     rather than aggregating around them.
     """
+    def warn(yaml_path: str, message: str) -> None:
+        if warnings is None:
+            logger.warning(message)
+        else:
+            warnings.append(
+                Diagnostic(
+                    workflow_id=None,
+                    field=yaml_path,
+                    yaml_path=yaml_path,
+                    message=message,
+                    severity=Severity.WARNING,
+                )
+            )
+
     has_top_level_transitions = "transitions" in data
     if has_top_level_transitions:
-        logger.warning(
+        warn(
+            "transitions",
             "Legacy top-level 'transitions:' key is deprecated -- declare each "
             "workflow's predecessors via its own 'from:' key instead. Update by "
-            "opening and saving the config in the editor."
+            "opening and saving the config in the editor.",
         )
 
     raw_workflows = data.get("workflows") or {}
     if isinstance(raw_workflows, dict):
         raw_items: list[tuple[str | None, object]] = list(raw_workflows.items())
     elif isinstance(raw_workflows, list):
-        logger.warning(
+        warn(
+            "workflows",
             "Legacy list-format for 'workflows' is deprecated -- use the dict-"
             "format keyed by workflow id instead. Update by opening and saving the "
-            "config in the editor."
+            "config in the editor.",
         )
         raw_items = [
             (item.get("id") if isinstance(item, dict) else None, item)
@@ -303,6 +372,10 @@ def _fast_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
     except ValueError as e:
         raise GraphValidationError(str(e)) from e
 
+    unknown = unknown_key_diagnostics(data)
+    if unknown:
+        raise ConfigValidationError(unknown)
+
     items, pending_transitions = _extract_items_and_transitions(data)
 
     g = MetaworkflowGraph()
@@ -370,13 +443,14 @@ def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
         graph_messages.append(str(e))
         config_version = CONFIG_VERSION_MAX
 
-    items, pending_transitions = _extract_items_and_transitions(data)
+    warnings: list[Diagnostic] = []
+    items, pending_transitions = _extract_items_and_transitions(data, warnings)
 
     g = MetaworkflowGraph()
     g.project_dir = project_dir
     g.config_version = config_version
 
-    diagnostics: list[Diagnostic] = []
+    diagnostics: list[Diagnostic] = unknown_key_diagnostics(data)
     attempted_ids = {item.get("id") for item in items}
     constructed: list[Workflow] = []
     for item in items:
@@ -429,12 +503,10 @@ def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
     input_diagnostics = g.input_diagnostics()
     if inputs:
         input_diagnostics += g.effective_inputs()[1]
-    diagnostics.extend(d for d in input_diagnostics if d.severity == Severity.ERROR)
-    log_warnings(input_diagnostics)
-
     tier2_diagnostics = check_all([g.with_input_placeholders(wf) for wf in constructed])
-    diagnostics.extend(d for d in tier2_diagnostics if d.severity == Severity.ERROR)
-    log_warnings(tier2_diagnostics)
+    for found in (input_diagnostics, tier2_diagnostics):
+        diagnostics.extend(d for d in found if d.severity == Severity.ERROR)
+        warnings.extend(d for d in found if d.severity == Severity.WARNING)
 
     if data.get("globals") is not None:
         try:
@@ -449,11 +521,14 @@ def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
     diagnostics.extend(
         g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows())
     )
-    _warn_about_module_executor(g)
+    warnings.extend(_module_executor_warnings(g))
 
     if diagnostics or graph_messages:
-        raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages)
+        raise ConfigValidationError(
+            errors=diagnostics, graph_messages=graph_messages, warnings=warnings
+        )
 
+    g.warnings = warnings
     return g
 
 

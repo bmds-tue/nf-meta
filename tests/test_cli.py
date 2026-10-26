@@ -245,3 +245,33 @@ class TestRunDryRun:
         )
         assert result.exit_code == 0, result.output
         assert f"cwd: {out}" in result.output
+
+
+class TestValidateWarnings:
+    CONFIG = (
+        "config_version: 0.4.0\n"
+        "inputs:\n"
+        "  spare:\n"
+        "    type: string\n"
+        "workflows:\n"
+        "  n01:\n"
+        "    name: nf-core/fetchngs\n"
+        "    version: 1.12.0\n"
+        "    params:\n"
+        "      input: ids.csv\n"
+        "      outdir: o\n"
+    )
+
+    def test_valid_with_warnings(self, tmp_path):
+        path = _write(tmp_path, self.CONFIG)
+        result = CliRunner().invoke(cli, ["validate", str(path)])
+        assert result.exit_code == 0, result.output
+        assert f"{path}:3:3: warning: Input 'spare' is not used by any step" in result.output
+        assert "Config is valid with 1 warning" in result.output
+
+    def test_errors_and_warnings_listed_together(self, tmp_path):
+        path = _write(tmp_path, self.CONFIG + "input: {}\n")
+        result = CliRunner().invoke(cli, ["validate", str(path)])
+        assert result.exit_code == 1
+        assert "Validation failed (1 error, 1 warning):" in result.output
+        assert result.output.index("error:") < result.output.index("warning:")

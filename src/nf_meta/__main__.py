@@ -11,6 +11,13 @@ from nf_meta.core.config import from_file
 from nf_meta.editor import get_registered_editors
 
 
+def _read_text(path) -> str | None:
+    try:
+        return Path(path).read_text()
+    except (OSError, TypeError):
+        return None
+
+
 def handle_validation_errors(func):
     """Shared error handling for commands taking a `config` path: renders any
     validation failure through the unified format_errors_for_cli, with real
@@ -27,12 +34,7 @@ def handle_validation_errors(func):
         try:
             return func(*args, **kwargs)
         except (GraphValidationError, ConfigValidationError) as e:
-            source_text = None
-            if config:
-                try:
-                    source_text = Path(config).read_text()
-                except OSError:
-                    source_text = None
+            source_text = _read_text(config) if config else None
             click.echo(
                 format_errors_for_cli(
                     e, source_text=source_text, filename=str(config or "")
@@ -119,8 +121,24 @@ def export_schema(output):
 @handle_validation_errors
 def validate_config(config, verbose, scope):
     if scope == "config":
-        from_file(config, collect_errors=True)
-        click.echo(click.style("✓ Config is valid", fg="green"))
+        from nf_meta.core.errors import WARNING_COLOR, format_warnings_for_cli
+
+        g = from_file(config, collect_errors=True)
+        if g.warnings:
+            click.echo(
+                format_warnings_for_cli(
+                    g.warnings, source_text=_read_text(config), filename=str(config)
+                )
+            )
+            n = len(g.warnings)
+            click.echo(
+                click.style(
+                    f"✓ Config is valid with {n} warning{'' if n == 1 else 's'}",
+                    fg=WARNING_COLOR,
+                )
+            )
+        else:
+            click.echo(click.style("✓ Config is valid", fg="green"))
     elif scope == "workflow":
         from nf_meta.core.config import validated_workflow_from_file
 

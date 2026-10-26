@@ -243,7 +243,7 @@ class TestFormatErrorsForCli:
         exc = GraphValidationError("cycle found in graph")
         output = click.unstyle(format_errors_for_cli(exc, filename="test.yaml"))
         lines = output.split("\n")
-        assert lines[0] == "Validation failed:"
+        assert lines[0] == "Validation failed (1 error):"
         assert lines[1] == " test.yaml: error: cycle found in graph"
 
 
@@ -297,7 +297,7 @@ class TestFormatErrorsForCliPositions:
         # ":line:col" in between.
         output = click.unstyle(format_errors_for_cli(exc, filename="test.yaml"))
         lines = output.split("\n")
-        assert lines[0] == "Validation failed:"
+        assert lines[0] == "Validation failed (1 error):"
         assert lines[1] == " test.yaml: error: [wf_a/params.outdir] bad param"
 
     def test_no_workflow_id_still_resolves_via_default_yaml_path(self):
@@ -323,7 +323,7 @@ class TestFormatErrorsForCliPositions:
             format_errors_for_cli(exc, source_text=source, filename="test.yaml")
         )
         lines = output.split("\n")
-        assert lines[0] == "Validation failed:"
+        assert lines[0] == "Validation failed (1 error):"
         assert lines[1] == f" test.yaml:{expected.line}:{expected.column}: error: [config_version] bad version"
 
     def test_warning_severity_labeled_distinctly_from_error(self):
@@ -363,6 +363,6 @@ class TestFormatErrorsForCliPositions:
             format_errors_for_cli(exc, source_text=source, filename="x.yaml")
         )
         lines = output.split("\n")
-        assert lines[0] == "Validation failed:"
+        assert lines[0] == "Validation failed (2 errors):"
         assert len(lines) == 3
         assert lines[1].index("error:") == lines[2].index("error:")

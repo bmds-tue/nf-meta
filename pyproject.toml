@@ -52,6 +52,7 @@ dev = [
     "types-pyyaml>=6.0.12.20260408",
     "types-requests>=2.33.0.20260503",
     "jsonschema>=4.25.0",
+    "ruff~=0.17.2",
 ]
 docs = [
     "mkdocs~=1.6",
@@ -74,3 +75,32 @@ mypy_path = "src"
 [[tool.mypy.overrides]]
 module = ["uvicorn", "uvicorn.*"]
 ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "I",                                # isort
+    "E1", "E4", "E7", "E9", "E902",     # pycodestyle errors (partial)
+    "F",                                # pyflakes
+    "UP",                               # pyupgrade
+    "N",                                # pep8-naming
+    "B",                                # flake8-bugbear
+    "RSE",                              # flake8-raise
+    "PTH",                              # flake8-use-pathlib
+    "SIM",                              # flake8-simplify
+    "C4",                               # flake8-comprehensions
+    "BLE",                              # flake8-blind-except
+    "W",                                # pycodestyle warnings
+    "A",                                # flake8-builtins
+    "PIE",                              # flake8-pie
+]
+ignore = ["PTH123", "PIE790"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nf_meta"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]

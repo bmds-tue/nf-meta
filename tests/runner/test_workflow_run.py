@@ -1,3 +1,4 @@
+import re
 import pytest
 import yaml
 
@@ -231,3 +232,21 @@ class TestNfModuleRunCmd:
         run = NfModuleRun(module_fastqc, workdir, g)
         with pytest.raises(NfMetaRunnerError):
             run.get_cmd()
+
+
+# ---------------------------------------------------------------------------
+# Resume (plans/P0-findings.md, H1/H2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="P2: a bare -resume resumes the most recent session in the shared "
+    "launch dir, i.e. usually another step's; the step's own session UUID is needed",
+)
+def test_resume_passes_the_steps_session_id(mock_nextflow, wf_rnaseq, workdir):
+    run = NfPipelineRun(wf_rnaseq, workdir, None)
+    run.prepare()
+    cmd = run.get_cmd(resume=True)
+    session = cmd[cmd.index("-resume") + 1]
+    assert re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", session)

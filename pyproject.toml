@@ -62,6 +62,10 @@ docs = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not nextflow'"
+markers = [
+    "nextflow: runs real Nextflow (deselected by default; run with `-m nextflow`)",
+]
 
 [tool.mypy]
 python_version = "3.12"

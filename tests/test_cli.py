@@ -366,3 +366,49 @@ class TestScopeHint:
         result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
         assert result.exit_code == 0
         assert "whole config" not in result.output
+
+
+class TestQuestions:
+    """Which questionary question each kind of input gets (no terminal needed)."""
+
+    def _question(self, monkeypatch, **schema):
+        from nf_meta.__main__ import _question_for_input
+        from nf_meta.core.inputs import Input
+
+        calls = {}
+        for kind in ("select", "confirm", "path", "text"):
+            monkeypatch.setattr(f"questionary.{kind}", lambda *a, _k=kind, **kw: calls.update(kind=_k, args=a, kw=kw))
+        _question_for_input(Input(name="x", schema={"type": "string", **schema}))
+        return calls
+
+    def test_enum_is_a_selection(self, monkeypatch):
+        calls = self._question(monkeypatch, enum=["EB1", "GRCh38"])
+        assert calls["kind"] == "select"
+        assert calls["kw"]["choices"] == ["EB1", "GRCh38"]
+
+    def test_long_enum_is_searchable(self, monkeypatch):
+        calls = self._question(monkeypatch, enum=[str(i) for i in range(20)])
+        assert calls["kw"]["use_search_filter"] is True
+
+    def test_boolean_is_a_confirm(self, monkeypatch):
+        assert self._question(monkeypatch, type="boolean")["kind"] == "confirm"
+
+    def test_path_completes_and_validates(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "ids.csv").write_text("")
+        calls = self._question(monkeypatch, format="file-path", exists=True)
+        assert calls["kind"] == "path"
+        assert calls["kw"]["only_directories"] is False
+        validate = calls["kw"]["validate"]
+        assert validate("ids.csv") is True
+        assert validate("nope.csv") == "does not exist"
+
+    def test_directory_path_only_completes_directories(self, monkeypatch):
+        assert self._question(monkeypatch, format="directory-path")["kw"]["only_directories"] is True
+
+    def test_number_validates_while_typing(self, monkeypatch):
+        calls = self._question(monkeypatch, type="integer", minimum=1)
+        assert calls["kind"] == "text"
+        assert calls["kw"]["validate"]("0") == "must be >= 1"
+        assert calls["kw"]["validate"]("x") == "not a valid integer"
+        assert calls["kw"]["validate"]("3") is True

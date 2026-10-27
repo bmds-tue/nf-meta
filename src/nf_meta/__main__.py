@@ -334,7 +334,43 @@ def _given_inputs(input_values: tuple[str, ...], inputs_file: Path | None) -> di
 
 
 def _prompt_for_input(inp, problem: str | None):
-    """Ask for one input on the terminal, using its schema for the prompt."""
+    """Ask for one input: an interactive question in a terminal (selection
+    lists, path completion, validation while typing), a plain prompt
+    otherwise."""
+    import sys
+
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        answer = _question_for_input(inp).ask()
+        if answer is None:  # Ctrl-C
+            raise click.Abort
+        return answer
+    return _plain_prompt_for_input(inp, problem)
+
+
+def _question_for_input(inp):
+    """The questionary question for `inp`, chosen from its schema."""
+    import questionary
+
+    from nf_meta.runner.collect import coerce
+
+    def validate(text: str):
+        problems = inp.validate(coerce(inp, text), project_dir=Path.cwd())
+        return True if not problems else "; ".join(problems)
+
+    label = inp.name + (f" ({inp.description})" if inp.description else "")
+    schema = inp.schema
+    if schema.get("enum"):
+        choices = [str(e) for e in schema["enum"]]
+        many = len(choices) > 10
+        return questionary.select(label, choices=choices, use_search_filter=many, use_jk_keys=not many)
+    if schema.get("type") == "boolean":
+        return questionary.confirm(label)
+    if inp.is_path:
+        return questionary.path(label, only_directories=schema.get("format") == "directory-path", validate=validate)
+    return questionary.text(label, validate=validate)
+
+
+def _plain_prompt_for_input(inp, problem: str | None):
     from nf_meta.core.errors import WARNING_COLOR
 
     if problem:

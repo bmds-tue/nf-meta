@@ -7,9 +7,9 @@ from pydantic import ValidationError
 
 from nf_meta.core.config import dump_config, validated_graph
 from nf_meta.core.errors import ConfigValidationError, Severity
+from nf_meta.core.events import AddInput
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.history import History
-from nf_meta.core.events import AddInput
 from nf_meta.core.inputs import (
     Binding,
     InputDefinition,

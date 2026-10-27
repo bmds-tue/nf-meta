@@ -1,26 +1,24 @@
 import pytest
 
-from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
-from nf_meta.core.history import History  # type: ignore[import]
-from nf_meta.core.models import NfModule, Transition, GlobalOptions  # type: ignore[import]
 from nf_meta.core.errors import ConfigValidationError  # type: ignore[import]
 from nf_meta.core.events import (  # type: ignore[import]
+    AddTransition,
+    AddWorkflow,
+    EditWorkflow,
+    GlobalOptionsUpdated,
+    RemoveTransition,
+    RemoveWorkflow,
+    Transaction,
+    TransitionAdded,
+    TransitionRemoved,
+    UpdateGlobalOptions,
     WorkflowAdded,
     WorkflowRemoved,
     WorkflowUpdated,
-    TransitionAdded,
-    TransitionRemoved,
-    GlobalOptionsUpdated,
 )
-from nf_meta.core.events import (
-    AddWorkflow,
-    RemoveWorkflow,
-    EditWorkflow,
-    AddTransition,
-    RemoveTransition,
-    UpdateGlobalOptions,
-    Transaction,
-)
+from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
+from nf_meta.core.history import History  # type: ignore[import]
+from nf_meta.core.models import GlobalOptions, NfModule, Transition  # type: ignore[import]
 
 
 @pytest.fixture

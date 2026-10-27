@@ -2,8 +2,8 @@ import dataclasses
 
 from pydantic import BaseModel
 
-from nf_meta.core.session import EditorSession
 from nf_meta.core.events import Event
+from nf_meta.core.session import EditorSession
 
 
 class Selection(BaseModel):

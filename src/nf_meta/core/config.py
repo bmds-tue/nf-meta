@@ -14,24 +14,13 @@ import copy
 import difflib
 import logging
 from pathlib import Path
-from typing import Optional
 
 import requests
 import yaml
+from packaging.version import Version
 from pydantic import ValidationError
 
-from .graph import MetaworkflowGraph
-from .models import (
-    GlobalOptions,
-    NfModule,
-    NfPipeline,
-    Transition,
-    Workflow,
-    WorkflowType,
-    validate_config_version,
-    CONFIG_VERSION_MAX,
-    INPUTS_MIN_CONFIG_VERSION,
-)
+from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
 from .errors import (
     ConfigValidationError,
     Diagnostic,
@@ -39,9 +28,19 @@ from .errors import (
     Severity,
     diagnostics_from_pydantic_error,
 )
-from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
+from .graph import MetaworkflowGraph
 from .inputs import InputDefinition
-from packaging.version import Version
+from .models import (
+    CONFIG_VERSION_MAX,
+    INPUTS_MIN_CONFIG_VERSION,
+    GlobalOptions,
+    NfModule,
+    NfPipeline,
+    Transition,
+    Workflow,
+    WorkflowType,
+    validate_config_version,
+)
 
 logger = logging.getLogger()
 
@@ -112,7 +111,7 @@ def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
 
 
 def _extract_items_and_transitions(
-    data: dict, warnings: Optional[list[Diagnostic]] = None
+    data: dict, warnings: list[Diagnostic] | None = None
 ) -> tuple[list[dict], list[tuple[str, str]]]:
     """Normalize `workflows:`/`transitions:`/`from:` into a flat list of
     workflow-definition dicts (`type`/`id` defaulted) and a list of pending
@@ -235,7 +234,7 @@ def construct_workflow(
         return None, diagnostics_from_pydantic_error(e, workflow_id=workflow_id, yaml_path_prefix=yaml_path_prefix)
 
 
-def validated_workflow(data: dict, warnings: Optional[list[Diagnostic]] = None) -> Workflow:
+def validated_workflow(data: dict, warnings: list[Diagnostic] | None = None) -> Workflow:
     """Construct and fully validate a single workflow from a flat, raw dict
     (`id` optional -- the model's own `default_factory` generates one if
     omitted). Runs the same tier-0/1 construction plus tier-2 dynamic checks
@@ -278,7 +277,7 @@ def validated_globals(data: dict) -> GlobalOptions:
         raise ConfigValidationError(diagnostics_from_pydantic_error(e, workflow_id=None)) from e
 
 
-def validated_workflow_from_file(cfg_file: Path, warnings: Optional[list[Diagnostic]] = None) -> Workflow:
+def validated_workflow_from_file(cfg_file: Path, warnings: list[Diagnostic] | None = None) -> Workflow:
     """Read `cfg_file` as YAML and validate it as a standalone workflow
     snippet. See `validated_workflow`."""
     with open(cfg_file) as fh:
@@ -343,7 +342,7 @@ def parse_inputs(data: dict, config_version: str) -> tuple[dict[str, InputDefini
     return definitions, diagnostics
 
 
-def _fast_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "MetaworkflowGraph":
+def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
     failing fast: raises immediately on the first problem found (a workflow's
     construction, graph topology, cross-workflow references, or a tier-2
@@ -402,7 +401,7 @@ def _fast_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
     return g
 
 
-def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "MetaworkflowGraph":
+def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
     collecting every problem instead of stopping at the first -- used by the
     CLI's `validate` command so one run can show a construction error, a
@@ -511,7 +510,7 @@ def _workflow_items(data: dict) -> list[tuple[str, dict]]:
     return []
 
 
-def _resolve_config_paths(data: dict, project_dir: Optional[Path]) -> dict:
+def _resolve_config_paths(data: dict, project_dir: Path | None) -> dict:
     """Return `data` with relative `config_file`/`params_file` values made
     absolute against `project_dir`. With no project dir (remote config), a
     relative path is an error."""
@@ -548,7 +547,7 @@ def _resolve_config_paths(data: dict, project_dir: Optional[Path]) -> dict:
 
 
 def validated_graph(
-    data: dict, *, collect_errors: bool = False, project_dir: Optional[Path] = None
+    data: dict, *, collect_errors: bool = False, project_dir: Path | None = None
 ) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
 

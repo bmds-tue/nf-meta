@@ -11,10 +11,10 @@ preserved exactly as it was in the original Pydantic validators in
 """
 
 import dataclasses
-from pathlib import Path
 import logging
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Iterable, Optional
+from pathlib import Path
 
 import yaml
 
@@ -240,13 +240,13 @@ _MODULE_CHECKS: list[_CheckEntry] = [
 ]
 
 
-def _fields_changed(wf: Workflow, previous: Optional[Workflow], fields: tuple[str, ...]) -> bool:
+def _fields_changed(wf: Workflow, previous: Workflow | None, fields: tuple[str, ...]) -> bool:
     if previous is None:
         return True
     return any(getattr(wf, f, None) != getattr(previous, f, None) for f in fields)
 
 
-def run_dynamic_checks(wf: Workflow, previous: Optional[Workflow] = None) -> list[Diagnostic]:
+def run_dynamic_checks(wf: Workflow, previous: Workflow | None = None) -> list[Diagnostic]:
     """Run the checks applicable to wf's type.
 
     previous=None: run all checks unconditionally (fresh/CLI load path).
@@ -365,7 +365,7 @@ def log_warnings(diagnostics: Iterable[Diagnostic]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _param_schema(wf: Workflow) -> Optional[dict[str, dict]]:
+def _param_schema(wf: Workflow) -> dict[str, dict] | None:
     """`wf`'s flat param schema, or `None` if it can't be fetched."""
     try:
         if isinstance(wf, NfPipeline) and wf.url:
@@ -383,7 +383,7 @@ def check_inputs(
     whole_value: set[Binding],
     declared: set[Binding],
     workflows: dict[str, Workflow],
-    project_dir: Optional[Path] = None,
+    project_dir: Path | None = None,
 ) -> tuple[dict[str, Input], list[Diagnostic]]:
     """Compute every input's effective schema and report problems that need
     the bound steps' param schemas.
@@ -401,7 +401,7 @@ def check_inputs(
     inputs: dict[str, Input] = {}
     diagnostics: list[Diagnostic] = []
     for name, definition in definitions.items():
-        specs: dict[Binding, Optional[dict]] = {}
+        specs: dict[Binding, dict | None] = {}
         for binding in bindings.get(name, ()):
             if binding.step_id not in workflows:
                 continue  # reported by the graph's static input checks

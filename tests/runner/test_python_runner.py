@@ -4,11 +4,11 @@ import pytest
 import yaml
 
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
-from nf_meta.core.models import Transition, GlobalOptions  # type: ignore[import]
+from nf_meta.core.models import GlobalOptions, Transition  # type: ignore[import]
+from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 from nf_meta.runner.python_runner import SimplePythonRunner  # type: ignore[import]
 from nf_meta.runner.spec import resolve_references  # type: ignore[import]
 from nf_meta.runner.utils import RunOptions  # type: ignore[import]
-from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 
 
 @pytest.fixture

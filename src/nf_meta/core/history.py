@@ -1,4 +1,4 @@
-from .events import GraphEventHandler, Event, Command, Transaction
+from .events import Command, Event, GraphEventHandler, Transaction
 
 
 class History:

@@ -1,10 +1,10 @@
+import logging
+
+from nf_meta.core.graph import MetaworkflowGraph
+
 from .base_runner import _REGISTRY, BaseRunner, PlannedStep
 from .errors import NfMetaRunnerError
 from .utils import RunOptions
-
-import logging
-from nf_meta.core.graph import MetaworkflowGraph
-
 
 logger = logging.getLogger(__name__)
 

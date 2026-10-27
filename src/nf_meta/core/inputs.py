@@ -9,7 +9,7 @@ bound to; keywords on the input itself override or narrow it.
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -38,7 +38,7 @@ _MODULE_TYPES = {
 _JSON_TYPES = frozenset({"string", "integer", "number", "boolean"})
 _BINDING = re.compile(r"^([^.\s]+)\.(\S+)$")
 
-Scalar = Union[bool, int, float, str]
+Scalar = bool | int | float | str
 
 
 @dataclass(frozen=True, order=True)
@@ -65,17 +65,17 @@ class InputDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     bind: tuple[str, ...] = ()
-    default: Optional[Scalar] = None
-    description: Optional[str] = None
-    type: Optional[Literal["string", "integer", "number", "boolean"]] = None
-    format: Optional[str] = None
-    enum: Optional[tuple[Scalar, ...]] = None
-    pattern: Optional[str] = None
-    minimum: Optional[float] = None
-    maximum: Optional[float] = None
-    exists: Optional[bool] = None
-    mimetype: Optional[str] = None
-    schema_: Optional[str] = None
+    default: Scalar | None = None
+    description: str | None = None
+    type: Literal["string", "integer", "number", "boolean"] | None = None
+    format: str | None = None
+    enum: tuple[Scalar, ...] | None = None
+    pattern: str | None = None
+    minimum: float | None = None
+    maximum: float | None = None
+    exists: bool | None = None
+    mimetype: str | None = None
+    schema_: str | None = None
 
     @field_validator("bind", mode="before")
     @classmethod
@@ -121,7 +121,7 @@ class InputDefinition(BaseModel):
         return cls(**data)
 
 
-def param_spec_keywords(spec: Optional[dict]) -> dict[str, Any]:
+def param_spec_keywords(spec: dict | None) -> dict[str, Any]:
     """Translate a param spec (as returned by `get_pipeline_schema` /
     `get_module_schema`) into input schema keywords."""
     if not spec:
@@ -150,7 +150,7 @@ class Input:
 
     name: str
     schema: dict[str, Any]
-    default: Optional[Scalar] = None
+    default: Scalar | None = None
     description: str = ""
     bindings: tuple[Binding, ...] = field(default_factory=tuple)
 
@@ -158,7 +158,7 @@ class Input:
     def is_path(self) -> bool:
         return self.schema.get("format") in PATH_FORMATS
 
-    def missing_path(self, value: Any, project_dir: Optional[Path] = None) -> Optional[str]:
+    def missing_path(self, value: Any, project_dir: Path | None = None) -> str | None:
         """For a path input requiring `exists`, why `value` fails that check
         (relative paths are looked up in `project_dir`), else `None`."""
         if not (self.is_path and self.schema.get("exists") and isinstance(value, str)):
@@ -170,7 +170,7 @@ class Input:
             path = project_dir / path
         return None if path.exists() else f"Input '{self.name}': '{value}' does not exist"
 
-    def validate(self, value: Any, *, project_dir: Optional[Path] = None, check_exists: bool = True) -> list[str]:
+    def validate(self, value: Any, *, project_dir: Path | None = None, check_exists: bool = True) -> list[str]:
         """Return why `value` is not acceptable for this input (empty if it is).
         With `check_exists`, a path that must exist is looked up (relative
         paths in `project_dir`)."""
@@ -212,8 +212,8 @@ def effective_input(
     name: str,
     definition: InputDefinition,
     bindings: tuple[Binding, ...],
-    param_specs: dict[Binding, Optional[dict]],
-    project_dir: Optional[Path] = None,
+    param_specs: dict[Binding, dict | None],
+    project_dir: Path | None = None,
 ) -> tuple[Input, list[Diagnostic]]:
     """Combine an input's own keywords with the specs of the params it fills.
 
@@ -288,7 +288,7 @@ def effective_input(
     return result, diagnostics
 
 
-def input_refs(params: Optional[dict]) -> dict[str, list[str]]:
+def input_refs(params: dict | None) -> dict[str, list[str]]:
     """Map each param key to the input names referenced in its value."""
     refs: dict[str, list[str]] = {}
     for key, value in (params or {}).items():
@@ -300,10 +300,10 @@ def input_refs(params: Optional[dict]) -> dict[str, list[str]]:
 
 
 def substitute_inputs(
-    params: Optional[dict],
+    params: dict | None,
     bound: dict[str, str],
     values: dict[str, Any],
-) -> Optional[dict]:
+) -> dict | None:
     """Return `params` with input values filled in: params named in `bound`
     (param → input name, from `bind:`) are set to the input's value, and
     `${inputs:<name>}` tokens are replaced. A token that is a param's whole

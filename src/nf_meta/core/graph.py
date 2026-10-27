@@ -1,39 +1,38 @@
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
 
 import networkx as nx
 from packaging.version import Version
 
-from .models import (
-    GlobalOptions,
-    NfModule,
-    Transition,
-    Workflow,
-    WorkflowReference,
-    CONFIG_VERSION_MAX,
-    INPUTS_MIN_CONFIG_VERSION,
-)
-from .events import (
-    InputAdded,
-    InputRemoved,
-    InputUpdated,
-    Event,
-    WorkflowAdded,
-    WorkflowRemoved,
-    WorkflowUpdated,
-    TransitionAdded,
-    TransitionRemoved,
-    GlobalOptionsUpdated,
-)
+from .dynamic_validation import check_all, check_inputs, log_warnings, run_dynamic_checks
 from .errors import (
     ConfigValidationError,
     Diagnostic,
     GraphValidationError,
     Severity,
 )
-from .dynamic_validation import check_all, check_inputs, log_warnings, run_dynamic_checks
+from .events import (
+    Event,
+    GlobalOptionsUpdated,
+    InputAdded,
+    InputRemoved,
+    InputUpdated,
+    TransitionAdded,
+    TransitionRemoved,
+    WorkflowAdded,
+    WorkflowRemoved,
+    WorkflowUpdated,
+)
 from .inputs import Binding, Input, InputDefinition, input_refs
+from .models import (
+    CONFIG_VERSION_MAX,
+    INPUTS_MIN_CONFIG_VERSION,
+    GlobalOptions,
+    NfModule,
+    Transition,
+    Workflow,
+    WorkflowReference,
+)
 from .refs import ANY_BRACE_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
 
 
@@ -59,7 +58,7 @@ class MetaworkflowGraph:
     def __init__(self):
         # Folder that relative paths in the config resolve against; None for a
         # config loaded from a URL.
-        self.project_dir: Optional[Path] = None
+        self.project_dir: Path | None = None
         self.G: nx.DiGraph = nx.DiGraph()
         self.global_options = GlobalOptions()
         self.config_version: str = CONFIG_VERSION_MAX
@@ -70,7 +69,7 @@ class MetaworkflowGraph:
         # None = not suspended. A set = suspended, accumulating the ids of
         # workflows touched while suspended, so deferred_validation's exit
         # can scope the batched dynamic check to only those (see validate()).
-        self._validation_suspended: Optional[set[str]] = None
+        self._validation_suspended: set[str] | None = None
         self._inputs_touched = False
 
     def _emit(self, event: Event):
@@ -478,7 +477,7 @@ class MetaworkflowGraph:
             raise ConfigValidationError(diagnostics)
 
     def module_nextflow_version_diagnostics(
-        self, glob: Optional[GlobalOptions], workflows: list[Workflow]
+        self, glob: GlobalOptions | None, workflows: list[Workflow]
     ) -> list[Diagnostic]:
         """Return an error if `glob.nextflow_version` predates `nextflow
         module` (26.04) while `workflows` contains an `nf-module` step."""
@@ -502,7 +501,7 @@ class MetaworkflowGraph:
             )
         ]
 
-    def validate_module_nextflow_version(self, glob: Optional[GlobalOptions], workflows: list[Workflow]):
+    def validate_module_nextflow_version(self, glob: GlobalOptions | None, workflows: list[Workflow]):
         """Raise `ConfigValidationError` for the problem described in
         `module_nextflow_version_diagnostics`."""
         diagnostics = self.module_nextflow_version_diagnostics(glob, workflows)
@@ -521,7 +520,7 @@ class MetaworkflowGraph:
         if src not in self.G or tgt not in self.G:
             raise GraphValidationError(f"Edge refers to nonexistent node: {src}->{tgt}")
 
-    def validate(self, touched: Optional[set[str]] = None):
+    def validate(self, touched: set[str] | None = None):
         """Fully re-validate the graph: topology, edge endpoints, workflow
         ids, and every workflow's param references.
 
@@ -567,14 +566,14 @@ class MetaworkflowGraph:
     # ===========================
     #        UTILITIES
     # ===========================
-    def get_workflow_by_id(self, id: str) -> Optional[Workflow]:
+    def get_workflow_by_id(self, id: str) -> Workflow | None:
         """Return the workflow with this id, or `None` if it doesn't exist."""
         try:
             return self.G.nodes[id].get("workflow")
         except KeyError:
             return None
 
-    def get_transition(self, source: str, target: str) -> Optional[Transition]:
+    def get_transition(self, source: str, target: str) -> Transition | None:
         """Return the `source -> target` transition, or `None` if no such edge exists."""
         try:
             return self.G.edges[(source, target)].get("transition")
@@ -597,9 +596,9 @@ class MetaworkflowGraph:
 
     def subset_workflows(
         self,
-        start: Optional[str] = None,
-        target: Optional[str] = None,
-        workflows: Optional[list[Workflow]] = None,
+        start: str | None = None,
+        target: str | None = None,
+        workflows: list[Workflow] | None = None,
     ):
         """Filter `workflows` (default: `get_workflows_sorted()`) down to the
         sub-DAG reachable from `start` and able to reach `target` (inclusive
@@ -621,7 +620,7 @@ class MetaworkflowGraph:
 
         return workflows
 
-    def get_start_workflow(self) -> Optional[Workflow]:
+    def get_start_workflow(self) -> Workflow | None:
         """
         Return the first order in topological sorting or None if no nodes exist
         """

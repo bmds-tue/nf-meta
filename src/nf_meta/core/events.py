@@ -1,8 +1,8 @@
-from typing import Protocol
 from dataclasses import dataclass
+from typing import Protocol
 
 from .inputs import InputDefinition
-from .models import Workflow, Transition, GlobalOptions
+from .models import GlobalOptions, Transition, Workflow
 
 
 # Event Handler

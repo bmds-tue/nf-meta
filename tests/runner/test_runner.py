@@ -2,9 +2,9 @@ import pytest
 
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import Transition
+from nf_meta.runner.errors import NfMetaRunnerError
 from nf_meta.runner.runner import run_metapipeline
 from nf_meta.runner.utils import RunOptions
-from nf_meta.runner.errors import NfMetaRunnerError
 
 
 @pytest.fixture

@@ -1,7 +1,5 @@
 import pytest
 
-from nf_meta.core.models import NfModule, WorkflowType  # type: ignore[import]
-from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.config import (  # type: ignore[import]
     construct_workflow,
     dump_config,
@@ -16,7 +14,8 @@ from nf_meta.core.errors import (  # type: ignore[import]
     GraphValidationError,
     Severity,
 )
-
+from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
+from nf_meta.core.models import NfModule, WorkflowType  # type: ignore[import]
 
 # ---------------------------------------------------------------------------
 # File I/O

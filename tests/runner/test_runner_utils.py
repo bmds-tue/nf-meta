@@ -1,13 +1,13 @@
 import subprocess
+
 import pytest
 
+from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 from nf_meta.runner.utils import (  # type: ignore[import]
     check_nextflow,
-    get_installed_nextflow_version,
     check_nextflow_version,
+    get_installed_nextflow_version,
 )
-from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
-
 
 # ---------------------------------------------------------------------------
 # check_nextflow

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -17,4 +16,4 @@ class EditorOptions:
 
     editor_name: str = "browser"
     host: str = "127.0.0.1"
-    port: Optional[int] = None
+    port: int | None = None

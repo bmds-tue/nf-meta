@@ -1,11 +1,10 @@
 import logging
 from importlib.metadata import entry_points
 
-from .base_editor import BaseEditor, _REGISTRY
+from .base_editor import _REGISTRY, BaseEditor
 from .browser_editor import BrowserEditor
-from .utils import EditorOptions
 from .editor import run_editor
-
+from .utils import EditorOptions
 
 logger = logging.getLogger(__name__)
 

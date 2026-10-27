@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import GlobalOptions, Workflow, WorkflowType, load_params_file
+
 from .errors import NfMetaRunnerError
 from .paths import absolutize_input_paths
 
@@ -38,10 +39,10 @@ class StepSpec:
     profiles: tuple[str, ...]
     config_files: tuple[Path, ...]
     launch_dir: Path
-    work_dir: Optional[Path]
+    work_dir: Path | None
     state_dir: Path
-    log_file: Optional[Path] = None
-    nextflow_cache_dir: Optional[Path] = None
+    log_file: Path | None = None
+    nextflow_cache_dir: Path | None = None
     resume: bool = False
     stub: bool = False
 
@@ -57,7 +58,7 @@ class StepSpec:
 def resolve_references(
     wf: Workflow,
     graph: MetaworkflowGraph,
-    resolved: Optional[dict[str, dict]] = None,
+    resolved: dict[str, dict] | None = None,
 ) -> Workflow:
     """Return a copy of `wf` with every `${<id>:params:<key>}` reference in its
     params replaced by the referenced value.
@@ -117,15 +118,15 @@ def resolve_references(
 
 def build_step_spec(
     wf: Workflow,
-    globals: Optional[GlobalOptions],
+    globals: GlobalOptions | None,
     *,
     state_dir: Path,
     launch_dir: Path,
-    work_dir: Optional[Path] = None,
-    log_file: Optional[Path] = None,
-    nextflow_cache_dir: Optional[Path] = None,
-    project_dir: Optional[Path] = None,
-    schema: Optional[dict[str, dict]] = None,
+    work_dir: Path | None = None,
+    log_file: Path | None = None,
+    nextflow_cache_dir: Path | None = None,
+    project_dir: Path | None = None,
+    schema: dict[str, dict] | None = None,
     extra_profile: str = "",
     resume: bool = False,
     stub: bool = False,

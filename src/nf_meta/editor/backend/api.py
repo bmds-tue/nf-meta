@@ -1,37 +1,35 @@
 import os
-from typing import Annotated, Optional
+from pathlib import Path
 
-from .serializers import serialize_state, serialize_events, Selection
+from fastapi import APIRouter, Body, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from nf_meta.core.dynamic_validation import run_dynamic_checks
 from nf_meta.core.errors import SessionCommandError, Severity
-from nf_meta.core.session import SESSION
-from nf_meta.core.nf_core_utils import (
-    get_nfcore_pipelines,
-    get_nfcore_modules,
-    get_nfcore_module_releases,
-    get_module_schema,
-    get_pipeline_schema,
-    PipelineSchemaError,
-)
-from nf_meta.core.models import Workflow, Transition, GlobalOptions
 from nf_meta.core.events import (
     AddTransition,
     AddWorkflow,
     Command,
     EditWorkflow,
-    RemoveWorkflow,
     RemoveTransition,
+    RemoveWorkflow,
     Transaction,
     UpdateGlobalOptions,
 )
+from nf_meta.core.models import GlobalOptions, Transition, Workflow
+from nf_meta.core.nf_core_utils import (
+    PipelineSchemaError,
+    get_module_schema,
+    get_nfcore_module_releases,
+    get_nfcore_modules,
+    get_nfcore_pipelines,
+    get_pipeline_schema,
+)
+from nf_meta.core.session import SESSION
 
-from fastapi import FastAPI, APIRouter, Body, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
-from pathlib import Path
-
+from .serializers import Selection, serialize_events, serialize_state
 
 DEV_MODE = os.getenv("NF_META_DEVMODE", 0) == "1"
 DEV_HOST = "127.0.0.1"
@@ -184,7 +182,7 @@ def get_nfcore_module_versions(name: str):
 
 
 @api_router.get("/nfcore/modules/{name}/meta/")
-def get_nfcore_module_meta(name: str, version: Optional[str] = None):
+def get_nfcore_module_meta(name: str, version: str | None = None):
     releases = get_nfcore_module_releases(name)
     if not releases:
         return JSONResponse(

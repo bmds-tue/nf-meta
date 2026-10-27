@@ -1,6 +1,7 @@
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 from nf_meta.core.models import NfModule, NfPipeline, Workflow
 from nf_meta.core.nf_core_utils import get_module_schema, get_pipeline_schema
@@ -30,7 +31,7 @@ def param_schema(wf: Workflow) -> dict[str, dict]:
     return {}
 
 
-def declared_path(spec: Optional[dict]) -> bool:
+def declared_path(spec: dict | None) -> bool:
     """Whether a param spec from a pipeline/module schema declares a path."""
     spec = spec or {}
     return spec.get("format") in PATH_FORMATS or spec.get("type") in PATH_TYPES
@@ -53,7 +54,7 @@ def is_input_path(key: str, value: Any, schema: dict[str, dict], project_dir: Pa
 def absolutize_input_paths(
     params: dict[str, Any],
     project_dir: Path,
-    schema: Optional[dict[str, dict]] = None,
+    schema: dict[str, dict] | None = None,
     skip: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Return a copy of `params` with every relative input path (see

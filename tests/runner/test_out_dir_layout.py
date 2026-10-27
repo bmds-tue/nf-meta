@@ -11,7 +11,6 @@ from nf_meta.runner.errors import NfMetaRunnerError
 from nf_meta.runner.python_runner import SimplePythonRunner
 from nf_meta.runner.utils import RunOptions
 
-
 SCHEMA = {
     name: {
         "type": "string",

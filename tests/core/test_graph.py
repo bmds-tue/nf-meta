@@ -1,23 +1,22 @@
 import pytest
 
+from nf_meta.core.errors import (  # type: ignore[import]
+    ConfigValidationError,
+    GraphValidationError,
+)
+from nf_meta.core.events import (  # type: ignore[import]
+    TransitionAdded,
+    TransitionRemoved,
+    WorkflowAdded,
+    WorkflowRemoved,
+    WorkflowUpdated,
+)
 from nf_meta.core.models import (  # type: ignore[import]
     GlobalOptions,
     NfModule,
     NfPipeline,
     Transition,
 )
-from nf_meta.core.events import (  # type: ignore[import]
-    WorkflowAdded,
-    WorkflowRemoved,
-    WorkflowUpdated,
-    TransitionAdded,
-    TransitionRemoved,
-)
-from nf_meta.core.errors import (  # type: ignore[import]
-    ConfigValidationError,
-    GraphValidationError,
-)
-
 
 # ---------------------------------------------------------------------------
 # add / update / remove workflow
@@ -209,12 +208,11 @@ class TestDeferredValidation:
         assert empty_graph.get_workflow_by_id(wf_rnaseq.id) is not None
 
     def test_deferred_still_validates_on_exit(self, empty_graph, wf_rnaseq, wf_fetchngs):
-        with pytest.raises(GraphValidationError):
-            with empty_graph.deferred_validation():
-                empty_graph.add_workflow(wf_rnaseq)
-                empty_graph.add_workflow(wf_fetchngs)
-                empty_graph.add_transition(Transition(source=wf_rnaseq.id, target=wf_fetchngs.id))
-                empty_graph.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
+        with pytest.raises(GraphValidationError), empty_graph.deferred_validation():
+            empty_graph.add_workflow(wf_rnaseq)
+            empty_graph.add_workflow(wf_fetchngs)
+            empty_graph.add_transition(Transition(source=wf_rnaseq.id, target=wf_fetchngs.id))
+            empty_graph.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
 
 
 # ---------------------------------------------------------------------------

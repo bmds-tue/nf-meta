@@ -1,14 +1,16 @@
-import click
 from functools import wraps
 from pathlib import Path
+
+import click
+
+from nf_meta.core.config import from_file
 from nf_meta.core.errors import (
     ConfigValidationError,
     GraphValidationError,
     format_errors_for_cli,
 )
-from nf_meta.runner import get_registered_runners
-from nf_meta.core.config import from_file
 from nf_meta.editor import get_registered_editors
+from nf_meta.runner import get_registered_runners
 
 
 def _read_text(path) -> str | None:
@@ -88,8 +90,8 @@ def cli() -> None:
 @click.argument("config", required=False, type=click.Path())
 @handle_validation_errors
 def edit_browser(config, verbose, editor, host, port):
-    from nf_meta.editor import EditorOptions, run_editor
     from nf_meta.core.session import start_session
+    from nf_meta.editor import EditorOptions, run_editor
 
     session = start_session(config)
     _echo_warnings(session.warnings, config)
@@ -112,6 +114,7 @@ def export_schema(output):
     """Write the metapipeline.yaml JSON Schema to OUTPUT (default:
     schemas/metapipeline.schema.json)."""
     import json
+
     from nf_meta.core.schema_export import generate_schema
 
     path = Path(output)
@@ -211,10 +214,10 @@ def run(
     dry_run,
 ):
     from nf_meta.runner import (
+        NfMetaRunnerError,
+        RunOptions,
         plan_metapipeline,
         run_metapipeline,
-        RunOptions,
-        NfMetaRunnerError,
     )
 
     try:
@@ -242,6 +245,7 @@ def run(
 
 def _print_plan(steps) -> None:
     import shlex
+
     import yaml
 
     for i, step in enumerate(steps, start=1):

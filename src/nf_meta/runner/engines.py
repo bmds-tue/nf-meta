@@ -6,11 +6,12 @@ the class statement; `engine_for()` looks them up.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import yaml
 
 from nf_meta.core.models import NfModule, NfPipeline, WorkflowType
+
 from .errors import NfMetaRunnerError
 from .spec import StepSpec
 
@@ -36,7 +37,7 @@ class StepCommand:
     argv: list[str]
     cwd: Path
     env: dict[str, str] = field(default_factory=dict)
-    params_file: Optional[Path] = None
+    params_file: Path | None = None
     params: dict[str, Any] = field(default_factory=dict)
 
     def write_files(self) -> None:
@@ -51,7 +52,7 @@ class StepCommand:
 class Engine(ABC):
     """Builds commands for one `WorkflowType`. `build` has no side effects."""
 
-    def __init_subclass__(cls, workflow_type: Optional[WorkflowType] = None, **kwargs):
+    def __init_subclass__(cls, workflow_type: WorkflowType | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
         if workflow_type is not None:
             _REGISTRY[workflow_type] = cls()
@@ -60,7 +61,7 @@ class Engine(ABC):
     def build(self, spec: StepSpec) -> StepCommand: ...
 
     @staticmethod
-    def _params_file(spec: StepSpec) -> Optional[Path]:
+    def _params_file(spec: StepSpec) -> Path | None:
         return spec.state_dir / PARAMS_FILE if spec.params else None
 
 

@@ -1,8 +1,8 @@
 import pytest
 
-from nf_meta.core.session import EditorSession  # type: ignore[import]
-from nf_meta.core.events import RemoveWorkflow  # type: ignore[import]
 from nf_meta.core.errors import SessionCommandError  # type: ignore[import]
+from nf_meta.core.events import RemoveWorkflow  # type: ignore[import]
+from nf_meta.core.session import EditorSession  # type: ignore[import]
 
 
 @pytest.fixture

@@ -4,11 +4,11 @@ from typing import ClassVar
 
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import Workflow
+
 from .engines import StepCommand
 from .errors import NfMetaRunnerError
 from .spec import StepSpec
 from .utils import RunOptions
-
 
 _REGISTRY: dict[str, type["BaseRunner"]] = {}
 

@@ -3,13 +3,10 @@ import logging
 import re
 import shutil
 import subprocess
-
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from .errors import NfMetaRunnerError
-
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +51,12 @@ class RunOptions:
     """
 
     runner_name: str = "python"
-    out_dir: Optional[Path] = None
+    out_dir: Path | None = None
     verbose: bool = False
     output_lines: int = 20
-    start: Optional[str] = None
-    target: Optional[str] = None
-    nf_profile: Optional[str] = None
+    start: str | None = None
+    target: str | None = None
+    nf_profile: str | None = None
     stub: bool = False
     resume: bool = False
 

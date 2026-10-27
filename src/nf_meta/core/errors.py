@@ -1,10 +1,10 @@
-from .line_linting import locate_field, TextPosition
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 import click
 from pydantic import ValidationError
+
+from .line_linting import TextPosition, locate_field
 
 
 class GraphValidationError(Exception):
@@ -89,7 +89,7 @@ def diagnostics_from_pydantic_error(
 class SessionCommandError(Exception):
     @dataclass
     class FieldError:
-        workflow_id: Optional[str]
+        workflow_id: str | None
         field: str
         message: str
 

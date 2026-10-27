@@ -7,9 +7,8 @@ import time
 import click
 import uvicorn
 
-from .backend import app, DEV_MODE, DEV_HOST, DEV_PORT, DEV_VITE_PORT
+from .backend import DEV_HOST, DEV_MODE, DEV_PORT, DEV_VITE_PORT, app
 from .base_editor import BaseEditor
-
 
 logger = logging.getLogger(__name__)
 

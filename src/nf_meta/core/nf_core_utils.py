@@ -7,7 +7,6 @@ import click
 import requests
 import yaml
 
-
 logger = logging.getLogger(__name__)
 
 _GITHUB_API_HEADERS = {

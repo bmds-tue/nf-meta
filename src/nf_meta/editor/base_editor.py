@@ -3,7 +3,6 @@ from typing import ClassVar
 
 from .utils import EditorOptions
 
-
 _REGISTRY: dict[str, type["BaseEditor"]] = {}
 
 

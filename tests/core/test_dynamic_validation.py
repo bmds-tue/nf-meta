@@ -8,21 +8,18 @@ NfPipeline/NfModule construction never hits the network. Individual tests
 override those same targets per-test to exercise specific check branches.
 """
 
-import pytest
-
 from nf_meta.core.dynamic_validation import (
+    check_all,
     check_module_params_schema,
     check_module_version_in_registry,
     check_pipeline_main_script_exists,
     check_pipeline_params_schema,
     check_pipeline_url_reachable,
-    check_all,
     run_dynamic_checks,
 )
 from nf_meta.core.errors import Severity
 from nf_meta.core.models import NfModule, NfPipeline
 from nf_meta.core.nf_core_utils import PipelineSchemaError
-
 
 # ---------------------------------------------------------------------------
 # check_pipeline_url_reachable

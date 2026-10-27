@@ -9,26 +9,26 @@ Tests for pipeline and module parameter validation:
   - Workflow version validator
 """
 
-import pytest
-from pydantic import ValidationError
 from unittest.mock import MagicMock, patch
 
-from nf_meta.core.nf_core_utils import (
-    _parse_nextflow_schema,
-    _parse_module_schema,
-    _parse_repo_url,
-    _raw_url,
-    get_pipeline_schema,
-    PipelineSchemaError,
-)
-from nf_meta.core.nf_param_validation import validate_params
-from nf_meta.core.models import NfPipeline, NfModule
+import pytest
+from pydantic import ValidationError
+
 from nf_meta.core.dynamic_validation import (
     check_module_params_schema,
     check_pipeline_params_schema,
 )
 from nf_meta.core.errors import Severity
-
+from nf_meta.core.models import NfModule, NfPipeline
+from nf_meta.core.nf_core_utils import (
+    PipelineSchemaError,
+    _parse_module_schema,
+    _parse_nextflow_schema,
+    _parse_repo_url,
+    _raw_url,
+    get_pipeline_schema,
+)
+from nf_meta.core.nf_param_validation import validate_params
 
 # ---------------------------------------------------------------------------
 # Shared schema fixture

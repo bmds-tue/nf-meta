@@ -5,27 +5,26 @@ import os
 import subprocess
 import threading
 from collections import deque
-from typing import Optional
 from pathlib import Path
 
 import yaml
+from rich.console import Console, Group
 from rich.live import Live
+from rich.panel import Panel
 from rich.spinner import Spinner
 from rich.text import Text
-from rich.panel import Panel
-from rich.console import Console, Group
 
-from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.config import dump_config
+from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.inputs import input_refs, substitute_inputs
 from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType
-from .errors import NfMetaRunnerError
-from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
+
 from .base_runner import BaseRunner, PlannedStep
 from .engines import StepCommand, engine_for
+from .errors import NfMetaRunnerError
 from .paths import absolutize_input_paths, declared_path, is_url, param_schema
 from .spec import StepSpec, build_step_spec, resolve_references
-
+from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -64,12 +63,12 @@ class SimplePythonRunner(BaseRunner):
     OUT_FILE = "OUT.txt"
     ERROR_FILE = "ERROR.txt"
 
-    def _check_run_success(self, run_dir: Path = Path(".")):
+    def _check_run_success(self, run_dir: Path = Path()):
         return Path(run_dir / self.OUT_FILE).exists() and not Path(run_dir / self.ERROR_FILE).exists()
 
     def __init__(self, run_options) -> None:
         super().__init__(run_options)
-        self.out_dir: Optional[Path] = Path(run_options.out_dir).resolve() if run_options.out_dir else None
+        self.out_dir: Path | None = Path(run_options.out_dir).resolve() if run_options.out_dir else None
 
     @property
     def state_root(self) -> Path:
@@ -93,7 +92,7 @@ class SimplePythonRunner(BaseRunner):
     def _step_key(
         self,
         wf: Workflow,
-        globals: Optional[GlobalOptions],
+        globals: GlobalOptions | None,
         upstream_keys: list[str],
     ) -> str:
         """Hash of everything that defines a step's result: the resolved step,
@@ -121,7 +120,7 @@ class SimplePythonRunner(BaseRunner):
         with open(path, "w") as f:
             yaml.dump(params, f)
 
-    def _load_resolved_params(self, wf: Workflow) -> Optional[dict]:
+    def _load_resolved_params(self, wf: Workflow) -> dict | None:
         path = self._resolved_params_path(wf)
         if not path.exists():
             return None
@@ -155,8 +154,8 @@ class SimplePythonRunner(BaseRunner):
     def _stream_proc_out(
         self,
         cmd: list[str],
-        cwd: Optional[Path] = None,
-        env: Optional[dict[str, str]] = None,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> tuple[int, str, str]:
         process = subprocess.Popen(
             cmd,

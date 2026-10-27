@@ -11,9 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nf_meta.core.models import NfPipeline, NfModule, Transition  # type: ignore[import]
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
-
+from nf_meta.core.models import NfModule, NfPipeline, Transition  # type: ignore[import]
 
 # ---------------------------------------------------------------------------
 # Static fake nf-core pipeline catalogue used by all tests

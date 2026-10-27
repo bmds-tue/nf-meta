@@ -1,30 +1,29 @@
+import hashlib
+import json
+import re
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from packaging.version import Version
-from typing import Optional, Any, Annotated, ClassVar, Literal
-import re
-import uuid
-import hashlib
-import json
+from typing import Annotated, Any, ClassVar, Literal
 
 import yaml
+from packaging.version import Version
 from pydantic import (
+    AfterValidator,
     BaseModel,
+    BeforeValidator,
     Field,
+    ValidationInfo,
     computed_field,
     field_validator,
     model_validator,
-    ValidationInfo,
-    AfterValidator,
-    BeforeValidator,
 )
 from pydantic.functional_serializers import PlainSerializer
 
 from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 from nf_meta.core.refs import RESERVED_STEP_IDS, STEP_REF_PATTERN
-
 
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.4.0"
@@ -40,9 +39,7 @@ class WorkflowType(StrEnum):
     NF_MODULE = "nf-module"
 
 
-def is_existing_file_abs(
-    path: Optional[Path] = None, allowed_extensions: Optional[tuple[str]] = None
-) -> Optional[Path]:
+def is_existing_file_abs(path: Path | None = None, allowed_extensions: tuple[str] | None = None) -> Path | None:
     if not path:
         return None
 
@@ -60,20 +57,20 @@ def is_existing_file_abs(
     return path
 
 
-SerializeToStr = PlainSerializer(lambda v: str(v) if v else None, return_type=Optional[str])
+SerializeToStr = PlainSerializer(lambda v: str(v) if v else None, return_type=str | None)
 ExistingYamlFile = Annotated[
-    Optional[Path],
+    Path | None,
     AfterValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml"))),
     SerializeToStr,
 ]
 ExistingNfConfigFile = Annotated[
-    Optional[Path],
+    Path | None,
     AfterValidator(lambda v: is_existing_file_abs(v, (".config"))),
     SerializeToStr,
 ]
 
 
-def validate_param_scalars(v: Any) -> Optional[dict[str, Any]]:
+def validate_param_scalars(v: Any) -> dict[str, Any] | None:
     """Validate that every param value is a scalar, preserving its type."""
     if v is None:
         return None
@@ -94,7 +91,7 @@ def validate_param_scalars(v: Any) -> Optional[dict[str, Any]]:
     return v
 
 
-CoercedParams = Annotated[Optional[dict[str, Any]], BeforeValidator(validate_param_scalars)]
+CoercedParams = Annotated[dict[str, Any] | None, BeforeValidator(validate_param_scalars)]
 
 
 def load_params_file(path: Path) -> dict:
@@ -116,7 +113,7 @@ def create_id():
 
 @dataclass
 class Reference:
-    name: Optional[str]
+    name: str | None
     source_wf_id: str
     target_wf_id: str
 
@@ -150,10 +147,10 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
-    config_file: Optional[ExistingNfConfigFile] = None
+    config_file: ExistingNfConfigFile | None = None
     # validate_default=True ensures the params validator runs even when params
     # is absent from the input (Pydantic skips field validators for defaults otherwise).
-    params: Optional[CoercedParams] = Field(default=None, validate_default=True)
+    params: CoercedParams | None = Field(default=None, validate_default=True)
 
     @computed_field  # type: ignore[misc]
     @property
@@ -219,10 +216,10 @@ class NfPipeline(BaseWorkflow):
 
     type: Literal[WorkflowType.NF_PIPELINE] = WorkflowType.NF_PIPELINE
     url: str
-    description: Optional[str] = None
-    params_file: Optional[ExistingYamlFile] = None
-    profile: Optional[str] = None
-    main_script: Optional[str] = None
+    description: str | None = None
+    params_file: ExistingYamlFile | None = None
+    profile: str | None = None
+    main_script: str | None = None
 
     @computed_field  # type: ignore[misc]
     @property
@@ -231,13 +228,13 @@ class NfPipeline(BaseWorkflow):
         return any(p.get("name") == self.name for p in nfcore_pipelines)
 
     @classmethod
-    def get_nfcore_info(cls, name: str) -> Optional[dict]:
+    def get_nfcore_info(cls, name: str) -> dict | None:
         nfcore_pipelines = get_nfcore_pipelines()
         return next((wf for wf in nfcore_pipelines if wf.get("name") == name), None)
 
     @field_validator("url", mode="after")
     @classmethod
-    def validate_url(cls, value: Optional[str], info: ValidationInfo):
+    def validate_url(cls, value: str | None, info: ValidationInfo):
         name = info.data.get("name")
         nfcore_wf_info = cls.get_nfcore_info(name) if name else None
         is_nfcore = bool(nfcore_wf_info)
@@ -257,7 +254,7 @@ class NfPipeline(BaseWorkflow):
 
     @field_validator("main_script", mode="after")
     @classmethod
-    def validate_main_script(cls, value: Optional[str], info: ValidationInfo) -> Optional[str]:
+    def validate_main_script(cls, value: str | None, info: ValidationInfo) -> str | None:
         if value is None:
             return None
 
@@ -338,7 +335,7 @@ class NfModule(BaseWorkflow):
     """A Nextflow module step executed with 'nextflow module run'."""
 
     type: Literal[WorkflowType.NF_MODULE] = WorkflowType.NF_MODULE
-    container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = None
+    container_engine: Literal["docker", "singularity", "conda", "podman"] | None = None
 
     # `nextflow module` exists from this Nextflow version (major, minor) on
     MIN_NEXTFLOW_VERSION: ClassVar[tuple[int, int]] = (26, 4)
@@ -386,21 +383,21 @@ class GlobalOptions(BaseModel):
     `profile`/`config_file` likewise act as a fallback a workflow can
     override, not a value forced onto it."""
 
-    profile: Optional[str] = None
-    config_file: Optional[ExistingNfConfigFile] = None
-    params: Optional[CoercedParams] = None
-    nextflow_version: Optional[str | int | float] = None
+    profile: str | None = None
+    config_file: ExistingNfConfigFile | None = None
+    params: CoercedParams | None = None
+    nextflow_version: str | int | float | None = None
 
     @field_validator("profile", mode="after")
     @classmethod
-    def validate_profile(cls, profile: Optional[str]):
+    def validate_profile(cls, profile: str | None):
         if not profile:
             return None
         return profile.replace(" ", "")
 
     @field_validator("nextflow_version", mode="before")
     @classmethod
-    def validate_nextflow_version(cls, v: Any) -> Optional[str | tuple[int, int, int, int] | int]:
+    def validate_nextflow_version(cls, v: Any) -> str | tuple[int, int, int, int] | int | None:
         if v is None:
             return v
 
@@ -438,7 +435,7 @@ class GlobalOptions(BaseModel):
         return has_minor and version[1] < minimum[1]
 
     @property
-    def nextflow_version_tuple(self) -> Optional[tuple[int, int, int, int]]:
+    def nextflow_version_tuple(self) -> tuple[int, int, int, int] | None:
         """`nextflow_version` as `(major, minor, patch, is_edge)`, or `None`
         if unset. Missing minor/patch components default to `0`."""
         v = self.nextflow_version

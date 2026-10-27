@@ -2,18 +2,17 @@ import click
 import pytest
 from pydantic import ValidationError
 
-from nf_meta.core.line_linting import locate_field
-from nf_meta.core.models import NfPipeline
 from nf_meta.core.errors import (
     ConfigValidationError,
     Diagnostic,
     GraphValidationError,
-    Severity,
     SessionCommandError,
+    Severity,
     diagnostics_from_pydantic_error,
     format_errors_for_cli,
 )
-
+from nf_meta.core.line_linting import locate_field
+from nf_meta.core.models import NfPipeline
 
 # ---------------------------------------------------------------------------
 # Diagnostic.yaml_path

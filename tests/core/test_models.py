@@ -1,14 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from nf_meta.core.models import (
-    NfPipeline,
-    GlobalOptions,
-    Transition,
-)
 from nf_meta.core.dynamic_validation import check_pipeline_main_script_exists
 from nf_meta.core.errors import Severity
-
+from nf_meta.core.models import (
+    GlobalOptions,
+    NfPipeline,
+    Transition,
+)
 
 # ---------------------------------------------------------------------------
 # Workflow

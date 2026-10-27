@@ -21,7 +21,7 @@
           "title": "Version",
           "type": "string"
         },
-        "config_file": {
+        "nf_config": {
           "anyOf": [
             {
               "format": "path",
@@ -32,7 +32,7 @@
             }
           ],
           "default": null,
-          "title": "Config File"
+          "title": "Nf Config"
         },
         "params": {
           "anyOf": [
@@ -106,7 +106,7 @@
           "title": "Version",
           "type": "string"
         },
-        "config_file": {
+        "nf_config": {
           "anyOf": [
             {
               "format": "path",
@@ -117,7 +117,7 @@
             }
           ],
           "default": null,
-          "title": "Config File"
+          "title": "Nf Config"
         },
         "params": {
           "anyOf": [
@@ -161,7 +161,7 @@
           "default": null,
           "title": "Params File"
         },
-        "profile": {
+        "nf_profile": {
           "anyOf": [
             {
               "type": "string"
@@ -171,7 +171,7 @@
             }
           ],
           "default": null,
-          "title": "Profile"
+          "title": "Nf Profile"
         },
         "main_script": {
           "anyOf": [
@@ -239,9 +239,9 @@
       }
     },
     "globals": {
-      "description": "Settings applied across every workflow in a metapipeline (the config's\n`globals:` key). `params` is merged under each workflow's own `params` at\nrun time, with the workflow's own values winning on key collision;\n`profile`/`config_file` likewise act as a fallback a workflow can\noverride, not a value forced onto it.",
+      "description": "Settings applied across every workflow in a metapipeline (the config's\n`globals:` key). `params` is merged under each workflow's own `params` at\nrun time, with the workflow's own values winning on key collision;\n`nf_profile`/`nf_config` likewise act as a fallback a workflow can\noverride, not a value forced onto it.",
       "properties": {
-        "profile": {
+        "nf_profile": {
           "anyOf": [
             {
               "type": "string"
@@ -251,9 +251,9 @@
             }
           ],
           "default": null,
-          "title": "Profile"
+          "title": "Nf Profile"
         },
-        "config_file": {
+        "nf_config": {
           "anyOf": [
             {
               "format": "path",
@@ -264,7 +264,7 @@
             }
           ],
           "default": null,
-          "title": "Config File"
+          "title": "Nf Config"
         },
         "params": {
           "anyOf": [

@@ -24,7 +24,7 @@ export const useGraphStore = defineStore('graph', () => {
     const edges = computed(() => _edges.value)
     const nodes = computed(() => _nodes.value)
 
-    const globalOptions = ref<APIGlobalOptions>({ params: {}, config_file: '', profile: '' })
+    const globalOptions = ref<APIGlobalOptions>({ params: {}, nf_config: '', nf_profile: '' })
 
     const _filename = ref<string>()
     const filename = computed(() => _filename.value)
@@ -101,7 +101,7 @@ export const useGraphStore = defineStore('graph', () => {
             _undoable.value = response.data.undoable
             _redoable.value = response.data.redoable
             _filename.value = response.data.filename
-            globalOptions.value = response.data.globals ?? { params: null, config_file: null, profile: null }
+            globalOptions.value = response.data.globals ?? { params: null, nf_config: null, nf_profile: null }
         }
     }
 

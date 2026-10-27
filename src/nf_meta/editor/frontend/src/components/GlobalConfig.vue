@@ -33,15 +33,15 @@ async function save() {
         <v-card-text class="flex-grow-1 d-flex flex-column h-100 min-h-100">
             <v-text-field
                 label="Global Nextflow profile(s)"
-                v-model="graphStore.globalOptions.profile"
+                v-model="graphStore.globalOptions.nf_profile"
                 :error-messages="errors.nf_profile"
                 variant="outlined"
                 density="compact">
             </v-text-field>
             <CustomFileInput
                 label="Global Nextflow Config File"
-                :error-messages="errors.nf_config_file"
-                v-model="graphStore.globalOptions.config_file">
+                :error-messages="errors.nf_config"
+                v-model="graphStore.globalOptions.nf_config">
             </CustomFileInput>
             <strong>
                 Global Params:

@@ -135,13 +135,13 @@ async function copyPath(text: string, field: string) {
           <v-icon icon="$nfcore" size="16" class="flex-shrink-0" />
           <span>nf-core community module</span>
         </div>
-        <div v-if="form.config_file" class="detail-row d-flex align-start ga-2 text-body-2">
+        <div v-if="form.nf_config" class="detail-row d-flex align-start ga-2 text-body-2">
           <v-icon icon="mdi-cog-outline" size="16" class="flex-shrink-0 mt-1" />
-          <code class="path-text flex-grow-1">{{ form.config_file }}</code>
+          <code class="path-text flex-grow-1">{{ form.nf_config }}</code>
           <v-btn
-            :icon="copiedField === 'config_file' ? 'mdi-check' : 'mdi-content-copy'"
+            :icon="copiedField === 'nf_config' ? 'mdi-check' : 'mdi-content-copy'"
             size="x-small" variant="text" :ripple="false" flat class="flex-shrink-0"
-            @click.stop="copyPath(form.config_file!, 'config_file')" />
+            @click.stop="copyPath(form.nf_config!, 'nf_config')" />
         </div>
       </div>
 

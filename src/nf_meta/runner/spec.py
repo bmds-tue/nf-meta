@@ -22,7 +22,8 @@ class StepSpec:
             step's own `params`.
         profiles: Nextflow profiles in order: the global profile (only if the
             step sets none), the step's profile, the run-level extra profile.
-        config_files: Global config file, then the step's config file.
+        config_files: Nextflow configs (`-c`) in order: global, the step's,
+            then the run's (`--nf-config`); later ones take precedence.
         launch_dir: Directory Nextflow is started from.
         work_dir: Nextflow work dir (`-w`), or `None` for Nextflow's default.
         state_dir: Directory for nf-meta's per-step files (params file, output
@@ -128,6 +129,7 @@ def build_step_spec(
     project_dir: Path | None = None,
     schema: dict[str, dict] | None = None,
     extra_profile: str = "",
+    nf_config: Path | None = None,
     resume: bool = False,
     stub: bool = False,
 ) -> StepSpec:
@@ -149,23 +151,25 @@ def build_step_spec(
         params = absolutize_input_paths(params, project_dir, schema)
     params.update(wf.params or {})
 
-    profile = getattr(wf, "profile", None)
+    profile = getattr(wf, "nf_profile", None)
     profiles: list[str] = []
-    if global_options and global_options.profile and not profile:
-        profiles.append(global_options.profile)
+    if global_options and global_options.nf_profile and not profile:
+        profiles.append(global_options.nf_profile)
     if profile:
         profiles.append(profile)
     if extra_profile:
         profiles.append(extra_profile)
 
     config_files: list[Path] = []
-    if global_options and global_options.config_file:
-        global_cfg = Path(global_options.config_file)
+    if global_options and global_options.nf_config:
+        global_cfg = Path(global_options.nf_config)
         if not global_cfg.exists():
             raise NfMetaRunnerError(f"Global config file does not exist: {global_cfg}")
         config_files.append(global_cfg)
-    if wf.config_file:
-        config_files.append(Path(wf.config_file))
+    if wf.nf_config:
+        config_files.append(Path(wf.nf_config))
+    if nf_config is not None:
+        config_files.append(Path(nf_config))
 
     return StepSpec(
         workflow=wf,

@@ -100,34 +100,34 @@ class TestPipelineCommand:
         assert "-stub" not in build(wf_rnaseq).argv
 
     def test_globals_profile_used_when_wf_has_none(self, build, wf_rnaseq):
-        argv = build(wf_rnaseq, GlobalOptions(profile="docker")).argv
+        argv = build(wf_rnaseq, GlobalOptions(nf_profile="docker")).argv
         assert argv[argv.index("-profile") + 1] == "docker"
 
     def test_wf_profile_replaces_globals_profile(self, build, wf_rnaseq):
-        wf = wf_rnaseq.model_copy(update={"profile": "singularity"})
-        argv = build(wf, GlobalOptions(profile="docker")).argv
+        wf = wf_rnaseq.model_copy(update={"nf_profile": "singularity"})
+        argv = build(wf, GlobalOptions(nf_profile="docker")).argv
         assert argv[argv.index("-profile") + 1] == "singularity"
 
     def test_no_profile_flag_without_profiles(self, build, wf_rnaseq):
         assert "-profile" not in build(wf_rnaseq).argv
 
     def test_wf_and_extra_profile_combined(self, build, wf_rnaseq):
-        wf = wf_rnaseq.model_copy(update={"profile": "docker"})
+        wf = wf_rnaseq.model_copy(update={"nf_profile": "docker"})
         argv = build(wf, extra_profile="test").argv
         assert argv[argv.index("-profile") + 1] == "docker,test"
 
     def test_globals_config_file_adds_c_flag(self, build, wf_rnaseq, tmp_path):
         cfg = tmp_path / "global.config"
         cfg.write_text("")
-        argv = build(wf_rnaseq, GlobalOptions(config_file=str(cfg))).argv
+        argv = build(wf_rnaseq, GlobalOptions(nf_config=str(cfg))).argv
         assert argv[argv.index("-c") + 1] == str(cfg.resolve())
 
     def test_global_then_wf_config_file(self, build, wf_rnaseq, tmp_path):
         g_cfg, w_cfg = tmp_path / "global.config", tmp_path / "wf.config"
         g_cfg.write_text("")
         w_cfg.write_text("")
-        wf = wf_rnaseq.model_copy(update={"config_file": str(w_cfg)})
-        argv = build(wf, GlobalOptions(config_file=str(g_cfg))).argv
+        wf = wf_rnaseq.model_copy(update={"nf_config": str(w_cfg)})
+        argv = build(wf, GlobalOptions(nf_config=str(g_cfg))).argv
         configs = [argv[i + 1] for i, a in enumerate(argv) if a == "-c"]
         assert configs == [str(g_cfg.resolve()), str(w_cfg)]
 
@@ -148,7 +148,7 @@ class TestPipelineCommand:
 
     def test_nonexistent_globals_config_raises(self, build, wf_rnaseq, tmp_path):
         g = GlobalOptions()
-        g.__dict__["config_file"] = tmp_path / "nonexistent.config"
+        g.__dict__["nf_config"] = tmp_path / "nonexistent.config"
         with pytest.raises(NfMetaRunnerError):
             build(wf_rnaseq, g)
 
@@ -183,15 +183,15 @@ class TestModuleCommand:
     def test_globals_config_file_adds_c_flag(self, build, module_fastqc, tmp_path):
         cfg = tmp_path / "global.config"
         cfg.write_text("")
-        argv = build(module_fastqc, GlobalOptions(config_file=str(cfg))).argv
+        argv = build(module_fastqc, GlobalOptions(nf_config=str(cfg))).argv
         assert str(cfg.resolve()) in argv
 
     def test_no_profile_flag(self, build, module_fastqc):
-        assert "-profile" not in build(module_fastqc, GlobalOptions(profile="docker")).argv
+        assert "-profile" not in build(module_fastqc, GlobalOptions(nf_profile="docker")).argv
 
     def test_nonexistent_globals_config_raises(self, build, module_fastqc, tmp_path):
         g = GlobalOptions()
-        g.__dict__["config_file"] = tmp_path / "nonexistent.config"
+        g.__dict__["nf_config"] = tmp_path / "nonexistent.config"
         with pytest.raises(NfMetaRunnerError):
             build(module_fastqc, g)
 
@@ -223,3 +223,20 @@ class TestLocations:
         assert cmd.env == {}
         assert "-w" not in cmd.argv
         assert "-log" not in cmd.argv
+
+
+def test_run_config_comes_last(build, wf_rnaseq, tmp_path):
+    g_cfg, w_cfg, r_cfg = (tmp_path / n for n in ("global.config", "step.config", "run.config"))
+    for cfg in (g_cfg, w_cfg, r_cfg):
+        cfg.write_text("")
+    wf = wf_rnaseq.model_copy(update={"nf_config": w_cfg})
+    argv = build(wf, GlobalOptions(nf_config=str(g_cfg)), nf_config=r_cfg).argv
+    configs = [argv[i + 1] for i, a in enumerate(argv) if a == "-c"]
+    assert configs == [str(g_cfg.resolve()), str(w_cfg), str(r_cfg)]
+
+
+def test_run_config_applies_to_modules(build, module_fastqc, tmp_path):
+    cfg = tmp_path / "run.config"
+    cfg.write_text("")
+    argv = build(module_fastqc, nf_config=cfg).argv
+    assert argv[argv.index("-c") + 1] == str(cfg)

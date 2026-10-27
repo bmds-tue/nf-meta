@@ -33,6 +33,7 @@ from .inputs import InputDefinition
 from .models import (
     CONFIG_VERSION_MAX,
     INPUTS_MIN_CONFIG_VERSION,
+    LEGACY_KEYS,
     GlobalOptions,
     NfModule,
     NfPipeline,
@@ -46,7 +47,7 @@ logger = logging.getLogger()
 
 
 def _module_executor_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
-    if g.global_options and g.global_options.config_file:
+    if g.global_options and g.global_options.nf_config:
         return []
     return [
         Diagnostic(
@@ -70,6 +71,32 @@ def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
 
 
 TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", "workflows", "transitions")
+
+
+def legacy_key_warnings(data: dict) -> list[Diagnostic]:
+    """A deprecation warning for each legacy key (see `models.LEGACY_KEYS`)
+    in `globals` and workflow entries."""
+    sections: list[tuple[str, dict]] = []
+    if isinstance(data.get("globals"), dict):
+        sections.append(("globals.", data["globals"]))
+    sections += [(f"workflows.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
+    return [w for prefix, section in sections for w in _legacy_section_warnings(section, prefix)]
+
+
+def _legacy_section_warnings(section: dict, prefix: str = "") -> list[Diagnostic]:
+    return [
+        Diagnostic(
+            workflow_id=None,
+            field=old,
+            yaml_path=f"{prefix}{old}",
+            message=f"Deprecated key; use '{new}'. Saving from the editor updates it.",
+            severity=Severity.WARNING,
+        )
+        for old, new in LEGACY_KEYS.items()
+        if old in section
+    ]
+
+
 # Keys a workflow entry may have besides its model's fields
 _EXTRA_WORKFLOW_KEYS = ("from", "id", "type")
 
@@ -93,11 +120,11 @@ def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
     diagnostics = [_unknown_key(key, TOP_LEVEL_KEYS, str(key)) for key in data if key not in TOP_LEVEL_KEYS]
     globals_ = data.get("globals")
     if isinstance(globals_, dict):
-        global_keys = list(GlobalOptions.model_fields)
+        global_keys = [*GlobalOptions.model_fields, *LEGACY_KEYS]
         diagnostics += [_unknown_key(key, global_keys, f"globals.{key}") for key in globals_ if key not in global_keys]
     for wf_id, item in _workflow_items(data):
         model = NfModule if item.get("type") == WorkflowType.NF_MODULE else NfPipeline
-        allowed = [*model.model_fields, *_EXTRA_WORKFLOW_KEYS]
+        allowed = [*model.model_fields, *_EXTRA_WORKFLOW_KEYS, *LEGACY_KEYS]
         diagnostics += [
             _unknown_key(key, allowed, f"workflows.{wf_id}.{key}", wf_id) for key in item if key not in allowed
         ]
@@ -241,6 +268,11 @@ def validated_workflow(data: dict, warnings: list[Diagnostic] | None = None) -> 
         raise GraphValidationError("No config data provided")
     if not isinstance(data, dict):
         raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
+    legacy = _legacy_section_warnings(data)
+    if warnings is None:
+        log_warnings(legacy)
+    else:
+        warnings.extend(legacy)
     wf, diagnostics = construct_workflow(data, data.get("id", "<unknown>"))
     if wf is None:
         raise ConfigValidationError(diagnostics)
@@ -266,6 +298,7 @@ def validated_globals(data: dict) -> GlobalOptions:
     if not isinstance(data, dict):
         raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
     try:
+        log_warnings(_legacy_section_warnings(data))
         return GlobalOptions(**data)
     except ValidationError as e:
         raise ConfigValidationError(diagnostics_from_pydantic_error(e, workflow_id=None)) from e
@@ -352,6 +385,7 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     except ValueError as e:
         raise GraphValidationError(str(e)) from e
 
+    log_warnings(legacy_key_warnings(data))
     unknown = unknown_key_diagnostics(data)
     if unknown:
         raise ConfigValidationError(unknown)
@@ -419,7 +453,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
         graph_messages.append(str(e))
         config_version = CONFIG_VERSION_MAX
 
-    warnings: list[Diagnostic] = []
+    warnings = legacy_key_warnings(data)
     items, pending_transitions = _extract_items_and_transitions(data, warnings)
 
     g = MetaworkflowGraph()
@@ -492,7 +526,8 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     return g
 
 
-_PATH_KEYS = ("config_file", "params_file")
+# Legacy "config_file" is still accepted (models alias it to "nf_config")
+_PATH_KEYS = ("nf_config", "config_file", "params_file")
 
 
 def _workflow_items(data: dict) -> list[tuple[str, dict]]:
@@ -505,7 +540,7 @@ def _workflow_items(data: dict) -> list[tuple[str, dict]]:
 
 
 def _resolve_config_paths(data: dict, project_dir: Path | None) -> dict:
-    """Return `data` with relative `config_file`/`params_file` values made
+    """Return `data` with relative `nf_config`/`params_file` values made
     absolute against `project_dir`. With no project dir (remote config), a
     relative path is an error."""
     data = copy.deepcopy(data)
@@ -561,7 +596,7 @@ def validated_graph(
     collects every problem instead of stopping at the first -- used by the
     CLI's `validate` command.
 
-    Relative `config_file`/`params_file` paths resolve against `project_dir`
+    Relative `nf_config`/`params_file` paths resolve against `project_dir`
     (default: the current directory), which is recorded on the graph.
     """
     project_dir = (project_dir or Path.cwd()).resolve()
@@ -582,7 +617,7 @@ def from_file(cfg_file: str | Path, *, collect_errors: bool = False) -> "Metawor
 
     Relative paths in a local config resolve against the config's folder,
     which becomes the graph's `project_dir`. A config loaded from a URL has
-    no project dir, and relative `config_file`/`params_file` paths in it are
+    no project dir, and relative `nf_config`/`params_file` paths in it are
     an error.
     """
     if is_remote_config(cfg_file):

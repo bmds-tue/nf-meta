@@ -220,10 +220,19 @@ def _with_warnings(warnings: list):
 @click.option("--start", "-s", type=str, help="ID of workflow to start from")
 @click.option("--target", "-t", type=str, help="ID of workflow to run until")
 @click.option(
+    "--nf-profile",
     "--profile",
     "-p",
+    "profile",
     type=str,
-    help="Nextflow profile to apply globally, taking precedent over config values.",
+    help="Nextflow profile for every step, after the configured ones.",
+)
+@click.option(
+    "--nf-config",
+    "-c",
+    "nf_config",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Nextflow config for every step, taking precedence over the global and step configs.",
 )
 @click.option(
     "--stub",
@@ -275,6 +284,7 @@ def run(
     stub,
     out_dir,
     dry_run,
+    nf_config,
     input_values,
     inputs_file,
     input_mode,
@@ -296,6 +306,7 @@ def run(
             verbose=verbose,
             output_lines=output_lines,
             nf_profile=profile,
+            nf_config=nf_config.resolve() if nf_config else None,
             stub=stub,
             resume=resume,
             start=start,

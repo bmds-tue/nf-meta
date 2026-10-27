@@ -43,6 +43,8 @@ class RunOptions:
             appended globally to every workflow invocation, taking precedence
             over per-workflow profile settings. Whitespace is stripped before
             passing to Nextflow.
+        nf_config: Nextflow config file passed to every step (``-c``), after
+            the global and the step's own configs, so it takes precedence.
         stub: When ``True``, passes ``-stub`` to every Nextflow invocation so
             that only the ``stub`` block of each process is executed. Useful
             for validating pipeline structure without real computation.
@@ -65,6 +67,7 @@ class RunOptions:
     start: str | None = None
     target: str | None = None
     nf_profile: str | None = None
+    nf_config: Path | None = None
     stub: bool = False
     resume: bool = False
     input_mode: InputMode = InputMode.FAIL

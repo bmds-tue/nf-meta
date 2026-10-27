@@ -39,7 +39,7 @@ export type APINodeBase = {
     name?: string,
     version?: string,
     position?: XYPosition,
-    config_file?: string,
+    nf_config?: string,
     params?: object
 }
 
@@ -49,7 +49,7 @@ export type APINfPipelineNodeData = APINodeBase & {
     url?: string,
     is_nfcore?: boolean,
     params_file?: string,
-    profile?: string,
+    nf_profile?: string,
     main_script?: string,
 }
 
@@ -64,8 +64,8 @@ export type APINodeData = APINfPipelineNodeData | APINfModuleNodeData
 export type NewNodeData = { type?: WorkflowTypeValue }
 
 export type APIGlobalOptions = {
-  profile?: string,
-  config_file?: string,
+  nf_profile?: string,
+  nf_config?: string,
   params?: object
 }
 

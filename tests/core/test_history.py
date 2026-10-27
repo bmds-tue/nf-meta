@@ -323,9 +323,9 @@ class TestEventUndoCommands:
         assert cmd.transition.source == wf_rnaseq.id
 
     def test_global_options_updated_undo_restores_old(self):
-        old = GlobalOptions(profile="docker")
-        new = GlobalOptions(profile="singularity")
+        old = GlobalOptions(nf_profile="docker")
+        new = GlobalOptions(nf_profile="singularity")
         event = GlobalOptionsUpdated(new_globals=new, old_globals=old)
         cmd = event.get_undo_cmd()
         assert isinstance(cmd, UpdateGlobalOptions)
-        assert cmd.globals.profile == "docker"
+        assert cmd.globals.nf_profile == "docker"

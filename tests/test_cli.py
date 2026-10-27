@@ -412,3 +412,28 @@ class TestQuestions:
         assert calls["kw"]["validate"]("0") == "must be >= 1"
         assert calls["kw"]["validate"]("x") == "not a valid integer"
         assert calls["kw"]["validate"]("3") is True
+
+
+class TestRunNfConfig:
+    def _invoke(self, tmp_path, monkeypatch, *args):
+        path = _write(
+            tmp_path, "config_version: 0.4.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n"
+        )
+        monkeypatch.chdir(tmp_path)
+        return CliRunner().invoke(cli, ["run", "--dry-run", *args, str(path)])
+
+    def test_nf_config_relative_to_current_dir(self, tmp_path, monkeypatch):
+        (tmp_path / "local.config").write_text("process.cpus = 2\n")
+        result = self._invoke(tmp_path, monkeypatch, "-c", "local.config")
+        assert result.exit_code == 0, result.output
+        assert f"-c {tmp_path / 'local.config'}" in result.output
+
+    def test_missing_nf_config_rejected(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch, "--nf-config", "nope.config")
+        assert result.exit_code == 2
+        assert "does not exist" in result.output
+
+    def test_profile_alias_still_works(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch, "--profile", "docker")
+        assert result.exit_code == 0, result.output
+        assert "-profile docker" in result.output

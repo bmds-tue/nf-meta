@@ -129,13 +129,13 @@ const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.
           size="x-small" variant="text" :ripple="false" flat class="flex-shrink-0"
           @click.stop="copyPath(form.params_file!, 'params_file')" />
       </div>
-      <div v-if="form.config_file" class="detail-row d-flex align-start ga-2 text-body-2">
+      <div v-if="form.nf_config" class="detail-row d-flex align-start ga-2 text-body-2">
         <v-icon icon="mdi-cog-outline" size="16" class="flex-shrink-0 mt-1" />
-        <code class="path-text flex-grow-1">{{ form.config_file }}</code>
+        <code class="path-text flex-grow-1">{{ form.nf_config }}</code>
         <v-btn
-          :icon="copiedField === 'config_file' ? 'mdi-check' : 'mdi-content-copy'"
+          :icon="copiedField === 'nf_config' ? 'mdi-check' : 'mdi-content-copy'"
           size="x-small" variant="text" :ripple="false" flat class="flex-shrink-0"
-          @click.stop="copyPath(form.config_file!, 'config_file')" />
+          @click.stop="copyPath(form.nf_config!, 'nf_config')" />
       </div>
     </div>
 
@@ -230,9 +230,9 @@ const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.
       </CustomFileInput>
 
       <CustomFileInput
-        v-model="form.config_file"
+        v-model="form.nf_config"
         label="Nextflow Config File"
-        :error-messages="errors.config_file">
+        :error-messages="errors.nf_config">
       </CustomFileInput>
 
       <v-label class="mt-2 mb-1">Params</v-label>

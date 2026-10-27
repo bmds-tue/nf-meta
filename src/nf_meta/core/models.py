@@ -12,6 +12,7 @@ import yaml
 from packaging.version import Version
 from pydantic import (
     AfterValidator,
+    AliasChoices,
     BaseModel,
     BeforeValidator,
     Field,
@@ -39,6 +40,12 @@ class WorkflowType(StrEnum):
     NF_MODULE = "nf-module"
 
 
+# Accepted keys for renamed fields; the old names are deprecated (config_version 0.4.0)
+NF_CONFIG_KEYS = AliasChoices("nf_config", "config_file")
+NF_PROFILE_KEYS = AliasChoices("nf_profile", "profile")
+LEGACY_KEYS = {"config_file": "nf_config", "profile": "nf_profile"}
+
+
 def is_existing_file_abs(path: Path | None = None, allowed_extensions: tuple[str] | None = None) -> Path | None:
     if not path:
         return None
@@ -64,7 +71,7 @@ ExistingYamlFile = Annotated[
 ]
 ExistingNfConfigFile = Annotated[
     Path | None,
-    AfterValidator(lambda v: is_existing_file_abs(v, (".config"))),
+    AfterValidator(lambda v: is_existing_file_abs(v)),
     SerializeToStr,
 ]
 
@@ -148,7 +155,7 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
-    config_file: ExistingNfConfigFile | None = None
+    nf_config: ExistingNfConfigFile | None = Field(default=None, validation_alias=NF_CONFIG_KEYS)
     # validate_default=True ensures the params validator runs even when params
     # is absent from the input (Pydantic skips field validators for defaults otherwise).
     params: CoercedParams | None = Field(default=None, validate_default=True)
@@ -219,7 +226,7 @@ class NfPipeline(BaseWorkflow):
     url: str
     description: str | None = None
     params_file: ExistingYamlFile | None = None
-    profile: str | None = None
+    nf_profile: str | None = Field(default=None, validation_alias=NF_PROFILE_KEYS)
     main_script: str | None = None
 
     @computed_field  # type: ignore[misc]
@@ -286,7 +293,7 @@ class NfPipeline(BaseWorkflow):
 
     def hash(self) -> str:
         data = f"{self.url}{self.version}"
-        data += str(self.config_file.absolute()) if self.config_file else ""
+        data += str(self.nf_config.absolute()) if self.nf_config else ""
         data += str(self.params_file.absolute()) if self.params_file else ""
         data += json.dumps(self.params, sort_keys=True, default=str)
         data += self.main_script or ""
@@ -298,9 +305,9 @@ class NfPipeline(BaseWorkflow):
             "version",
             "url",
             "params_file",
-            "config_file",
+            "nf_config",
             "params",
-            "profile",
+            "nf_profile",
             "main_script",
         }
         result = _params_last(self.model_dump(include=fields, exclude_none=True))
@@ -320,8 +327,8 @@ class NfPipeline(BaseWorkflow):
             "params",
             "description",
             "is_nfcore",
-            "config_file",
-            "profile",
+            "nf_config",
+            "nf_profile",
             "main_script",
         }
         return self.model_dump(include=fields, exclude_none=False)
@@ -343,13 +350,13 @@ class NfModule(BaseWorkflow):
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"
-        data += str(self.config_file.absolute()) if self.config_file else ""
+        data += str(self.nf_config.absolute()) if self.nf_config else ""
         data += json.dumps(self.params, sort_keys=True, default=str)
         data += self.container_engine or ""
         return hashlib.sha256(data.encode()).hexdigest()[:8]
 
     def model_dump_config(self) -> dict:
-        fields = {"name", "version", "params", "config_file", "container_engine"}
+        fields = {"name", "version", "params", "nf_config", "container_engine"}
         result = _params_last(self.model_dump(include=fields, exclude_none=True))
         result["type"] = self.type  # always written — required to distinguish from NfPipeline on load
         return result
@@ -361,7 +368,7 @@ class NfModule(BaseWorkflow):
             "type",
             "version",
             "params",
-            "config_file",
+            "nf_config",
             "container_engine",
         }
         return self.model_dump(include=fields, exclude_none=False)
@@ -381,20 +388,20 @@ class GlobalOptions(BaseModel):
     """Settings applied across every workflow in a metapipeline (the config's
     `globals:` key). `params` is merged under each workflow's own `params` at
     run time, with the workflow's own values winning on key collision;
-    `profile`/`config_file` likewise act as a fallback a workflow can
+    `nf_profile`/`nf_config` likewise act as a fallback a workflow can
     override, not a value forced onto it."""
 
-    profile: str | None = None
-    config_file: ExistingNfConfigFile | None = None
+    nf_profile: str | None = Field(default=None, validation_alias=NF_PROFILE_KEYS)
+    nf_config: ExistingNfConfigFile | None = Field(default=None, validation_alias=NF_CONFIG_KEYS)
     params: CoercedParams | None = None
     nextflow_version: str | int | float | None = None
 
-    @field_validator("profile", mode="after")
+    @field_validator("nf_profile", mode="after")
     @classmethod
-    def validate_profile(cls, profile: str | None):
-        if not profile:
+    def validate_profile(cls, nf_profile: str | None):
+        if not nf_profile:
             return None
-        return profile.replace(" ", "")
+        return nf_profile.replace(" ", "")
 
     @field_validator("nextflow_version", mode="before")
     @classmethod

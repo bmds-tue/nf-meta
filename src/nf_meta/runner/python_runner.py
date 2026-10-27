@@ -97,13 +97,15 @@ class SimplePythonRunner(BaseRunner):
     ) -> str:
         """Hash of everything that defines a step's result: the resolved step,
         the content of its config and params files, the globals, run-level
-        profile and stub flag, and the keys of all upstream steps."""
+        profile, Nextflow config and stub flag, and the keys of all upstream
+        steps."""
         data = {
             "workflow": wf.hash(),
-            "config_file": _file_digest(wf.config_file),
+            "nf_config": _file_digest(wf.nf_config),
             "params_file": _file_digest(getattr(wf, "params_file", None)),
             "globals": global_options.model_dump(mode="json") if global_options else None,
-            "globals_config": _file_digest(global_options.config_file if global_options else None),
+            "globals_config": _file_digest(global_options.nf_config if global_options else None),
+            "run_config": _file_digest(self.run_options.nf_config),
             "profile": self.run_options.nf_profile or "",
             "stub": self.run_options.stub,
             "upstream": sorted(upstream_keys),
@@ -285,6 +287,7 @@ class SimplePythonRunner(BaseRunner):
                 project_dir=project_dir,
                 schema=schema,
                 extra_profile=self.run_options.nf_profile or "",
+                nf_config=self.run_options.nf_config,
                 resume=resume,
                 stub=self.run_options.stub,
             )

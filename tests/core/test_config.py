@@ -420,7 +420,7 @@ class TestValidatedWorkflow:
 class TestValidatedGlobals:
     def test_valid_snippet_returns_globals(self):
         globals_ = validated_globals({"profile": "docker"})
-        assert globals_.profile == "docker"
+        assert globals_.nf_profile == "docker"
 
     def test_invalid_snippet_raises_config_validation_error(self):
         with pytest.raises(ConfigValidationError):
@@ -668,3 +668,47 @@ def test_errors_carry_warnings_too():
     with pytest.raises(ConfigValidationError) as exc:
         validated_graph(data, collect_errors=True)
     assert [d.yaml_path for d in exc.value.warnings] == ["inputs.spare"]
+
+
+# ---------------------------------------------------------------------------
+# nf_config / nf_profile (renamed from config_file / profile)
+# ---------------------------------------------------------------------------
+
+
+def _with_nf_keys(tmp_path, globals_, step):
+    cfg = tmp_path / "any_name.txt"  # no .config suffix required
+    cfg.write_text("")
+    data = _config(globals={k: (str(cfg) if v == "CFG" else v) for k, v in globals_.items()})
+    data["workflows"]["n01"].update({k: (str(cfg) if v == "CFG" else v) for k, v in step.items()})
+    return data, cfg
+
+
+def test_new_keys_load_and_dump(tmp_path):
+    data, cfg = _with_nf_keys(tmp_path, {"nf_config": "CFG", "nf_profile": "docker"}, {"nf_profile": "test"})
+    g = validated_graph(data, collect_errors=True)
+    assert g.global_options.nf_config == cfg and g.global_options.nf_profile == "docker"
+    assert g.warnings == []
+    dumped = dump_config(g)
+    assert dumped["globals"] == {"nf_profile": "docker", "nf_config": str(cfg)}
+    assert dumped["workflows"]["n01"]["nf_profile"] == "test"
+
+
+def test_legacy_keys_still_load_with_a_warning_and_save_as_new(tmp_path):
+    data, cfg = _with_nf_keys(tmp_path, {"config_file": "CFG", "profile": "docker"}, {"profile": "test"})
+    g = validated_graph(data, collect_errors=True)
+    assert g.global_options.nf_config == cfg and g.global_options.nf_profile == "docker"
+    assert sorted(d.yaml_path for d in g.warnings) == [
+        "globals.config_file",
+        "globals.profile",
+        "workflows.n01.profile",
+    ]
+    assert all("Deprecated key; use 'nf_" in d.message for d in g.warnings)
+    dumped = dump_config(g)
+    assert "config_file" not in dumped["globals"] and "profile" not in dumped["workflows"]["n01"]
+
+
+def test_missing_nf_config_is_an_error(tmp_path):
+    data = _config(globals={"nf_config": str(tmp_path / "missing.config")})
+    with pytest.raises(ConfigValidationError) as exc:
+        validated_graph(data, collect_errors=True)
+    assert [d.yaml_path for d in exc.value.errors] == ["globals.nf_config"]

@@ -179,12 +179,12 @@ class TestWorkflowDump:
 
 class TestGlobalOptions:
     def test_profile_whitespace_stripped(self):
-        g = GlobalOptions(profile="docker, singularity")
-        assert g.profile == "docker,singularity"
+        g = GlobalOptions(nf_profile="docker, singularity")
+        assert g.nf_profile == "docker,singularity"
 
     def test_profile_none(self):
         g = GlobalOptions()
-        assert g.profile is None
+        assert g.nf_profile is None
 
     def test_nextflow_version_full_string(self):
         g = GlobalOptions(nextflow_version="25.10.4")

@@ -160,11 +160,11 @@ class TestConfigPaths:
     def test_relative_config_file_resolves_against_config_folder(self, project, tmp_path, monkeypatch):
         (project / "step.config").write_text("")
         cfg = two_steps()
-        cfg["n01"]["config_file"] = "step.config"
+        cfg["n01"]["nf_config"] = "step.config"
         path = write_config(project, cfg)
         monkeypatch.chdir(tmp_path)
         g = from_file(path)
-        assert g.get_workflow_by_id("n01").config_file == project / "step.config"
+        assert g.get_workflow_by_id("n01").nf_config == project / "step.config"
         assert g.project_dir == project
 
     def test_validated_graph_does_not_modify_input(self, project, monkeypatch):
@@ -172,10 +172,10 @@ class TestConfigPaths:
         monkeypatch.chdir(project)
         data = {
             "config_version": "0.3.0",
-            "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "config_file": "step.config"}},
+            "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "nf_config": "step.config"}},
         }
         validated_graph(data)
-        assert data["workflows"]["n01"]["config_file"] == "step.config"
+        assert data["workflows"]["n01"]["nf_config"] == "step.config"
 
 
 class TestStepKey:
@@ -192,7 +192,7 @@ class TestStepKey:
         cfg_file = project / "step.config"
         cfg_file.write_text("process.cpus = 1\n")
         cfg = two_steps()
-        cfg["n02"]["config_file"] = "step.config"
+        cfg["n02"]["nf_config"] = "step.config"
         path = write_config(project, cfg)
         before = self._keys(path)
         cfg_file.write_text("process.cpus = 2\n")
@@ -235,7 +235,7 @@ class TestRemoteConfig:
         serve(
             {
                 "config_version": "0.3.0",
-                "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "config_file": "step.config"}},
+                "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "nf_config": "step.config"}},
             }
         )
         with pytest.raises(ConfigValidationError, match="URL"):
@@ -254,3 +254,15 @@ class TestRemoteConfig:
         g = from_file("https://example.org/metaconfig.yaml")
         with pytest.raises(NfMetaRunnerError, match="n01.input"):
             SimplePythonRunner(RunOptions(out_dir=tmp_path)).plan(g)
+
+
+def test_run_config_content_changes_every_step_key(project, tmp_path):
+    run_cfg = tmp_path / "run.config"
+    run_cfg.write_text("process.cpus = 1\n")
+    path = write_config(project, two_steps())
+    before = [s.spec.state_dir.name for s in plan(path, nf_config=run_cfg)]
+    run_cfg.write_text("process.cpus = 2\n")
+    after = [s.spec.state_dir.name for s in plan(path, nf_config=run_cfg)]
+    assert all(b != a for b, a in zip(before, after, strict=True))
+    # The Nextflow cache dir stays, so Nextflow's -resume reuses unaffected tasks
+    assert [s.command.env for s in plan(path, nf_config=run_cfg)][0]["NXF_CACHE_DIR"].endswith("/n01")

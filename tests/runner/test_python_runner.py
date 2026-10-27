@@ -220,9 +220,9 @@ class TestExecute:
         assert step.command.params == {"max_cpus": 4, "input": "samples.csv"}
 
     def test_nonexistent_global_config_raises(self, runner, wf_rnaseq, tmp_path):
-        bad = GlobalOptions(profile="docker")
+        bad = GlobalOptions(nf_profile="docker")
         # Bypass the validator to inject a non-existent path
-        bad.__dict__["config_file"] = tmp_path / "nonexistent.config"
+        bad.__dict__["nf_config"] = tmp_path / "nonexistent.config"
         with pytest.raises(NfMetaRunnerError):
             self._step(runner, wf_rnaseq, bad)
 

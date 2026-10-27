@@ -433,7 +433,10 @@ class TestRunNfConfig:
         assert result.exit_code == 2
         assert "does not exist" in result.output
 
-    def test_profile_alias_still_works(self, tmp_path, monkeypatch):
-        result = self._invoke(tmp_path, monkeypatch, "--profile", "docker")
+    def test_nf_profile_short_form(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch, "-p", "docker")
         assert result.exit_code == 0, result.output
         assert "-profile docker" in result.output
+
+    def test_old_profile_option_removed(self, tmp_path, monkeypatch):
+        assert self._invoke(tmp_path, monkeypatch, "--profile", "docker").exit_code == 2

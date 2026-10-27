@@ -221,7 +221,6 @@ def _with_warnings(warnings: list):
 @click.option("--target", "-t", type=str, help="ID of workflow to run until")
 @click.option(
     "--nf-profile",
-    "--profile",
     "-p",
     "profile",
     type=str,

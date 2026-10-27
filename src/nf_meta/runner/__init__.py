@@ -35,7 +35,7 @@ def _load_runner_plugins() -> None:
         try:
             ep.load()
             logger.debug("Loaded runner plugin: %s", ep.name)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- a broken third-party plugin must not stop nf-meta from starting
             logger.warning("Failed to load runner plugin '%s': %s", ep.name, exc)
 
 

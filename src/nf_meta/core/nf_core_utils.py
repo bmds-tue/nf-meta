@@ -286,15 +286,12 @@ def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
     Check whether a file exists at `path` in a GitHub repository at `ref`
     using the GitHub Contents API.
     """
-    try:
-        after_host = repo_url.rstrip("/").split("github.com/", 1)[-1]
-        parts = after_host.split("/")
-        if len(parts) < 2:
-            return False
-        owner, repo = parts[0], parts[1]
-        api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path.lstrip('/')}?ref={ref}"
-    except Exception:
+    after_host = repo_url.rstrip("/").split("github.com/", 1)[-1]
+    parts = after_host.split("/")
+    if len(parts) < 2:
         return False
+    owner, repo = parts[0], parts[1]
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path.lstrip('/')}?ref={ref}"
 
     return _fetch_json(api_url, f"GitHub file {path}@{ref}", headers=_GITHUB_API_HEADERS) is not None
 

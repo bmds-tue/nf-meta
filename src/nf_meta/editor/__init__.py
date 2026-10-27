@@ -33,7 +33,7 @@ def _load_editor_plugins() -> None:
         try:
             ep.load()
             logger.debug("Loaded editor plugin: %s", ep.name)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- a broken third-party plugin must not stop nf-meta from starting
             logger.warning("Failed to load editor plugin '%s': %s", ep.name, exc)
 
 

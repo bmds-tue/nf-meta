@@ -26,7 +26,7 @@ def read_schema_cache(url: str, version: str) -> dict | None:
     try:
         with open(path) as f:
             return json.load(f)
-    except Exception as e:
+    except (OSError, ValueError) as e:
         logger.warning("Failed to read schema cache at %s: %s", path, e)
         return None
 
@@ -37,5 +37,5 @@ def write_schema_cache(url: str, version: str, schema: dict) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             json.dump(schema, f)
-    except Exception as e:
+    except OSError as e:
         logger.warning("Failed to write schema cache to %s: %s", path, e)

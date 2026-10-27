@@ -10,6 +10,7 @@ preserved exactly as it was in the original Pydantic validators in
 (logged, non-blocking).
 """
 
+import contextlib
 import dataclasses
 import logging
 from collections.abc import Callable, Iterable
@@ -140,7 +141,7 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
                     )
                 )
                 skip_required = True
-        except Exception as exc:
+        except (OSError, yaml.YAMLError) as exc:
             diagnostics.append(
                 Diagnostic(
                     workflow_id=node_id,
@@ -330,10 +331,9 @@ def _prefetch(workflows: list[Workflow]) -> None:
         return
 
     def _safe_call(fn: Callable, args: tuple) -> None:
-        try:
+        # An unavailable schema surfaces again, via the real check, once it runs
+        with contextlib.suppress(SchemaUnavailableError):
             fn(*args)
-        except Exception:
-            pass  # errors surface again, via the real check, once it runs
 
     with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
         futures = [executor.submit(_safe_call, fn, args) for fn, args in tasks.values()]

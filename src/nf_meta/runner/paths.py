@@ -3,8 +3,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from nf_meta.core.models import Workflow
 from nf_meta.core.dynamic_validation import workflow_schema
+from nf_meta.core.models import Workflow
 
 PATH_FORMATS = frozenset({"file-path", "directory-path", "path", "file-path-pattern"})
 # nf-core module meta.yml input types that denote files

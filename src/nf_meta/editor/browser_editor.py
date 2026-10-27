@@ -26,7 +26,7 @@ def _is_http_server_reachable(host: str, port: int, timeout: int = 1) -> bool:
         conn.getresponse()
         conn.close()
         return True
-    except Exception:
+    except (OSError, http.client.HTTPException):
         return False
 
 

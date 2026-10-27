@@ -450,10 +450,10 @@ def get_pipeline_schema(url: str, version: str) -> dict[str, dict]:
 
     try:
         response = requests.get(schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
-    except requests.exceptions.Timeout:
-        raise PipelineSchemaError(f"Timeout fetching nextflow_schema.json for {url}@{version}")
+    except requests.exceptions.Timeout as e:
+        raise PipelineSchemaError(f"Timeout fetching nextflow_schema.json for {url}@{version}") from e
     except requests.exceptions.RequestException as e:
-        raise PipelineSchemaError(f"Network error fetching nextflow_schema.json for {url}@{version}: {e}")
+        raise PipelineSchemaError(f"Network error fetching nextflow_schema.json for {url}@{version}: {e}") from e
 
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After", "unknown")
@@ -481,7 +481,7 @@ def get_pipeline_schema(url: str, version: str) -> dict[str, dict]:
     try:
         data = response.json()
     except ValueError as e:
-        raise PipelineSchemaError(f"Failed to parse nextflow_schema.json for {url}@{version} as JSON: {e}")
+        raise PipelineSchemaError(f"Failed to parse nextflow_schema.json for {url}@{version} as JSON: {e}") from e
 
     schema = _parse_nextflow_schema(data)
     write_schema_cache(url, version, schema)

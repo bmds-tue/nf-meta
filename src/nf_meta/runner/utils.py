@@ -93,15 +93,15 @@ def get_installed_nextflow_version():
             text=True,
             timeout=30,
         )
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         raise NfMetaRunnerError(
             "Nextflow is not installed or not found on PATH. "
             "Please install Nextflow: https://www.nextflow.io/docs/latest/install.html"
-        )
-    except subprocess.TimeoutExpired:
-        raise NfMetaRunnerError("Timed out waiting for `nextflow -version` to respond.")
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise NfMetaRunnerError("Timed out waiting for `nextflow -version` to respond.") from e
     except OSError as e:
-        raise NfMetaRunnerError(f"Failed to invoke Nextflow: {e}")
+        raise NfMetaRunnerError(f"Failed to invoke Nextflow: {e}") from e
 
     output = result.stdout or result.stderr
     if result.returncode != 0:

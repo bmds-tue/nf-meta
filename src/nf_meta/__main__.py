@@ -58,10 +58,10 @@ def handle_validation_errors(func):
         except (GraphValidationError, ConfigValidationError) as e:
             source_text = _read_text(config) if config else None
             click.echo(format_errors_for_cli(e, source_text=source_text, filename=str(config or "")))
-            raise SystemExit(1)
+            raise SystemExit(1) from None
         except FileNotFoundError as e:
             click.echo(click.style(str(e), fg="red"))
-            raise SystemExit(1)
+            raise SystemExit(1) from None
 
     return wrapper
 
@@ -240,7 +240,7 @@ def run(
             run_metapipeline(g, run_options)
     except NfMetaRunnerError as e:
         click.echo(click.style(e.message, fg="red"))
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 def _print_plan(steps) -> None:

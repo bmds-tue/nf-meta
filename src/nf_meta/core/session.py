@@ -40,7 +40,7 @@ class EditorSession:
         try:
             events = self.history.execute(c, self.graph)
         except (GraphValidationError, ValueError, ConfigValidationError) as e:
-            raise SessionCommandError.from_exception(e)
+            raise SessionCommandError.from_exception(e) from e
 
         if self.config_file:
             self.save_to_config(self.config_file)
@@ -52,7 +52,7 @@ class EditorSession:
         try:
             self.save_to_config(self.config_file)
         except ValueError as e:
-            raise SessionCommandError.from_exception(e)
+            raise SessionCommandError.from_exception(e) from e
         return events
 
     def handle_redo(self):
@@ -60,7 +60,7 @@ class EditorSession:
         try:
             self.save_to_config(self.config_file)
         except ValueError as e:
-            raise SessionCommandError.from_exception(e)
+            raise SessionCommandError.from_exception(e) from e
         return events
 
     def save_to_config(self, config: Path | None):

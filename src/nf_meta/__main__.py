@@ -162,9 +162,10 @@ def validate_config(config, verbose, scope):
 @click.option(
     "--runner",
     "-r",
-    prompt=True,
     type=click.Choice(get_registered_runners()),
     default="python",
+    show_default=True,
+    help="Runner backend to execute the metapipeline with",
 )
 @click.option("--resume", is_flag=True, help="Resume a previous run")
 @click.option(
@@ -205,7 +206,8 @@ def validate_config(config, verbose, scope):
     "input_values",
     multiple=True,
     metavar="NAME=VALUE",
-    help="Value for an input (or <step_id>.<param> for a reference to a step outside the run). Repeatable.",
+    help="Value for an input (or <step_id>.<param> for a reference to a step outside the run). "
+    "Use once per value: --input ids=ids.csv --input genome=GRCh38",
 )
 @click.option(
     "--inputs-file",

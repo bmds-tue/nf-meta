@@ -189,9 +189,7 @@ def get_nfcore_module_meta(name: str, version: Optional[str] = None):
     if not releases:
         return JSONResponse(
             status_code=404,
-            content={
-                "detail": f"Module '{name}' not found or has no published releases"
-            },
+            content={"detail": f"Module '{name}' not found or has no published releases"},
         )
 
     if version is not None:
@@ -199,9 +197,7 @@ def get_nfcore_module_meta(name: str, version: Optional[str] = None):
         if release is None:
             return JSONResponse(
                 status_code=404,
-                content={
-                    "detail": f"Version '{version}' not found for module '{name}'"
-                },
+                content={"detail": f"Version '{version}' not found for module '{name}'"},
             )
     else:
         release = max(releases, key=lambda r: r.get("createdAt", ""))

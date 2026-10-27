@@ -65,9 +65,7 @@ class BaseRunner(ABC):
 
     def __init__(self, run_options: RunOptions) -> None:
         if "RUNNER_NAME" not in type(self).__dict__:
-            raise TypeError(
-                f"{type(self).__name__} must define RUNNER_NAME = '...' as a class attribute"
-            )
+            raise TypeError(f"{type(self).__name__} must define RUNNER_NAME = '...' as a class attribute")
         self.run_options = run_options
 
     @abstractmethod
@@ -88,6 +86,4 @@ class BaseRunner(ABC):
         """Return what `run` (or `resume`, with `resume=True`) would execute,
         in order, without side effects. Used for dry runs. Runners that can't
         plan ahead keep this default, which raises `NfMetaRunnerError`."""
-        raise NfMetaRunnerError(
-            f"Runner '{self.RUNNER_NAME}' does not support dry runs."
-        )
+        raise NfMetaRunnerError(f"Runner '{self.RUNNER_NAME}' does not support dry runs.")

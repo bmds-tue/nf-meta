@@ -167,9 +167,7 @@ class TestUndoRedoRollback:
         assert history.undoable()
         assert not history.redoable()
 
-    def test_redo_rolls_back_on_failure_and_restores_stack(
-        self, history, graph, wf_rnaseq, monkeypatch
-    ):
+    def test_redo_rolls_back_on_failure_and_restores_stack(self, history, graph, wf_rnaseq, monkeypatch):
         history.execute(RemoveWorkflow(wf_rnaseq.id), graph)
         history.undo(graph)
         assert graph.get_workflow_by_id(wf_rnaseq.id) is not None
@@ -177,9 +175,7 @@ class TestUndoRedoRollback:
         def failing_remove_workflow(self, wf_id, recursive=False):
             raise RuntimeError("simulated failure")
 
-        monkeypatch.setattr(
-            MetaworkflowGraph, "remove_workflow", failing_remove_workflow
-        )
+        monkeypatch.setattr(MetaworkflowGraph, "remove_workflow", failing_remove_workflow)
 
         with pytest.raises(RuntimeError):
             history.redo(graph)
@@ -265,9 +261,7 @@ class TestUndoRedoRollback:
 
 
 class TestTransaction:
-    def test_transaction_applies_all_commands(
-        self, history, graph, wf_rnaseq, wf_fetchngs
-    ):
+    def test_transaction_applies_all_commands(self, history, graph, wf_rnaseq, wf_fetchngs):
         cmd = Transaction(
             (
                 RemoveWorkflow(wf_rnaseq.id),

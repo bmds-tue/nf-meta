@@ -170,9 +170,7 @@ class Input:
             path = project_dir / path
         return None if path.exists() else f"Input '{self.name}': '{value}' does not exist"
 
-    def validate(
-        self, value: Any, *, project_dir: Optional[Path] = None, check_exists: bool = True
-    ) -> list[str]:
+    def validate(self, value: Any, *, project_dir: Optional[Path] = None, check_exists: bool = True) -> list[str]:
         """Return why `value` is not acceptable for this input (empty if it is).
         With `check_exists`, a path that must exist is looked up (relative
         paths in `project_dir`)."""
@@ -261,8 +259,7 @@ def effective_input(
         if key in own and key in inherited and own[key] != inherited[key]:
             problem(
                 key,
-                f"Input '{name}' declares {key} '{own[key]}' but the bound param's "
-                f"schema says '{inherited[key]}'",
+                f"Input '{name}' declares {key} '{own[key]}' but the bound param's schema says '{inherited[key]}'",
             )
 
     schema = {**inherited, **own}

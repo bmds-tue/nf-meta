@@ -92,17 +92,13 @@ def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
     `globals`, and in each workflow entry. (Unknown keys in `inputs` entries
     are reported when they are parsed.)"""
     diagnostics = [
-        _unknown_key(key, TOP_LEVEL_KEYS, str(key), "at the top level")
-        for key in data
-        if key not in TOP_LEVEL_KEYS
+        _unknown_key(key, TOP_LEVEL_KEYS, str(key), "at the top level") for key in data if key not in TOP_LEVEL_KEYS
     ]
     globals_ = data.get("globals")
     if isinstance(globals_, dict):
         global_keys = list(GlobalOptions.model_fields)
         diagnostics += [
-            _unknown_key(key, global_keys, f"globals.{key}", "in globals")
-            for key in globals_
-            if key not in global_keys
+            _unknown_key(key, global_keys, f"globals.{key}", "in globals") for key in globals_ if key not in global_keys
         ]
     for wf_id, item in _workflow_items(data):
         model = NfModule if item.get("type") == WorkflowType.NF_MODULE else NfPipeline
@@ -129,6 +125,7 @@ def _extract_items_and_transitions(
     ordinary per-workflow mistakes, so every caller lets them raise immediately
     rather than aggregating around them.
     """
+
     def warn(yaml_path: str, message: str) -> None:
         if warnings is None:
             logger.warning(message)
@@ -162,10 +159,7 @@ def _extract_items_and_transitions(
             "format keyed by workflow id instead. Update by opening and saving the "
             "config in the editor.",
         )
-        raw_items = [
-            (item.get("id") if isinstance(item, dict) else None, item)
-            for item in raw_workflows
-        ]
+        raw_items = [(item.get("id") if isinstance(item, dict) else None, item) for item in raw_workflows]
     else:
         raise GraphValidationError(
             f"'workflows:' must be a mapping keyed by workflow id or a list "
@@ -178,8 +172,7 @@ def _extract_items_and_transitions(
     for key, item in raw_items:
         if not isinstance(item, dict):
             raise GraphValidationError(
-                f"Invalid definition of workflow {key}: Must be a key-value "
-                f"mapping, got '{item}' instead"
+                f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{item}' instead"
             )
         item = {**item}
         item.setdefault("type", WorkflowType.NF_PIPELINE)
@@ -189,9 +182,7 @@ def _extract_items_and_transitions(
         from_ids = item.pop("from", None) or []
         if isinstance(from_ids, str):
             from_ids = [from_ids]  # a single predecessor id, not wrapped in a list
-        if not isinstance(from_ids, list) or not all(
-            isinstance(f, str) for f in from_ids
-        ):
+        if not isinstance(from_ids, list) or not all(isinstance(f, str) for f in from_ids):
             raise GraphValidationError(
                 f"Invalid 'from' value for workflow {item.get('id', '<unknown>')}: "
                 f"expected a workflow id or a list of workflow ids, got "
@@ -241,14 +232,10 @@ def construct_workflow(
             return NfModule(**item), []
         return NfPipeline(**item), []
     except ValidationError as e:
-        return None, diagnostics_from_pydantic_error(
-            e, workflow_id=workflow_id, yaml_path_prefix=yaml_path_prefix
-        )
+        return None, diagnostics_from_pydantic_error(e, workflow_id=workflow_id, yaml_path_prefix=yaml_path_prefix)
 
 
-def validated_workflow(
-    data: dict, warnings: Optional[list[Diagnostic]] = None
-) -> Workflow:
+def validated_workflow(data: dict, warnings: Optional[list[Diagnostic]] = None) -> Workflow:
     """Construct and fully validate a single workflow from a flat, raw dict
     (`id` optional -- the model's own `default_factory` generates one if
     omitted). Runs the same tier-0/1 construction plus tier-2 dynamic checks
@@ -260,9 +247,7 @@ def validated_workflow(
     if not data:
         raise GraphValidationError("No config data provided")
     if not isinstance(data, dict):
-        raise GraphValidationError(
-            f"Expected a flat mapping, got {type(data).__name__!r}"
-        )
+        raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
     wf, diagnostics = construct_workflow(data, data.get("id", "<unknown>"))
     if wf is None:
         raise ConfigValidationError(diagnostics)
@@ -286,20 +271,14 @@ def validated_globals(data: dict) -> GlobalOptions:
     if not data:
         raise GraphValidationError("No config data provided")
     if not isinstance(data, dict):
-        raise GraphValidationError(
-            f"Expected a flat mapping, got {type(data).__name__!r}"
-        )
+        raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
     try:
         return GlobalOptions(**data)
     except ValidationError as e:
-        raise ConfigValidationError(
-            diagnostics_from_pydantic_error(e, workflow_id=None)
-        ) from e
+        raise ConfigValidationError(diagnostics_from_pydantic_error(e, workflow_id=None)) from e
 
 
-def validated_workflow_from_file(
-    cfg_file: Path, warnings: Optional[list[Diagnostic]] = None
-) -> Workflow:
+def validated_workflow_from_file(cfg_file: Path, warnings: Optional[list[Diagnostic]] = None) -> Workflow:
     """Read `cfg_file` as YAML and validate it as a standalone workflow
     snippet. See `validated_workflow`."""
     with open(cfg_file) as fh:
@@ -350,9 +329,7 @@ def parse_inputs(data: dict, config_version: str) -> tuple[dict[str, InputDefini
         try:
             definitions[str(name)] = InputDefinition.from_config(entry)
         except ValidationError as e:
-            diagnostics.extend(
-                diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix=f"inputs.{name}.")
-            )
+            diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix=f"inputs.{name}."))
         except (TypeError, ValueError) as e:
             diagnostics.append(
                 Diagnostic(
@@ -395,9 +372,7 @@ def _fast_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
     with g.deferred_validation():
         for item in items:
             wf_id = item.get("id", "<unknown>")
-            wf, diagnostics = construct_workflow(
-                item, wf_id, yaml_path_prefix=f"workflows.{wf_id}."
-            )
+            wf, diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"workflows.{wf_id}.")
             if wf is None:
                 raise ConfigValidationError(diagnostics)
             g.add_workflow(wf)
@@ -410,9 +385,7 @@ def _fast_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
                 g.global_options = GlobalOptions(**data["globals"])
             except ValidationError as e:
                 raise ConfigValidationError(
-                    diagnostics_from_pydantic_error(
-                        e, workflow_id=None, yaml_path_prefix="globals."
-                    )
+                    diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals.")
                 ) from e
 
         inputs, input_errors = parse_inputs(data, config_version)
@@ -465,9 +438,7 @@ def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
     constructed: list[Workflow] = []
     for item in items:
         wf_id = item.get("id", "<unknown>")
-        wf, item_diagnostics = construct_workflow(
-            item, wf_id, yaml_path_prefix=f"workflows.{wf_id}."
-        )
+        wf, item_diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"workflows.{wf_id}.")
         if wf is None:
             diagnostics.extend(item_diagnostics)
             continue
@@ -480,15 +451,9 @@ def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
             # already reported above -- re-reporting it as "unknown node" would
             # be a confusing secondary symptom of the same problem. Only a
             # genuinely undeclared id gets its own message here.
-            never_declared = [
-                i
-                for i in (source_id, target_id)
-                if i not in g.G and i not in attempted_ids
-            ]
+            never_declared = [i for i in (source_id, target_id) if i not in g.G and i not in attempted_ids]
             if never_declared:
-                graph_messages.append(
-                    f"Edge refers to nonexistent node: {source_id}->{target_id}"
-                )
+                graph_messages.append(f"Edge refers to nonexistent node: {source_id}->{target_id}")
             continue
         g.G.add_edge(
             source_id,
@@ -522,21 +487,13 @@ def _full_validated_graph(data: dict, project_dir: Optional[Path] = None) -> "Me
         try:
             g.global_options = GlobalOptions(**data["globals"])
         except ValidationError as e:
-            diagnostics.extend(
-                diagnostics_from_pydantic_error(
-                    e, workflow_id=None, yaml_path_prefix="globals."
-                )
-            )
+            diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals."))
 
-    diagnostics.extend(
-        g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows())
-    )
+    diagnostics.extend(g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows()))
     warnings.extend(_module_executor_warnings(g))
 
     if diagnostics or graph_messages:
-        raise ConfigValidationError(
-            errors=diagnostics, graph_messages=graph_messages, warnings=warnings
-        )
+        raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages, warnings=warnings)
 
     g.warnings = warnings
     return g
@@ -646,9 +603,7 @@ def from_file(cfg_file: str | Path, *, collect_errors: bool = False) -> "Metawor
     path = Path(cfg_file)
     with open(path) as fh:
         data = yaml.safe_load(fh)
-    return validated_graph(
-        data, collect_errors=collect_errors, project_dir=path.parent.resolve()
-    )
+    return validated_graph(data, collect_errors=collect_errors, project_dir=path.parent.resolve())
 
 
 def dump_config(g: "MetaworkflowGraph") -> dict:
@@ -672,9 +627,7 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
 
     config_dict = {
         "config_version": g.config_version,
-        "globals": g.global_options.model_dump(exclude_none=True)
-        if g.global_options
-        else None,
+        "globals": g.global_options.model_dump(exclude_none=True) if g.global_options else None,
         "inputs": {name: d.model_dump_config() for name, d in g.inputs.items()},
         "workflows": workflows_dict,
     }
@@ -687,10 +640,7 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
     return config_dict
 
 
-SCHEMA_URL = (
-    "https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/"
-    "schemas/metapipeline.schema.json"
-)
+SCHEMA_URL = "https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/schemas/metapipeline.schema.json"
 
 
 def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:

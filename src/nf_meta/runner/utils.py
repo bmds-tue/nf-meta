@@ -108,17 +108,13 @@ def get_installed_nextflow_version():
 
     output = result.stdout or result.stderr
     if result.returncode != 0:
-        raise NfMetaRunnerError(
-            f"`nextflow -version` exited with code {result.returncode}.\n{output.strip()}"
-        )
+        raise NfMetaRunnerError(f"`nextflow -version` exited with code {result.returncode}.\n{output.strip()}")
 
     # Match e.g. "version 25.10.4 build 11173"
     #         or "version 25.10.4-edge build 11173"
     match = re.search(r"version\s+(\d+)\.(\d+)\.(\d+)(-edge)?", output)
     if not match:
-        raise NfMetaRunnerError(
-            f"Could not parse Nextflow version from output:\n{output.strip()}"
-        )
+        raise NfMetaRunnerError(f"Could not parse Nextflow version from output:\n{output.strip()}")
 
     major, minor, patch, edge_flag = match.groups()
     is_edge = 1 if edge_flag else 0

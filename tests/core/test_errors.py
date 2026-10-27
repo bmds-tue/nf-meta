@@ -48,6 +48,7 @@ class TestDiagnosticYamlPath:
 # SessionCommandError.from_exception
 # ---------------------------------------------------------------------------
 
+
 class TestSessionCommandError:
     def test_from_config_validation_error_delegates_to_from_diagnostics(self):
         """ConfigValidationError is now the only exception type carrying
@@ -233,6 +234,7 @@ class TestFormatErrorsForCliConfig:
 # format_errors_for_cli
 # ---------------------------------------------------------------------------
 
+
 class TestFormatErrorsForCli:
     def test_formats_graph_validation_error(self):
         exc = GraphValidationError("cycle found in graph")
@@ -319,9 +321,7 @@ class TestFormatErrorsForCliPositions:
                 )
             ]
         )
-        output = click.unstyle(
-            format_errors_for_cli(exc, source_text=source, filename="test.yaml")
-        )
+        output = click.unstyle(format_errors_for_cli(exc, source_text=source, filename="test.yaml"))
         lines = output.split("\n")
         assert lines[0] == "Validation failed (1 error):"
         assert lines[1] == f" test.yaml:{expected.line}:{expected.column}: error: [config_version] bad version"
@@ -359,9 +359,7 @@ class TestFormatErrorsForCliPositions:
                 ),
             ]
         )
-        output = click.unstyle(
-            format_errors_for_cli(exc, source_text=source, filename="x.yaml")
-        )
+        output = click.unstyle(format_errors_for_cli(exc, source_text=source, filename="x.yaml"))
         lines = output.split("\n")
         assert lines[0] == "Validation failed (2 errors):"
         assert len(lines) == 3

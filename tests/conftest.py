@@ -24,17 +24,13 @@ FAKE_NFCORE_PIPELINES = [
         "name": "nf-core/rnaseq",
         "url": "https://github.com/nf-core/rnaseq",
         "description": "RNA sequencing analysis pipeline",
-        "releases": [
-            {"tag_name": "3.14.0", "tag_sha": "abc123", "published_at": "2024-01-01"}
-        ],
+        "releases": [{"tag_name": "3.14.0", "tag_sha": "abc123", "published_at": "2024-01-01"}],
     },
     {
         "name": "nf-core/fetchngs",
         "url": "https://github.com/nf-core/fetchngs",
         "description": "Fetch NGS data from public databases",
-        "releases": [
-            {"tag_name": "1.12.0", "tag_sha": "def456", "published_at": "2024-01-01"}
-        ],
+        "releases": [{"tag_name": "1.12.0", "tag_sha": "def456", "published_at": "2024-01-01"}],
     },
     {
         "name": "nf-core/sarek",
@@ -53,6 +49,7 @@ FAKE_NFCORE_PIPELINES = [
 # ---------------------------------------------------------------------------
 # Fake pipeline schema used by all tests — covers params used in unit tests
 # ---------------------------------------------------------------------------
+
 
 def _make_spec(type_, *, required=False, default=None, enum=None, hidden=False):
     return {
@@ -79,7 +76,7 @@ FAKE_PIPELINE_SCHEMA: dict[str, dict] = {
 # Module schema shaped like fastqc's meta.yml inputs.
 # Matches what _parse_module_schema produces (no format/default/hidden keys).
 FAKE_MODULE_SCHEMA: dict[str, dict] = {
-    "meta":  {"type": "map",  "required": True, "enum": None, "pattern": None},
+    "meta": {"type": "map", "required": True, "enum": None, "pattern": None},
     "reads": {"type": "file", "required": True, "enum": None, "pattern": "*_{1,2}.fastq.gz"},
 }
 
@@ -87,12 +84,8 @@ FAKE_MODULE_SCHEMA: dict[str, dict] = {
 @pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
-    monkeypatch.setattr(
-        "nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES
-    )
-    monkeypatch.setattr(
-        "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
-    )
+    monkeypatch.setattr("nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.github_file_exists",
         lambda url, path, ref: True,
@@ -113,9 +106,7 @@ def mock_nfcore(monkeypatch):
         "nf_meta.runner.paths.get_pipeline_schema",
         lambda url, version: FAKE_PIPELINE_SCHEMA,
     )
-    monkeypatch.setattr(
-        "nf_meta.runner.paths.get_module_schema", lambda name, version: {}
-    )
+    monkeypatch.setattr("nf_meta.runner.paths.get_module_schema", lambda name, version: {})
 
 
 # ---------------------------------------------------------------------------
@@ -222,9 +213,5 @@ def mock_nextflow(monkeypatch):
     from nf_meta.runner import utils as runner_utils
 
     runner_utils.check_nextflow.cache_clear()
-    monkeypatch.setattr(
-        "nf_meta.runner.python_runner.check_nextflow", lambda: "nextflow"
-    )
-    monkeypatch.setattr(
-        "nf_meta.runner.utils.shutil.which", lambda name: "/usr/bin/nextflow"
-    )
+    monkeypatch.setattr("nf_meta.runner.python_runner.check_nextflow", lambda: "nextflow")
+    monkeypatch.setattr("nf_meta.runner.utils.shutil.which", lambda name: "/usr/bin/nextflow")

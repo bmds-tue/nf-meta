@@ -37,8 +37,16 @@ FETCHNGS_INPUT = {
 
 
 def spec(type_, **kw):
-    return {"type": type_, "required": False, "enum": None, "pattern": None,
-            "format": None, "default": None, "hidden": False, **kw}
+    return {
+        "type": type_,
+        "required": False,
+        "enum": None,
+        "pattern": None,
+        "format": None,
+        "default": None,
+        "hidden": False,
+        **kw,
+    }
 
 
 SCHEMA = {
@@ -95,8 +103,14 @@ class TestDefinition:
         assert InputDefinition.from_config(None) == InputDefinition()
 
     def test_config_round_trip(self):
-        data = {"bind": ["n01.input"], "default": "ids.csv", "type": "string",
-                "format": "file-path", "schema": "assets/s.json", "enum": ["a", "b"]}
+        data = {
+            "bind": ["n01.input"],
+            "default": "ids.csv",
+            "type": "string",
+            "format": "file-path",
+            "schema": "assets/s.json",
+            "enum": ["a", "b"],
+        }
         assert InputDefinition.from_config(data).model_dump_config() == data
 
 
@@ -116,9 +130,7 @@ class TestEffectiveInput:
         assert diags == []
 
     def test_own_keywords_narrow(self):
-        inp, _ = effective_input(
-            "g", InputDefinition(enum=("EB1", "GRCh38")), (self.b1,), {self.b1: spec("string")}
-        )
+        inp, _ = effective_input("g", InputDefinition(enum=("EB1", "GRCh38")), (self.b1,), {self.b1: spec("string")})
         assert inp.schema == {"type": "string", "enum": ["EB1", "GRCh38"]}
 
     def test_input_default_overrides_schema_default(self):
@@ -131,14 +143,18 @@ class TestEffectiveInput:
 
     def test_conflicting_bindings_error(self):
         _, diags = effective_input(
-            "x", InputDefinition(), (self.b1, self.b2),
+            "x",
+            InputDefinition(),
+            (self.b1, self.b2),
             {self.b1: spec("string"), self.b2: spec("integer")},
         )
         assert any(d.severity == Severity.ERROR and "conflicting types" in d.message for d in diags)
 
     def test_format_and_none_compatible(self):
         _, diags = effective_input(
-            "x", InputDefinition(), (self.b1, self.b2),
+            "x",
+            InputDefinition(),
+            (self.b1, self.b2),
             {self.b1: spec("string", format="file-path"), self.b2: spec("string")},
         )
         assert diags == []
@@ -177,8 +193,11 @@ class TestValidateValue:
 
     def test_missing_default_path_is_a_warning(self, tmp_path):
         inp, diags = effective_input(
-            "ids", InputDefinition(default="missing.csv", type="string", format="file-path", exists=True),
-            (), {}, project_dir=tmp_path,
+            "ids",
+            InputDefinition(default="missing.csv", type="string", format="file-path", exists=True),
+            (),
+            {},
+            project_dir=tmp_path,
         )
         assert [(d.severity, d.yaml_path) for d in diags] == [(Severity.WARNING, "inputs.ids.default")]
 
@@ -221,9 +240,7 @@ class TestGraph:
             graph(pipeline("n01", outdir="o"))
 
     def test_input_ref_skips_type_check(self):
-        assert validate_params(
-            {"count": "${inputs:c}"}, SCHEMA, pipeline_id="n01", skip_required=True
-        ) == []
+        assert validate_params({"count": "${inputs:c}"}, SCHEMA, pipeline_id="n01", skip_required=True) == []
 
     def test_reference_to_undeclared_input_rejected(self):
         with pytest.raises(ConfigValidationError, match="undeclared input 'nope'"):
@@ -338,10 +355,19 @@ class TestConfig:
 
 
 def test_schema_extraction_keeps_input_keywords():
-    parsed = _parse_nextflow_schema({
-        "properties": {"input": {"type": "string", "format": "file-path", "exists": True,
-                                 "mimetype": "text/csv", "schema": "a.json"}}
-    })
+    parsed = _parse_nextflow_schema(
+        {
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": True,
+                    "mimetype": "text/csv",
+                    "schema": "a.json",
+                }
+            }
+        }
+    )
     assert parsed["input"]["exists"] is True
     assert parsed["input"]["mimetype"] == "text/csv"
     assert parsed["input"]["schema"] == "a.json"

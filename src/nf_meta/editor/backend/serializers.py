@@ -18,7 +18,7 @@ def serialize_state(session: EditorSession) -> dict:
         "redoable": session.history.redoable(),
         "nodes": session.graph.get_workflows(),
         "transitions": session.graph.get_transitions(),
-        "globals": session.graph.global_options
+        "globals": session.graph.global_options,
     }
     return d
 

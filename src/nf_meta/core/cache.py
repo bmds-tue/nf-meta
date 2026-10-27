@@ -7,9 +7,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _ENV_VAR = "NF_META_CACHE_DIR"
-GLOBAL_CACHE_DIR: Path = Path(
-    os.environ.get(_ENV_VAR) or Path.home() / ".cache" / "nf-meta"
-)
+GLOBAL_CACHE_DIR: Path = Path(os.environ.get(_ENV_VAR) or Path.home() / ".cache" / "nf-meta")
 
 
 # Bump when the shape of cached (parsed) schemas changes, to ignore old entries.

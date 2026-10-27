@@ -12,12 +12,7 @@ def _write(tmp_path, text):
 
 class TestValidateCommand:
     def test_reports_line_number_for_pydantic_error(self, tmp_path):
-        text = (
-            "config_version: 0.3.0\n"
-            "workflows:\n"
-            "  wf_a:\n"
-            "    version: 2.0.0\n"
-        )
+        text = "config_version: 0.3.0\nworkflows:\n  wf_a:\n    version: 2.0.0\n"
         path = _write(tmp_path, text)
         expected = locate_field(text, "workflows.wf_a.name")
         assert expected is not None
@@ -88,13 +83,7 @@ class TestValidateCommand:
         assert "valid" in result.output
 
     def test_scope_workflow_valid_snippet(self, tmp_path):
-        text = (
-            "name: nf-core/rnaseq\n"
-            "version: 3.14.0\n"
-            "params:\n"
-            "  input: samplesheet.csv\n"
-            "  outdir: results\n"
-        )
+        text = "name: nf-core/rnaseq\nversion: 3.14.0\nparams:\n  input: samplesheet.csv\n  outdir: results\n"
         path = _write(tmp_path, text)
 
         result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
@@ -236,13 +225,10 @@ class TestRunDryRun:
     def test_out_option_sets_launch_dir(self, tmp_path, monkeypatch):
         path = _write(
             tmp_path,
-            "config_version: 0.3.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n"
-            "    version: 1.12.0\n",
+            "config_version: 0.3.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n",
         )
         out = tmp_path / "results"
-        result = CliRunner().invoke(
-            cli, ["run", "-r", "python", "--dry-run", "--out", str(out), str(path)]
-        )
+        result = CliRunner().invoke(cli, ["run", "-r", "python", "--dry-run", "--out", str(out), str(path)])
         assert result.exit_code == 0, result.output
         assert f"cwd: {out}" in result.output
 
@@ -291,9 +277,7 @@ class TestWarningsInOtherCommands:
         from nf_meta.core.errors import Diagnostic, Severity
 
         warning = Diagnostic(None, "url", "unreachable", Severity.WARNING)
-        monkeypatch.setattr(
-            "nf_meta.core.config.run_dynamic_checks", lambda wf, previous=None: [warning]
-        )
+        monkeypatch.setattr("nf_meta.core.config.run_dynamic_checks", lambda wf, previous=None: [warning])
         path = _write(tmp_path, "name: nf-core/fetchngs\nversion: 1.12.0\n")
         result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
         assert result.exit_code == 0, result.output

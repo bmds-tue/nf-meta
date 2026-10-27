@@ -15,8 +15,7 @@ _FROM_FIELD_SCHEMA = {
         {"type": "array", "items": {"type": "string"}},
     ],
     "description": (
-        "Workflow id(s) this workflow directly depends on (its predecessors) "
-        "-- a single id, or a list of ids."
+        "Workflow id(s) this workflow directly depends on (its predecessors) -- a single id, or a list of ids."
     ),
 }
 

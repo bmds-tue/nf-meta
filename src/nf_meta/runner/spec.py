@@ -80,13 +80,10 @@ def resolve_references(
         wf_ref = graph.get_workflow_by_id(ref.target_wf_id)
         if not wf_ref:
             raise ValueError(
-                f"Resolving reference {ref.name} failed: "
-                f"referenced workflow '{ref.target_wf_id}' does not exist"
+                f"Resolving reference {ref.name} failed: referenced workflow '{ref.target_wf_id}' does not exist"
             )
 
-        values_source: dict = (resolved or {}).get(ref.target_wf_id) or (
-            wf_ref.params or {}
-        )
+        values_source: dict = (resolved or {}).get(ref.target_wf_id) or (wf_ref.params or {})
 
         if not values_source:
             raise ValueError(

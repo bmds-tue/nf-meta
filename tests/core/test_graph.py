@@ -80,9 +80,7 @@ class TestWorkflowMutations:
         events = empty_graph.pop_events()
         assert isinstance(events[0], WorkflowRemoved)
 
-    def test_remove_workflow_also_removes_edges(
-        self, two_node_graph, wf_rnaseq, wf_fetchngs
-    ):
+    def test_remove_workflow_also_removes_edges(self, two_node_graph, wf_rnaseq, wf_fetchngs):
         two_node_graph.remove_workflow(wf_rnaseq.id)
         assert two_node_graph.get_transition(wf_rnaseq.id, wf_fetchngs.id) is None
 
@@ -109,18 +107,14 @@ class TestTransitionMutations:
         empty_graph.add_workflow(wf_rnaseq)
         empty_graph.add_workflow(wf_fetchngs)
         empty_graph.pop_events()
-        empty_graph.add_transition(
-            Transition(source=wf_rnaseq.id, target=wf_fetchngs.id)
-        )
+        empty_graph.add_transition(Transition(source=wf_rnaseq.id, target=wf_fetchngs.id))
         events = empty_graph.pop_events()
         assert isinstance(events[0], TransitionAdded)
 
     def test_add_transition_unknown_source_raises(self, empty_graph, wf_fetchngs):
         empty_graph.add_workflow(wf_fetchngs)
         with pytest.raises(GraphValidationError):
-            empty_graph.add_transition(
-                Transition(source="ghost", target=wf_fetchngs.id)
-            )
+            empty_graph.add_transition(Transition(source="ghost", target=wf_fetchngs.id))
 
     def test_add_transition_unknown_target_raises(self, empty_graph, wf_rnaseq):
         empty_graph.add_workflow(wf_rnaseq)
@@ -130,13 +124,9 @@ class TestTransitionMutations:
     def test_add_transition_cycle_raises(self, empty_graph, wf_rnaseq, wf_fetchngs):
         empty_graph.add_workflow(wf_rnaseq)
         empty_graph.add_workflow(wf_fetchngs)
-        empty_graph.add_transition(
-            Transition(source=wf_rnaseq.id, target=wf_fetchngs.id)
-        )
+        empty_graph.add_transition(Transition(source=wf_rnaseq.id, target=wf_fetchngs.id))
         with pytest.raises(GraphValidationError):
-            empty_graph.add_transition(
-                Transition(source=wf_fetchngs.id, target=wf_rnaseq.id)
-            )
+            empty_graph.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
 
     def test_remove_transition(self, two_node_graph, wf_rnaseq, wf_fetchngs):
         two_node_graph.remove_transition(wf_fetchngs.id, wf_rnaseq.id)
@@ -145,9 +135,7 @@ class TestTransitionMutations:
     def test_remove_transition_nonexistent_is_noop(self, empty_graph):
         empty_graph.remove_transition("a", "b")  # should not raise
 
-    def test_remove_transition_emits_event(
-        self, two_node_graph, wf_rnaseq, wf_fetchngs
-    ):
+    def test_remove_transition_emits_event(self, two_node_graph, wf_rnaseq, wf_fetchngs):
         two_node_graph.remove_transition(wf_fetchngs.id, wf_rnaseq.id)
         events = two_node_graph.pop_events()
         assert isinstance(events[0], TransitionRemoved)
@@ -162,9 +150,7 @@ class TestParamReferenceValidation:
     def test_valid_ref_accepted(self, empty_graph, wf_fetchngs):
         empty_graph.add_workflow(wf_fetchngs)
         # Add a workflow that references wf_fetchngs via a transition
-        wf_fetchngs_with_params = wf_fetchngs.model_copy(
-            update={"params": {"outdir": "results"}}
-        )
+        wf_fetchngs_with_params = wf_fetchngs.model_copy(update={"params": {"outdir": "results"}})
         empty_graph.update_workflow(wf_fetchngs_with_params)
 
         wf_rnaseq = NfPipeline(
@@ -174,9 +160,7 @@ class TestParamReferenceValidation:
         )
         with empty_graph.deferred_validation():
             empty_graph.add_workflow(wf_rnaseq)
-            empty_graph.add_transition(
-                Transition(source=wf_fetchngs.id, target=wf_rnaseq.id)
-            )
+            empty_graph.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
 
     def test_ref_to_unknown_workflow_raises(self, empty_graph):
         wf = NfPipeline(
@@ -190,9 +174,7 @@ class TestParamReferenceValidation:
     def test_ref_to_non_predecessor_raises(self, empty_graph, wf_rnaseq, wf_fetchngs):
         # Both workflows exist but no transition connecting them
         empty_graph.add_workflow(wf_fetchngs)
-        fetchngs_with_params = wf_fetchngs.model_copy(
-            update={"params": {"outdir": "results"}}
-        )
+        fetchngs_with_params = wf_fetchngs.model_copy(update={"params": {"outdir": "results"}})
         empty_graph.update_workflow(fetchngs_with_params)
 
         rnaseq_with_ref = NfPipeline(
@@ -210,12 +192,8 @@ class TestParamReferenceValidation:
 
 
 class TestDeferredValidation:
-    def test_deferred_allows_adding_ref_before_transition(
-        self, empty_graph, wf_fetchngs
-    ):
-        fetchngs_with_params = wf_fetchngs.model_copy(
-            update={"params": {"outdir": "results"}}
-        )
+    def test_deferred_allows_adding_ref_before_transition(self, empty_graph, wf_fetchngs):
+        fetchngs_with_params = wf_fetchngs.model_copy(update={"params": {"outdir": "results"}})
 
         wf_rnaseq = NfPipeline(
             name="nf-core/rnaseq",
@@ -226,25 +204,17 @@ class TestDeferredValidation:
         with empty_graph.deferred_validation():
             empty_graph.add_workflow(fetchngs_with_params)
             empty_graph.add_workflow(wf_rnaseq)
-            empty_graph.add_transition(
-                Transition(source=wf_fetchngs.id, target=wf_rnaseq.id)
-            )
+            empty_graph.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
 
         assert empty_graph.get_workflow_by_id(wf_rnaseq.id) is not None
 
-    def test_deferred_still_validates_on_exit(
-        self, empty_graph, wf_rnaseq, wf_fetchngs
-    ):
+    def test_deferred_still_validates_on_exit(self, empty_graph, wf_rnaseq, wf_fetchngs):
         with pytest.raises(GraphValidationError):
             with empty_graph.deferred_validation():
                 empty_graph.add_workflow(wf_rnaseq)
                 empty_graph.add_workflow(wf_fetchngs)
-                empty_graph.add_transition(
-                    Transition(source=wf_rnaseq.id, target=wf_fetchngs.id)
-                )
-                empty_graph.add_transition(
-                    Transition(source=wf_fetchngs.id, target=wf_rnaseq.id)
-                )
+                empty_graph.add_transition(Transition(source=wf_rnaseq.id, target=wf_fetchngs.id))
+                empty_graph.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
 
 
 # ---------------------------------------------------------------------------
@@ -253,9 +223,7 @@ class TestDeferredValidation:
 
 
 class TestDynamicValidationOnMutation:
-    def test_add_workflow_raises_dynamic_validation_error(
-        self, empty_graph, monkeypatch
-    ):
+    def test_add_workflow_raises_dynamic_validation_error(self, empty_graph, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
             lambda name: [{"version": "1.0.0-abcdefa"}],
@@ -265,9 +233,7 @@ class TestDynamicValidationOnMutation:
             empty_graph.add_workflow(wf)
         assert empty_graph.get_workflow_by_id(wf.id) is None
 
-    def test_update_workflow_raises_dynamic_validation_error(
-        self, empty_graph, module_fastqc, monkeypatch
-    ):
+    def test_update_workflow_raises_dynamic_validation_error(self, empty_graph, module_fastqc, monkeypatch):
         empty_graph.add_workflow(module_fastqc)
         empty_graph.pop_events()
 
@@ -304,9 +270,7 @@ class TestDynamicValidationOnMutation:
         empty_graph.update_workflow(updated)
         assert calls == []
 
-    def test_update_workflow_reruns_check_for_changed_field(
-        self, empty_graph, monkeypatch
-    ):
+    def test_update_workflow_reruns_check_for_changed_field(self, empty_graph, monkeypatch):
         wf = NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
@@ -326,18 +290,12 @@ class TestDynamicValidationOnMutation:
         empty_graph.update_workflow(updated)
         assert calls == ["schema"]
 
-    def test_deferred_validation_only_rechecks_touched_nodes(
-        self, empty_graph, monkeypatch
-    ):
+    def test_deferred_validation_only_rechecks_touched_nodes(self, empty_graph, monkeypatch):
         """A suspended block (Transaction/deferred_validation) that only
         touches one node must not re-run dynamic checks for the rest of the
         graph at exit — that's the whole point of touched-node scoping."""
-        wf_a = NfPipeline(
-            name="my-org/a", version="1.0.0", url="https://github.com/my-org/a"
-        )
-        wf_b = NfPipeline(
-            name="my-org/b", version="1.0.0", url="https://github.com/my-org/b"
-        )
+        wf_a = NfPipeline(name="my-org/a", version="1.0.0", url="https://github.com/my-org/a")
+        wf_b = NfPipeline(name="my-org/b", version="1.0.0", url="https://github.com/my-org/b")
         empty_graph.add_workflow(wf_a)
         empty_graph.add_workflow(wf_b)
         empty_graph.pop_events()
@@ -358,9 +316,7 @@ class TestDynamicValidationOnMutation:
 
 
 class TestUtilities:
-    def test_get_workflows_sorted_is_topological(
-        self, two_node_graph, wf_rnaseq, wf_fetchngs
-    ):
+    def test_get_workflows_sorted_is_topological(self, two_node_graph, wf_rnaseq, wf_fetchngs):
         sorted_wfs = two_node_graph.get_workflows_sorted()
         ids = [w.id for w in sorted_wfs]
         assert ids.index(wf_fetchngs.id) < ids.index(wf_rnaseq.id)
@@ -377,9 +333,7 @@ class TestUtilities:
         assert wf_rnaseq.id in ids
         assert wf_fetchngs.id in ids
 
-    def test_subset_start_excludes_predecessors(
-        self, two_node_graph, wf_rnaseq, wf_fetchngs
-    ):
+    def test_subset_start_excludes_predecessors(self, two_node_graph, wf_rnaseq, wf_fetchngs):
         subset = two_node_graph.subset_workflows(start=wf_rnaseq.id)
         ids = {w.id for w in subset}
         assert wf_rnaseq.id in ids
@@ -440,6 +394,4 @@ class TestModuleNextflowVersion:
         diagnostics = empty_graph.module_nextflow_version_diagnostics(
             GlobalOptions(nextflow_version="25"), [module_fastqc]
         )
-        assert [(d.workflow_id, d.yaml_path) for d in diagnostics] == [
-            (None, "globals.nextflow_version")
-        ]
+        assert [(d.workflow_id, d.yaml_path) for d in diagnostics] == [(None, "globals.nextflow_version")]

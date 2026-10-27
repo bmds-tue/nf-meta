@@ -109,9 +109,7 @@ class SessionCommandError(Exception):
     def from_diagnostics(cls, diagnostics: list[Diagnostic]) -> "SessionCommandError":
         return cls(
             field_errors=[
-                cls.FieldError(
-                    workflow_id=d.workflow_id, field=d.field, message=d.message
-                )
+                cls.FieldError(workflow_id=d.workflow_id, field=d.field, message=d.message)
                 for d in diagnostics
                 if d.severity == Severity.ERROR
             ],
@@ -121,8 +119,7 @@ class SessionCommandError(Exception):
     def to_dict(self):
         return {
             "field_errors": [
-                {"workflow_id": e.workflow_id, "field": e.field, "message": e.message}
-                for e in self.field_errors
+                {"workflow_id": e.workflow_id, "field": e.field, "message": e.message} for e in self.field_errors
             ],
             "graph_errors": self.graph_errors,
         }
@@ -189,9 +186,7 @@ def render_positioned_diagnostics(
 
     located: list[tuple[str, Diagnostic]] = [
         (
-            f"{filename}:{pd.position.line}:{pd.position.column}"
-            if pd.position is not None
-            else filename,
+            f"{filename}:{pd.position.line}:{pd.position.column}" if pd.position is not None else filename,
             pd.diagnostic,
         )
         for pd in sorted(positioned, key=order)
@@ -234,9 +229,7 @@ def render_positioned_diagnostics(
     return f"{header}\n{body}"
 
 
-def format_warnings_for_cli(
-    warnings: list[Diagnostic], source_text: str | None = None, filename: str = ""
-) -> str:
+def format_warnings_for_cli(warnings: list[Diagnostic], source_text: str | None = None, filename: str = "") -> str:
     """Render warnings in the same format as `format_errors_for_cli`."""
     positioned, graph_messages = collect_positioned_diagnostics(
         ConfigValidationError(errors=[], warnings=warnings), source_text

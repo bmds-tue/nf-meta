@@ -43,9 +43,7 @@ class TestRunMetapipeline:
         with pytest.raises(NfMetaRunnerError, match="not a valid workflow id"):
             run_metapipeline(graph, RunOptions(target="nonexistent-id"))
 
-    def test_valid_start_does_not_raise(
-        self, graph, mock_nextflow, silent_runner, wf_fetchngs
-    ):
+    def test_valid_start_does_not_raise(self, graph, mock_nextflow, silent_runner, wf_fetchngs):
         run_metapipeline(graph, RunOptions(start=wf_fetchngs.id))
 
     def test_unknown_runner_raises(self, graph):

@@ -33,9 +33,7 @@ def graph_two(wf_rnaseq, wf_fetchngs):
 
 
 class TestHelpers:
-    def test_state_dir_is_under_out_dir_and_named_by_step_id(
-        self, runner, graph_two, wf_rnaseq, tmp_path
-    ):
+    def test_state_dir_is_under_out_dir_and_named_by_step_id(self, runner, graph_two, wf_rnaseq, tmp_path):
         state_dir = runner.plan(graph_two)[1].spec.state_dir
         assert state_dir.parent == tmp_path / ".nf-meta" / "steps"
         assert state_dir.name.startswith(f"{wf_rnaseq.id}_")
@@ -61,13 +59,9 @@ class TestHelpers:
 
 class TestResolveParamReferences:
     def test_resolves_reference(self, runner, wf_rnaseq, wf_fetchngs):
-        fetchngs_with_params = wf_fetchngs.model_copy(
-            update={"params": {"outdir": "results"}}
-        )
+        fetchngs_with_params = wf_fetchngs.model_copy(update={"params": {"outdir": "results"}})
         rnaseq_with_ref = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}
-            }
+            update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}}
         )
 
         g = MetaworkflowGraph()
@@ -86,13 +80,9 @@ class TestResolveParamReferences:
 
     def test_resolved_params_preferred_over_raw(self, runner, wf_rnaseq, wf_fetchngs):
         """resolved dict wins over raw workflow params."""
-        fetchngs_with_raw = wf_fetchngs.model_copy(
-            update={"params": {"outdir": "raw_value"}}
-        )
+        fetchngs_with_raw = wf_fetchngs.model_copy(update={"params": {"outdir": "raw_value"}})
         rnaseq_with_ref = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}
-            }
+            update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}}
         )
         g = MetaworkflowGraph()
         with g.deferred_validation():
@@ -108,21 +98,11 @@ class TestResolveParamReferences:
         )
         assert resolved.params["input"] == "resolved_value/file.csv"
 
-    def test_chain_resolution_via_resolved_params(
-        self, runner, wf_fetchngs, wf_rnaseq, wf_sarek
-    ):
+    def test_chain_resolution_via_resolved_params(self, runner, wf_fetchngs, wf_rnaseq, wf_sarek):
         """C references B's param; B's param was itself resolved from A — chain works."""
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data/raw"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"outdir": f"${{{wf_fetchngs.id}:params:outdir}}/processed"}
-            }
-        )
-        c = wf_sarek.model_copy(
-            update={
-                "params": {"input": f"${{{wf_rnaseq.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"outdir": f"${{{wf_fetchngs.id}:params:outdir}}/processed"}})
+        c = wf_sarek.model_copy(update={"params": {"input": f"${{{wf_rnaseq.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -163,11 +143,7 @@ class TestValidateCrossBoundaryRefs:
     def _graph_with_ref(self, wf_fetchngs, wf_rnaseq):
         """fetchngs → rnaseq where rnaseq references fetchngs.outdir."""
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -176,18 +152,14 @@ class TestValidateCrossBoundaryRefs:
         g.pop_events()
         return g, a, b
 
-    def test_raises_when_cross_boundary_cache_missing(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_raises_when_cross_boundary_cache_missing(self, runner, wf_fetchngs, wf_rnaseq):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
         subset = [b]
         subset_ids = {b.id}
         with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
             runner._validate_cross_boundary_refs(g, subset, subset_ids)
 
-    def test_passes_when_cross_boundary_cache_exists(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_passes_when_cross_boundary_cache_exists(self, runner, wf_fetchngs, wf_rnaseq):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
         runner._write_resolved_params(a, {"outdir": "/data"})
         subset = [b]
@@ -272,9 +244,7 @@ class TestPlan:
 
     def test_resolves_references(self, runner, wf_fetchngs, wf_rnaseq):
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
-        b = wf_rnaseq.model_copy(
-            update={"params": {"input": f"${{{a.id}:params:outdir}}/samples.csv"}}
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{a.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -300,17 +270,13 @@ class TestRun:
         runner._execute = fake_execute
         return executed
 
-    def test_run_calls_workflows_in_dag_order(
-        self, runner, graph_two, wf_rnaseq, wf_fetchngs
-    ):
+    def test_run_calls_workflows_in_dag_order(self, runner, graph_two, wf_rnaseq, wf_fetchngs):
         executed = self._record(runner)
         runner.run(graph_two)
         ids = [wf.id for wf in executed]
         assert ids.index(wf_fetchngs.id) < ids.index(wf_rnaseq.id)
 
-    def test_run_skips_succeeded_workflow_when_resuming(
-        self, runner, graph_two, wf_fetchngs
-    ):
+    def test_run_skips_succeeded_workflow_when_resuming(self, runner, graph_two, wf_fetchngs):
         wf_dir = runner.plan(graph_two)[0].spec.state_dir
         wf_dir.mkdir(parents=True, exist_ok=True)
         (wf_dir / SimplePythonRunner.OUT_FILE).write_text("done")
@@ -330,9 +296,7 @@ class TestRun:
         runner.resume(graph_two)
         runner.run.assert_called_once_with(graph_two, resume=True)
 
-    def test_run_applies_start_target_subset(
-        self, runner, graph_two, wf_rnaseq, wf_fetchngs
-    ):
+    def test_run_applies_start_target_subset(self, runner, graph_two, wf_rnaseq, wf_fetchngs):
         runner.run_options.start = wf_rnaseq.id
         executed = self._record(runner)
         runner.run(graph_two)
@@ -357,16 +321,10 @@ class TestRun:
         assert runner._load_resolved_params(a) == {"outdir": "/results"}
         assert runner._load_resolved_params(b) == {"input": "samples.csv"}
 
-    def test_subset_run_resolves_cross_boundary_ref_from_cache(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_subset_run_resolves_cross_boundary_ref_from_cache(self, runner, wf_fetchngs, wf_rnaseq):
         """--start=B resolves B's reference to A using A's cached resolved params."""
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data/results"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -384,15 +342,9 @@ class TestRun:
         assert [wf.id for wf in executed] == [b.id]
         assert executed[0].params["input"] == "/data/results/samples.csv"
 
-    def test_subset_run_fails_when_cross_boundary_cache_missing(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_subset_run_fails_when_cross_boundary_cache_missing(self, runner, wf_fetchngs, wf_rnaseq):
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)

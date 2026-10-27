@@ -40,15 +40,11 @@ class TestCheckPipelineUrlReachable:
         assert calls == []
 
     def test_reachable_url_no_diagnostic(self, wf_custom, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
         assert check_pipeline_url_reachable(wf_custom) == []
 
     def test_unreachable_url_warns(self, wf_custom, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False)
         diagnostics = check_pipeline_url_reachable(wf_custom)
         assert len(diagnostics) == 1
         assert diagnostics[0].severity == Severity.WARNING
@@ -144,9 +140,7 @@ class TestCheckPipelineParamsSchema:
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
             lambda url, version: self.SCHEMA,
         )
-        wf = NfPipeline(
-            name="nf-core/rnaseq", version="3.14.0", params={"input": "/data/x.csv"}
-        )
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "/data/x.csv"})
         assert check_pipeline_params_schema(wf) == []
 
     def test_required_param_missing_raises_error(self, monkeypatch):
@@ -156,28 +150,18 @@ class TestCheckPipelineParamsSchema:
         )
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
         diagnostics = check_pipeline_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "Required parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "Required parameter" in d.message for d in diagnostics)
 
-    def test_malformed_params_file_warns_and_skips_required(
-        self, monkeypatch, tmp_path
-    ):
+    def test_malformed_params_file_warns_and_skips_required(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
             lambda url, version: self.SCHEMA,
         )
         pf = tmp_path / "params.yaml"
         pf.write_text("- not\n- a\n- mapping\n")
-        wf = NfPipeline(
-            name="nf-core/rnaseq", version="3.14.0", params_file=str(pf)
-        )
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params_file=str(pf))
         diagnostics = check_pipeline_params_schema(wf)
-        assert any(
-            d.severity == Severity.WARNING and "does not contain a mapping" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.WARNING and "does not contain a mapping" in d.message for d in diagnostics)
         # required-param check was skipped, so no ERROR about missing 'input'
         assert not any(d.severity == Severity.ERROR for d in diagnostics)
 
@@ -249,10 +233,7 @@ class TestCheckModuleParamsSchema:
         )
         wf = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
         diagnostics = check_module_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "Required parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "Required parameter" in d.message for d in diagnostics)
 
 
 # ---------------------------------------------------------------------------
@@ -262,9 +243,7 @@ class TestCheckModuleParamsSchema:
 
 class TestRunDynamicChecks:
     def test_pipeline_dispatch_runs_pipeline_checks(self, wf_rnaseq, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
         # wf_rnaseq is nf-core, so no checks should fail
         diagnostics = run_dynamic_checks(wf_rnaseq)
         assert not any(d.severity == Severity.ERROR for d in diagnostics)
@@ -340,12 +319,8 @@ class TestCheckAll:
     def test_empty_list_returns_empty(self):
         assert check_all([]) == []
 
-    def test_aggregates_diagnostics_across_workflows(
-        self, wf_custom, module_fastqc, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False
-        )
+    def test_aggregates_diagnostics_across_workflows(self, wf_custom, module_fastqc, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False)
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
             lambda name: [],
@@ -360,22 +335,15 @@ class TestCheckAll:
         )
         diagnostics = check_all([wf_custom, module_fastqc])
         # wf_custom's url is unreachable -> one WARNING diagnostic expected
-        assert any(
-            d.workflow_id == wf_custom.id and d.severity == Severity.WARNING
-            for d in diagnostics
-        )
+        assert any(d.workflow_id == wf_custom.id and d.severity == Severity.WARNING for d in diagnostics)
 
-    def test_stamps_yaml_path_with_each_workflows_own_id(
-        self, wf_custom, module_fastqc, monkeypatch
-    ):
+    def test_stamps_yaml_path_with_each_workflows_own_id(self, wf_custom, module_fastqc, monkeypatch):
         """check_all is only ever called for whole-config validation (its two
         call sites in graph.py), so it unconditionally qualifies every
         diagnostic's yaml_path with its own workflow's `workflows.<id>.`
         prefix -- no ambiguity, since check_all never runs for an isolated
         snippet."""
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False)
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
             lambda name: [],

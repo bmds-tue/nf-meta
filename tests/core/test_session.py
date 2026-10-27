@@ -33,9 +33,7 @@ class TestSessionStart:
 
     def test_start_resets_history(self, loaded_session, wf_rnaseq):
         # Execute a command, then start again — history should be fresh
-        loaded_session.handle_command(
-            RemoveWorkflow(loaded_session.graph.get_workflows()[0].id)
-        )
+        loaded_session.handle_command(RemoveWorkflow(loaded_session.graph.get_workflows()[0].id))
         loaded_session.start(None)
         assert not loaded_session.history.undoable()
 
@@ -105,8 +103,6 @@ class TestSaveToConfig:
         loaded_session.save_to_config(out)
         assert out.exists()
 
-    def test_save_to_config_uses_existing_config_file_when_none_passed(
-        self, loaded_session, config_yaml
-    ):
+    def test_save_to_config_uses_existing_config_file_when_none_passed(self, loaded_session, config_yaml):
         loaded_session.save_to_config(None)
         assert config_yaml.exists()

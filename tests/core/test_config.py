@@ -49,9 +49,7 @@ class TestValidatedGraphFastPath:
     def _make_config(self, workflows):
         return {"config_version": "0.3.0", "workflows": workflows}
 
-    def test_list_format_workflows_accepted_with_deprecation_warning(
-        self, wf_rnaseq, caplog
-    ):
+    def test_list_format_workflows_accepted_with_deprecation_warning(self, wf_rnaseq, caplog):
         g = validated_graph(
             self._make_config(
                 [
@@ -65,9 +63,7 @@ class TestValidatedGraphFastPath:
             )
         )
         assert g.get_workflow_by_id(wf_rnaseq.id) is not None
-        assert any(
-            "deprecated" in record.message for record in caplog.records
-        )
+        assert any("deprecated" in record.message for record in caplog.records)
 
     def test_dict_format_workflows(self, wf_rnaseq):
         g = validated_graph(
@@ -84,9 +80,7 @@ class TestValidatedGraphFastPath:
         assert len(g.get_workflows()) == 1
         assert g.get_workflow_by_id(wf_rnaseq.id) is not None
 
-    def test_legacy_top_level_transitions_logs_deprecation_warning(
-        self, wf_rnaseq, wf_fetchngs, caplog
-    ):
+    def test_legacy_top_level_transitions_logs_deprecation_warning(self, wf_rnaseq, wf_fetchngs, caplog):
         data = self._make_config(
             {
                 wf_fetchngs.id: {
@@ -138,9 +132,7 @@ class TestValidatedGraphFastPath:
         with pytest.raises(GraphValidationError, match="transition"):
             validated_graph(data)
 
-    def test_mixing_from_and_top_level_transitions_raises(
-        self, wf_rnaseq, wf_fetchngs
-    ):
+    def test_mixing_from_and_top_level_transitions_raises(self, wf_rnaseq, wf_fetchngs):
         data = self._make_config(
             {
                 wf_fetchngs.id: {
@@ -160,9 +152,7 @@ class TestValidatedGraphFastPath:
         with pytest.raises(GraphValidationError, match="[Mm]ix"):
             validated_graph(data)
 
-    def test_mixing_empty_from_and_top_level_transitions_raises(
-        self, wf_rnaseq, wf_fetchngs
-    ):
+    def test_mixing_empty_from_and_top_level_transitions_raises(self, wf_rnaseq, wf_fetchngs):
         """Presence of the 'from' key alone (even empty) counts as mixing —
         not just a populated one."""
         data = self._make_config(
@@ -204,9 +194,7 @@ class TestValidatedGraphFastPath:
         )
         assert g.get_transition(wf_fetchngs.id, wf_rnaseq.id) is not None
 
-    def test_from_accepts_bare_string_as_single_predecessor(
-        self, wf_rnaseq, wf_fetchngs
-    ):
+    def test_from_accepts_bare_string_as_single_predecessor(self, wf_rnaseq, wf_fetchngs):
         g = validated_graph(
             self._make_config(
                 {
@@ -483,9 +471,7 @@ class TestValidatedGraphCollectErrors:
         workflow_ids = {d.workflow_id for d in exc_info.value.errors}
         assert workflow_ids == {"wf_a", "wf_b"}
 
-    def test_cycle_and_bad_reference_and_dangling_edge_reported_together(
-        self, wf_rnaseq, wf_fetchngs
-    ):
+    def test_cycle_and_bad_reference_and_dangling_edge_reported_together(self, wf_rnaseq, wf_fetchngs):
         data = self._make_config(
             {
                 wf_fetchngs.id: {
@@ -510,9 +496,7 @@ class TestValidatedGraphCollectErrors:
         assert any("totally_unknown" in m for m in exc.graph_messages)
         assert any("nonexistent_wf" in d.message for d in exc.errors)
 
-    def test_from_referencing_failed_construction_skipped_silently(
-        self, wf_fetchngs
-    ):
+    def test_from_referencing_failed_construction_skipped_silently(self, wf_fetchngs):
         """A `from:` id that was declared but failed to construct is not
         re-reported as a dangling edge -- that would just be a confusing
         secondary symptom of the already-reported construction diagnostic."""
@@ -577,10 +561,7 @@ class TestDynamicValidationOnLoad:
         with pytest.raises(ConfigValidationError) as excinfo:
             validated_graph(data)
 
-        assert any(
-            d.workflow_id == module.id and "not available" in d.message
-            for d in excinfo.value.errors
-        )
+        assert any(d.workflow_id == module.id and "not available" in d.message for d in excinfo.value.errors)
 
     def test_validated_graph_succeeds_when_dynamic_checks_pass(self, monkeypatch):
         monkeypatch.setattr(
@@ -612,9 +593,7 @@ def test_module_with_old_nextflow_version_rejected(collect_errors):
     data = {
         "config_version": "0.3.0",
         "globals": {"nextflow_version": "25.10"},
-        "workflows": {
-            "m1": {"type": "nf-module", "name": "nf-core/fastqc", "version": "0.0.0-6c4ed3a"}
-        },
+        "workflows": {"m1": {"type": "nf-module", "name": "nf-core/fastqc", "version": "0.0.0-6c4ed3a"}},
     }
     with pytest.raises(ConfigValidationError) as exc:
         validated_graph(data, collect_errors=collect_errors)
@@ -630,8 +609,7 @@ def _config(**extra):
     data = {
         "config_version": "0.4.0",
         "workflows": {
-            "n01": {"name": "nf-core/fetchngs", "version": "1.12.0",
-                    "params": {"input": "ids.csv", "outdir": "o"}},
+            "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "ids.csv", "outdir": "o"}},
         },
     }
     data.update(extra)
@@ -671,15 +649,16 @@ def test_malformed_reference_is_an_error(collect_errors):
 def test_collect_errors_returns_warnings_on_the_graph():
     data = _config(inputs={"spare": {"type": "string"}})
     g = validated_graph(data, collect_errors=True)
-    assert [(d.severity, d.yaml_path) for d in g.warnings] == [
-        (Severity.WARNING, "inputs.spare")
-    ]
+    assert [(d.severity, d.yaml_path) for d in g.warnings] == [(Severity.WARNING, "inputs.spare")]
 
 
 def test_legacy_transitions_reported_as_warning():
     data = _config()
-    data["workflows"]["n02"] = {"name": "nf-core/rnaseq", "version": "3.14.0",
-                                "params": {"input": "s.csv", "outdir": "o2"}}
+    data["workflows"]["n02"] = {
+        "name": "nf-core/rnaseq",
+        "version": "3.14.0",
+        "params": {"input": "s.csv", "outdir": "o2"},
+    }
     data["transitions"] = [{"source": "n01", "target": "n02"}]
     g = validated_graph(data, collect_errors=True)
     assert [d.yaml_path for d in g.warnings] == ["transitions"]

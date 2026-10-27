@@ -71,8 +71,7 @@ def check_pipeline_main_script_exists(wf: NfPipeline) -> list[Diagnostic]:
                     workflow_id=wf.id,
                     field="main_script",
                     message=(
-                        f"main_script '{wf.main_script}' not found in repository "
-                        f"'{wf.url}' at ref '{wf.version}'"
+                        f"main_script '{wf.main_script}' not found in repository '{wf.url}' at ref '{wf.version}'"
                     ),
                     severity=Severity.ERROR,
                 )
@@ -83,10 +82,7 @@ def check_pipeline_main_script_exists(wf: NfPipeline) -> list[Diagnostic]:
         Diagnostic(
             workflow_id=wf.id,
             field="main_script",
-            message=(
-                f"Cannot validate main_script '{wf.main_script}': "
-                f"'{wf.url}' is not a GitHub URL"
-            ),
+            message=(f"Cannot validate main_script '{wf.main_script}': '{wf.url}' is not a GitHub URL"),
             severity=Severity.WARNING,
         )
     ]
@@ -137,8 +133,7 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
                         workflow_id=node_id,
                         field="params_file",
                         message=(
-                            f"params_file '{params_file}' does not contain a mapping "
-                            "— skipping required-param check"
+                            f"params_file '{params_file}' does not contain a mapping — skipping required-param check"
                         ),
                         severity=Severity.WARNING,
                     )
@@ -149,10 +144,7 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
                 Diagnostic(
                     workflow_id=node_id,
                     field="params_file",
-                    message=(
-                        f"Could not read params_file '{params_file}': {exc} "
-                        "— skipping required-param check"
-                    ),
+                    message=(f"Could not read params_file '{params_file}': {exc} — skipping required-param check"),
                     severity=Severity.WARNING,
                 )
             )
@@ -248,17 +240,13 @@ _MODULE_CHECKS: list[_CheckEntry] = [
 ]
 
 
-def _fields_changed(
-    wf: Workflow, previous: Optional[Workflow], fields: tuple[str, ...]
-) -> bool:
+def _fields_changed(wf: Workflow, previous: Optional[Workflow], fields: tuple[str, ...]) -> bool:
     if previous is None:
         return True
     return any(getattr(wf, f, None) != getattr(previous, f, None) for f in fields)
 
 
-def run_dynamic_checks(
-    wf: Workflow, previous: Optional[Workflow] = None
-) -> list[Diagnostic]:
+def run_dynamic_checks(wf: Workflow, previous: Optional[Workflow] = None) -> list[Diagnostic]:
     """Run the checks applicable to wf's type.
 
     previous=None: run all checks unconditionally (fresh/CLI load path).
@@ -272,9 +260,7 @@ def run_dynamic_checks(
     else:
         return []
 
-    to_run = [
-        (name, fn) for name, fn, fields in checks if _fields_changed(wf, previous, fields)
-    ]
+    to_run = [(name, fn) for name, fn, fields in checks if _fields_changed(wf, previous, fields)]
     if not to_run:
         return []
 
@@ -363,8 +349,7 @@ def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
         futures = [(wf, executor.submit(run_dynamic_checks, wf)) for wf in workflows]
         for wf, future in futures:
             diagnostics.extend(
-                dataclasses.replace(d, yaml_path=f"workflows.{wf.id}.{d.field}")
-                for d in future.result()
+                dataclasses.replace(d, yaml_path=f"workflows.{wf.id}.{d.field}") for d in future.result()
             )
     return diagnostics
 
@@ -437,8 +422,6 @@ def check_inputs(
                 )
             if binding in whole_value:
                 specs[binding] = spec
-        inputs[name], input_diagnostics = effective_input(
-            name, definition, bindings.get(name, ()), specs, project_dir
-        )
+        inputs[name], input_diagnostics = effective_input(name, definition, bindings.get(name, ()), specs, project_dir)
         diagnostics.extend(input_diagnostics)
     return inputs, diagnostics

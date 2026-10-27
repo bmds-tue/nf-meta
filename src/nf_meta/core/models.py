@@ -40,8 +40,6 @@ class WorkflowType(StrEnum):
     NF_MODULE = "nf-module"
 
 
-
-
 def is_existing_file_abs(
     path: Optional[Path] = None, allowed_extensions: Optional[tuple[str]] = None
 ) -> Optional[Path]:
@@ -62,9 +60,7 @@ def is_existing_file_abs(
     return path
 
 
-SerializeToStr = PlainSerializer(
-    lambda v: str(v) if v else None, return_type=Optional[str]
-)
+SerializeToStr = PlainSerializer(lambda v: str(v) if v else None, return_type=Optional[str])
 ExistingYamlFile = Annotated[
     Optional[Path],
     AfterValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml"))),
@@ -83,9 +79,7 @@ def validate_param_scalars(v: Any) -> Optional[dict[str, Any]]:
         return None
 
     if not isinstance(v, dict):
-        raise ValueError(
-            f"Params must be a key-value mapping, got {type(v).__name__!r}"
-        )
+        raise ValueError(f"Params must be a key-value mapping, got {type(v).__name__!r}")
 
     SCALAR = (str, int, float, bool)
     errors = [
@@ -100,9 +94,7 @@ def validate_param_scalars(v: Any) -> Optional[dict[str, Any]]:
     return v
 
 
-CoercedParams = Annotated[
-    Optional[dict[str, Any]], BeforeValidator(validate_param_scalars)
-]
+CoercedParams = Annotated[Optional[dict[str, Any]], BeforeValidator(validate_param_scalars)]
 
 
 def load_params_file(path: Path) -> dict:
@@ -252,9 +244,7 @@ class NfPipeline(BaseWorkflow):
 
         if not value:
             if not is_nfcore:
-                raise ValueError(
-                    "Workflows from outside nf-core must specify a repository!"
-                )
+                raise ValueError("Workflows from outside nf-core must specify a repository!")
             return nfcore_wf_info.get("url")  # type: ignore
 
         if is_nfcore and value != nfcore_wf_info.get("url"):  # type: ignore
@@ -267,9 +257,7 @@ class NfPipeline(BaseWorkflow):
 
     @field_validator("main_script", mode="after")
     @classmethod
-    def validate_main_script(
-        cls, value: Optional[str], info: ValidationInfo
-    ) -> Optional[str]:
+    def validate_main_script(cls, value: Optional[str], info: ValidationInfo) -> Optional[str]:
         if value is None:
             return None
 
@@ -350,9 +338,7 @@ class NfModule(BaseWorkflow):
     """A Nextflow module step executed with 'nextflow module run'."""
 
     type: Literal[WorkflowType.NF_MODULE] = WorkflowType.NF_MODULE
-    container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = (
-        None
-    )
+    container_engine: Optional[Literal["docker", "singularity", "conda", "podman"]] = None
 
     # `nextflow module` exists from this Nextflow version (major, minor) on
     MIN_NEXTFLOW_VERSION: ClassVar[tuple[int, int]] = (26, 4)
@@ -367,9 +353,7 @@ class NfModule(BaseWorkflow):
     def model_dump_config(self) -> dict:
         fields = {"name", "version", "params", "config_file", "container_engine"}
         result = _params_last(self.model_dump(include=fields, exclude_none=True))
-        result["type"] = (
-            self.type
-        )  # always written — required to distinguish from NfPipeline on load
+        result["type"] = self.type  # always written — required to distinguish from NfPipeline on load
         return result
 
     def model_dump_display(self) -> dict:
@@ -416,9 +400,7 @@ class GlobalOptions(BaseModel):
 
     @field_validator("nextflow_version", mode="before")
     @classmethod
-    def validate_nextflow_version(
-        cls, v: Any
-    ) -> Optional[str | tuple[int, int, int, int] | int]:
+    def validate_nextflow_version(cls, v: Any) -> Optional[str | tuple[int, int, int, int] | int]:
         if v is None:
             return v
 
@@ -426,9 +408,7 @@ class GlobalOptions(BaseModel):
             return str(v)
 
         if not isinstance(v, str):
-            raise ValueError(
-                f"nextflow_version must be a string, integer, or float, got {type(v).__name__!r}."
-            )
+            raise ValueError(f"nextflow_version must be a string, integer, or float, got {type(v).__name__!r}.")
 
         numeric_part = v.removesuffix("-edge")
 
@@ -510,13 +490,9 @@ def validate_config_version(config_version: str) -> str:
 
     version = Version(result.string)
     if version < Version(CONFIG_VERSION_MIN):
-        raise ValueError(
-            f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}"
-        )
+        raise ValueError(f"Incompatible config version! Config version must be at least {CONFIG_VERSION_MIN}")
 
     if version > Version(CONFIG_VERSION_MAX):
-        raise ValueError(
-            f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}"
-        )
+        raise ValueError(f"Incompatible config version! Config version can be at most {CONFIG_VERSION_MAX}")
 
     return str(version)

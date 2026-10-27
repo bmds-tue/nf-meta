@@ -36,9 +36,7 @@ def declared_path(spec: Optional[dict]) -> bool:
     return spec.get("format") in PATH_FORMATS or spec.get("type") in PATH_TYPES
 
 
-def is_input_path(
-    key: str, value: Any, schema: dict[str, dict], project_dir: Path
-) -> bool:
+def is_input_path(key: str, value: Any, schema: dict[str, dict], project_dir: Path) -> bool:
     """Whether param `key` = `value` is a relative path to an input that lives
     in the project dir: a relative string whose schema declares a path (see
     `declared_path`), or which names an existing file or directory under `project_dir`.

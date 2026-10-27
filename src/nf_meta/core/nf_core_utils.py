@@ -233,8 +233,7 @@ def get_module_schema(name: str, version: str) -> dict[str, dict]:
     if not sha:
         click.echo(
             click.style(
-                f"Warning: no commit SHA found in module version '{version}' for '{name}'. "
-                "Cannot fetch module schema",
+                f"Warning: no commit SHA found in module version '{version}' for '{name}'. Cannot fetch module schema",
                 fg="yellow",
             )
         )
@@ -318,17 +317,11 @@ def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
         if len(parts) < 2:
             return False
         owner, repo = parts[0], parts[1]
-        api_url = (
-            f"https://api.github.com/repos/{owner}/{repo}"
-            f"/contents/{path.lstrip('/')}?ref={ref}"
-        )
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path.lstrip('/')}?ref={ref}"
     except Exception:
         return False
 
-    return (
-        _fetch_json(api_url, f"GitHub file {path}@{ref}", headers=_GITHUB_API_HEADERS)
-        is not None
-    )
+    return _fetch_json(api_url, f"GitHub file {path}@{ref}", headers=_GITHUB_API_HEADERS) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -352,8 +345,7 @@ def _parse_repo_url(url: str) -> tuple[str, str, str]:
     match = _REPO_URL_PATTERN.match(url)
     if not match:
         raise PipelineSchemaError(
-            f"Cannot parse repository URL '{url}'. "
-            "Supported hosts: github.com, gitlab.com, bitbucket.org."
+            f"Cannot parse repository URL '{url}'. Supported hosts: github.com, gitlab.com, bitbucket.org."
         )
     return match.group("host"), match.group("owner"), match.group("repo")
 
@@ -458,17 +450,11 @@ def get_pipeline_schema(url: str, version: str) -> dict[str, dict]:
     auth_headers = _get_auth_headers(host)
 
     try:
-        response = requests.get(
-            schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers
-        )
+        response = requests.get(schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
     except requests.exceptions.Timeout:
-        raise PipelineSchemaError(
-            f"Timeout fetching nextflow_schema.json for {url}@{version}"
-        )
+        raise PipelineSchemaError(f"Timeout fetching nextflow_schema.json for {url}@{version}")
     except requests.exceptions.RequestException as e:
-        raise PipelineSchemaError(
-            f"Network error fetching nextflow_schema.json for {url}@{version}: {e}"
-        )
+        raise PipelineSchemaError(f"Network error fetching nextflow_schema.json for {url}@{version}: {e}")
 
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After", "unknown")
@@ -490,16 +476,13 @@ def get_pipeline_schema(url: str, version: str) -> dict[str, dict]:
         )
     if response.status_code != 200:
         raise PipelineSchemaError(
-            f"Unexpected HTTP {response.status_code} fetching nextflow_schema.json "
-            f"for {url}@{version}"
+            f"Unexpected HTTP {response.status_code} fetching nextflow_schema.json for {url}@{version}"
         )
 
     try:
         data = response.json()
     except ValueError as e:
-        raise PipelineSchemaError(
-            f"Failed to parse nextflow_schema.json for {url}@{version} as JSON: {e}"
-        )
+        raise PipelineSchemaError(f"Failed to parse nextflow_schema.json for {url}@{version} as JSON: {e}")
 
     schema = _parse_nextflow_schema(data)
     write_schema_cache(url, version, schema)

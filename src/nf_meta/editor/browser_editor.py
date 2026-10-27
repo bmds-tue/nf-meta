@@ -63,8 +63,7 @@ class BrowserEditor(BaseEditor):
 
         if DEV_MODE:
             logger.debug(
-                "DEV_MODE is set: ignoring host/port preferences and running on "
-                "%s:%s (api) and %s:%s (vite)",
+                "DEV_MODE is set: ignoring host/port preferences and running on %s:%s (api) and %s:%s (vite)",
                 DEV_HOST,
                 DEV_PORT,
                 DEV_HOST,
@@ -87,18 +86,14 @@ class BrowserEditor(BaseEditor):
             )
             thread.start()
 
-            config = uvicorn.Config(
-                app, host=DEV_HOST, port=DEV_PORT, log_level="warning"
-            )
+            config = uvicorn.Config(app, host=DEV_HOST, port=DEV_PORT, log_level="warning")
             print(f"Starting editor on: http://{DEV_HOST}:{DEV_VITE_PORT}/")
             uvicorn.Server(config).run()
         else:
             if port is None:
                 port = _find_free_port()
 
-            thread = threading.Thread(
-                target=_open_browser_when_ready, args=(host, port), daemon=True
-            )
+            thread = threading.Thread(target=_open_browser_when_ready, args=(host, port), daemon=True)
             thread.start()
 
             config = uvicorn.Config(app, host=host, port=port, log_level="warning")

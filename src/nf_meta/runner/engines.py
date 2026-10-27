@@ -91,8 +91,7 @@ def engine_for(workflow_type: WorkflowType) -> Engine:
     engine = _REGISTRY.get(WorkflowType(workflow_type))
     if engine is None:
         raise NfMetaRunnerError(
-            f"No engine registered for workflow type '{workflow_type}'. "
-            f"Known types: {[str(t) for t in _REGISTRY]}"
+            f"No engine registered for workflow type '{workflow_type}'. Known types: {[str(t) for t in _REGISTRY]}"
         )
     return engine
 

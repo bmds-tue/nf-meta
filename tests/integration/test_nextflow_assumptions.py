@@ -93,8 +93,13 @@ def test_h2_resume_with_session_id_after_other_pipeline(launch_dir, tmp_path):
     nextflow("run", str(PIPELINE_B), "--counter", str(counter_b), cwd=launch_dir)
 
     nextflow(
-        "run", str(PIPELINE_A), "-resume", session_id(log_a),
-        "--counter", str(counter_a), cwd=launch_dir,
+        "run",
+        str(PIPELINE_A),
+        "-resume",
+        session_id(log_a),
+        "--counter",
+        str(counter_a),
+        cwd=launch_dir,
     )
 
     assert len(executed(counter_a)) == 3
@@ -104,15 +109,31 @@ def test_h3_shared_work_dir_both_pipelines_resume(launch_dir, tmp_path):
     work = launch_dir / "work"
     counter_a, counter_b = tmp_path / "a.txt", tmp_path / "b.txt"
     log_a, log_b = tmp_path / "a.log", tmp_path / "b.log"
-    nextflow("run", str(PIPELINE_A), "-w", str(work), "--counter", str(counter_a),
-             cwd=launch_dir, log=log_a)
-    nextflow("run", str(PIPELINE_B), "-w", str(work), "--counter", str(counter_b),
-             cwd=launch_dir, log=log_b)
+    nextflow("run", str(PIPELINE_A), "-w", str(work), "--counter", str(counter_a), cwd=launch_dir, log=log_a)
+    nextflow("run", str(PIPELINE_B), "-w", str(work), "--counter", str(counter_b), cwd=launch_dir, log=log_b)
 
-    nextflow("run", str(PIPELINE_A), "-w", str(work), "-resume", session_id(log_a),
-             "--counter", str(counter_a), cwd=launch_dir)
-    nextflow("run", str(PIPELINE_B), "-w", str(work), "-resume", session_id(log_b),
-             "--counter", str(counter_b), cwd=launch_dir)
+    nextflow(
+        "run",
+        str(PIPELINE_A),
+        "-w",
+        str(work),
+        "-resume",
+        session_id(log_a),
+        "--counter",
+        str(counter_a),
+        cwd=launch_dir,
+    )
+    nextflow(
+        "run",
+        str(PIPELINE_B),
+        "-w",
+        str(work),
+        "-resume",
+        session_id(log_b),
+        "--counter",
+        str(counter_b),
+        cwd=launch_dir,
+    )
 
     assert len(executed(counter_a)) == 3
     assert len(executed(counter_b)) == 2
@@ -122,8 +143,9 @@ def test_h4_resumed_run_keeps_session_id(launch_dir, tmp_path):
     counter = tmp_path / "a.txt"
     first, second = tmp_path / "first.log", tmp_path / "second.log"
     nextflow("run", str(PIPELINE_A), "--counter", str(counter), cwd=launch_dir, log=first)
-    nextflow("run", str(PIPELINE_A), "-resume", session_id(first), "--counter", str(counter),
-             cwd=launch_dir, log=second)
+    nextflow(
+        "run", str(PIPELINE_A), "-resume", session_id(first), "--counter", str(counter), cwd=launch_dir, log=second
+    )
 
     assert session_id(second) == session_id(first)
 
@@ -136,8 +158,9 @@ def test_h4_resume_silently_ignores_run_name(launch_dir, tmp_path):
     nextflow("run", str(PIPELINE_A), "--counter", str(counter_a), cwd=launch_dir, log=log_a)
     nextflow("run", str(PIPELINE_B), "--counter", str(counter_b), cwd=launch_dir, log=log_b)
 
-    nextflow("run", str(PIPELINE_A), "-resume", run_name(log_a), "--counter", str(counter_a),
-             cwd=launch_dir, log=log_resume)
+    nextflow(
+        "run", str(PIPELINE_A), "-resume", run_name(log_a), "--counter", str(counter_a), cwd=launch_dir, log=log_resume
+    )
 
     assert session_id(log_resume) == session_id(log_b)
     assert len(executed(counter_a)) == 6
@@ -145,8 +168,7 @@ def test_h4_resume_silently_ignores_run_name(launch_dir, tmp_path):
 
 def test_h5_log_option_replaces_shared_log(launch_dir, tmp_path):
     log = tmp_path / "state" / "step.log"
-    nextflow("run", str(PIPELINE_A), "--counter", str(tmp_path / "a.txt"), cwd=launch_dir,
-             log=log)
+    nextflow("run", str(PIPELINE_A), "--counter", str(tmp_path / "a.txt"), cwd=launch_dir, log=log)
 
     assert log.exists()
     assert not (launch_dir / ".nextflow.log").exists()
@@ -159,9 +181,7 @@ def test_h6_relative_paths_resolve_against_launch_dir(launch_dir, tmp_path):
     (project / "data.txt").write_text("project copy\n")
     (launch_dir / "data.txt").write_text("launch-dir copy\n")
     params_file = project / "params.yaml"
-    params_file.write_text(
-        f"input: data.txt\noutdir: out_rel\ncounter: {tmp_path / 'a.txt'}\n"
-    )
+    params_file.write_text(f"input: data.txt\noutdir: out_rel\ncounter: {tmp_path / 'a.txt'}\n")
 
     proc = nextflow("run", str(PIPELINE_A), "-params-file", str(params_file), cwd=launch_dir)
 
@@ -175,22 +195,20 @@ def test_h8_stub_and_real_runs_do_not_share_cache(launch_dir, tmp_path):
 
     log = tmp_path / "real.log"
     nextflow("run", str(PIPELINE_A), "--counter", str(real_first), cwd=launch_dir, log=log)
-    nextflow("run", str(PIPELINE_A), "-stub", "-resume", session_id(log),
-             "--counter", str(real_first), cwd=launch_dir)
+    nextflow("run", str(PIPELINE_A), "-stub", "-resume", session_id(log), "--counter", str(real_first), cwd=launch_dir)
     assert "a_one_stub:1" in executed(real_first)
 
     log = tmp_path / "stub.log"
-    nextflow("run", str(PIPELINE_A), "-stub", "--counter", str(stub_first), cwd=launch_dir,
-             log=log)
-    nextflow("run", str(PIPELINE_A), "-resume", session_id(log),
-             "--counter", str(stub_first), cwd=launch_dir)
+    nextflow("run", str(PIPELINE_A), "-stub", "--counter", str(stub_first), cwd=launch_dir, log=log)
+    nextflow("run", str(PIPELINE_A), "-resume", session_id(log), "--counter", str(stub_first), cwd=launch_dir)
     assert "a_one:1" in executed(stub_first)
 
 
 def test_h7_module_run_supports_resume_flags(tmp_path):
     """`nextflow module` exists only from 26.04; check the flags we rely on are accepted."""
-    proc = subprocess.run(["nextflow", "module", "run", "-h"], capture_output=True, text=True,
-                          timeout=120, cwd=tmp_path)
+    proc = subprocess.run(
+        ["nextflow", "module", "run", "-h"], capture_output=True, text=True, timeout=120, cwd=tmp_path
+    )
     if "Expected a command, got module" in proc.stdout + proc.stderr:
         pytest.skip("installed Nextflow has no `module` command (needs >= 26.04)")
     for flag in ("-resume", "-work-dir", "-params-file", "-stub"):
@@ -201,13 +219,21 @@ def test_h10_resume_after_failure_with_changed_param_reruns_only_affected(launch
     """The realistic case: a step fails part-way, the user fixes a param and resumes."""
     counter, log = tmp_path / "a.txt", tmp_path / "a.log"
     with pytest.raises(AssertionError):
-        nextflow("run", str(PIPELINE_A), "--counter", str(counter), "--fail_two", "true",
-                 cwd=launch_dir, log=log)
+        nextflow("run", str(PIPELINE_A), "--counter", str(counter), "--fail_two", "true", cwd=launch_dir, log=log)
     nextflow("run", str(PIPELINE_B), "--counter", str(tmp_path / "b.txt"), cwd=launch_dir)
     counter.write_text("")
 
-    nextflow("run", str(PIPELINE_A), "-resume", session_id(log), "--counter", str(counter),
-             "--fail_two", "false", cwd=launch_dir)
+    nextflow(
+        "run",
+        str(PIPELINE_A),
+        "-resume",
+        session_id(log),
+        "--counter",
+        str(counter),
+        "--fail_two",
+        "false",
+        cwd=launch_dir,
+    )
 
     assert executed(counter) == ["a_two"]
 
@@ -216,14 +242,24 @@ def test_h11_resume_after_failure_with_extra_config_reruns_only_failed(launch_di
     """Same, but the fix is a Nextflow config (resources) instead of a param."""
     counter, log = tmp_path / "a.txt", tmp_path / "a.log"
     with pytest.raises(AssertionError):
-        nextflow("run", str(PIPELINE_A), "--counter", str(counter), "--min_cpus_two", "2",
-                 cwd=launch_dir, log=log)
+        nextflow("run", str(PIPELINE_A), "--counter", str(counter), "--min_cpus_two", "2", cwd=launch_dir, log=log)
     fix = tmp_path / "fix.config"
     fix.write_text("process {\n  withName: A_TWO { cpus = 2 }\n}\n")
     counter.write_text("")
 
-    nextflow("run", str(PIPELINE_A), "-c", str(fix), "-resume", session_id(log),
-             "--counter", str(counter), "--min_cpus_two", "2", cwd=launch_dir)
+    nextflow(
+        "run",
+        str(PIPELINE_A),
+        "-c",
+        str(fix),
+        "-resume",
+        session_id(log),
+        "--counter",
+        str(counter),
+        "--min_cpus_two",
+        "2",
+        cwd=launch_dir,
+    )
 
     assert executed(counter) == ["a_two"]
 
@@ -233,13 +269,10 @@ def test_h12_per_step_cache_dir_makes_bare_resume_per_step(launch_dir, tmp_path)
     even after other pipelines ran in the same launch dir."""
     counter_a, counter_b = tmp_path / "a.txt", tmp_path / "b.txt"
     cache_a, cache_b = tmp_path / "state" / "a", tmp_path / "state" / "b"
-    nextflow("run", str(PIPELINE_A), "--counter", str(counter_a), cwd=launch_dir,
-             cache_dir=cache_a)
-    nextflow("run", str(PIPELINE_B), "--counter", str(counter_b), cwd=launch_dir,
-             cache_dir=cache_b)
+    nextflow("run", str(PIPELINE_A), "--counter", str(counter_a), cwd=launch_dir, cache_dir=cache_a)
+    nextflow("run", str(PIPELINE_B), "--counter", str(counter_b), cwd=launch_dir, cache_dir=cache_b)
 
-    nextflow("run", str(PIPELINE_A), "-resume", "--counter", str(counter_a), cwd=launch_dir,
-             cache_dir=cache_a)
+    nextflow("run", str(PIPELINE_A), "-resume", "--counter", str(counter_a), cwd=launch_dir, cache_dir=cache_a)
 
     assert len(executed(counter_a)) == 3
     assert not (launch_dir / ".nextflow").exists()

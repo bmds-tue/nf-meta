@@ -6,7 +6,6 @@ from .refs import contains_reference
 logger = logging.getLogger(__name__)
 
 
-
 def _check_type(param_name: str, value: object, expected_type: str) -> str | None:
     """Return an error message if value fails the expected_type check, else None.
 
@@ -74,12 +73,8 @@ def validate_params(
                     f"use dot-notation sub-keys (e.g. '{param_name}.id') instead of a raw value",
                 )
             )
-        elif param_name not in schema and not any(
-            param_name.startswith(f"{k}.") for k in _map_keys
-        ):
-            diagnostics.append(
-                _diagnostic(param_name, f"Unknown parameter '{param_name}'")
-            )
+        elif param_name not in schema and not any(param_name.startswith(f"{k}.") for k in _map_keys):
+            diagnostics.append(_diagnostic(param_name, f"Unknown parameter '{param_name}'"))
 
     # Check required params (only when no params_file is covering them)
     if not skip_required:
@@ -95,9 +90,7 @@ def validate_params(
             # meta.sample), so check for any key with the expected prefix.
             if required_spec.get("type") == "map":
                 prefix = f"{param_name}."
-                present = param_name in params or any(
-                    k.startswith(prefix) for k in params
-                )
+                present = param_name in params or any(k.startswith(prefix) for k in params)
             else:
                 present = param_name in params
             if not present:
@@ -128,8 +121,7 @@ def validate_params(
                 diagnostics.append(
                     _diagnostic(
                         param_name,
-                        f"Parameter '{param_name}' = {value!r} "
-                        f"is not one of the allowed values: {enum_values}",
+                        f"Parameter '{param_name}' = {value!r} is not one of the allowed values: {enum_values}",
                     )
                 )
         elif expected_type is not None:

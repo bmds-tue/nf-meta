@@ -10,8 +10,16 @@ from nf_meta.runner.utils import RunOptions
 
 
 def spec(type_, **kw):
-    return {"type": type_, "required": False, "enum": None, "pattern": None,
-            "format": None, "default": None, "hidden": False, **kw}
+    return {
+        "type": type_,
+        "required": False,
+        "enum": None,
+        "pattern": None,
+        "format": None,
+        "default": None,
+        "hidden": False,
+        **kw,
+    }
 
 
 SCHEMA = {
@@ -40,14 +48,11 @@ def project(tmp_path):
 
 def config(project, inputs, params, extra_steps=None):
     workflows = {
-        "n01": {"name": "nf-core/fetchngs", "version": "1.12.0",
-                "params": {"outdir": "o", **params}},
+        "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"outdir": "o", **params}},
         **(extra_steps or {}),
     }
     path = project / "metaconfig.yaml"
-    path.write_text(yaml.safe_dump(
-        {"config_version": "0.4.0", "inputs": inputs, "workflows": workflows}
-    ))
+    path.write_text(yaml.safe_dump({"config_version": "0.4.0", "inputs": inputs, "workflows": workflows}))
     return path
 
 
@@ -95,8 +100,9 @@ def test_inputs_of_unselected_steps_not_needed(project):
         project,
         {"genome": {"bind": ["n02.genome"]}},
         {"input": "ids.csv"},
-        extra_steps={"n02": {"name": "nf-core/rnaseq", "version": "3.14.0",
-                             "params": {"input": "ids.csv", "outdir": "o2"}}},
+        extra_steps={
+            "n02": {"name": "nf-core/rnaseq", "version": "3.14.0", "params": {"input": "ids.csv", "outdir": "o2"}}
+        },
     )
     steps = plan(path, target="n01")
     assert [s.workflow.id for s in steps] == ["n01"]

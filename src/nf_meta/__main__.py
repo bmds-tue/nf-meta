@@ -24,11 +24,7 @@ def _echo_warnings(warnings, config) -> int:
     from nf_meta.core.errors import format_warnings_for_cli
 
     if warnings:
-        click.echo(
-            format_warnings_for_cli(
-                warnings, source_text=_read_text(config), filename=str(config)
-            )
-        )
+        click.echo(format_warnings_for_cli(warnings, source_text=_read_text(config), filename=str(config)))
     return len(warnings)
 
 
@@ -37,9 +33,7 @@ def _echo_valid(what: str, n_warnings: int) -> None:
 
     if n_warnings:
         plural = "" if n_warnings == 1 else "s"
-        click.echo(
-            click.style(f"✓ {what} is valid with {n_warnings} warning{plural}", fg=WARNING_COLOR)
-        )
+        click.echo(click.style(f"✓ {what} is valid with {n_warnings} warning{plural}", fg=WARNING_COLOR))
     else:
         click.echo(click.style(f"✓ {what} is valid", fg="green"))
 
@@ -61,11 +55,7 @@ def handle_validation_errors(func):
             return func(*args, **kwargs)
         except (GraphValidationError, ConfigValidationError) as e:
             source_text = _read_text(config) if config else None
-            click.echo(
-                format_errors_for_cli(
-                    e, source_text=source_text, filename=str(config or "")
-                )
-            )
+            click.echo(format_errors_for_cli(e, source_text=source_text, filename=str(config or "")))
             raise SystemExit(1)
         except FileNotFoundError as e:
             click.echo(click.style(str(e), fg="red"))

@@ -284,9 +284,7 @@ class MetaworkflowGraph:
     def input_bindings(self) -> dict[str, tuple[Binding, ...]]:
         """Every input's bindings, from `bind:` and from `${inputs:<name>}`
         tokens in step params, sorted."""
-        found: dict[str, set[Binding]] = {
-            name: set(d.bindings) for name, d in self.inputs.items()
-        }
+        found: dict[str, set[Binding]] = {name: set(d.bindings) for name, d in self.inputs.items()}
         for wf in self.get_workflows():
             for param, names in input_refs(wf.params).items():
                 for name in names:
@@ -296,12 +294,7 @@ class MetaworkflowGraph:
     def bound_params(self, wf_id: str) -> dict[str, str]:
         """Params of step `wf_id` filled via an input's `bind:`, as
         param → input name."""
-        return {
-            b.param: name
-            for name, d in self.inputs.items()
-            for b in d.bindings
-            if b.step_id == wf_id
-        }
+        return {b.param: name for name, d in self.inputs.items() for b in d.bindings if b.step_id == wf_id}
 
     def with_input_placeholders(self, wf: Workflow) -> Workflow:
         """`wf` with a `${inputs:<name>}` placeholder for every param filled via
@@ -394,8 +387,7 @@ class MetaworkflowGraph:
                 value = (wf.params or {}).get(b.param)
                 if value is not None and value != f"${{inputs:{name}}}":
                     add(
-                        f"Param '{b}' has its own value but is bound to input '{name}'; "
-                        "the input's value is used",
+                        f"Param '{b}' has its own value but is bound to input '{name}'; the input's value is used",
                         wf_id=b.step_id,
                         param=b.param,
                         severity=Severity.WARNING,
@@ -406,17 +398,13 @@ class MetaworkflowGraph:
         """Raise `ConfigValidationError` for any input error (see
         `input_diagnostics`, and with `dynamic`, `effective_inputs`); log
         warnings."""
-        if not self.inputs and not any(
-            input_refs(wf.params) for wf in self.get_workflows()
-        ):
+        if not self.inputs and not any(input_refs(wf.params) for wf in self.get_workflows()):
             return
         diagnostics = self.input_diagnostics()
         if dynamic and self.inputs:
             diagnostics += self.effective_inputs()[1]
         if any(d.severity == Severity.ERROR for d in diagnostics):
-            raise ConfigValidationError(
-                [d for d in diagnostics if d.severity == Severity.ERROR]
-            )
+            raise ConfigValidationError([d for d in diagnostics if d.severity == Severity.ERROR])
         log_warnings(diagnostics)
 
     # ===========================
@@ -433,11 +421,7 @@ class MetaworkflowGraph:
         """
 
         def diagnostic(ref, message: str) -> Diagnostic:
-            field = (
-                f"params.{ref.source_key}"
-                if isinstance(ref, WorkflowReference)
-                else "params"
-            )
+            field = f"params.{ref.source_key}" if isinstance(ref, WorkflowReference) else "params"
             return Diagnostic(
                 workflow_id=ref.source_wf_id,
                 field=field,
@@ -453,7 +437,7 @@ class MetaworkflowGraph:
                     continue
                 hint = ""
                 if token.startswith("${input:"):
-                    hint = f" Did you mean '${{inputs:{token[len('${input:'):]}'?"
+                    hint = f" Did you mean '${{inputs:{token[len('${input:') :]}'?"
                 diagnostics.append(
                     Diagnostic(
                         workflow_id=wf.id,
@@ -471,9 +455,7 @@ class MetaworkflowGraph:
                 continue  # output references not yet validated
             referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
             if not referenced_wf:
-                diagnostics.append(
-                    diagnostic(ref, f"Reference to unknown workflow: {ref.target_wf_id}")
-                )
+                diagnostics.append(diagnostic(ref, f"Reference to unknown workflow: {ref.target_wf_id}"))
                 continue
 
             if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
@@ -486,15 +468,11 @@ class MetaworkflowGraph:
                 continue
 
             if not referenced_wf.params or not ref.target_key:
-                diagnostics.append(
-                    diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}")
-                )
+                diagnostics.append(diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}"))
                 continue
 
             if not referenced_wf.params.get(ref.target_key):
-                diagnostics.append(
-                    diagnostic(ref, f"Reference to unresolvable param: {ref.target_key}")
-                )
+                diagnostics.append(diagnostic(ref, f"Reference to unresolvable param: {ref.target_key}"))
 
         if diagnostics:
             raise ConfigValidationError(diagnostics)
@@ -524,9 +502,7 @@ class MetaworkflowGraph:
             )
         ]
 
-    def validate_module_nextflow_version(
-        self, glob: Optional[GlobalOptions], workflows: list[Workflow]
-    ):
+    def validate_module_nextflow_version(self, glob: Optional[GlobalOptions], workflows: list[Workflow]):
         """Raise `ConfigValidationError` for the problem described in
         `module_nextflow_version_diagnostics`."""
         diagnostics = self.module_nextflow_version_diagnostics(glob, workflows)

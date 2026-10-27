@@ -8,7 +8,7 @@ class History:
 
     def undoable(self):
         return len(self.undo_stack) > 0
-    
+
     def redoable(self):
         return len(self.redo_stack) > 0
 

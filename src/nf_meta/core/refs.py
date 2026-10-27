@@ -13,6 +13,4 @@ RESERVED_STEP_IDS = frozenset({"inputs"})
 
 def contains_reference(value: object) -> bool:
     """Whether `value` is a string containing a step or input reference."""
-    return isinstance(value, str) and bool(
-        STEP_REF_PATTERN.search(value) or INPUT_REF_PATTERN.search(value)
-    )
+    return isinstance(value, str) and bool(STEP_REF_PATTERN.search(value) or INPUT_REF_PATTERN.search(value))

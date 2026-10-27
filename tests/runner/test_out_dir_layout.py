@@ -13,8 +13,15 @@ from nf_meta.runner.utils import RunOptions
 
 
 SCHEMA = {
-    name: {"type": "string", "required": False, "enum": None, "pattern": None,
-           "format": None, "default": None, "hidden": False}
+    name: {
+        "type": "string",
+        "required": False,
+        "enum": None,
+        "pattern": None,
+        "format": None,
+        "default": None,
+        "hidden": False,
+    }
     for name in ("input", "outdir", "contrasts", "genome", "nf_core_pipeline", "extra")
 }
 
@@ -155,9 +162,7 @@ class TestInputPaths:
 
 
 class TestConfigPaths:
-    def test_relative_config_file_resolves_against_config_folder(
-        self, project, tmp_path, monkeypatch
-    ):
+    def test_relative_config_file_resolves_against_config_folder(self, project, tmp_path, monkeypatch):
         (project / "step.config").write_text("")
         cfg = two_steps()
         cfg["n01"]["config_file"] = "step.config"
@@ -172,10 +177,7 @@ class TestConfigPaths:
         monkeypatch.chdir(project)
         data = {
             "config_version": "0.3.0",
-            "workflows": {
-                "n01": {"name": "nf-core/fetchngs", "version": "1.12.0",
-                        "config_file": "step.config"}
-            },
+            "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "config_file": "step.config"}},
         }
         validated_graph(data)
         assert data["workflows"]["n01"]["config_file"] == "step.config"
@@ -235,11 +237,12 @@ class TestRemoteConfig:
         return _serve
 
     def test_relative_config_file_is_an_error(self, serve):
-        serve({
-            "config_version": "0.3.0",
-            "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0",
-                                  "config_file": "step.config"}},
-        })
+        serve(
+            {
+                "config_version": "0.3.0",
+                "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "config_file": "step.config"}},
+            }
+        )
         with pytest.raises(ConfigValidationError, match="URL"):
             from_file("https://example.org/metaconfig.yaml")
 

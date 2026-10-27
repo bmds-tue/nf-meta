@@ -65,16 +65,11 @@ class SimplePythonRunner(BaseRunner):
     ERROR_FILE = "ERROR.txt"
 
     def _check_run_success(self, run_dir: Path = Path(".")):
-        return (
-            Path(run_dir / self.OUT_FILE).exists()
-            and not Path(run_dir / self.ERROR_FILE).exists()
-        )
+        return Path(run_dir / self.OUT_FILE).exists() and not Path(run_dir / self.ERROR_FILE).exists()
 
     def __init__(self, run_options) -> None:
         super().__init__(run_options)
-        self.out_dir: Optional[Path] = (
-            Path(run_options.out_dir).resolve() if run_options.out_dir else None
-        )
+        self.out_dir: Optional[Path] = Path(run_options.out_dir).resolve() if run_options.out_dir else None
 
     @property
     def state_root(self) -> Path:
@@ -86,9 +81,7 @@ class SimplePythonRunner(BaseRunner):
         if self.out_dir is not None:
             return self.out_dir
         if graph.project_dir is None:
-            raise NfMetaRunnerError(
-                "An out dir is required for a config loaded from a URL (--out)."
-            )
+            raise NfMetaRunnerError("An out dir is required for a config loaded from a URL (--out).")
         return (graph.project_dir / DEFAULT_OUT_DIR).resolve()
 
     def _state_dir(self, wf: Workflow, step_key: str) -> Path:
@@ -148,9 +141,7 @@ class SimplePythonRunner(BaseRunner):
                     continue
                 ref_wf = graph.get_workflow_by_id(ref.target_wf_id)
                 if not ref_wf:
-                    raise NfMetaRunnerError(
-                        f"Reference to unknown workflow: {ref.target_wf_id}"
-                    )
+                    raise NfMetaRunnerError(f"Reference to unknown workflow: {ref.target_wf_id}")
                 if not self._resolved_params_path(ref_wf).exists():
                     errors.append(
                         f"  '{wf.id}' → '{ref.target_wf_id}' (param '{ref.target_key}'): "
@@ -158,8 +149,7 @@ class SimplePythonRunner(BaseRunner):
                     )
         if errors:
             raise NfMetaRunnerError(
-                "Cannot resolve cross-boundary references — run the excluded workflows first:\n"
-                + "\n".join(errors)
+                "Cannot resolve cross-boundary references — run the excluded workflows first:\n" + "\n".join(errors)
             )
 
     def _stream_proc_out(
@@ -228,9 +218,7 @@ class SimplePythonRunner(BaseRunner):
             f.write(out)
 
         if exit_code != 0:
-            logger.error(
-                f"Command exited with code {exit_code}. Workflow dir: {spec.state_dir}"
-            )
+            logger.error(f"Command exited with code {exit_code}. Workflow dir: {spec.state_dir}")
             with (spec.state_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
         else:
@@ -249,12 +237,8 @@ class SimplePythonRunner(BaseRunner):
             logger.info(
                 f"Calculating subset of graph from workflow {self.run_options.start} to {self.run_options.target}"
             )
-            workflows = graph.subset_workflows(
-                self.run_options.start, self.run_options.target, workflows
-            )
-            logger.info(
-                f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}"
-            )
+            workflows = graph.subset_workflows(self.run_options.start, self.run_options.target, workflows)
+            logger.info(f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
         return workflows
 
     def plan(self, graph: MetaworkflowGraph, resume: bool = False) -> list[PlannedStep]:
@@ -290,14 +274,10 @@ class SimplePythonRunner(BaseRunner):
         for wf in workflows:
             bound = graph.bound_params(wf.id)
             if bound or input_refs(wf.params):
-                wf = wf.model_copy(
-                    update={"params": substitute_inputs(wf.params, bound, input_values)}
-                )
+                wf = wf.model_copy(update={"params": substitute_inputs(wf.params, bound, input_values)})
             schema = param_schema(wf)
             if project_dir is not None and wf.params:
-                wf = wf.model_copy(
-                    update={"params": absolutize_input_paths(wf.params, project_dir, schema)}
-                )
+                wf = wf.model_copy(update={"params": absolutize_input_paths(wf.params, project_dir, schema)})
             elif project_dir is None:
                 self._reject_relative_inputs(wf, schema)
 
@@ -346,20 +326,13 @@ class SimplePythonRunner(BaseRunner):
             return {}
         inputs, _ = graph.effective_inputs()
         selected = {wf.id for wf in workflows}
-        used = [
-            inp for inp in inputs.values() if any(b.step_id in selected for b in inp.bindings)
-        ]
+        used = [inp for inp in inputs.values() if any(b.step_id in selected for b in inp.bindings)]
         missing = sorted(inp.name for inp in used if inp.default is None)
         if missing:
             raise NfMetaRunnerError(
-                f"No value for input(s): {', '.join(missing)}. "
-                "Give them a default in the config's `inputs:` section."
+                f"No value for input(s): {', '.join(missing)}. Give them a default in the config's `inputs:` section."
             )
-        problems = [
-            message
-            for inp in used
-            for message in inp.validate(inp.default, project_dir=graph.project_dir)
-        ]
+        problems = [message for inp in used for message in inp.validate(inp.default, project_dir=graph.project_dir)]
         if problems:
             raise NfMetaRunnerError("Invalid input values:\n  " + "\n  ".join(problems))
         return {inp.name: inp.default for inp in used}

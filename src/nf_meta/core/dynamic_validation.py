@@ -425,10 +425,7 @@ def check_inputs(
                         workflow_id=None,
                         field="bind",
                         yaml_path=f"inputs.{name}.bind",
-                        message=(
-                            f"Input '{name}' is bound to '{binding}', but step "
-                            f"'{binding.step_id}' has no param '{binding.param}'"
-                        ),
+                        message=f"bound to '{binding}', but step '{binding.step_id}' has no param '{binding.param}'",
                         severity=Severity.ERROR,
                     )
                 )

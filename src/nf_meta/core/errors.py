@@ -169,14 +169,21 @@ def _plural(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
 
 
+_LABELS: dict[Severity, tuple[str, int | str]] = {
+    Severity.ERROR: ("Error", "red"),
+    Severity.WARNING: ("Warning", WARNING_COLOR),
+}
+
+
 def render_positioned_diagnostics(
     positioned: list[PositionedDiagnostic], graph_messages: list[str], filename: str
 ) -> str:
-    """Render compiler-style, column-aligned CLI output from already-resolved
-    diagnostics: "<file>:<line>:<col>: <severity>: [<tag>] <message>". Errors
-    come first, then warnings, each in document order. Lines with no resolved
-    position fall back to a bare filename prefix. The header counts errors and
-    warnings; with no errors it reads "Warnings:".
+    """Render diagnostics as aligned lines, one per problem:
+    "<Severity>  <line>:<col>  <config path>  <message>". Errors come first,
+    then warnings, each in document order; the position is dimmed and left
+    blank when unknown, and graph-level messages have no config path. The
+    header names the file and counts errors and warnings ("Warnings in …:"
+    when there are no errors).
     """
 
     def order(pd: PositionedDiagnostic):
@@ -184,49 +191,41 @@ def render_positioned_diagnostics(
         position = (pd.position.line, pd.position.column) if pd.position else (0, 0)
         return (is_warning, position)
 
-    located: list[tuple[str, Diagnostic]] = [
+    rows: list[tuple[Severity, str, str, str]] = [
         (
-            f"{filename}:{pd.position.line}:{pd.position.column}" if pd.position is not None else filename,
-            pd.diagnostic,
+            pd.diagnostic.severity,
+            f"{pd.position.line}:{pd.position.column}" if pd.position else "",
+            pd.diagnostic.yaml_path or pd.diagnostic.field,
+            pd.diagnostic.message,
         )
         for pd in sorted(positioned, key=order)
     ]
-
-    # Graph-level messages (e.g. a cycle) have no workflow/field to attribute
-    # them to, but still get a bare-filename location so they participate in
-    # the same column alignment as every other line.
-    location_lengths = [len(location) for location, _ in located]
-    if graph_messages:
-        location_lengths.append(len(filename))
-    width = max(location_lengths, default=0)
-
-    error_lines, warning_lines = [], []
-    for location, d in located:
-        tag = f"{d.workflow_id}/{d.field}" if d.workflow_id is not None else d.field
-        tag_text = f"[{tag}] " if tag else ""
-        if d.severity == Severity.ERROR:
-            label = click.style("error", fg="red", bold=True)
-            error_lines.append(f"{location.ljust(width)}: {label}: {tag_text}{d.message}")
-        else:
-            label = click.style("warning", fg=WARNING_COLOR, bold=True)
-            warning_lines.append(f"{location.ljust(width)}: {label}: {tag_text}{d.message}")
-
-    for message in graph_messages:
-        label = click.style("error", fg="red", bold=True)
-        error_lines.append(f"{filename.ljust(width)}: {label}: {message}")
-
-    if not error_lines and not warning_lines:
+    # Graph-level messages (e.g. a cycle) have no field to attribute them to
+    rows[0:0] = [(Severity.ERROR, "", "", message) for message in graph_messages]
+    if not rows:
         return ""
 
-    if error_lines:
-        counts = _plural(len(error_lines), "error")
-        if warning_lines:
-            counts += f", {_plural(len(warning_lines), 'warning')}"
-        header = click.style(f"Validation failed ({counts}):", fg="red", bold=True)
+    width = max(len(position) for _, position, _, _ in rows)
+    lines = []
+    for severity, position, path, message in rows:
+        text, color = _LABELS[severity]
+        parts = [click.style(text.ljust(7), fg=color, bold=True)]
+        if width:
+            parts.append(click.style(position.ljust(width), dim=True))
+        if path:
+            parts.append(path)
+        parts.append(message)
+        lines.append("  ".join(parts))
+
+    n_errors = sum(1 for severity, *_ in rows if severity == Severity.ERROR)
+    n_warnings = len(rows) - n_errors
+    where = f" in {filename}" if filename else ""
+    if n_errors:
+        counts = _plural(n_errors, "error") + (f", {_plural(n_warnings, 'warning')}" if n_warnings else "")
+        header = click.style(f"Validation failed{where} ({counts}):", fg="red", bold=True)
     else:
-        header = click.style("Warnings:", fg=WARNING_COLOR, bold=True)
-    body = "\n".join(f" {line}" for line in [*error_lines, *warning_lines])
-    return f"{header}\n{body}"
+        header = click.style(f"Warnings{where}:", fg=WARNING_COLOR, bold=True)
+    return header + "\n" + "\n".join(f" {line}" for line in lines)
 
 
 def format_warnings_for_cli(warnings: list[Diagnostic], source_text: str | None = None, filename: str = "") -> str:

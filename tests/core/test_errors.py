@@ -209,9 +209,8 @@ class TestFormatErrorsForCliConfig:
                 )
             ]
         )
-        output = format_errors_for_cli(exc)
-        assert "wf_a" in output
-        assert "version not in registry" in output
+        output = click.unstyle(format_errors_for_cli(exc))
+        assert "Error    version  version not in registry" in output
 
     def test_formats_error_from_pydantic_construction_failure(self):
         exc = ConfigValidationError(
@@ -224,9 +223,8 @@ class TestFormatErrorsForCliConfig:
                 )
             ]
         )
-        output = format_errors_for_cli(exc)
-        assert "wf_a" in output
-        assert "Field required" in output
+        output = click.unstyle(format_errors_for_cli(exc))
+        assert "Error    name  Field required" in output
 
 
 # ---------------------------------------------------------------------------
@@ -244,8 +242,8 @@ class TestFormatErrorsForCli:
         exc = GraphValidationError("cycle found in graph")
         output = click.unstyle(format_errors_for_cli(exc, filename="test.yaml"))
         lines = output.split("\n")
-        assert lines[0] == "Validation failed (1 error):"
-        assert lines[1] == " test.yaml: error: cycle found in graph"
+        assert lines[0] == "Validation failed in test.yaml (1 error):"
+        assert lines[1] == " Error    cycle found in graph"
 
 
 # ---------------------------------------------------------------------------
@@ -279,8 +277,8 @@ class TestFormatErrorsForCliPositions:
                 )
             ]
         )
-        output = format_errors_for_cli(exc, source_text=source, filename="test.yaml")
-        assert f"test.yaml:{expected.line}:{expected.column}" in output
+        output = click.unstyle(format_errors_for_cli(exc, source_text=source, filename="test.yaml"))
+        assert f" Error    {expected.line}:{expected.column}  workflows.wf_a.params.outdir  bad param" in output
 
     def test_no_position_falls_back_to_bare_filename(self):
         exc = ConfigValidationError(
@@ -294,12 +292,11 @@ class TestFormatErrorsForCliPositions:
             ]
         )
         # No source_text given at all -- must not crash, no position attempted:
-        # bare filename immediately followed by the "error:" marker, no
-        # ":line:col" in between.
+        # no position column at all.
         output = click.unstyle(format_errors_for_cli(exc, filename="test.yaml"))
         lines = output.split("\n")
-        assert lines[0] == "Validation failed (1 error):"
-        assert lines[1] == " test.yaml: error: [wf_a/params.outdir] bad param"
+        assert lines[0] == "Validation failed in test.yaml (1 error):"
+        assert lines[1] == " Error    params.outdir  bad param"
 
     def test_no_workflow_id_still_resolves_via_default_yaml_path(self):
         """A diagnostic with no workflow_id (e.g. a top-level config_version
@@ -322,8 +319,8 @@ class TestFormatErrorsForCliPositions:
         )
         output = click.unstyle(format_errors_for_cli(exc, source_text=source, filename="test.yaml"))
         lines = output.split("\n")
-        assert lines[0] == "Validation failed (1 error):"
-        assert lines[1] == f" test.yaml:{expected.line}:{expected.column}: error: [config_version] bad version"
+        assert lines[0] == "Validation failed in test.yaml (1 error):"
+        assert lines[1] == f" Error    {expected.line}:{expected.column}  config_version  bad version"
 
     def test_warning_severity_labeled_distinctly_from_error(self):
         exc = ConfigValidationError(
@@ -336,9 +333,9 @@ class TestFormatErrorsForCliPositions:
                 )
             ]
         )
-        output = format_errors_for_cli(exc)
-        assert "warning" in output
-        assert "could not reach url" in output
+        output = click.unstyle(format_errors_for_cli(exc))
+        assert output.split("\n")[0] == "Warnings:"
+        assert "Warning  url  could not reach url" in output
 
     def test_column_alignment_across_mixed_positions(self):
         source = "workflows:\n  wf_a:\n    name: nf-core/rnaseq\n"
@@ -347,19 +344,23 @@ class TestFormatErrorsForCliPositions:
                 Diagnostic(
                     workflow_id="wf_a",
                     field="name",
-                    message="short location",
+                    yaml_path="workflows.wf_a.name",
+                    message="has a position",
                     severity=Severity.ERROR,
                 ),
                 Diagnostic(
                     workflow_id=None,
                     field="config_version",
-                    message="no location at all",
+                    message="no position",
                     severity=Severity.ERROR,
                 ),
             ]
         )
         output = click.unstyle(format_errors_for_cli(exc, source_text=source, filename="x.yaml"))
         lines = output.split("\n")
-        assert lines[0] == "Validation failed (2 errors):"
+        assert lines[0] == "Validation failed in x.yaml (2 errors):"
         assert len(lines) == 3
-        assert lines[1].index("error:") == lines[2].index("error:")
+        # The config path starts in the same column whether or not a position is known
+        with_position = next(line for line in lines if "workflows.wf_a.name" in line)
+        without_position = next(line for line in lines if "config_version" in line)
+        assert with_position.index("workflows.wf_a.name") == without_position.index("config_version")

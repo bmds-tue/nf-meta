@@ -20,9 +20,9 @@ class TestValidateCommand:
         result = CliRunner().invoke(cli, ["validate", str(path)])
 
         assert result.exit_code == 1
-        assert f"{path}:{expected.line}:{expected.column}" in result.output
-        assert "wf_a/name" in result.output
-        assert "wf_a/url" in result.output
+        assert f"Validation failed in {path}" in result.output
+        assert f"{expected.line}:{expected.column}  workflows.wf_a.name  Field required" in result.output
+        assert "workflows.wf_a.url" in result.output
 
     def test_reports_line_number_for_dynamic_error(self, tmp_path):
         text = (
@@ -41,8 +41,7 @@ class TestValidateCommand:
         result = CliRunner().invoke(cli, ["validate", str(path)])
 
         assert result.exit_code == 1
-        assert f"{path}:{expected.line}:{expected.column}" in result.output
-        assert "Unknown parameter" in result.output
+        assert f"{expected.line}:{expected.column}  workflows.wf_a.params.foobar  Unknown parameter" in result.output
 
     def test_valid_config_reports_success(self, tmp_path):
         text = (
@@ -100,8 +99,7 @@ class TestValidateCommand:
         result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
 
         assert result.exit_code == 1
-        assert f"{path}:{expected.line}:{expected.column}" in result.output
-        assert "version" in result.output
+        assert f"{expected.line}:{expected.column}  version  " in result.output
 
     def test_scope_workflow_missing_required_field_does_not_crash(self, tmp_path):
         text = "version: 3.14.0\n"
@@ -140,7 +138,7 @@ class TestValidateCommand:
         result = CliRunner().invoke(cli, ["validate", "--scope", "globals", str(path)])
 
         assert result.exit_code == 1
-        assert f"{path}:{expected.line}:{expected.column}" in result.output
+        assert f"{expected.line}:{expected.column}  config_file  " in result.output
 
     def test_multiple_errors_reported_together(self, tmp_path):
         text = (
@@ -165,7 +163,7 @@ class TestValidateCommand:
         result = CliRunner().invoke(cli, ["validate", str(path)])
 
         assert result.exit_code == 1
-        assert "wf_a/name" in result.output
+        assert "workflows.wf_a.name" in result.output
         assert "nonexistent" in result.output
         assert "cycle" in result.output
 
@@ -252,15 +250,17 @@ class TestValidateWarnings:
         path = _write(tmp_path, self.CONFIG)
         result = CliRunner().invoke(cli, ["validate", str(path)])
         assert result.exit_code == 0, result.output
-        assert f"{path}:3:3: warning: Input 'spare' is not used by any step" in result.output
+        assert f"Warnings in {path}:" in result.output
+        assert " Warning  3:3  inputs.spare  not used by any step" in result.output
         assert "Config is valid with 1 warning" in result.output
 
     def test_errors_and_warnings_listed_together(self, tmp_path):
         path = _write(tmp_path, self.CONFIG + "input: {}\n")
         result = CliRunner().invoke(cli, ["validate", str(path)])
         assert result.exit_code == 1
-        assert "Validation failed (1 error, 1 warning):" in result.output
-        assert result.output.index("error:") < result.output.index("warning:")
+        assert f"Validation failed in {path} (1 error, 1 warning):" in result.output
+        assert " Error    12:1  input  Unknown key. Did you mean 'inputs'?" in result.output
+        assert result.output.index("Error ") < result.output.index("Warning ")
 
 
 class TestWarningsInOtherCommands:
@@ -270,8 +270,8 @@ class TestWarningsInOtherCommands:
         monkeypatch.chdir(tmp_path)
         result = CliRunner().invoke(cli, ["run", "-r", "python", "--dry-run", str(path)])
         assert result.exit_code == 0, result.output
-        assert result.output.startswith("Warnings:\n")
-        assert f"{path}:3:3: warning: Input 'spare' is not used by any step" in result.output
+        assert result.output.startswith(f"Warnings in {path}:\n")
+        assert " Warning  3:3  inputs.spare  not used by any step" in result.output
 
     def test_validate_workflow_scope_reports_warnings(self, tmp_path, monkeypatch):
         from nf_meta.core.errors import Diagnostic, Severity
@@ -281,7 +281,7 @@ class TestWarningsInOtherCommands:
         path = _write(tmp_path, "name: nf-core/fetchngs\nversion: 1.12.0\n")
         result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
         assert result.exit_code == 0, result.output
-        assert "warning: [url] unreachable" in result.output
+        assert "Warning  url  unreachable" in result.output
         assert "Workflow is valid with 1 warning" in result.output
 
 
@@ -340,7 +340,7 @@ class TestRunInputs:
     def test_invalid_given_value(self, tmp_path, monkeypatch):
         result = self._invoke(tmp_path, monkeypatch, "--input", "genome=hg19")
         assert result.exit_code == 1
-        assert "not one of" in result.output
+        assert "genome = 'hg19': must be one of EB1, GRCh38" in result.output
 
     def test_malformed_input_option(self, tmp_path, monkeypatch):
         result = self._invoke(tmp_path, monkeypatch, "--input", "genome")

@@ -74,14 +74,14 @@ TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", "workflows", "transitio
 _EXTRA_WORKFLOW_KEYS = ("from", "id", "type")
 
 
-def _unknown_key(key: str, allowed, yaml_path: str, where: str, workflow_id=None) -> Diagnostic:
+def _unknown_key(key: str, allowed, yaml_path: str, workflow_id=None) -> Diagnostic:
     close = difflib.get_close_matches(str(key), list(allowed), n=1, cutoff=0.6)
     hint = f" Did you mean '{close[0]}'?" if close else ""
     return Diagnostic(
         workflow_id=workflow_id,
         field=str(key),
         yaml_path=yaml_path,
-        message=f"Unknown key '{key}' {where}.{hint}",
+        message=f"Unknown key.{hint}",
         severity=Severity.ERROR,
     )
 
@@ -90,22 +90,16 @@ def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
     """Errors for keys the config format doesn't know: at the top level, in
     `globals`, and in each workflow entry. (Unknown keys in `inputs` entries
     are reported when they are parsed.)"""
-    diagnostics = [
-        _unknown_key(key, TOP_LEVEL_KEYS, str(key), "at the top level") for key in data if key not in TOP_LEVEL_KEYS
-    ]
+    diagnostics = [_unknown_key(key, TOP_LEVEL_KEYS, str(key)) for key in data if key not in TOP_LEVEL_KEYS]
     globals_ = data.get("globals")
     if isinstance(globals_, dict):
         global_keys = list(GlobalOptions.model_fields)
-        diagnostics += [
-            _unknown_key(key, global_keys, f"globals.{key}", "in globals") for key in globals_ if key not in global_keys
-        ]
+        diagnostics += [_unknown_key(key, global_keys, f"globals.{key}") for key in globals_ if key not in global_keys]
     for wf_id, item in _workflow_items(data):
         model = NfModule if item.get("type") == WorkflowType.NF_MODULE else NfPipeline
         allowed = [*model.model_fields, *_EXTRA_WORKFLOW_KEYS]
         diagnostics += [
-            _unknown_key(key, allowed, f"workflows.{wf_id}.{key}", f"in workflow '{wf_id}'", wf_id)
-            for key in item
-            if key not in allowed
+            _unknown_key(key, allowed, f"workflows.{wf_id}.{key}", wf_id) for key in item if key not in allowed
         ]
     return diagnostics
 

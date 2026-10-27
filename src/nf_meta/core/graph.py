@@ -364,29 +364,26 @@ class MetaworkflowGraph:
                 owners.setdefault(b, set()).add(name)
         for b, names in sorted(owners.items()):
             if len(names) > 1:
+                in_graph = b.step_id in self.G
                 add(
-                    f"Param '{b}' is bound to more than one input: {', '.join(sorted(names))}",
-                    wf_id=b.step_id if b.step_id in self.G else None,
+                    f"{'' if in_graph else f'{b} is '}bound to more than one input: {', '.join(sorted(names))}",
+                    wf_id=b.step_id if in_graph else None,
                     name=sorted(names)[0],
                     param=b.param,
                 )
 
         for name, definition in self.inputs.items():
             if not bindings.get(name):
-                add(f"Input '{name}' is not used by any step", name=name, severity=Severity.WARNING)
+                add("not used by any step", name=name, severity=Severity.WARNING)
             for b in definition.bindings:
                 wf = self.get_workflow_by_id(b.step_id)
                 if wf is None:
-                    add(
-                        f"Input '{name}' is bound to '{b}', but there is no step '{b.step_id}'",
-                        name=name,
-                        param=b.param,
-                    )
+                    add(f"bound to '{b}', but there is no step '{b.step_id}'", name=name, param=b.param)
                     continue
                 value = (wf.params or {}).get(b.param)
                 if value is not None and value != f"${{inputs:{name}}}":
                     add(
-                        f"Param '{b}' has its own value but is bound to input '{name}'; the input's value is used",
+                        f"has its own value but is bound to input '{name}'; the input's value is used",
                         wf_id=b.step_id,
                         param=b.param,
                         severity=Severity.WARNING,

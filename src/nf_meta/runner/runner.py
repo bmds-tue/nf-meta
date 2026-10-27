@@ -37,18 +37,20 @@ def _check_start_target(g: MetaworkflowGraph, run_options: RunOptions) -> None:
 
 def plan_metapipeline(
     g: MetaworkflowGraph,
-    run_options: RunOptions = RunOptions(),
+    run_options: RunOptions | None = None,
 ) -> list[PlannedStep]:
-    """Return the steps `run_metapipeline` would execute with these options,
-    without running anything."""
+    """Return the steps `run_metapipeline` would execute with these options
+    (default: `RunOptions()`), without running anything."""
+    run_options = run_options or RunOptions()
     _check_start_target(g, run_options)
     return _make_runner(run_options).plan(g, resume=run_options.resume)
 
 
 def run_metapipeline(
     g: MetaworkflowGraph,
-    run_options: RunOptions = RunOptions(),
+    run_options: RunOptions | None = None,
 ) -> None:
+    run_options = run_options or RunOptions()
     logger.info("Started runner")
     _check_start_target(g, run_options)
     runner = _make_runner(run_options)

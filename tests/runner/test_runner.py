@@ -49,3 +49,16 @@ class TestRunMetapipeline:
     def test_unknown_runner_raises(self, graph):
         with pytest.raises(NfMetaRunnerError, match="Unknown runner"):
             run_metapipeline(graph, RunOptions(runner_name="not-a-runner"))
+
+
+def test_default_run_options_not_shared(graph, monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        "nf_meta.runner.python_runner.SimplePythonRunner.plan",
+        lambda self, g, resume=False: seen.append(self.run_options) or [],
+    )
+    from nf_meta.runner.runner import plan_metapipeline
+
+    plan_metapipeline(graph)
+    plan_metapipeline(graph)
+    assert seen[0] is not seen[1]

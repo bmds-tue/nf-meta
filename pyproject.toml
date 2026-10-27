@@ -102,5 +102,9 @@ ignore = ["PTH123", "PIE790"]
 [tool.ruff.lint.isort]
 known-first-party = ["nf_meta"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares request bodies with Body(...) defaults; they are not shared mutable state
+extend-immutable-calls = ["fastapi.Body"]
+
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401"]

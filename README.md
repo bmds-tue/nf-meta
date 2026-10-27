@@ -5,7 +5,7 @@ and module runs — with an interactive browser-based editor and a CLI validator
 
 **This is a beta version: things can be unstable and change.**
 
-📖 **[Documentation](https://bmds-tue.github.io/nf-meta/)** — installation, quickstart, the
+📖 **[Documentation](https://bmds-tue.github.io/nf-meta/latest/)** — installation, quickstart, the
 full config reference, and the API reference.
 
 Find a growing collection of examples in the dedicated

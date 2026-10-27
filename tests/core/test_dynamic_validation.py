@@ -8,6 +8,8 @@ NfPipeline/NfModule construction never hits the network. Individual tests
 override those same targets per-test to exercise specific check branches.
 """
 
+import pytest
+
 from nf_meta.core.dynamic_validation import (
     check_all,
     check_module_params_schema,
@@ -357,3 +359,85 @@ class TestCheckAll:
         assert diagnostics
         for d in diagnostics:
             assert d.yaml_path == f"workflows.{d.workflow_id}.{d.field}"
+
+
+# ---------------------------------------------------------------------------
+# Schema errors: one contract for pipelines and modules
+# ---------------------------------------------------------------------------
+
+
+class TestModuleSchemaErrors:
+    @pytest.fixture(autouse=True)
+    def real_get_module_schema(self, monkeypatch):
+        from nf_meta.core import nf_core_utils
+
+        nf_core_utils.get_module_schema.cache_clear()
+        monkeypatch.setattr("nf_meta.core.cache.read_schema_cache", lambda *a: None)
+        monkeypatch.setattr("nf_meta.core.cache.write_schema_cache", lambda *a: None)
+        yield nf_core_utils.get_module_schema
+        nf_core_utils.get_module_schema.cache_clear()
+
+    def _response(self, status=200, text=""):
+        from unittest.mock import MagicMock
+
+        return MagicMock(status_code=status, text=text, headers={})
+
+    def test_version_without_sha_raises(self, real_get_module_schema):
+        from nf_meta.core.nf_core_utils import ModuleSchemaError
+
+        with pytest.raises(ModuleSchemaError, match="No commit SHA"):
+            real_get_module_schema("nf-core/fastqc", "1.0.0")
+
+    def test_http_error_raises(self, real_get_module_schema, monkeypatch):
+        from nf_meta.core.nf_core_utils import ModuleSchemaError
+
+        monkeypatch.setattr("nf_meta.core.nf_core_utils.requests.get", lambda *a, **k: self._response(404))
+        with pytest.raises(ModuleSchemaError, match="HTTP 404"):
+            real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a")
+
+    def test_bad_yaml_raises(self, real_get_module_schema, monkeypatch):
+        from nf_meta.core.nf_core_utils import ModuleSchemaError, SchemaUnavailableError
+
+        monkeypatch.setattr(
+            "nf_meta.core.nf_core_utils.requests.get", lambda *a, **k: self._response(200, "input: [unclosed")
+        )
+        with pytest.raises(ModuleSchemaError) as exc:
+            real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a")
+        assert isinstance(exc.value, SchemaUnavailableError)
+
+    def test_module_without_inputs_is_empty_schema(self, real_get_module_schema, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.nf_core_utils.requests.get", lambda *a, **k: self._response(200, "name: x\n"))
+        assert real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a") == {}
+
+
+def test_module_schema_error_becomes_warning(monkeypatch, module_fastqc):
+    from nf_meta.core.nf_core_utils import ModuleSchemaError
+
+    def fail(name, version):
+        raise ModuleSchemaError("offline")
+
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_module_schema", fail)
+    diags = check_module_params_schema(module_fastqc)
+    assert [(d.severity, d.field) for d in diags] == [(Severity.WARNING, "params")]
+    assert "offline" in diags[0].message
+
+
+def test_workflow_schema_is_none_when_unavailable(monkeypatch, wf_rnaseq):
+    from nf_meta.core.dynamic_validation import workflow_schema
+
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_pipeline_schema",
+        lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("down")),
+    )
+    assert workflow_schema(wf_rnaseq) is None
+
+
+def test_workflow_schema_lets_bugs_through(monkeypatch, wf_rnaseq):
+    from nf_meta.core.dynamic_validation import workflow_schema
+
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_pipeline_schema",
+        lambda url, version: (_ for _ in ()).throw(TypeError("bug")),
+    )
+    with pytest.raises(TypeError):
+        workflow_schema(wf_rnaseq)

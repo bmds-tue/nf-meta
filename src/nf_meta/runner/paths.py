@@ -3,8 +3,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from nf_meta.core.models import NfModule, NfPipeline, Workflow
-from nf_meta.core.nf_core_utils import get_module_schema, get_pipeline_schema
+from nf_meta.core.models import Workflow
+from nf_meta.core.dynamic_validation import workflow_schema
 
 PATH_FORMATS = frozenset({"file-path", "directory-path", "path", "file-path-pattern"})
 # nf-core module meta.yml input types that denote files
@@ -21,14 +21,7 @@ def is_url(value: str) -> bool:
 def param_schema(wf: Workflow) -> dict[str, dict]:
     """Return the flat param schema of `wf`'s pipeline or module, or `{}`
     when none can be fetched."""
-    try:
-        if isinstance(wf, NfPipeline) and wf.url:
-            return get_pipeline_schema(wf.url, wf.version)
-        if isinstance(wf, NfModule):
-            return get_module_schema(wf.name, wf.version) or {}
-    except Exception:
-        pass
-    return {}
+    return workflow_schema(wf) or {}
 
 
 def declared_path(spec: dict | None) -> bool:

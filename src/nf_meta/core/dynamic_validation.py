@@ -23,6 +23,7 @@ from .inputs import Binding, Input, InputDefinition, effective_input
 from .models import NfModule, NfPipeline, Workflow
 from .nf_core_utils import (
     PipelineSchemaError,
+    SchemaUnavailableError,
     get_module_schema,
     get_nfcore_module_releases,
     get_pipeline_schema,
@@ -197,7 +198,17 @@ def check_module_params_schema(wf: NfModule) -> list[Diagnostic]:
     if not name or not version:
         return []
 
-    schema = get_module_schema(name, version)
+    try:
+        schema = get_module_schema(name, version)
+    except SchemaUnavailableError as e:
+        return [
+            Diagnostic(
+                workflow_id=node_id,
+                field="params",
+                message=f"Cannot validate params for '{name}': {e}",
+                severity=Severity.WARNING,
+            )
+        ]
     if not schema:
         return []
 
@@ -365,14 +376,15 @@ def log_warnings(diagnostics: Iterable[Diagnostic]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _param_schema(wf: Workflow) -> dict[str, dict] | None:
-    """`wf`'s flat param schema, or `None` if it can't be fetched."""
+def workflow_schema(wf: Workflow) -> dict[str, dict] | None:
+    """`wf`'s flat param schema (see `get_pipeline_schema` /
+    `get_module_schema`), or `None` if it can't be fetched."""
     try:
         if isinstance(wf, NfPipeline) and wf.url:
             return get_pipeline_schema(wf.url, wf.version)
         if isinstance(wf, NfModule):
-            return get_module_schema(wf.name, wf.version) or None
-    except Exception:
+            return get_module_schema(wf.name, wf.version)
+    except SchemaUnavailableError:
         return None
     return None
 
@@ -397,7 +409,7 @@ def check_inputs(
         workflows: The graph's workflows by id.
         project_dir: Where relative default paths are looked up.
     """
-    schemas = {wf_id: _param_schema(wf) for wf_id, wf in workflows.items()}
+    schemas = {wf_id: workflow_schema(wf) for wf_id, wf in workflows.items()}
     inputs: dict[str, Input] = {}
     diagnostics: list[Diagnostic] = []
     for name, definition in definitions.items():

@@ -101,11 +101,6 @@ def mock_nfcore(monkeypatch):
         "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
         lambda name: [],
     )
-    monkeypatch.setattr(
-        "nf_meta.runner.paths.get_pipeline_schema",
-        lambda url, version: FAKE_PIPELINE_SCHEMA,
-    )
-    monkeypatch.setattr("nf_meta.runner.paths.get_module_schema", lambda name, version: {})
 
 
 # ---------------------------------------------------------------------------

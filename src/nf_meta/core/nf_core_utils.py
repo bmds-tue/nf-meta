@@ -3,7 +3,6 @@ import logging
 import os
 import re
 
-import click
 import requests
 import yaml
 
@@ -182,6 +181,14 @@ def _extract_module_sha(version: str) -> str | None:
     return match.group(1) if match else None
 
 
+class SchemaUnavailableError(Exception):
+    """A pipeline's or module's param schema can't be fetched or parsed."""
+
+
+class ModuleSchemaError(SchemaUnavailableError):
+    """Raised when a module's meta.yml cannot be fetched or parsed."""
+
+
 def _parse_module_schema(meta_yml: dict) -> dict[str, dict]:
     """
     Convert a parsed meta.yml into a flat {param_name: spec} dict.
@@ -217,27 +224,20 @@ def get_module_schema(name: str, version: str) -> dict[str, dict]:
     """
     Fetch and parse ``meta.yml`` for the nf-core module ``name`` at ``version``.
 
-    The version string is inspected for an embedded commit SHA (e.g.
-    ``0.0.0-6c4ed3a`` → ``6c4ed3a``). SHA-pinned fetches are cached on disk.
-    When no SHA is extractable, ``master`` is used with a warning and the
-    result is NOT cached to disk (master is mutable). Returns ``{}`` on any
-    fetch or parse failure after emitting a yellow warning.
+    The version string must contain a commit SHA (e.g. ``0.0.0-6c4ed3a`` →
+    ``6c4ed3a``); results are cached on disk. Returns ``{}`` for a module
+    that declares no inputs. Raises ``ModuleSchemaError`` if the schema
+    cannot be fetched or parsed.
     """
     from nf_meta.core.cache import read_schema_cache, write_schema_cache
 
     sha = _extract_module_sha(version)
-    ref = sha if sha else "master"
-    cache_key = f"module:{name}@{ref}"
-
     if not sha:
-        click.echo(
-            click.style(
-                f"Warning: no commit SHA found in module version '{version}' for '{name}'. Cannot fetch module schema",
-                fg="yellow",
-            )
+        raise ModuleSchemaError(
+            f"No commit SHA in module version '{version}' for '{name}' (e.g. '0.0.0-6c4ed3a'); cannot fetch its meta.yml"
         )
-        return {}
 
+    cache_key = f"module:{name}@{sha}"
     cached = read_schema_cache(cache_key, "")
     if cached is not None:
         return cached
@@ -245,56 +245,32 @@ def get_module_schema(name: str, version: str) -> dict[str, dict]:
     # nf-core uses "_" as a path separator in short names (e.g. "nf-core/samtools_sort"),
     # but the GitHub repo stores submodules as nested directories ("samtools/sort").
     path = _NFCORE_MODULES_META_PATH.format(name=name.replace("_", "/"))
-    url = f"{_MODULES_RAW_BASE}/{ref}/{path}"
+    url = f"{_MODULES_RAW_BASE}/{sha}/{path}"
     auth_headers = _get_auth_headers("github.com")
 
     try:
         response = requests.get(url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
     except requests.exceptions.RequestException as e:
-        click.echo(
-            click.style(
-                f"Warning: cannot fetch meta.yml for '{name}@{version}': {e}",
-                fg="yellow",
-            )
-        )
-        return {}
+        raise ModuleSchemaError(f"Cannot fetch meta.yml for '{name}@{version}': {e}") from e
 
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After", "unknown")
-        click.echo(
-            click.style(
-                f"Warning: rate-limited fetching meta.yml for '{name}@{version}'. "
-                f"Retry-After: {retry_after}. Set GITHUB_TOKEN to increase the rate limit.",
-                fg="yellow",
-            )
+        raise ModuleSchemaError(
+            f"Rate-limited fetching meta.yml for '{name}@{version}'. "
+            f"Retry-After: {retry_after}. Set GITHUB_TOKEN to increase the rate limit."
         )
-        return {}
 
     if response.status_code != 200:
-        click.echo(
-            click.style(
-                f"Warning: cannot fetch meta.yml for '{name}@{version}' "
-                f"(HTTP {response.status_code}) — skipping param validation.",
-                fg="yellow",
-            )
-        )
-        return {}
+        raise ModuleSchemaError(f"Cannot fetch meta.yml for '{name}@{version}' (HTTP {response.status_code})")
 
     try:
         meta_yml = yaml.safe_load(response.text)
-    except Exception as e:
-        click.echo(
-            click.style(
-                f"Warning: failed to parse meta.yml for '{name}@{version}': {e}",
-                fg="yellow",
-            )
-        )
-        return {}
+    except yaml.YAMLError as e:
+        raise ModuleSchemaError(f"Failed to parse meta.yml for '{name}@{version}': {e}") from e
 
     schema = _parse_module_schema(meta_yml or {})
 
-    if sha:
-        write_schema_cache(cache_key, "", schema)
+    write_schema_cache(cache_key, "", schema)
 
     return schema
 
@@ -328,7 +304,7 @@ def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-class PipelineSchemaError(Exception):
+class PipelineSchemaError(SchemaUnavailableError):
     """Raised when nextflow_schema.json cannot be fetched or parsed."""
 
 

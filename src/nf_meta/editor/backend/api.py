@@ -20,6 +20,7 @@ from nf_meta.core.events import (
 )
 from nf_meta.core.models import GlobalOptions, Transition, Workflow
 from nf_meta.core.nf_core_utils import (
+    ModuleSchemaError,
     PipelineSchemaError,
     get_module_schema,
     get_nfcore_module_releases,
@@ -215,18 +216,10 @@ def get_nfcore_module_schema(name: str, version: str):
     Returns a flat ``{param_name: spec}`` dict with ``type``, ``required``,
     ``enum``, and ``pattern`` fields per parameter.
     """
-    schema = get_module_schema(f"nf-core/{name}", version)
-    if not schema:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "detail": (
-                    f"No schema available for module '{name}' at version '{version}'. "
-                    "Ensure the version contains a commit SHA (e.g. '0.0.0-6c4ed3a')."
-                )
-            },
-        )
-    return schema
+    try:
+        return get_module_schema(f"nf-core/{name}", version)
+    except ModuleSchemaError as exc:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
 @api_router.get("/nfcore/pipelines/schema/")

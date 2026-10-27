@@ -60,11 +60,7 @@ SCHEMA = {
 
 @pytest.fixture(autouse=True)
 def schema(monkeypatch):
-    for target in (
-        "nf_meta.core.dynamic_validation.get_pipeline_schema",
-        "nf_meta.runner.paths.get_pipeline_schema",
-    ):
-        monkeypatch.setattr(target, lambda url, version: SCHEMA)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: SCHEMA)
 
 
 def pipeline(wf_id="n01", **params):

@@ -346,3 +346,23 @@ class TestRunInputs:
         result = self._invoke(tmp_path, monkeypatch, "--input", "genome")
         assert result.exit_code == 2
         assert "expected NAME=VALUE" in result.output
+
+
+class TestScopeHint:
+    def test_whole_config_with_workflow_scope_warns(self, tmp_path):
+        path = _write(tmp_path, "config_version: 0.3.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n")
+        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        assert result.exit_code == 1
+        assert "Validation failed in" in result.output
+        assert "Warning  2:1  workflows  This looks like a whole config, not a single workflow snippet" in result.output
+
+    def test_whole_config_with_globals_scope_warns(self, tmp_path):
+        path = _write(tmp_path, "config_version: 0.3.0\nworkflows: {}\n")
+        result = CliRunner().invoke(cli, ["validate", "--scope", "globals", str(path)])
+        assert "use --scope config" in result.output
+
+    def test_snippet_gets_no_hint(self, tmp_path):
+        path = _write(tmp_path, "name: nf-core/rnaseq\nversion: 3.14.0\n")
+        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        assert result.exit_code == 0
+        assert "whole config" not in result.output

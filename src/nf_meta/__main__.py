@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 
@@ -30,14 +31,14 @@ def _echo_warnings(warnings, config) -> int:
     return len(warnings)
 
 
-def _echo_valid(what: str, n_warnings: int) -> None:
+def _echo_valid(what: str, n_warnings: int, verb: str = "is") -> None:
     from nf_meta.core.errors import WARNING_COLOR
 
     if n_warnings:
         plural = "" if n_warnings == 1 else "s"
-        click.echo(click.style(f"✓ {what} is valid with {n_warnings} warning{plural}", fg=WARNING_COLOR))
+        click.echo(click.style(f"✓ {what} {verb} valid with {n_warnings} warning{plural}", fg=WARNING_COLOR))
     else:
-        click.echo(click.style(f"✓ {what} is valid", fg="green"))
+        click.echo(click.style(f"✓ {what} {verb} valid", fg="green"))
 
 
 def handle_validation_errors(func):
@@ -146,14 +147,55 @@ def validate_config(config, verbose, scope):
     elif scope == "workflow":
         from nf_meta.core.config import validated_workflow_from_file
 
-        warnings: list = []
-        validated_workflow_from_file(config, warnings)
+        warnings = _whole_config_warning(config, scope)
+        with _with_warnings(warnings):
+            validated_workflow_from_file(config, warnings)
         _echo_valid("Workflow", _echo_warnings(warnings, config))
     else:
         from nf_meta.core.config import validated_globals_from_file
 
-        validated_globals_from_file(config)
-        click.echo(click.style("✓ Global options are valid", fg="green"))
+        warnings = _whole_config_warning(config, scope)
+        with _with_warnings(warnings):
+            validated_globals_from_file(config)
+        _echo_valid("Global options", _echo_warnings(warnings, config), verb="are")
+
+
+def _whole_config_warning(config, scope: str) -> list:
+    """A warning when a snippet passed with --scope workflow/globals is
+    actually a whole config."""
+    import yaml
+
+    from nf_meta.core.errors import Diagnostic, Severity
+
+    try:
+        data = yaml.safe_load(Path(config).read_text())
+    except (OSError, yaml.YAMLError):
+        return []
+    if not isinstance(data, dict) or not {"workflows", "config_version"} & set(data):
+        return []
+    key = "workflows" if "workflows" in data else "config_version"
+    return [
+        Diagnostic(
+            workflow_id=None,
+            field=key,
+            yaml_path=key,
+            message=f"This looks like a whole config, not a single {scope} snippet; use --scope config.",
+            severity=Severity.WARNING,
+        )
+    ]
+
+
+@contextmanager
+def _with_warnings(warnings: list):
+    """Attach `warnings` to a validation error raised inside the block, so
+    they're shown with it."""
+    try:
+        yield
+    except ConfigValidationError as e:
+        e.warnings = [*warnings, *e.warnings]
+        raise
+    except GraphValidationError as e:
+        raise ConfigValidationError(errors=[], graph_messages=[str(e)], warnings=warnings) from e
 
 
 @click.command("run")

@@ -168,26 +168,25 @@ class Input:
         path = Path(value)
         if not path.is_absolute() and project_dir is not None:
             path = project_dir / path
-        return None if path.exists() else f"Input '{self.name}': '{value}' does not exist"
+        return None if path.exists() else "does not exist"
 
     def validate(self, value: Any, *, project_dir: Path | None = None, check_exists: bool = True) -> list[str]:
-        """Return why `value` is not acceptable for this input (empty if it is).
-        With `check_exists`, a path that must exist is looked up (relative
-        paths in `project_dir`)."""
-        problems: list[str] = []
+        """Return why `value` is not acceptable for this input, as short
+        reasons such as "must match …" (empty if it is acceptable). With
+        `check_exists`, a path that must exist is looked up (relative paths in
+        `project_dir`)."""
         expected = self.schema.get("type")
-        if expected:
-            error = _check_type(self.name, value, expected)
-            if error:
-                return [error.replace("Parameter", "Input", 1)]
+        if expected and _check_type(self.name, value, expected):
+            return [f"not a valid {expected}"]
 
+        problems: list[str] = []
         enum = self.schema.get("enum")
         if enum is not None and str(value) not in [str(e) for e in enum]:
-            problems.append(f"Input '{self.name}' = {value!r} is not one of {list(enum)}")
+            problems.append(f"must be one of {', '.join(str(e) for e in enum)}")
 
         pattern = self.schema.get("pattern")
         if pattern and isinstance(value, str) and not re.search(pattern, value):
-            problems.append(f"Input '{self.name}' = {value!r} does not match '{pattern}'")
+            problems.append(f"must match {pattern}")
 
         for bound, op, ok in (
             ("minimum", ">=", lambda v, b: v >= b),
@@ -200,12 +199,16 @@ class Input:
                 and not isinstance(value, bool)
                 and not ok(value, limit)
             ):
-                problems.append(f"Input '{self.name}' = {value!r} must be {op} {limit}")
+                problems.append(f"must be {op} {limit}")
 
         missing = self.missing_path(value, project_dir) if check_exists else None
         if missing:
             problems.append(missing)
         return problems
+
+    def describe_problems(self, value: Any, problems: list[str]) -> str:
+        """One line naming this input, the value and why it's not acceptable."""
+        return f"{self.name} = {value!r}: {'; '.join(problems)}"
 
 
 def effective_input(
@@ -246,8 +249,7 @@ def effective_input(
             if key in keywords and key in inherited and keywords[key] != inherited[key]:
                 problem(
                     "bind",
-                    f"Input '{name}' is bound to params with conflicting {key}s: "
-                    f"'{inherited[key]}' and '{keywords[key]}' ({binding})",
+                    f"bound params have conflicting {key}s: '{inherited[key]}' and '{keywords[key]}' ({binding})",
                 )
         for key, value in keywords.items():
             inherited.setdefault(key, value)
@@ -259,16 +261,12 @@ def effective_input(
         if key in own and key in inherited and own[key] != inherited[key]:
             problem(
                 key,
-                f"Input '{name}' declares {key} '{own[key]}' but the bound param's schema says '{inherited[key]}'",
+                f"declared {key} '{own[key]}', but the bound param's schema says '{inherited[key]}'",
             )
 
     schema = {**inherited, **own}
     if "type" not in schema:
-        problem(
-            "type",
-            f"Input '{name}' has no known type; assuming 'string'",
-            Severity.WARNING,
-        )
+        problem("type", "no known type; assuming 'string'", Severity.WARNING)
         schema["type"] = "string"
 
     default = definition.default if definition.default is not None else inherited_default
@@ -280,11 +278,12 @@ def effective_input(
         bindings=bindings,
     )
     if definition.default is not None:
-        for message in result.validate(definition.default, check_exists=False):
-            problem("default", message)
+        problems = result.validate(definition.default, check_exists=False)
+        if problems:
+            problem("default", f"{definition.default!r}: {'; '.join(problems)}")
         missing = result.missing_path(definition.default, project_dir)
         if missing:
-            problem("default", missing, Severity.WARNING)
+            problem("default", f"{definition.default!r}: {missing}", Severity.WARNING)
     return result, diagnostics
 
 

@@ -1,6 +1,7 @@
 """Collecting the values a run needs before any step starts: declared inputs,
 and references to steps outside the selected range (`--start`/`--target`)."""
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -125,6 +126,7 @@ def collect(
         raise NfMetaRunnerError(f"Unknown input(s): {', '.join(unknown)}. This run takes: {known}.")
     if mode == InputMode.REPRODUCE and given:
         raise NfMetaRunnerError("Input mode 'reproduce' uses the recorded values; values can't be given.")
+    _reject_packed_values(given, set(by_name))
 
     given_dir = given_dir or Path.cwd()
     result = Collected()
@@ -132,13 +134,17 @@ def collect(
     for request in requests:
         inp = request.input
         if request.name in given:
-            value = _absolute(inp, coerce(inp, given[request.name]), given_dir)
-            problems += inp.validate(value)
+            typed = coerce(inp, given[request.name])
+            found = inp.validate(typed, project_dir=given_dir)
+            if found:
+                problems.append(inp.describe_problems(typed, found))
+            value = _absolute(inp, typed, given_dir)
         elif request.fallback is not None:
             value = request.fallback
             # Cached reference values point into the out dir; only check inputs
-            if not request.is_reference:
-                problems += inp.validate(value, project_dir=project_dir)
+            found = [] if request.is_reference else inp.validate(value, project_dir=project_dir)
+            if found:
+                problems.append(inp.describe_problems(value, found))
         elif mode == InputMode.PROMPT and prompter is not None:
             value = _prompt(inp, prompter, given_dir)
         elif dry_run:
@@ -166,11 +172,24 @@ def _absolute(inp: Input, value: Any, base: Path) -> Any:
 def _prompt(inp: Input, prompter: Prompter, given_dir: Path) -> Any:
     problem = None
     while True:
-        value = _absolute(inp, coerce(inp, prompter(inp, problem)), given_dir)
-        found = inp.validate(value)
+        typed = coerce(inp, prompter(inp, problem))
+        found = inp.validate(typed, project_dir=given_dir)
         if not found:
-            return value
-        problem = "; ".join(found)
+            return _absolute(inp, typed, given_dir)
+        problem = f"{typed!r}: {'; '.join(found)}"
+
+
+def _reject_packed_values(given: dict[str, Any], names: set[str]) -> None:
+    """Catch `--input a=1,b=2`: one value that contains another `name=`."""
+    for name, value in given.items():
+        if not isinstance(value, str):
+            continue
+        packed = [m for m in re.findall(r",\s*([^,=\s]+)=", value) if m in names]
+        if packed:
+            raise NfMetaRunnerError(
+                f"The value given for '{name}' contains '{packed[0]}=': pass --input once per value, "
+                f"e.g. --input {name}=... --input {packed[0]}=..."
+            )
 
 
 def _missing_message(missing: list[Request], mode: InputMode) -> str:

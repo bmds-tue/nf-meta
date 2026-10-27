@@ -87,7 +87,7 @@ def test_missing_value_is_an_error(project):
 
 def test_default_that_must_exist_is_checked(project):
     path = config(project, {"ids": {"bind": ["n01.input"], "default": "nope.csv"}}, {})
-    with pytest.raises(NfMetaRunnerError, match="nope.csv' does not exist"):
+    with pytest.raises(NfMetaRunnerError, match="nope.csv': does not exist"):
         plan(path)
 
 

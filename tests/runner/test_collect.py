@@ -46,7 +46,7 @@ def test_prompt_mode_asks_and_reasks_until_valid():
 
     got = collect([Request(inp("g", enum=["A", "B"]))], {}, InputMode.PROMPT, prompter=prompter)
     assert got.values == {"g": "B"}
-    assert problems[0] is None and "not one of" in problems[1]
+    assert problems == [None, "'x': must be one of A, B"]
 
 
 def test_prompt_mode_asks_even_in_a_dry_run():
@@ -85,8 +85,8 @@ def test_invalid_values_reported_together():
     requests = [Request(inp("n", type="integer")), Request(inp("g", enum=["A"]))]
     with pytest.raises(NfMetaRunnerError) as exc:
         collect(requests, {"n": "x", "g": "B"}, InputMode.FAIL)
-    assert "not a valid integer" in exc.value.message
-    assert "not one of" in exc.value.message
+    assert "n = 'x': not a valid integer" in exc.value.message
+    assert "g = 'B': must be one of A" in exc.value.message
 
 
 def test_given_relative_path_is_relative_to_the_current_dir(tmp_path):
@@ -114,3 +114,21 @@ def test_cached_reference_values_are_not_path_checked():
 )
 def test_coerce(type_, raw, expected):
     assert coerce(inp("v", type=type_), raw) == expected
+
+
+def test_value_checked_as_typed_then_made_absolute(tmp_path):
+    request = Request(inp("ids", format="file-path", pattern=r"\.csv$", exists=True))
+    with pytest.raises(NfMetaRunnerError) as exc:
+        collect([request], {"ids": "bar"}, InputMode.FAIL, given_dir=tmp_path)
+    assert exc.value.message.splitlines()[1] == "  ids = 'bar': must match \\.csv$; does not exist"
+
+
+def test_several_values_in_one_input_rejected():
+    requests = [Request(inp("a")), Request(inp("b"))]
+    with pytest.raises(NfMetaRunnerError, match="pass --input once per value"):
+        collect(requests, {"a": "x,b=y"}, InputMode.FAIL)
+
+
+def test_commas_in_a_value_are_fine():
+    got = collect([Request(inp("cols"))], {"cols": "sample,condition"}, InputMode.FAIL)
+    assert got.values == {"cols": "sample,condition"}

@@ -118,7 +118,7 @@ def resolve_references(
 
 def build_step_spec(
     wf: Workflow,
-    globals: GlobalOptions | None,
+    global_options: GlobalOptions | None,
     *,
     state_dir: Path,
     launch_dir: Path,
@@ -143,24 +143,24 @@ def build_step_spec(
     """
     params_file = getattr(wf, "params_file", None)
     params: dict[str, Any] = dict(load_params_file(params_file)) if params_file else {}
-    if globals and globals.params:
-        params.update(globals.params)
+    if global_options and global_options.params:
+        params.update(global_options.params)
     if project_dir is not None:
         params = absolutize_input_paths(params, project_dir, schema)
     params.update(wf.params or {})
 
     profile = getattr(wf, "profile", None)
     profiles: list[str] = []
-    if globals and globals.profile and not profile:
-        profiles.append(globals.profile)
+    if global_options and global_options.profile and not profile:
+        profiles.append(global_options.profile)
     if profile:
         profiles.append(profile)
     if extra_profile:
         profiles.append(extra_profile)
 
     config_files: list[Path] = []
-    if globals and globals.config_file:
-        global_cfg = Path(globals.config_file)
+    if global_options and global_options.config_file:
+        global_cfg = Path(global_options.config_file)
         if not global_cfg.exists():
             raise NfMetaRunnerError(f"Global config file does not exist: {global_cfg}")
         config_files.append(global_cfg)

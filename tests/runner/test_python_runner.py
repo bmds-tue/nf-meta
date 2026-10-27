@@ -173,11 +173,11 @@ class TestValidateCrossBoundaryRefs:
 
 
 class TestExecute:
-    def _step(self, runner, wf, globals=None):
+    def _step(self, runner, wf, global_options=None):
         g = MetaworkflowGraph()
         g.add_workflow(wf)
-        if globals is not None:
-            g.global_options = globals
+        if global_options is not None:
+            g.global_options = global_options
         g.pop_events()
         return runner.plan(g)[0]
 

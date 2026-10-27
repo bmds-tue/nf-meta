@@ -102,8 +102,8 @@ def redo_most_recent():
 
 
 @api_router.post("/globals/update/")
-def update_global_config(globals: GlobalOptions):
-    events = SESSION.handle_command(UpdateGlobalOptions(globals))
+def update_global_config(global_options: GlobalOptions):
+    events = SESSION.handle_command(UpdateGlobalOptions(global_options))
     return JSONResponse({"events": serialize_events(events)})
 
 
@@ -119,7 +119,7 @@ def validate_node(wf: Workflow):
 
 
 @api_router.post("/globals/validate/")
-def validate_globals(globals: GlobalOptions):
+def validate_globals(global_options: GlobalOptions):
     """Validate the globals block in isolation -- same body shape as
     `/globals/update/`, but non-mutating. Globals have no tier-2 checks, so a
     body that parses into GlobalOptions is already fully valid."""

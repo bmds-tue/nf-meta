@@ -566,10 +566,10 @@ class MetaworkflowGraph:
     # ===========================
     #        UTILITIES
     # ===========================
-    def get_workflow_by_id(self, id: str) -> Workflow | None:
+    def get_workflow_by_id(self, wf_id: str) -> Workflow | None:
         """Return the workflow with this id, or `None` if it doesn't exist."""
         try:
-            return self.G.nodes[id].get("workflow")
+            return self.G.nodes[wf_id].get("workflow")
         except KeyError:
             return None
 

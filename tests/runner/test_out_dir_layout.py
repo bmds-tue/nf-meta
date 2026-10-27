@@ -49,10 +49,10 @@ def project(tmp_path):
     return d
 
 
-def write_config(project, workflows: dict, globals: dict | None = None):
+def write_config(project, workflows: dict, global_options: dict | None = None):
     data = {"config_version": "0.3.0", "workflows": workflows}
-    if globals:
-        data["globals"] = globals
+    if global_options:
+        data["globals"] = global_options
     path = project / "metaconfig.yaml"
     path.write_text(yaml.safe_dump(data))
     return path
@@ -155,7 +155,7 @@ class TestInputPaths:
         (project / "params.yaml").write_text("contrasts: contrasts.csv\n")
         cfg = two_steps()
         cfg["n01"]["params_file"] = "params.yaml"
-        n01, _ = plan(write_config(project, cfg, globals={"params": {"extra": "ids.csv"}}))
+        n01, _ = plan(write_config(project, cfg, global_options={"params": {"extra": "ids.csv"}}))
         assert n01.command.params["contrasts"] == str(project / "contrasts.csv")
         assert n01.command.params["extra"] == str(project / "ids.csv")
 

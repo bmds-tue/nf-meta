@@ -92,7 +92,7 @@ class SimplePythonRunner(BaseRunner):
     def _step_key(
         self,
         wf: Workflow,
-        globals: GlobalOptions | None,
+        global_options: GlobalOptions | None,
         upstream_keys: list[str],
     ) -> str:
         """Hash of everything that defines a step's result: the resolved step,
@@ -102,8 +102,8 @@ class SimplePythonRunner(BaseRunner):
             "workflow": wf.hash(),
             "config_file": _file_digest(wf.config_file),
             "params_file": _file_digest(getattr(wf, "params_file", None)),
-            "globals": globals.model_dump(mode="json") if globals else None,
-            "globals_config": _file_digest(globals.config_file if globals else None),
+            "globals": global_options.model_dump(mode="json") if global_options else None,
+            "globals_config": _file_digest(global_options.config_file if global_options else None),
             "profile": self.run_options.nf_profile or "",
             "stub": self.run_options.stub,
             "upstream": sorted(upstream_keys),
@@ -227,8 +227,7 @@ class SimplePythonRunner(BaseRunner):
 
     def _hash_graph(self, graph: MetaworkflowGraph) -> str:
         config_str = str(dump_config(graph))
-        hash = hashlib.sha256(config_str.encode()).hexdigest()[:8]
-        return hash
+        return hashlib.sha256(config_str.encode()).hexdigest()[:8]
 
     def _selected_workflows(self, graph: MetaworkflowGraph) -> list[Workflow]:
         workflows = graph.get_workflows_sorted()
@@ -251,7 +250,7 @@ class SimplePythonRunner(BaseRunner):
         """
         self.out_dir = self._resolve_out_dir(graph)
         project_dir = graph.project_dir
-        globals = graph.global_options
+        global_options = graph.global_options
         workflows = self._selected_workflows(graph)
         subset_ids = {wf.id for wf in workflows}
         self._validate_cross_boundary_refs(graph, workflows, subset_ids)
@@ -284,13 +283,13 @@ class SimplePythonRunner(BaseRunner):
             resolved[wf.id] = wf_resolved.params or {}
 
             upstream = [keys[p.id] for p in graph.predecessors(wf) if p.id in keys]
-            key = self._step_key(wf_resolved, globals, upstream)
+            key = self._step_key(wf_resolved, global_options, upstream)
             keys[wf.id] = key
             state_dir = self._state_dir(wf, key)
 
             spec = build_step_spec(
                 wf_resolved,
-                globals,
+                global_options,
                 state_dir=state_dir,
                 launch_dir=self.out_dir,
                 work_dir=self.out_dir / "work",

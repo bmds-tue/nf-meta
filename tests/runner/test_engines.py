@@ -21,8 +21,8 @@ def state_dir(tmp_path):
 def build(state_dir, tmp_path):
     """Build a step's command the way the runner does."""
 
-    def _build(wf, globals=None, **kwargs) -> StepCommand:
-        spec = build_step_spec(wf, globals, state_dir=state_dir, launch_dir=tmp_path, **kwargs)
+    def _build(wf, global_options=None, **kwargs) -> StepCommand:
+        spec = build_step_spec(wf, global_options, state_dir=state_dir, launch_dir=tmp_path, **kwargs)
         return engine_for(spec.workflow_type).build(spec)
 
     return _build

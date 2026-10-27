@@ -56,7 +56,7 @@ def handle_request_validation(request: Request, exc: RequestValidationError):
         field_errors=[
             SessionCommandError.FieldError(
                 workflow_id=None,  # frontend infers from context
-                field=".".join(str(l) for l in err["loc"] if l != "body"),
+                field=".".join(str(part) for part in err["loc"] if part != "body"),
                 message=err["msg"],
             )
             for err in exc.errors()
@@ -80,13 +80,13 @@ def get_graph():
 @api_router.post("/graph/save/")
 def save_graph(config: Path = Body(embed=True)):
     SESSION.save_to_config(config)
-    return JSONResponse(dict())
+    return JSONResponse({})
 
 
 @api_router.post("/graph/load/")
 def load_graph(config: Path = Body(embed=True)):
     SESSION.load_config(config)
-    return JSONResponse(dict())
+    return JSONResponse({})
 
 
 @api_router.get("/graph/undo/")

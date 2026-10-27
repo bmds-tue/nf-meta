@@ -15,15 +15,12 @@ def _check_type(param_name: str, value: object, expected_type: str) -> str | Non
     but still rejected by nf-schema.
     """
     # bool is a subtype of int in Python, so it must be checked before int/float.
-    if expected_type == "boolean":
-        if not isinstance(value, bool):
-            return f"Parameter '{param_name}' = {value!r} is not a valid boolean"
-    elif expected_type == "integer":
-        if isinstance(value, bool) or not isinstance(value, int):
-            return f"Parameter '{param_name}' = {value!r} is not a valid integer"
-    elif expected_type in ("number", "float"):
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return f"Parameter '{param_name}' = {value!r} is not a valid number"
+    if expected_type == "boolean" and not isinstance(value, bool):
+        return f"Parameter '{param_name}' = {value!r} is not a valid boolean"
+    if expected_type == "integer" and (isinstance(value, bool) or not isinstance(value, int)):
+        return f"Parameter '{param_name}' = {value!r} is not a valid integer"
+    if expected_type in ("number", "float") and (isinstance(value, bool) or not isinstance(value, (int, float))):
+        return f"Parameter '{param_name}' = {value!r} is not a valid number"
     # string, array, object, path formats — no further check
     return None
 

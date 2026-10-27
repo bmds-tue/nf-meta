@@ -336,41 +336,51 @@ class TestGetPipelineSchema:
 
     def test_successful_fetch_and_parse(self):
         mock_resp = self._mock_response(200, json_data=SAMPLE_SCHEMA_JSON)
-        with patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with patch("nf_meta.core.cache.write_schema_cache") as mock_write:
-                    schema = get_pipeline_schema("https://github.com/my-org/my-pipeline", "1.0.0")
+        with (
+            patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            patch("nf_meta.core.cache.write_schema_cache") as mock_write,
+        ):
+            schema = get_pipeline_schema("https://github.com/my-org/my-pipeline", "1.0.0")
         assert "input" in schema
         assert mock_write.called
 
     def test_cache_hit_skips_http(self):
-        with patch("nf_meta.core.cache.read_schema_cache", return_value=PARSED_SCHEMA):
-            with patch("nf_meta.core.nf_core_utils.requests.get") as mock_get:
-                schema = get_pipeline_schema("https://github.com/my-org/pipeline", "2.0.0")
+        with (
+            patch("nf_meta.core.cache.read_schema_cache", return_value=PARSED_SCHEMA),
+            patch("nf_meta.core.nf_core_utils.requests.get") as mock_get,
+        ):
+            schema = get_pipeline_schema("https://github.com/my-org/pipeline", "2.0.0")
         mock_get.assert_not_called()
         assert schema == PARSED_SCHEMA
 
     def test_404_raises_schema_error(self):
         mock_resp = self._mock_response(404)
-        with patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with pytest.raises(PipelineSchemaError, match="not found"):
-                    get_pipeline_schema("https://github.com/my-org/pipeline", "3.0.0")
+        with (
+            patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            pytest.raises(PipelineSchemaError, match="not found"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/pipeline", "3.0.0")
 
     def test_429_raises_with_token_hint(self):
         mock_resp = self._mock_response(429, headers={"Retry-After": "60"})
-        with patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with pytest.raises(PipelineSchemaError, match="GITHUB_TOKEN"):
-                    get_pipeline_schema("https://github.com/my-org/pipeline", "4.0.0")
+        with (
+            patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            pytest.raises(PipelineSchemaError, match="GITHUB_TOKEN"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/pipeline", "4.0.0")
 
     def test_network_error_raises(self):
         import requests as req
 
-        with patch("nf_meta.core.nf_core_utils.requests.get", side_effect=req.exceptions.ConnectionError("down")):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with pytest.raises(PipelineSchemaError, match="Network error"):
-                    get_pipeline_schema("https://github.com/my-org/pipeline", "5.0.0")
+        with (
+            patch("nf_meta.core.nf_core_utils.requests.get", side_effect=req.exceptions.ConnectionError("down")),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            pytest.raises(PipelineSchemaError, match="Network error"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/pipeline", "5.0.0")
 
 
 # ---------------------------------------------------------------------------

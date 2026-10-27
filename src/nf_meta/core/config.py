@@ -619,7 +619,7 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
 
     workflows_dict = {}
     for w in g.get_workflows():
-        wf_dict = {k: v for k, v in w.model_dump_config().items()}
+        wf_dict = dict(w.model_dump_config())
         if w.id in from_by_target:
             wf_dict["from"] = from_by_target[w.id]
         workflows_dict[w.id] = wf_dict

@@ -50,9 +50,8 @@ def is_existing_file_abs(path: Path | None = None, allowed_extensions: tuple[str
     if not path.is_file():
         raise ValueError("Path must be a file")
 
-    if allowed_extensions is not None:
-        if path.suffix not in allowed_extensions:
-            raise ValueError(f"Path must end with {allowed_extensions}")
+    if allowed_extensions is not None and path.suffix not in allowed_extensions:
+        raise ValueError(f"Path must end with {allowed_extensions}")
 
     return path
 
@@ -70,6 +69,9 @@ ExistingNfConfigFile = Annotated[
 ]
 
 
+_SCALAR_TYPES = (str, int, float, bool)
+
+
 def validate_param_scalars(v: Any) -> dict[str, Any] | None:
     """Validate that every param value is a scalar, preserving its type."""
     if v is None:
@@ -78,11 +80,10 @@ def validate_param_scalars(v: Any) -> dict[str, Any] | None:
     if not isinstance(v, dict):
         raise ValueError(f"Params must be a key-value mapping, got {type(v).__name__!r}")
 
-    SCALAR = (str, int, float, bool)
     errors = [
         f"\tParam '{key}' has unsupported type {type(value).__name__}"
         for key, value in v.items()
-        if not isinstance(value, SCALAR)
+        if not isinstance(value, _SCALAR_TYPES)
     ]
 
     if errors:
@@ -401,7 +402,7 @@ class GlobalOptions(BaseModel):
         if v is None:
             return v
 
-        if isinstance(v, int) or isinstance(v, float):
+        if isinstance(v, (int, float)):
             return str(v)
 
         if not isinstance(v, str):

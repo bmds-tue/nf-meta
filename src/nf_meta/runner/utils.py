@@ -134,7 +134,7 @@ def check_nextflow_version(required_version: tuple[int, int, int, int]) -> bool:
     """
     installed_version = get_installed_nextflow_version()
 
-    for i, (inst, req) in enumerate(zip(installed_version, required_version)):
+    for i, (inst, req) in enumerate(zip(installed_version, required_version, strict=True)):
         if inst == req:
             continue
 

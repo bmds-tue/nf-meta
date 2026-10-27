@@ -321,7 +321,7 @@ class MetaworkflowGraph:
                     whole_value.add(Binding(wf.id, param))
         workflows = {wf.id: wf for wf in self.get_workflows()}
         return check_inputs(
-            {n: d for n, d in self.inputs.items()},
+            dict(self.inputs),
             {n: b for n, b in bindings.items() if n in self.inputs},
             whole_value,
             declared,

@@ -199,7 +199,8 @@ class TestExecute:
 
         def capture(argv, **kwargs):
             params_file = argv[argv.index("-params-file") + 1]
-            seen["params"] = yaml.safe_load(open(params_file))
+            with open(params_file) as fh:
+                seen["params"] = yaml.safe_load(fh)
             return (0, "out", "")
 
         runner._stream_proc_out = capture

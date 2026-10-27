@@ -283,3 +283,66 @@ class TestWarningsInOtherCommands:
         assert result.exit_code == 0, result.output
         assert "warning: [url] unreachable" in result.output
         assert "Workflow is valid with 1 warning" in result.output
+
+
+class TestRunInputs:
+    CONFIG = (
+        "config_version: 0.4.0\n"
+        "inputs:\n"
+        "  genome:\n"
+        "    bind: [n01.genome]\n"
+        "    enum: [EB1, GRCh38]\n"
+        "workflows:\n"
+        "  n01:\n"
+        "    name: nf-core/fetchngs\n"
+        "    version: 1.12.0\n"
+        "    params:\n"
+        "      input: ids.csv\n"
+        "      outdir: o\n"
+    )
+
+    def _invoke(self, tmp_path, monkeypatch, *args, stdin=None):
+        schema = {
+            "input": {"type": "string"},
+            "outdir": {"type": "string"},
+            "genome": {"type": "string"},
+        }
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: schema)
+        path = _write(tmp_path, self.CONFIG)
+        monkeypatch.chdir(tmp_path)
+        return CliRunner().invoke(cli, ["run", "-r", "python", "--dry-run", *args, str(path)], input=stdin)
+
+    def test_dry_run_without_terminal_shows_placeholders(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch)
+        assert result.exit_code == 0, result.output
+        assert "genome: <input: genome>" in result.output
+        assert "Missing values (shown as <input: ...>): genome." in result.output
+
+    def test_input_option(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch, "--input", "genome=GRCh38")
+        assert result.exit_code == 0, result.output
+        assert "genome: GRCh38" in result.output
+        assert "Missing values" not in result.output
+
+    def test_inputs_file(self, tmp_path, monkeypatch):
+        values = tmp_path / "values.yaml"
+        values.write_text("genome: EB1\n")
+        result = self._invoke(tmp_path, monkeypatch, "--inputs-file", str(values))
+        assert result.exit_code == 0, result.output
+        assert "genome: EB1" in result.output
+
+    def test_prompt_mode_asks_before_printing(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch, "--input-mode", "prompt", stdin="nope\nGRCh38\n")
+        assert result.exit_code == 0, result.output
+        assert "genome: GRCh38" in result.output
+        assert result.output.index("genome") < result.output.index("Step 1/1")
+
+    def test_invalid_given_value(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch, "--input", "genome=hg19")
+        assert result.exit_code == 1
+        assert "not one of" in result.output
+
+    def test_malformed_input_option(self, tmp_path, monkeypatch):
+        result = self._invoke(tmp_path, monkeypatch, "--input", "genome")
+        assert result.exit_code == 2
+        assert "expected NAME=VALUE" in result.output

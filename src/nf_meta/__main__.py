@@ -199,6 +199,25 @@ def validate_config(config, verbose, scope):
     is_flag=True,
     help="Print each step's command and params file without running anything",
 )
+@click.option(
+    "--input",
+    "-i",
+    "input_values",
+    multiple=True,
+    metavar="NAME=VALUE",
+    help="Value for an input (or <step_id>.<param> for a reference to a step outside the run). Repeatable.",
+)
+@click.option(
+    "--inputs-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="YAML mapping of input values; --input takes precedence.",
+)
+@click.option(
+    "--input-mode",
+    type=click.Choice(["prompt", "fail", "reproduce"]),
+    help="What to do with values the run needs but doesn't have: ask (default in a terminal), "
+    "stop with a list of them (default otherwise), or reuse the values of the last run.",
+)
 @handle_validation_errors
 def run(
     config,
@@ -212,14 +231,21 @@ def run(
     stub,
     out_dir,
     dry_run,
+    input_values,
+    inputs_file,
+    input_mode,
 ):
+    import sys
+
     from nf_meta.runner import (
+        InputMode,
         NfMetaRunnerError,
         RunOptions,
         plan_metapipeline,
         run_metapipeline,
     )
 
+    mode = InputMode(input_mode or ("prompt" if sys.stdin.isatty() else "fail"))
     try:
         run_options = RunOptions(
             runner_name=runner,
@@ -231,6 +257,9 @@ def run(
             start=start,
             target=target,
             out_dir=out_dir,
+            input_mode=mode,
+            inputs=_given_inputs(input_values, inputs_file),
+            prompter=_prompt_for_input if mode == InputMode.PROMPT else None,
         )
         g = from_file(config, collect_errors=True)
         _echo_warnings(g.warnings, config)
@@ -243,10 +272,53 @@ def run(
         raise SystemExit(1) from None
 
 
+def _given_inputs(input_values: tuple[str, ...], inputs_file: Path | None) -> dict:
+    import yaml
+
+    given: dict = {}
+    if inputs_file is not None:
+        data = yaml.safe_load(inputs_file.read_text()) or {}
+        if not isinstance(data, dict):
+            raise click.BadParameter("must contain a mapping of input names to values", param_hint="--inputs-file")
+        given.update({str(k): v for k, v in data.items()})
+    for item in input_values:
+        name, sep, value = item.partition("=")
+        if not sep or not name:
+            raise click.BadParameter(f"expected NAME=VALUE, got {item!r}", param_hint="--input")
+        given[name] = value
+    return given
+
+
+def _prompt_for_input(inp, problem: str | None):
+    """Ask for one input on the terminal, using its schema for the prompt."""
+    from nf_meta.core.errors import WARNING_COLOR
+
+    if problem:
+        click.echo(click.style(f"  {problem}", fg=WARNING_COLOR))
+    label = inp.name + (f" -- {inp.description}" if inp.description else "")
+    schema = inp.schema
+    if schema.get("enum"):
+        return click.prompt(label, type=click.Choice([str(e) for e in schema["enum"]]))
+    if schema.get("type") == "boolean":
+        return click.confirm(label)
+    if inp.is_path:
+        return click.prompt(f"{label} (path)", type=str)
+    types = {"integer": int, "number": float}
+    return click.prompt(label, type=types.get(schema.get("type"), str))
+
+
 def _print_plan(steps) -> None:
     import shlex
 
     import yaml
+
+    from nf_meta.core.errors import WARNING_COLOR
+
+    if steps.values:
+        click.echo(click.style("Values", bold=True))
+        for name, value in steps.values.items():
+            click.echo(f"  {name}: {value}")
+        click.echo()
 
     for i, step in enumerate(steps, start=1):
         header = f"Step {i}/{len(steps)}: {step.workflow.id} ({step.workflow.name})"
@@ -261,6 +333,15 @@ def _print_plan(steps) -> None:
             for line in yaml.safe_dump(step.command.params, sort_keys=False).splitlines():
                 click.echo(f"    {line}")
         click.echo()
+
+    if steps.missing:
+        click.echo(
+            click.style(
+                f"Missing values (shown as <input: ...>): {', '.join(steps.missing)}. "
+                "A real run needs them: give them with --input or --inputs-file, or use --input-mode prompt.",
+                fg=WARNING_COLOR,
+            )
+        )
 
 
 cli.add_command(edit_browser)

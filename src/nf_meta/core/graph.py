@@ -149,7 +149,7 @@ class MetaworkflowGraph:
                 raise
         self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))  # type: ignore
 
-    def remove_workflow(self, wf_id: str, recursive=False):
+    def remove_workflow(self, wf_id: str):
         """Remove the workflow `wf_id` and every transition touching it.
 
         Raises `ValueError` if `wf_id` doesn't exist. Does not remove
@@ -619,16 +619,6 @@ class MetaworkflowGraph:
             workflows = [wf for wf in workflows if wf.id in bw_reachable]
 
         return workflows
-
-    def get_start_workflow(self) -> Workflow | None:
-        """
-        Return the first order in topological sorting or None if no nodes exist
-        """
-        workflows_sorted = self.get_workflows_sorted()
-        if not len(workflows_sorted):
-            return None
-        else:
-            return workflows_sorted[0]
 
     def successors(self, wf: Workflow) -> list[Workflow]:
         """Return `wf`'s direct successors (workflows with `from: wf.id`)."""

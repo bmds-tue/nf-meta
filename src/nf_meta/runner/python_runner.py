@@ -14,7 +14,6 @@ from rich.panel import Panel
 from rich.spinner import Spinner
 from rich.text import Text
 
-from nf_meta.core.config import dump_config
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.inputs import input_refs, substitute_inputs
 from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType
@@ -224,10 +223,6 @@ class SimplePythonRunner(BaseRunner):
             (spec.state_dir / self.ERROR_FILE).unlink(missing_ok=True)
 
         return exit_code == 0
-
-    def _hash_graph(self, graph: MetaworkflowGraph) -> str:
-        config_str = str(dump_config(graph))
-        return hashlib.sha256(config_str.encode()).hexdigest()[:8]
 
     def _selected_workflows(self, graph: MetaworkflowGraph) -> list[Workflow]:
         workflows = graph.get_workflows_sorted()

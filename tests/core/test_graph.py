@@ -337,12 +337,6 @@ class TestUtilities:
         assert wf_rnaseq.id in ids
         assert wf_fetchngs.id not in ids
 
-    def test_get_start_workflow(self, two_node_graph, wf_fetchngs):
-        assert two_node_graph.get_start_workflow().id == wf_fetchngs.id
-
-    def test_get_start_workflow_empty_graph(self, empty_graph):
-        assert empty_graph.get_start_workflow() is None
-
     def test_successors(self, two_node_graph, wf_rnaseq, wf_fetchngs):
         succs = two_node_graph.successors(wf_fetchngs)
         assert any(w.id == wf_rnaseq.id for w in succs)

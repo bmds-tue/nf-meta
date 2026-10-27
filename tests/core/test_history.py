@@ -170,7 +170,7 @@ class TestUndoRedoRollback:
         history.undo(graph)
         assert graph.get_workflow_by_id(wf_rnaseq.id) is not None
 
-        def failing_remove_workflow(self, wf_id, recursive=False):
+        def failing_remove_workflow(self, wf_id):
             raise RuntimeError("simulated failure")
 
         monkeypatch.setattr(MetaworkflowGraph, "remove_workflow", failing_remove_workflow)

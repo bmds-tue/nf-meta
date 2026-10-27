@@ -85,7 +85,11 @@ class TestPipelineCommand:
 
     def test_url_and_version_at_end(self, build, wf_rnaseq):
         argv = build(wf_rnaseq).argv
-        assert argv[-4:] == [wf_rnaseq.url, "-r", wf_rnaseq.version, "-latest"]
+        assert argv[-3:] == [wf_rnaseq.url, "-r", wf_rnaseq.version]
+
+    def test_no_latest_flag(self, build, wf_rnaseq):
+        # P0 H13: -latest breaks repeated runs of pinned commits
+        assert "-latest" not in build(wf_rnaseq).argv
 
     def test_resume_adds_flag(self, build, wf_rnaseq):
         assert "-resume" in build(wf_rnaseq, resume=True).argv

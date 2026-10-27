@@ -117,8 +117,10 @@ class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
             argv += ["-main-script", wf.main_script]
         if not wf.url:
             raise NfMetaRunnerError(f"Workflow '{wf.id}' has no URL to run.")
-        argv += [wf.url, "-r", wf.version, "-latest"]
-        # -stub must come after the pipeline url/-r/-latest args: placed earlier,
+        # No -latest: versions are pinned tags/commits, which Nextflow fetches
+        # when missing; -latest's pull fails for commits checked out detached.
+        argv += [wf.url, "-r", wf.version]
+        # -stub must come after the pipeline url/-r args: placed earlier,
         # some Nextflow versions (e.g. 26.04.x) mis-parse it and clobber the
         # pipeline's positional argument with -stub's own resolved value.
         if spec.stub:

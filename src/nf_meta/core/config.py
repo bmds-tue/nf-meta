@@ -13,6 +13,7 @@ longer blocks the others from being added.
 import copy
 import difflib
 import logging
+import re
 from pathlib import Path
 
 import requests
@@ -66,8 +67,28 @@ def _module_executor_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
     ]
 
 
+_ABBREVIATED_SHA = re.compile(r"^[0-9a-fA-F]{7,39}$")
+
+
+def _abbreviated_sha_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    """Pipeline versions given as abbreviated commit hashes: Nextflow 26 can't
+    fetch those (it fetches each revision separately, by full id)."""
+    return [
+        Diagnostic(
+            workflow_id=wf.id,
+            field="version",
+            yaml_path=f"workflows.{wf.id}.version",
+            message="Abbreviated commit hash; Nextflow 26+ can't fetch these. Use the full 40-character hash.",
+            severity=Severity.WARNING,
+        )
+        for wf in g.get_workflows()
+        if wf.type == WorkflowType.NF_PIPELINE and _ABBREVIATED_SHA.match(wf.version)
+    ]
+
+
 def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
     log_warnings(_module_executor_warnings(g))
+    log_warnings(_abbreviated_sha_warnings(g))
 
 
 TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", "workflows", "transitions")
@@ -518,6 +539,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
 
     diagnostics.extend(g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows()))
     warnings.extend(_module_executor_warnings(g))
+    warnings.extend(_abbreviated_sha_warnings(g))
 
     if diagnostics or graph_messages:
         raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages, warnings=warnings)

@@ -712,3 +712,11 @@ def test_missing_nf_config_is_an_error(tmp_path):
     with pytest.raises(ConfigValidationError) as exc:
         validated_graph(data, collect_errors=True)
     assert [d.yaml_path for d in exc.value.errors] == ["globals.nf_config"]
+
+
+@pytest.mark.parametrize(("version", "warned"), [("0ae5518", True), ("0ae5518" + "0" * 33, False), ("1.12.0", False)])
+def test_abbreviated_commit_hash_warns(version, warned):
+    data = _config()
+    data["workflows"]["n01"]["version"] = version
+    g = validated_graph(data, collect_errors=True)
+    assert [d.yaml_path for d in g.warnings] == (["workflows.n01.version"] if warned else [])

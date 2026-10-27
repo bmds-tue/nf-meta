@@ -55,7 +55,7 @@ def test_default_run_options_not_shared(graph, monkeypatch):
     seen = []
     monkeypatch.setattr(
         "nf_meta.runner.python_runner.SimplePythonRunner.plan",
-        lambda self, g, resume=False: seen.append(self.run_options) or [],
+        lambda self, g, resume=False, dry_run=False: seen.append(self.run_options) or [],
     )
     from nf_meta.runner.runner import plan_metapipeline
 

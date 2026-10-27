@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar
 
 from nf_meta.core.graph import MetaworkflowGraph
@@ -31,6 +31,34 @@ class PlannedStep:
     spec: StepSpec
     command: StepCommand
     skip: bool = False
+
+
+@dataclass(frozen=True)
+class RunPlan:
+    """A planned run: its steps in order, plus the values it collected.
+
+    Iterating, indexing and `len()` go over the steps.
+
+    Attributes:
+        steps: The planned steps, in DAG order.
+        values: Value per input name, and per `<step_id>.<param>` for
+            references to steps outside the run.
+        missing: Names still without a value (only in a dry run; their
+            commands show `<input: name>` placeholders).
+    """
+
+    steps: list[PlannedStep]
+    values: dict = field(default_factory=dict)
+    missing: list[str] = field(default_factory=list)
+
+    def __iter__(self):
+        return iter(self.steps)
+
+    def __getitem__(self, index):
+        return self.steps[index]
+
+    def __len__(self) -> int:
+        return len(self.steps)
 
 
 class BaseRunner(ABC):
@@ -82,8 +110,10 @@ class BaseRunner(ABC):
         Called by `run_metapipeline` when `run_options.resume` is truthy.
         Same exception policy as `run`."""
 
-    def plan(self, g: MetaworkflowGraph, resume: bool = False) -> list[PlannedStep]:
+    def plan(self, g: MetaworkflowGraph, resume: bool = False, dry_run: bool = False) -> RunPlan:
         """Return what `run` (or `resume`, with `resume=True`) would execute,
-        in order, without side effects. Used for dry runs. Runners that can't
-        plan ahead keep this default, which raises `NfMetaRunnerError`."""
+        in order, without running anything. With `dry_run`, missing values
+        don't raise outside prompt mode; they show as placeholders. Runners
+        that can't plan ahead keep this default, which raises
+        `NfMetaRunnerError`."""
         raise NfMetaRunnerError(f"Runner '{self.RUNNER_NAME}' does not support dry runs.")

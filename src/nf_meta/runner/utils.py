@@ -3,9 +3,11 @@ import logging
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
+from .collect import InputMode, Prompter
 from .errors import NfMetaRunnerError
 
 logger = logging.getLogger(__name__)
@@ -31,9 +33,9 @@ class RunOptions:
             scrolling panel while a workflow step is running. Only has an
             effect in the Python runner.
         start: Workflow ID at which execution begins. Workflows topologically
-            upstream of this node are skipped. Cross-boundary parameter
-            references must be satisfiable from previously cached runs.
-            ``None`` means start from all source nodes.
+            upstream of this node are skipped. References to them are taken
+            from their cached runs, or treated as missing values (see
+            `input_mode`). ``None`` means start from all source nodes.
         target: Workflow ID at which execution ends. Workflows topologically
             downstream of this node are skipped. ``None`` means run until
             all sink nodes.
@@ -48,6 +50,12 @@ class RunOptions:
             already contains a successful result (``OUT.txt`` present,
             ``ERROR.txt`` absent) and passes ``-resume`` to Nextflow for
             workflow-level checkpoint resumption.
+        input_mode: What happens with values the run needs but doesn't have
+            (inputs without a value, references to steps outside the run):
+            ``prompt``, ``fail`` (default) or ``reproduce``. See `InputMode`.
+        inputs: Values given for this run, by input name, or by
+            ``<step_id>.<param>`` for a reference to a step outside the run.
+        prompter: Asks for a missing value in ``prompt`` mode.
     """
 
     runner_name: str = "python"
@@ -59,6 +67,9 @@ class RunOptions:
     nf_profile: str | None = None
     stub: bool = False
     resume: bool = False
+    input_mode: InputMode = InputMode.FAIL
+    inputs: dict[str, Any] = field(default_factory=dict)
+    prompter: Prompter | None = None
 
 
 @functools.cache

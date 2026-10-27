@@ -6,6 +6,8 @@ from typing import Any
 from nf_meta.core.dynamic_validation import workflow_schema
 from nf_meta.core.models import Workflow
 
+from .collect import is_placeholder
+
 PATH_FORMATS = frozenset({"file-path", "directory-path", "path", "file-path-pattern"})
 # nf-core module meta.yml input types that denote files
 PATH_TYPES = frozenset({"file", "directory", "path"})
@@ -37,7 +39,7 @@ def is_input_path(key: str, value: Any, schema: dict[str, dict], project_dir: Pa
     Output locations (`outdir`) and URLs never are."""
     if key in OUTPUT_PARAMS or not isinstance(value, str) or not value:
         return False
-    if is_url(value) or Path(value).is_absolute() or "${" in value:
+    if is_url(value) or Path(value).is_absolute() or "${" in value or is_placeholder(value):
         return False
     if declared_path(schema.get(key)):
         return True

@@ -2,7 +2,7 @@ import logging
 
 from nf_meta.core.graph import MetaworkflowGraph
 
-from .base_runner import _REGISTRY, BaseRunner, PlannedStep
+from .base_runner import _REGISTRY, BaseRunner, RunPlan
 from .errors import NfMetaRunnerError
 from .utils import RunOptions
 
@@ -38,12 +38,12 @@ def _check_start_target(g: MetaworkflowGraph, run_options: RunOptions) -> None:
 def plan_metapipeline(
     g: MetaworkflowGraph,
     run_options: RunOptions | None = None,
-) -> list[PlannedStep]:
-    """Return the steps `run_metapipeline` would execute with these options
-    (default: `RunOptions()`), without running anything."""
+) -> RunPlan:
+    """Return what `run_metapipeline` would execute with these options
+    (default: `RunOptions()`), without running anything (a dry run)."""
     run_options = run_options or RunOptions()
     _check_start_target(g, run_options)
-    return _make_runner(run_options).plan(g, resume=run_options.resume)
+    return _make_runner(run_options).plan(g, resume=run_options.resume, dry_run=True)
 
 
 def run_metapipeline(

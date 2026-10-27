@@ -15,10 +15,11 @@ from rich.spinner import Spinner
 from rich.text import Text
 
 from nf_meta.core.graph import MetaworkflowGraph
-from nf_meta.core.inputs import input_refs, substitute_inputs
+from nf_meta.core.inputs import Binding, InputDefinition, effective_input, input_refs, substitute_inputs
 from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType
 
-from .base_runner import BaseRunner, PlannedStep
+from .base_runner import BaseRunner, PlannedStep, RunPlan
+from .collect import InputMode, Request, collect
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
 from .paths import absolutize_input_paths, declared_path, is_url, param_schema
@@ -126,30 +127,6 @@ class SimplePythonRunner(BaseRunner):
         with open(path) as f:
             return yaml.safe_load(f) or {}
 
-    def _validate_cross_boundary_refs(
-        self,
-        graph: MetaworkflowGraph,
-        subset_workflows: list[Workflow],
-        subset_ids: set[str],
-    ) -> None:
-        errors = []
-        for wf in subset_workflows:
-            for ref in wf.field_refs:
-                if ref.target_wf_id in subset_ids:
-                    continue
-                ref_wf = graph.get_workflow_by_id(ref.target_wf_id)
-                if not ref_wf:
-                    raise NfMetaRunnerError(f"Reference to unknown workflow: {ref.target_wf_id}")
-                if not self._resolved_params_path(ref_wf).exists():
-                    errors.append(
-                        f"  '{wf.id}' → '{ref.target_wf_id}' (param '{ref.target_key}'): "
-                        f"no successful cached run of '{ref.target_wf_id}' found"
-                    )
-        if errors:
-            raise NfMetaRunnerError(
-                "Cannot resolve cross-boundary references — run the excluded workflows first:\n" + "\n".join(errors)
-            )
-
     def _stream_proc_out(
         self,
         cmd: list[str],
@@ -234,21 +211,23 @@ class SimplePythonRunner(BaseRunner):
             logger.info(f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
         return workflows
 
-    def plan(self, graph: MetaworkflowGraph, resume: bool = False) -> list[PlannedStep]:
+    def plan(self, graph: MetaworkflowGraph, resume: bool = False, dry_run: bool = False) -> RunPlan:
         """Resolve every selected step to its spec and command, in DAG order,
-        without writing files or running anything.
+        without writing files or running anything. Values the run needs are
+        collected first (see `RunOptions.input_mode`); in prompt mode this
+        asks for them, even in a dry run.
 
         Raises:
-            NfMetaRunnerError: if a step outside the selection is referenced
-                but has no cached run, if no out dir can be determined, or if
-                a config loaded from a URL has relative input paths.
+            NfMetaRunnerError: if values are missing (except in a dry run
+                outside prompt mode, where they become placeholders) or
+                invalid, if no out dir can be determined, or if a config loaded
+                from a URL has relative input paths.
         """
         self.out_dir = self._resolve_out_dir(graph)
         project_dir = graph.project_dir
         global_options = graph.global_options
         workflows = self._selected_workflows(graph)
         subset_ids = {wf.id for wf in workflows}
-        self._validate_cross_boundary_refs(graph, workflows, subset_ids)
 
         # Resolved params and step keys per workflow id, seeded from cached runs
         # of excluded workflows
@@ -261,13 +240,26 @@ class SimplePythonRunner(BaseRunner):
                 if cached is not None:
                     resolved[wf.id] = cached
 
-        input_values = self._input_values(graph, workflows)
+        requests = self._input_requests(graph, workflows, subset_ids, resolved)
+        collected = collect(
+            requests,
+            self.run_options.inputs,
+            InputMode(self.run_options.input_mode),
+            project_dir=project_dir,
+            prompter=self.run_options.prompter,
+            dry_run=dry_run,
+        )
+        input_values = {r.name: collected.values[r.name] for r in requests if not r.is_reference}
+        reference_values = {Binding.parse(r.name): collected.values[r.name] for r in requests if r.is_reference}
 
         planned: list[PlannedStep] = []
         for wf in workflows:
             bound = graph.bound_params(wf.id)
             if bound or input_refs(wf.params):
                 wf = wf.model_copy(update={"params": substitute_inputs(wf.params, bound, input_values)})
+            overrides = {b.param: v for b, v in reference_values.items() if b.step_id == wf.id}
+            if overrides:
+                wf = wf.model_copy(update={"params": {**(wf.params or {}), **overrides}})
             schema = param_schema(wf)
             if project_dir is not None and wf.params:
                 wf = wf.model_copy(update={"params": absolutize_input_paths(wf.params, project_dir, schema)})
@@ -305,30 +297,80 @@ class SimplePythonRunner(BaseRunner):
                     skip=resume and self._check_run_success(run_dir=state_dir),
                 )
             )
-        return planned
+        return RunPlan(
+            steps=planned,
+            values=dict(collected.values),
+            missing=[r.name for r in collected.missing],
+        )
+
+    def _input_requests(
+        self,
+        graph: MetaworkflowGraph,
+        workflows: list[Workflow],
+        subset_ids: set[str],
+        resolved: dict[str, dict],
+    ) -> list[Request]:
+        """Every value the selected steps need: the inputs bound to them, and
+        each param that references a step outside the selection."""
+        reproduce = InputMode(self.run_options.input_mode) == InputMode.REPRODUCE
+        recorded = self._load_recorded_inputs() if reproduce else {}
+
+        requests: list[Request] = []
+        if graph.inputs:
+            inputs, _ = graph.effective_inputs()
+            for inp in inputs.values():
+                if any(b.step_id in subset_ids for b in inp.bindings):
+                    fallback = recorded.get(inp.name) if reproduce else inp.default
+                    requests.append(Request(inp, fallback=fallback))
+
+        for wf in workflows:
+            outside = [r for r in wf.field_refs if r.namespace == "params" and r.target_wf_id not in subset_ids]
+            for param in sorted({r.source_key for r in outside}):
+                binding = Binding(wf.id, param)
+                inp, _ = effective_input(
+                    str(binding),
+                    InputDefinition(description=f"Value of {binding} (normally taken from another step's run)"),
+                    (binding,),
+                    {binding: param_schema(wf).get(param)},
+                )
+                requests.append(Request(inp, fallback=self._cached_reference(wf, param, resolved), is_reference=True))
+        return requests
 
     @staticmethod
-    def _input_values(graph: MetaworkflowGraph, workflows: list[Workflow]) -> dict:
-        """Values of the inputs used by `workflows`: their defaults.
+    def _cached_reference(wf: Workflow, param: str, resolved: dict[str, dict]):
+        """The value of `wf.params[param]` with its references to other steps
+        filled from cached runs, or `None` if one isn't cached."""
+        value = (wf.params or {}).get(param)
+        if not isinstance(value, str):
+            return None
+        for ref in wf.field_refs:
+            if ref.source_key != param:
+                continue
+            cached = resolved.get(ref.target_wf_id, {}).get(ref.target_key)
+            if cached is None:
+                return None
+            value = value.replace(ref.name, str(cached))
+        return value
 
-        Raises:
-            NfMetaRunnerError: if a used input has no value, or its value is
-                invalid.
-        """
-        if not graph.inputs:
+    def _recorded_inputs_path(self) -> Path:
+        return self.state_root / "inputs.yaml"
+
+    def _load_recorded_inputs(self) -> dict:
+        path = self._recorded_inputs_path()
+        if not path.exists():
             return {}
-        inputs, _ = graph.effective_inputs()
-        selected = {wf.id for wf in workflows}
-        used = [inp for inp in inputs.values() if any(b.step_id in selected for b in inp.bindings)]
-        missing = sorted(inp.name for inp in used if inp.default is None)
-        if missing:
-            raise NfMetaRunnerError(
-                f"No value for input(s): {', '.join(missing)}. Give them a default in the config's `inputs:` section."
-            )
-        problems = [message for inp in used for message in inp.validate(inp.default, project_dir=graph.project_dir)]
-        if problems:
-            raise NfMetaRunnerError("Invalid input values:\n  " + "\n  ".join(problems))
-        return {inp.name: inp.default for inp in used}
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+
+    def _record_inputs(self, plan: RunPlan, graph: MetaworkflowGraph) -> None:
+        """Remember the input values of this run for `reproduce` mode."""
+        values = {name: v for name, v in plan.values.items() if name in graph.inputs}
+        if not values:
+            return
+        path = self._recorded_inputs_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            yaml.dump(values, f)
 
     @staticmethod
     def _reject_relative_inputs(wf: Workflow, schema: dict[str, dict]) -> None:
@@ -365,8 +407,9 @@ class SimplePythonRunner(BaseRunner):
 
     def run(self, graph: MetaworkflowGraph, resume=False):
         steps = self.plan(graph, resume=resume)
-        self._check_nextflow(graph, steps)
+        self._check_nextflow(graph, list(steps))
         self._notice_legacy_cache(graph)
+        self._record_inputs(steps, graph)
 
         for i, step in enumerate(steps):
             step_label = f"Step {i + 1}/{len(steps)} - {step.workflow.name}"

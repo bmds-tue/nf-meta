@@ -81,7 +81,7 @@ def test_embedded_reference(project):
 
 def test_missing_value_is_an_error(project):
     path = config(project, {"genome": {"bind": ["n01.genome"]}}, {"input": "ids.csv"})
-    with pytest.raises(NfMetaRunnerError, match="No value for input.*genome"):
+    with pytest.raises(NfMetaRunnerError, match=r"Missing values:\n  genome \(input\)"):
         plan(path)
 
 
@@ -102,3 +102,52 @@ def test_inputs_of_unselected_steps_not_needed(project):
     )
     steps = plan(path, target="n01")
     assert [s.workflow.id for s in steps] == ["n01"]
+
+
+# ---------------------------------------------------------------------------
+# Modes and given values (P4)
+# ---------------------------------------------------------------------------
+
+
+def _runner(**options):
+    from unittest.mock import MagicMock
+
+    runner = SimplePythonRunner(RunOptions(**options))
+    runner._stream_proc_out = MagicMock(return_value=(0, "out", ""))
+    return runner
+
+
+def test_given_value_replaces_default_and_changes_the_step_key(project):
+    path = config(project, {"genome": {"bind": ["n01.genome"], "default": "EB1"}}, {"input": "ids.csv"})
+    default = plan(path)[0]
+    given = plan(path, inputs={"genome": "GRCh38"})[0]
+    assert given.command.params["genome"] == "GRCh38"
+    assert given.spec.state_dir != default.spec.state_dir
+
+
+def test_reproduce_uses_the_values_of_the_last_run(project):
+    path = config(project, {"genome": {"bind": ["n01.genome"], "default": "EB1"}}, {"input": "ids.csv"})
+    _runner(inputs={"genome": "GRCh38"}).run(from_file(path))
+    again = plan(path, input_mode="reproduce")[0]
+    assert again.command.params["genome"] == "GRCh38"
+
+
+def test_reproduce_without_a_recorded_run_fails(project):
+    path = config(project, {"genome": {"bind": ["n01.genome"], "default": "EB1"}}, {"input": "ids.csv"})
+    with pytest.raises(NfMetaRunnerError, match="previous run"):
+        plan(path, input_mode="reproduce")
+
+
+def test_dry_run_lists_missing_values(project):
+    path = config(project, {"genome": {"bind": ["n01.genome"]}}, {"input": "ids.csv"})
+    from nf_meta.runner import plan_metapipeline
+
+    result = plan_metapipeline(from_file(path), RunOptions())
+    assert result.missing == ["genome"]
+    assert result[0].command.params["genome"] == "<input: genome>"
+
+
+def test_prompted_value_used(project):
+    path = config(project, {"genome": {"bind": ["n01.genome"], "enum": ["EB1", "GRCh38"]}}, {"input": "ids.csv"})
+    step = plan(path, input_mode="prompt", prompter=lambda inp, problem: "GRCh38")[0]
+    assert step.command.params["genome"] == "GRCh38"

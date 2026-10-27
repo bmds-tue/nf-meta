@@ -139,7 +139,7 @@ class TestResolvedParamsCache:
         assert runner._resolved_params_path(wf_a) != runner._resolved_params_path(wf_b)
 
 
-class TestValidateCrossBoundaryRefs:
+class TestReferencesOutsideTheRun:
     def _graph_with_ref(self, wf_fetchngs, wf_rnaseq):
         """fetchngs → rnaseq where rnaseq references fetchngs.outdir."""
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
@@ -152,24 +152,30 @@ class TestValidateCrossBoundaryRefs:
         g.pop_events()
         return g, a, b
 
-    def test_raises_when_cross_boundary_cache_missing(self, runner, wf_fetchngs, wf_rnaseq):
+    def test_uncached_reference_is_a_missing_value(self, runner, wf_fetchngs, wf_rnaseq):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
-        subset = [b]
-        subset_ids = {b.id}
-        with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
-            runner._validate_cross_boundary_refs(g, subset, subset_ids)
+        runner.run_options.start = b.id
+        with pytest.raises(NfMetaRunnerError, match=rf"Missing values:\n  {b.id}\.input \(reference"):
+            runner.plan(g)
 
-    def test_passes_when_cross_boundary_cache_exists(self, runner, wf_fetchngs, wf_rnaseq):
+    def test_cached_reference_is_used(self, runner, wf_fetchngs, wf_rnaseq):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
         runner._write_resolved_params(a, {"outdir": "/data"})
-        subset = [b]
-        subset_ids = {b.id}
-        runner._validate_cross_boundary_refs(g, subset, subset_ids)  # no raise
+        runner.run_options.start = b.id
+        assert runner.plan(g)[0].command.params["input"] == "/data/samples.csv"
 
-    def test_no_error_when_all_refs_in_subset(self, runner, wf_fetchngs, wf_rnaseq):
+    def test_given_value_overrides_the_cache(self, runner, wf_fetchngs, wf_rnaseq, tmp_path):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
-        subset_ids = {a.id, b.id}
-        runner._validate_cross_boundary_refs(g, [a, b], subset_ids)  # no raise
+        runner._write_resolved_params(a, {"outdir": "/data"})
+        runner.run_options.start = b.id
+        runner.run_options.inputs = {f"{b.id}.input": "/elsewhere/s.csv"}
+        assert runner.plan(g)[0].command.params["input"] == "/elsewhere/s.csv"
+
+    def test_no_request_when_all_refs_in_subset(self, runner, wf_fetchngs, wf_rnaseq):
+        g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
+        plan = runner.plan(g)
+        assert plan.values == {}
+        assert plan[1].command.params["input"] == "/data/samples.csv"
 
 
 class TestExecute:
@@ -354,7 +360,7 @@ class TestRun:
         g.pop_events()
 
         runner.run_options.start = b.id
-        with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
+        with pytest.raises(NfMetaRunnerError, match="Missing values"):
             runner.run(g)
 
     def test_module_step_needs_nextflow_26_04(self, runner, module_fastqc, monkeypatch):

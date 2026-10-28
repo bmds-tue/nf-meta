@@ -80,7 +80,8 @@ _SCALAR_TYPES = (str, int, float, bool)
 
 
 def validate_param_scalars(v: Any) -> dict[str, Any] | None:
-    """Validate that every param value is a scalar, preserving its type."""
+    """Validate that every param value is a scalar, preserving its type.
+    Values of `str` subclasses (e.g. `Ref`) are stored as plain `str`."""
     if v is None:
         return None
 
@@ -96,7 +97,7 @@ def validate_param_scalars(v: Any) -> dict[str, Any] | None:
     if errors:
         raise ValueError("\n" + "\n".join(errors))
 
-    return v
+    return {key: str(value) if isinstance(value, str) else value for key, value in v.items()}
 
 
 CoercedParams = Annotated[dict[str, Any] | None, BeforeValidator(validate_param_scalars)]

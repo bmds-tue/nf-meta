@@ -71,6 +71,24 @@ class TestHandleCommand:
         with pytest.raises(SessionCommandError):
             loaded_session.handle_command(RemoveWorkflow("nonexistent-id"))
 
+    def test_without_write_on_change_the_file_is_untouched(self, config_yaml):
+        session = EditorSession(write_on_change=False)
+        session.load_config(config_yaml)
+        before = config_yaml.read_text()
+        session.execute(RemoveWorkflow(session.graph.get_workflows()[0].id))
+        session.undo()
+        session.redo()
+        assert config_yaml.read_text() == before
+
+    def test_with_write_on_change_the_file_is_rewritten(self, loaded_session, config_yaml):
+        before = config_yaml.read_text()
+        loaded_session.handle_command(RemoveWorkflow(loaded_session.graph.get_workflows()[0].id))
+        assert config_yaml.read_text() != before
+
+    def test_execute_raises_the_graph_error(self, loaded_session):
+        with pytest.raises(ValueError):
+            loaded_session.execute(RemoveWorkflow("nonexistent-id"))
+
 
 # ---------------------------------------------------------------------------
 # undo / redo
@@ -90,6 +108,12 @@ class TestUndoRedo:
         loaded_session.handle_undo()
         loaded_session.handle_redo()
         assert loaded_session.graph.get_workflow_by_id(wf_to_remove.id) is None
+
+    def test_nothing_to_undo_or_redo(self, loaded_session):
+        with pytest.raises(SessionCommandError):
+            loaded_session.handle_undo()
+        with pytest.raises(SessionCommandError):
+            loaded_session.handle_redo()
 
 
 # ---------------------------------------------------------------------------

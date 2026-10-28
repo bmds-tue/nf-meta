@@ -1,3 +1,4 @@
+import logging
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -34,6 +35,8 @@ from .models import (
     WorkflowReference,
 )
 from .refs import ANY_BRACE_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
+
+logger = logging.getLogger(__name__)
 
 
 def _format_version(version: tuple[int, int]) -> str:
@@ -179,7 +182,7 @@ class MetaworkflowGraph:
         self.validate_edge(tr.source, tr.target)
 
         if self.G.has_edge(tr.source, tr.target):
-            print(f"[warning] Edge already exists: {tr.source}->{tr.target}")
+            logger.warning("Edge already exists: %s->%s", tr.source, tr.target)
 
         self.G.add_edge(tr.source, tr.target, transition=tr.model_copy())
         self._emit(TransitionAdded(tr))

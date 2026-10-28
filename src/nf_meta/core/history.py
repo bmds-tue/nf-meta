@@ -1,4 +1,8 @@
+import logging
+
 from .events import Command, Event, GraphEventHandler, Transaction
+
+logger = logging.getLogger(__name__)
 
 
 class History:
@@ -20,10 +24,7 @@ class History:
             events = graph.pop_events()
             inverse = self._get_inverse_command(events)
 
-            # TODO: Logging!!
-            print(f"[!] Error Caught while running {command}")
-            print(f"... {e}")
-            print(f"... Attempting to undo the completed events: {events}")
+            logger.debug("Command %s failed (%s); rolling back events: %s", command, e, events)
             inverse.apply(graph)
 
             # Clear emitted events

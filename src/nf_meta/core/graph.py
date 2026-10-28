@@ -102,7 +102,7 @@ class MetaworkflowGraph:
                 raise ConfigValidationError(diagnostics)
             log_warnings(diagnostics)
 
-        self.G.add_node(wf.id, workflow=wf.model_copy())
+        self.G.add_node(wf.id, workflow=wf.model_copy(deep=True))
 
         try:
             if self._validation_suspended is None:
@@ -140,7 +140,7 @@ class MetaworkflowGraph:
             if wf.params:
                 self.validate_param_references(wf)
 
-        self.G.nodes[wf.id]["workflow"] = wf.model_copy()
+        self.G.nodes[wf.id]["workflow"] = wf.model_copy(deep=True)
         if self._validation_suspended is None:
             try:
                 self.validate_inputs(dynamic=False)

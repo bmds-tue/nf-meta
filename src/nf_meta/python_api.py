@@ -23,7 +23,7 @@ from nf_meta.core.models import GlobalOptions, Transition, Workflow
 from nf_meta.core.session import EditorSession
 from nf_meta.runner import RunOptions, RunPlan, RunResults, plan_metapipeline, run_metapipeline
 
-StepLike = Workflow | str
+StepOrId = Workflow | str
 
 
 class Metapipeline:
@@ -97,20 +97,20 @@ class Metapipeline:
             raise KeyError(step_id)
         return wf.model_copy(deep=True)
 
-    def add(self, step: Workflow, after: Iterable[StepLike] = ()) -> Workflow:
+    def add(self, step: Workflow, after: Iterable[StepOrId] = ()) -> Workflow:
         """Add `step` and return it. It runs after the steps it references
         (`Ref(...)` or `${...}` in its params) and after the steps in
         `after`."""
         self._execute([AddWorkflow(step), *self._edges_to(step, after)])
         return step
 
-    def update(self, step: Workflow, after: Iterable[StepLike] = ()) -> Workflow:
+    def update(self, step: Workflow, after: Iterable[StepOrId] = ()) -> Workflow:
         """Replace the step with `step.id` by `step` and return it. Edges for
         new references and for `after` are added; existing edges stay."""
         self._execute([EditWorkflow(step), *self._edges_to(step, after)])
         return step
 
-    def remove(self, step: StepLike) -> None:
+    def remove(self, step: StepOrId) -> None:
         """Remove a step (a model or an ID) and its edges."""
         self._execute([RemoveWorkflow(_step_id(step))])
 
@@ -171,7 +171,7 @@ class Metapipeline:
 
     # --- internals ---
 
-    def _edges_to(self, step: Workflow, after: Iterable[StepLike]) -> list[Command]:
+    def _edges_to(self, step: Workflow, after: Iterable[StepOrId]) -> list[Command]:
         sources = [ref.target_wf_id for ref in step.field_refs] + [_step_id(s) for s in after]
         return [
             AddTransition(Transition(source=source, target=step.id))
@@ -187,7 +187,7 @@ class Metapipeline:
         return f"Metapipeline([{steps}])"
 
 
-def _step_id(step: StepLike) -> str:
+def _step_id(step: StepOrId) -> str:
     return step if isinstance(step, str) else step.id
 
 

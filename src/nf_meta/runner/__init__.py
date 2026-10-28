@@ -1,13 +1,13 @@
 import logging
 from importlib.metadata import entry_points
 
-from .base_runner import _REGISTRY, BaseRunner, PlannedStep, RunPlan
+from .base_runner import _REGISTRY, BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
 from .cascade_runner import NfCascadeRunner
 from .collect import InputMode
 from .engines import Engine, StepCommand, engine_for
 from .errors import NfMetaRunnerError
 from .python_runner import SimplePythonRunner
-from .runner import plan_metapipeline, run_metapipeline
+from .runner import plan_metapipeline, run_metapipeline, run_step
 from .spec import StepSpec
 from .utils import RunOptions, check_nextflow, check_nextflow_version
 

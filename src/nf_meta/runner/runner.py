@@ -1,8 +1,11 @@
 import logging
+from pathlib import Path
+from typing import Any
 
 from nf_meta.core.graph import MetaworkflowGraph
+from nf_meta.core.models import Workflow
 
-from .base_runner import _REGISTRY, BaseRunner, RunPlan
+from .base_runner import _REGISTRY, BaseRunner, RunPlan, RunResults
 from .errors import NfMetaRunnerError
 from .utils import RunOptions
 
@@ -49,13 +52,30 @@ def plan_metapipeline(
 def run_metapipeline(
     g: MetaworkflowGraph,
     run_options: RunOptions | None = None,
-) -> None:
+) -> RunResults:
+    """Run `g` with these options (default: `RunOptions()`), blocking until
+    it finishes, and return the results. Raises `NfMetaRunnerError` on the
+    first step that fails."""
     run_options = run_options or RunOptions()
     logger.info("Started runner")
     _check_start_target(g, run_options)
     runner = _make_runner(run_options)
 
     if run_options.resume:
-        runner.resume(g)
-    else:
-        runner.run(g)
+        return runner.resume(g)
+    return runner.run(g)
+
+
+def run_step(step: Workflow, *, project_dir: Path | None = None, **options: Any) -> RunResults:
+    """Run a single step (an `NfPipeline` or `NfModule`) as a one-step
+    metapipeline and return the results. `options` are `RunOptions` fields
+    (`out_dir=`, `nf_profile=`, `resume=`, ...). Relative input paths resolve
+    against `project_dir` (default: the current directory).
+
+    Raises `ConfigValidationError` if the step is invalid, and
+    `NfMetaRunnerError` if it fails.
+    """
+    g = MetaworkflowGraph()
+    g.project_dir = (project_dir or Path.cwd()).resolve()
+    g.add_workflow(step)
+    return run_metapipeline(g, RunOptions(**options))

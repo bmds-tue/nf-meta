@@ -18,6 +18,16 @@ PLACEHOLDER = "<input: {name}>"
 # was rejected; returns the value.
 Prompter = Callable[[Input, str | None], Any]
 
+
+def plain_prompter(inp: Input, problem: str | None) -> str:
+    """Ask for `inp` with the built-in `input()`; the prompter used in
+    `prompt` mode when none is given."""
+    if problem:
+        print(f"  {problem}")
+    label = inp.name + (f" ({inp.description})" if inp.description else "")
+    return input(f"{label}: ")
+
+
 _TRUE = {"true", "yes", "y", "1"}
 _FALSE = {"false", "no", "n", "0"}
 
@@ -112,7 +122,7 @@ def collect(
     the config) are checked against `project_dir`.
 
     In a dry run outside `prompt` mode, missing values become placeholders
-    instead of an error.
+    instead of an error. `prompter` defaults to `plain_prompter`.
 
     Raises:
         NfMetaRunnerError: for unknown given names, given values in
@@ -145,8 +155,8 @@ def collect(
             found = [] if request.is_reference else inp.validate(value, project_dir=project_dir)
             if found:
                 problems.append(inp.describe_problems(value, found))
-        elif mode == InputMode.PROMPT and prompter is not None:
-            value = _prompt(inp, prompter, given_dir)
+        elif mode == InputMode.PROMPT:
+            value = _prompt(inp, prompter or plain_prompter, given_dir)
         elif dry_run:
             result.values[request.name] = PLACEHOLDER.format(name=request.name)
             result.missing.append(request)

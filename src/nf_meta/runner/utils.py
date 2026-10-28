@@ -57,7 +57,8 @@ class RunOptions:
             ``prompt``, ``fail`` (default) or ``reproduce``. See `InputMode`.
         inputs: Values given for this run, by input name, or by
             ``<step_id>.<param>`` for a reference to a step outside the run.
-        prompter: Asks for a missing value in ``prompt`` mode.
+        prompter: Asks for a missing value in ``prompt`` mode (default: a
+            plain ``input()`` prompt).
     """
 
     runner_name: str = "python"
@@ -73,6 +74,13 @@ class RunOptions:
     input_mode: InputMode = InputMode.FAIL
     inputs: dict[str, Any] = field(default_factory=dict)
     prompter: Prompter | None = None
+
+    def __post_init__(self) -> None:
+        if self.out_dir is not None:
+            self.out_dir = Path(self.out_dir)
+        if self.nf_config is not None:
+            self.nf_config = Path(self.nf_config)
+        self.input_mode = InputMode(self.input_mode)
 
 
 @functools.cache

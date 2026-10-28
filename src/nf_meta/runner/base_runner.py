@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import ClassVar
+from enum import Enum
+from pathlib import Path
+from typing import Any, ClassVar
 
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import Workflow
@@ -60,6 +63,124 @@ class RunPlan:
     def __len__(self) -> int:
         return len(self.steps)
 
+    def to_dict(self) -> dict:
+        """The plan as JSON-compatible data."""
+        plan = {
+            "steps": [
+                {
+                    "id": s.workflow.id,
+                    "name": s.workflow.name,
+                    "skip": s.skip,
+                    "argv": s.command.argv,
+                    "cwd": s.command.cwd,
+                    "env": s.command.env,
+                    "params": s.command.params,
+                }
+                for s in self.steps
+            ],
+            "values": self.values,
+            "missing": self.missing,
+        }
+        return _jsonable(plan)
+
+
+@dataclass(frozen=True)
+class StepResult:
+    """The outcome of one step of a finished run.
+
+    Attributes:
+        step_id: The step's ID.
+        name: The step's pipeline or module name.
+        params: The params the step ran with (references resolved, globals
+            merged in).
+        outdir: The step's `outdir` param as an absolute path, or `None` if
+            it has none.
+        state_dir: nf-meta's files for the step (params file, output and
+            error logs).
+        log_file: The Nextflow log file, if one was set.
+        command: The command line that was run.
+        skipped: The step had already succeeded and was skipped (resume).
+    """
+
+    step_id: str
+    name: str
+    params: dict[str, Any]
+    outdir: Path | None
+    state_dir: Path
+    log_file: Path | None
+    command: list[str]
+    skipped: bool = False
+
+    @classmethod
+    def from_planned(cls, step: PlannedStep) -> "StepResult":
+        """The result of running `step` as planned."""
+        outdir = step.spec.params.get("outdir")
+        if isinstance(outdir, str) and outdir and "://" not in outdir:
+            outdir = step.spec.launch_dir / outdir
+        return cls(
+            step_id=step.workflow.id,
+            name=step.workflow.name,
+            params=step.spec.params,
+            outdir=Path(outdir) if isinstance(outdir, (str, Path)) and outdir else None,
+            state_dir=step.spec.state_dir,
+            log_file=step.spec.log_file,
+            command=step.command.argv,
+            skipped=step.skip,
+        )
+
+
+class RunResults(Mapping[str, StepResult]):
+    """The results of a finished run: a mapping of step ID to `StepResult`,
+    in run order, plus the run's out dir."""
+
+    def __init__(self, steps: list[StepResult], out_dir: Path):
+        self._steps = {s.step_id: s for s in steps}
+        self.out_dir = out_dir
+
+    def __getitem__(self, step_id: str) -> StepResult:
+        return self._steps[step_id]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._steps)
+
+    def __len__(self) -> int:
+        return len(self._steps)
+
+    def __repr__(self) -> str:
+        return f"RunResults(out_dir={str(self.out_dir)!r}, steps={list(self._steps)})"
+
+    def to_dict(self) -> dict:
+        """The results as JSON-compatible data."""
+        return _jsonable(
+            {
+                "out_dir": self.out_dir,
+                "steps": {
+                    i: {
+                        "name": s.name,
+                        "params": s.params,
+                        "outdir": s.outdir,
+                        "state_dir": s.state_dir,
+                        "log_file": s.log_file,
+                        "command": s.command,
+                        "skipped": s.skipped,
+                    }
+                    for i, s in self._steps.items()
+                },
+            }
+        )
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, Enum):
+        return value.value
+    return value
+
 
 class BaseRunner(ABC):
     """Abstract base class for all metapipeline runner backends.
@@ -70,7 +191,7 @@ class BaseRunner(ABC):
         class MyRunner(BaseRunner):
             RUNNER_NAME = "my-runner"
 
-            def run(self, g): ...
+            def run(self, g): ...      # returns RunResults
             def resume(self, g): ...
 
     Registration happens automatically at class-definition time via
@@ -97,14 +218,15 @@ class BaseRunner(ABC):
         self.run_options = run_options
 
     @abstractmethod
-    def run(self, g: MetaworkflowGraph) -> None:
-        """Execute every workflow in `g` from scratch, in dependency order.
+    def run(self, g: MetaworkflowGraph) -> RunResults:
+        """Execute every workflow in `g` from scratch, in dependency order,
+        and return the results.
         Called by `run_metapipeline` when `run_options.resume` is falsy.
         Exceptions are not caught by the caller -- let a failure raise rather
         than returning normally with partial results."""
 
     @abstractmethod
-    def resume(self, g: MetaworkflowGraph) -> None:
+    def resume(self, g: MetaworkflowGraph) -> RunResults:
         """Continue a previously interrupted run of `g`, skipping whatever
         the implementation can determine already completed successfully.
         Called by `run_metapipeline` when `run_options.resume` is truthy.

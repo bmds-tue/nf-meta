@@ -18,7 +18,7 @@ from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.inputs import Binding, InputDefinition, effective_input, input_refs, substitute_inputs
 from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType
 
-from .base_runner import BaseRunner, PlannedStep, RunPlan
+from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
 from .collect import InputMode, Request, collect
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
@@ -408,7 +408,7 @@ class SimplePythonRunner(BaseRunner):
                     + ".".join(str(v) for v in installed[:3])
                 )
 
-    def run(self, graph: MetaworkflowGraph, resume=False):
+    def run(self, graph: MetaworkflowGraph, resume=False) -> RunResults:
         steps = self.plan(graph, resume=resume)
         self._check_nextflow(graph, list(steps))
         self._notice_legacy_cache(graph)
@@ -435,6 +435,8 @@ class SimplePythonRunner(BaseRunner):
 
         console.print("[bold green]All workflows completed successfully[/bold green]")
         logger.info("All workflows completed")
+        assert self.out_dir is not None  # set by plan()
+        return RunResults([StepResult.from_planned(step) for step in steps], out_dir=self.out_dir)
 
     def _notice_legacy_cache(self, graph: MetaworkflowGraph) -> None:
         candidates = {Path.cwd() / LEGACY_CACHE_DIR}
@@ -447,5 +449,5 @@ class SimplePythonRunner(BaseRunner):
                     f"longer used; results now go to {self.out_dir}."
                 )
 
-    def resume(self, graph: MetaworkflowGraph):
-        self.run(graph, resume=True)
+    def resume(self, graph: MetaworkflowGraph) -> RunResults:
+        return self.run(graph, resume=True)

@@ -2,7 +2,9 @@ import dataclasses
 
 from pydantic import BaseModel
 
+from nf_meta.core.errors import Diagnostic
 from nf_meta.core.events import Event
+from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.session import EditorSession
 
 
@@ -19,8 +21,53 @@ def serialize_state(session: EditorSession) -> dict:
         "nodes": session.graph.get_workflows(),
         "transitions": session.graph.get_transitions(),
         "globals": session.graph.global_options,
+        "inputs": serialize_inputs(session.graph),
     }
     return d
+
+
+def serialize_inputs(graph: MetaworkflowGraph) -> list[dict]:
+    """Every input of `graph`, declared or implicit, with its effective schema
+    and default, the params it fills, how it is bound (`"bind"`,
+    `"reference"`, or `None` when unused) and the problems found with it.
+    Fetches the bound steps' param schemas (cached)."""
+    inputs = graph.all_inputs()
+    if not inputs:
+        return []
+    effective, schema_diagnostics = graph.effective_inputs()
+    diagnostics = graph.input_diagnostics() + schema_diagnostics
+    bindings = graph.input_bindings()
+
+    result = []
+    for name, definition in inputs.items():
+        found = bindings.get(name, ())
+        inp = effective.get(name)
+        declared = name in graph.inputs
+        result.append(
+            {
+                "name": name,
+                "declared": declared,
+                "definition": definition.model_dump_config() if declared else None,
+                "bound_by": ("bind" if definition.bind else "reference") if found else None,
+                "bindings": [str(b) for b in found],
+                "schema": inp.schema if inp else {},
+                "default": inp.default if inp else None,
+                "description": inp.description if inp else "",
+                "diagnostics": [
+                    {"severity": d.severity.value, "message": d.message, "yaml_path": d.yaml_path}
+                    for d in diagnostics
+                    if _is_about(d, name, found)
+                ],
+            }
+        )
+    return result
+
+
+def _is_about(d: Diagnostic, name: str, bindings) -> bool:
+    path = d.yaml_path or ""
+    if path == f"inputs.{name}" or path.startswith(f"inputs.{name}."):
+        return True
+    return path in {f"workflows.{b.step_id}.params.{b.param}" for b in bindings}
 
 
 def _serialize_event(event) -> dict:
@@ -29,6 +76,8 @@ def _serialize_event(event) -> dict:
         value = getattr(event, field.name)
         if hasattr(value, "model_dump_display"):
             result[field.name] = value.model_dump_display()
+        elif hasattr(value, "model_dump_config"):
+            result[field.name] = value.model_dump_config()
         elif isinstance(value, BaseModel):
             result[field.name] = value.model_dump()
         else:

@@ -5,25 +5,31 @@ from fastapi import APIRouter, Body, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ValidationError
 
-from nf_meta.core.dynamic_validation import run_dynamic_checks
-from nf_meta.core.errors import SessionCommandError, Severity
+from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
+from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
+    AddInput,
     AddTransition,
     AddWorkflow,
     Command,
     EditWorkflow,
+    RemoveInput,
     RemoveTransition,
     RemoveWorkflow,
     Transaction,
     UpdateGlobalOptions,
+    UpdateInput,
 )
+from nf_meta.core.inputs import InputDefinition
 from nf_meta.core.models import GlobalOptions, Transition, Workflow
 from nf_meta.core.registry import (
     ModuleSchemaError,
     NotInRegistryError,
     PipelineSchemaError,
     RegistryUnavailableError,
+    SchemaUnavailableError,
     get_module_metadata,
     get_module_schema,
     get_nfcore_module_releases,
@@ -165,6 +171,50 @@ def remove(selection: Selection):
 def add_edge(tr: Transition):
     events = SESSION.handle_command(AddTransition(tr))
     return JSONResponse({"events": serialize_events(events)})
+
+
+class InputBody(BaseModel):
+    name: str
+    definition: dict = {}
+
+
+def _input_definition(body: InputBody) -> InputDefinition:
+    try:
+        return InputDefinition.from_config(body.definition)
+    except ValidationError as exc:
+        raise SessionCommandError.from_diagnostics(
+            diagnostics_from_pydantic_error(exc, None, yaml_path_prefix=f"inputs.{body.name}.")
+        ) from exc
+
+
+@api_router.post("/inputs/add/")
+def add_input(body: InputBody):
+    events = SESSION.handle_command(AddInput(body.name, _input_definition(body)))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.post("/inputs/update/")
+def update_input(body: InputBody):
+    events = SESSION.handle_command(UpdateInput(body.name, _input_definition(body)))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.delete("/inputs/delete/")
+def remove_input(name: str = Body(embed=True)):
+    events = SESSION.handle_command(RemoveInput(name))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.get("/node/{wf_id}/schema/")
+def get_node_schema(wf_id: str):
+    """The flat param schema of step `wf_id` (see `get_step_schema`)."""
+    step = SESSION.graph.get_workflow_by_id(wf_id)
+    if step is None:
+        return JSONResponse(status_code=404, content={"detail": f"No step '{wf_id}'"})
+    try:
+        return get_step_schema(step)
+    except SchemaUnavailableError as exc:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 @api_router.get("/nfcore/pipelines/")

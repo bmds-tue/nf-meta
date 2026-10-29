@@ -49,6 +49,7 @@ dev = [
     "types-pyyaml>=6.0.12.20260408",
     "types-requests>=2.33.0.20260503",
     "jsonschema>=4.25.0",
+    "httpx2>=2.16.0",
     "ruff~=0.17.2",
 ]
 docs = [

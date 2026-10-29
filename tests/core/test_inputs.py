@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from nf_meta.core.config import dump_config, validated_graph
+from nf_meta.core.config import dump_config, to_file, validated_graph
 from nf_meta.core.errors import ConfigValidationError, Severity
 from nf_meta.core.events import AddInput, DeleteInput, EditInput
 from nf_meta.core.graph import MetaworkflowGraph
@@ -570,3 +570,16 @@ class TestDeclareStepInputs:
     def test_step_without_input_references(self):
         with pytest.raises(ValueError, match="uses no inputs"):
             graph(pipeline("n01", input="a.csv")).declare_step_inputs("n01")
+
+
+def test_bind_is_written_in_flow_style(tmp_path):
+    g = graph(
+        pipeline("n01", input="a.csv"),
+        pipeline("n02", input="b.csv"),
+        inputs={"ids": {"bind": ["n01.input", "n02.input"], "description": "Run ids"}},
+    )
+    path = tmp_path / "mp.yaml"
+    to_file(g, path)
+    text = path.read_text()
+    assert "bind: [n01.input, n02.input]" in text
+    assert yaml.safe_load(text)["inputs"]["ids"] == {"bind": ["n01.input", "n02.input"], "description": "Run ids"}

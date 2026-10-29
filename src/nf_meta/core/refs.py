@@ -28,7 +28,7 @@ class Ref(str):
         Ref(fetch, "outdir") / "samplesheet/samplesheet.csv"
         # '${n01:params:outdir}/samplesheet/samplesheet.csv'
         Ref.input("ids")
-        # '${inputs:ids}'
+        # '${inputs:ids}' (a param's whole value: no `/`)
 
     `step` is a step model or a step ID.
     """
@@ -39,8 +39,9 @@ class Ref(str):
 
     @classmethod
     def input(cls, name: str) -> "Ref":
-        """A reference to the input `name`."""
-        return cls._of(f"${{inputs:{name}}}")
+        """A reference to the input `name`. It must be a param's whole value,
+        so `/` isn't available on it."""
+        return _InputRef._of(f"${{inputs:{name}}}")
 
     @classmethod
     def _of(cls, text: str) -> "Ref":
@@ -48,3 +49,8 @@ class Ref(str):
 
     def __truediv__(self, path: object) -> "Ref":
         return self._of(f"{self.rstrip('/')}/{str(path).lstrip('/')}")
+
+
+class _InputRef(Ref):
+    def __truediv__(self, path: object) -> "Ref":
+        raise TypeError(f"An input reference must be a param's whole value; can't append {str(path)!r} to {self}")

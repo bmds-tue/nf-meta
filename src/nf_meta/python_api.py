@@ -127,12 +127,15 @@ class Metapipeline:
 
     @property
     def inputs(self) -> dict[str, InputDefinition]:
-        """The declared inputs by name (a copy)."""
-        return {name: d.model_copy(deep=True) for name, d in self.graph.inputs.items()}
+        """Every input by name, declared or implicit (only referenced with
+        `Ref.input(name)` / `${inputs:name}` in params; an empty definition)."""
+        return {name: d.model_copy(deep=True) for name, d in self.graph.all_inputs().items()}
 
     def add_input(self, name: str, definition: InputDefinition | None = None) -> None:
-        """Declare the input `name`. Reference it in params with
-        `Ref.input(name)`, or bind it with `definition.bind`."""
+        """Declare the input `name`: either bind it with `definition.bind`, or
+        reference it in params with `Ref.input(name)` and use the declaration
+        for metadata only (description, default, ...). An input referenced in
+        params needs no declaration."""
         self._execute([AddInput(name, definition or InputDefinition())])
 
     def update_input(self, name: str, definition: InputDefinition) -> None:

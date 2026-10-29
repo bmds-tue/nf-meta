@@ -205,9 +205,9 @@ class TestValidateValue:
 
 
 def test_substitute_inputs():
-    params = {"a": "${inputs:n}", "b": "${inputs:d}/x.csv", "c": "keep"}
-    result = substitute_inputs(params, {"bound": "n"}, {"n": 5, "d": "/data"})
-    assert result == {"a": 5, "b": "/data/x.csv", "c": "keep", "bound": 5}
+    params = {"a": "${inputs:n}", "c": "keep"}
+    result = substitute_inputs(params, {"bound": "n"}, {"n": 5})
+    assert result == {"a": 5, "c": "keep", "bound": 5}
 
 
 # ---------------------------------------------------------------------------
@@ -238,9 +238,49 @@ class TestGraph:
     def test_input_ref_skips_type_check(self):
         assert validate_params({"count": "${inputs:c}"}, SCHEMA, pipeline_id="n01", skip_required=True) == []
 
-    def test_reference_to_undeclared_input_rejected(self):
-        with pytest.raises(ConfigValidationError, match="undeclared input 'nope'"):
-            graph(pipeline("n01", input="${inputs:nope}", outdir="o"))
+    def test_reference_to_undeclared_input_declares_it(self):
+        g = graph(pipeline("n01", input="${inputs:ids}", outdir="o"))
+        assert g.inputs == {}
+        assert g.all_inputs() == {"ids": InputDefinition()}
+        assert g.input_bindings() == {"ids": (Binding("n01", "input"),)}
+
+    def test_implicit_input_inherits_the_param_schema(self):
+        g = graph(pipeline("n01", input="${inputs:ids}", outdir="o"))
+        inputs, _ = g.effective_inputs()
+        assert inputs["ids"].schema["type"] == "string"
+
+    def test_params_share_an_implicit_input(self):
+        g = graph(
+            pipeline("n01", input="${inputs:ids}", outdir="o"),
+            pipeline("n02", input="${inputs:ids}", outdir="p"),
+        )
+        assert g.input_bindings()["ids"] == (Binding("n01", "input"), Binding("n02", "input"))
+
+    def test_declaration_without_bind_adds_metadata(self):
+        g = graph(
+            pipeline("n01", input="${inputs:ids}", outdir="o"),
+            inputs={"ids": {"description": "Accessions", "default": "ids.csv"}},
+        )
+        assert g.all_inputs()["ids"].description == "Accessions"
+        assert not [d for d in g.input_diagnostics() if "not used" in d.message]
+
+    def test_bind_and_reference_for_one_input_rejected(self):
+        with pytest.raises(ConfigValidationError, match="bind it in one place"):
+            graph(
+                pipeline("n01", input="${inputs:ids}", outdir="o"),
+                inputs={"ids": {"bind": "n01.input"}},
+            )
+
+    def test_bind_and_reference_on_different_params_rejected(self):
+        with pytest.raises(ConfigValidationError, match="bind it in one place"):
+            graph(
+                pipeline("n01", input="${inputs:ids}", outdir="o", genome="x"),
+                inputs={"ids": {"bind": "n01.genome"}},
+            )
+
+    def test_partial_reference_rejected(self):
+        with pytest.raises(ConfigValidationError, match=r"'\$\{inputs:dir\}' must be the whole value of 'input'"):
+            graph(pipeline("n01", input="${inputs:dir}/x.csv", outdir="o"))
 
     def test_bind_to_missing_step_rejected_and_rolled_back(self):
         g = graph(pipeline("n01", input="ids.csv", outdir="o"))
@@ -267,11 +307,11 @@ class TestGraph:
         g = graph(pipeline("n01", input="ids.csv", outdir="o"), inputs={"ids": {"bind": "n01.input"}})
         assert [d.severity for d in g.input_diagnostics()] == [Severity.WARNING]
 
-    def test_remove_referenced_input_rejected(self):
+    def test_removing_a_referenced_declaration_leaves_an_implicit_input(self):
         g = graph(pipeline("n01", input="${inputs:ids}", outdir="o"), inputs={"ids": {"default": "a.csv"}})
-        with pytest.raises(ConfigValidationError):
-            g.remove_input("ids")
-        assert "ids" in g.inputs
+        g.remove_input("ids")
+        assert g.inputs == {}
+        assert g.all_inputs() == {"ids": InputDefinition()}
 
     def test_update_rolls_back_on_error(self):
         g = graph(pipeline("n01", input="ids.csv", outdir="o"), inputs={"g": {"bind": "n01.genome"}})
@@ -279,6 +319,22 @@ class TestGraph:
         with pytest.raises(ConfigValidationError):
             g.update_input("g", InputDefinition(bind=("n01.genome",), type="integer"))
         assert g.inputs["g"] is before
+
+    def test_input_reference_needs_config_version_0_4(self):
+        data = {
+            "config_version": "0.3.0",
+            "workflows": {
+                "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "${inputs:ids}"}}
+            },
+        }
+        with pytest.raises(ConfigValidationError, match="needs config_version 0.4.0"):
+            validated_graph(data)
+
+    def test_adding_a_step_with_an_input_reference_raises_config_version(self):
+        g = graph(pipeline("n01", input="ids.csv", outdir="o"))
+        g.config_version = "0.3.0"
+        g.add_workflow(pipeline("n02", input="${inputs:ids}", outdir="p"))
+        assert g.config_version == "0.4.0"
 
     def test_add_input_raises_config_version(self):
         g = graph(pipeline("n01", input="ids.csv", outdir="o"))

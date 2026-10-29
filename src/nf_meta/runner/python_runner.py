@@ -320,7 +320,7 @@ class SimplePythonRunner(BaseRunner):
         recorded = self._load_recorded_inputs() if reproduce else {}
 
         requests: list[Request] = []
-        if graph.inputs:
+        if graph.all_inputs():
             inputs, _ = graph.effective_inputs()
             for inp in inputs.values():
                 if any(b.step_id in subset_ids for b in inp.bindings):
@@ -368,7 +368,7 @@ class SimplePythonRunner(BaseRunner):
 
     def _record_inputs(self, plan: RunPlan, graph: MetaworkflowGraph) -> None:
         """Remember the input values of this run for `reproduce` mode."""
-        values = {name: v for name, v in plan.values.items() if name in graph.inputs}
+        values = {name: v for name, v in plan.values.items() if name in graph.all_inputs()}
         if not values:
             return
         path = self._recorded_inputs_path()

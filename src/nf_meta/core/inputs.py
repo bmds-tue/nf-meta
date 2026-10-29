@@ -1,5 +1,7 @@
-"""Metapipeline inputs: values meant to be set per run, declared once under
-the config's top-level `inputs:` key and bound to step params.
+"""Metapipeline inputs: values meant to be set per run, bound to step params
+either by a declaration under the config's top-level `inputs:` key with
+`bind:`, or by `${inputs:<name>}` as a param's whole value (which declares the
+input implicitly if there is no declaration).
 
 An input is typed with a small JSON-Schema fragment using nf-schema's
 vocabulary. Its effective schema starts from the schema of the param(s) it is
@@ -305,20 +307,15 @@ def substitute_inputs(
     values: dict[str, Any],
 ) -> dict | None:
     """Return `params` with input values filled in: params named in `bound`
-    (param → input name, from `bind:`) are set to the input's value, and
-    `${inputs:<name>}` tokens are replaced. A token that is a param's whole
-    value keeps the input value's type."""
+    (param → input name, from `bind:`) and params whose whole value is
+    `${inputs:<name>}` are set to the input's value, keeping its type."""
     if params is None and not bound:
         return params
     result = dict(params or {})
     for param, name in bound.items():
         result[param] = values[name]
     for key, value in list(result.items()):
-        if not isinstance(value, str):
-            continue
-        whole = INPUT_REF_PATTERN.fullmatch(value)
+        whole = INPUT_REF_PATTERN.fullmatch(value) if isinstance(value, str) else None
         if whole:
             result[key] = values[whole.group(1)]
-        else:
-            result[key] = INPUT_REF_PATTERN.sub(lambda m: str(values[m.group(1)]), value)
     return result

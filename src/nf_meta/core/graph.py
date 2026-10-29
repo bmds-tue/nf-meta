@@ -112,6 +112,8 @@ class MetaworkflowGraph:
                 if wf.params:
                     self.validate_param_references(wf)
                 self.validate_inputs(dynamic=False)
+            if input_refs(wf.params):
+                self._ensure_inputs_config_version()
             self._emit(WorkflowAdded(wf))
         except (GraphValidationError, ConfigValidationError) as e:
             self.G.remove_node(wf.id)
@@ -150,6 +152,8 @@ class MetaworkflowGraph:
             except ConfigValidationError:
                 self.G.nodes[wf.id]["workflow"] = old_wf
                 raise
+        if input_refs(wf.params):
+            self._ensure_inputs_config_version()
         self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))  # type: ignore
 
     def remove_workflow(self, wf_id: str):
@@ -283,6 +287,17 @@ class MetaworkflowGraph:
         if Version(self.config_version) < Version(INPUTS_MIN_CONFIG_VERSION):
             self.config_version = INPUTS_MIN_CONFIG_VERSION
 
+    def all_inputs(self) -> dict[str, InputDefinition]:
+        """Every input, declared or implicit: the `inputs:` declarations, plus
+        an empty definition for each input that is only referenced with
+        `${inputs:<name>}` in step params."""
+        result = dict(self.inputs)
+        for wf in self.get_workflows():
+            for names in input_refs(wf.params).values():
+                for name in names:
+                    result.setdefault(name, InputDefinition())
+        return result
+
     def input_bindings(self) -> dict[str, tuple[Binding, ...]]:
         """Every input's bindings, from `bind:` and from `${inputs:<name>}`
         tokens in step params, sorted."""
@@ -324,8 +339,8 @@ class MetaworkflowGraph:
                     whole_value.add(Binding(wf.id, param))
         workflows = {wf.id: wf for wf in self.get_workflows()}
         return check_inputs(
-            dict(self.inputs),
-            {n: b for n, b in bindings.items() if n in self.inputs},
+            self.all_inputs(),
+            bindings,
             whole_value,
             declared,
             workflows,
@@ -333,10 +348,11 @@ class MetaworkflowGraph:
         )
 
     def input_diagnostics(self) -> list[Diagnostic]:
-        """Problems with inputs that need no network: bindings to missing
-        steps, references to undeclared inputs, params bound twice (errors);
-        unused inputs and bound params that also have their own value
-        (warnings)."""
+        """Problems with inputs that need no network (errors): bindings to
+        missing steps, `${inputs:...}` that isn't a param's whole value, an
+        input bound both with `bind:` and with `${inputs:...}`, params bound
+        twice; (warnings): unused inputs, bound params that also have their
+        own value."""
         diagnostics: list[Diagnostic] = []
 
         def add(message, *, name=None, wf_id=None, param=None, severity=Severity.ERROR):
@@ -355,11 +371,28 @@ class MetaworkflowGraph:
                 )
             )
 
+        for step in self.get_workflows():
+            for param, value in (step.params or {}).items():
+                if not isinstance(value, str) or not INPUT_REF_PATTERN.search(value):
+                    continue
+                if not INPUT_REF_PATTERN.fullmatch(value):
+                    token = INPUT_REF_PATTERN.search(value).group(0)  # type: ignore[union-attr]
+                    add(
+                        f"'{token}' must be the whole value of '{param}'; declare an input for the full value instead",
+                        wf_id=step.id,
+                        param=param,
+                    )
+                    continue
+                name = INPUT_REF_PATTERN.fullmatch(value).group(1)  # type: ignore[union-attr]
+                if name in self.inputs and self.inputs[name].bind:
+                    add(
+                        f"input '{name}' is bound with 'bind:' in inputs.{name}; bind it in one place "
+                        f"(remove this reference or the 'bind:' entry)",
+                        wf_id=step.id,
+                        param=param,
+                    )
+
         bindings = self.input_bindings()
-        for name, found in bindings.items():
-            if name not in self.inputs:
-                for b in found:
-                    add(f"Reference to undeclared input '{name}'", wf_id=b.step_id, param=b.param)
 
         owners: dict[Binding, set[str]] = {}
         for name, found in bindings.items():
@@ -384,7 +417,7 @@ class MetaworkflowGraph:
                     add(f"bound to '{b}', but there is no step '{b.step_id}'", name=name, param=b.param)
                     continue
                 value = (wf.params or {}).get(b.param)
-                if value is not None and value != f"${{inputs:{name}}}":
+                if value is not None and not (isinstance(value, str) and INPUT_REF_PATTERN.search(value)):
                     add(
                         f"has its own value but is bound to input '{name}'; the input's value is used",
                         wf_id=b.step_id,
@@ -400,7 +433,7 @@ class MetaworkflowGraph:
         if not self.inputs and not any(input_refs(wf.params) for wf in self.get_workflows()):
             return
         diagnostics = self.input_diagnostics()
-        if dynamic and self.inputs:
+        if dynamic:
             diagnostics += self.effective_inputs()[1]
         if any(d.severity == Severity.ERROR for d in diagnostics):
             raise ConfigValidationError([d for d in diagnostics if d.severity == Severity.ERROR])

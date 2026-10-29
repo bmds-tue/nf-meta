@@ -63,6 +63,10 @@ class TestRef:
     def test_input_reference(self):
         assert Ref.input("ids") == "${inputs:ids}"
 
+    def test_input_reference_takes_no_path(self):
+        with pytest.raises(TypeError, match="whole value"):
+            Ref.input("ids") / "x.csv"
+
     def test_stored_as_plain_str(self):
         wf = rnaseq(input=Ref("n01", "outdir"))
         assert type(wf.params["input"]) is str
@@ -122,6 +126,11 @@ class TestBuild:
         mp = Metapipeline(project_dir=tmp_path)
         mp.set_globals(GlobalOptions(nf_profile="docker"))
         assert mp.globals.nf_profile == "docker"
+
+    def test_implicit_input_is_listed(self, tmp_path):
+        mp = Metapipeline(project_dir=tmp_path)
+        mp.add(fetchngs(input=Ref.input("ids")))
+        assert mp.inputs == {"ids": InputDefinition()}
 
     def test_inputs(self, tmp_path):
         mp = Metapipeline(project_dir=tmp_path)

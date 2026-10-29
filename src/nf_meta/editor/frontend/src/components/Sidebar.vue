@@ -93,6 +93,9 @@ onBeforeUnmount(stopDrag)
     </v-container>
     <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
       <v-tabs-window-item value="nodes">
+        <div class="d-flex justify-end px-1 pt-1">
+          <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="editorStore.addNodeToSideBar({})">Add workflow</v-btn>
+        </div>
         <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
           <TransitionGroup name="detail-fade">
             <NodeDetail
@@ -104,7 +107,7 @@ onBeforeUnmount(stopDrag)
           </TransitionGroup>
         </v-container>
         <v-container v-if="editorStore.sideBarNodes.length == 0" class="content">
-          <v-card text="No workflows yet. Add one with + in the action bar."></v-card>
+          <v-card text="No workflows yet."></v-card>
         </v-container>
       </v-tabs-window-item>
 

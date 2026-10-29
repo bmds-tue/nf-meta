@@ -336,7 +336,7 @@ watch(isFlashing, async (flashing) => {
           :error-messages="fieldErrors.default" />
 
         <v-radio-group v-model="form.inParams" density="compact" hide-details class="style-choice">
-          <template #label><span class="text-body-2">Where the config says which params it fills</span></template>
+          <template #label><span class="text-body-2">Where the input is declared in the config:</span></template>
           <v-radio v-for="choice in styleChoices" :key="String(choice.value)" :value="choice.value" color="primary">
             <template #label>
               <div class="d-flex flex-column">

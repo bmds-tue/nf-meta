@@ -184,6 +184,10 @@ export const useGraphStore = defineStore('graph', () => {
         return applyMutation(await apiStore.saveInput(input), 'Saved')
     }
 
+    async function setInputsStyle(inParams: boolean) {
+        return applyMutation(await apiStore.setInputsStyle(inParams), 'Saved')
+    }
+
     async function declareStepInputs(nodeId: string) {
         return applyMutation(await apiStore.declareStepInputs(nodeId), 'Inputs moved to the inputs: section')
     }
@@ -276,7 +280,7 @@ export const useGraphStore = defineStore('graph', () => {
         isHorizontalLayout, layoutDirection, switchLayout,
         undoable, redoable,
         getAndUpdateGraph,
-        saveNode, saveEdge, updateGlobalOptions, saveInput, removeInput, declareStepInputs,
+        saveNode, saveEdge, updateGlobalOptions, saveInput, removeInput, declareStepInputs, setInputsStyle,
         showInputsNode, toggleInputsNode,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,

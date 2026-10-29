@@ -77,6 +77,10 @@ export const useApiStore = defineStore('api', () => {
         return request<APICommandResponse>('/api/inputs/save/', { method: 'POST', body: JSON.stringify(input) })
     }
 
+    function setInputsStyle(inParams: boolean) {
+        return request<APICommandResponse>('/api/inputs/style/', { method: 'POST', body: JSON.stringify({ in_params: inParams }) })
+    }
+
     function declareStepInputs(nodeId: string) {
         return request<APICommandResponse>(`/api/node/${encodeURIComponent(nodeId)}/declare-inputs/`, { method: 'POST' })
     }
@@ -115,7 +119,7 @@ export const useApiStore = defineStore('api', () => {
         getGraph, saveGraph, loadGraph,
         undoGraph, redoGraph,
         addNode, updateNode, deleteSelection, addEdge, updateGlobalOptions,
-        saveInput, deleteInput, declareStepInputs,
+        saveInput, deleteInput, declareStepInputs, setInputsStyle,
         getNodeSchema, getPipelineSchema, getModuleSchema,
     }
 })

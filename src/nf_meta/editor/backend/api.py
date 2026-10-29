@@ -10,19 +10,19 @@ from pydantic import BaseModel, ValidationError
 from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
 from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
-    AddInput,
     AddTransition,
     AddWorkflow,
     Command,
+    DeclareStepInputs,
+    DeleteInput,
+    EditInput,
     EditWorkflow,
-    RemoveInput,
     RemoveTransition,
     RemoveWorkflow,
     Transaction,
     UpdateGlobalOptions,
-    UpdateInput,
 )
-from nf_meta.core.inputs import InputDefinition
+from nf_meta.core.inputs import Binding, InputDefinition
 from nf_meta.core.models import GlobalOptions, Transition, Workflow
 from nf_meta.core.registry import (
     ModuleSchemaError,
@@ -174,34 +174,53 @@ def add_edge(tr: Transition):
 
 
 class InputBody(BaseModel):
+    """An input as edited in the inputs panel: its details (`definition`,
+    without `bind`), the params it fills, and whether it is written as
+    `${inputs:<name>}` in those params (`in_params`) or with `bind:`."""
+
     name: str
     definition: dict = {}
+    bindings: list[str] = []
+    in_params: bool = True
+    new_name: str | None = None
+    create: bool = False
 
 
-def _input_definition(body: InputBody) -> InputDefinition:
+def _edit_input_command(body: InputBody) -> EditInput:
+    target = body.new_name or body.name
     try:
-        return InputDefinition.from_config(body.definition)
+        definition = InputDefinition.from_config({k: v for k, v in body.definition.items() if k != "bind"})
     except ValidationError as exc:
         raise SessionCommandError.from_diagnostics(
-            diagnostics_from_pydantic_error(exc, None, yaml_path_prefix=f"inputs.{body.name}.")
+            diagnostics_from_pydantic_error(exc, None, yaml_path_prefix=f"inputs.{target}.")
         ) from exc
+    try:
+        bindings = tuple(Binding.parse(text) for text in body.bindings)
+    except ValueError as exc:
+        raise SessionCommandError(
+            field_errors=[
+                SessionCommandError.FieldError(workflow_id=None, field=f"inputs.{target}.bind", message=str(exc))
+            ],
+            graph_errors=[],
+        ) from exc
+    return EditInput(body.name, definition, bindings, body.in_params, body.new_name, body.create)
 
 
-@api_router.post("/inputs/add/")
-def add_input(body: InputBody):
-    events = SESSION.handle_command(AddInput(body.name, _input_definition(body)))
-    return JSONResponse({"events": serialize_events(events)})
-
-
-@api_router.post("/inputs/update/")
-def update_input(body: InputBody):
-    events = SESSION.handle_command(UpdateInput(body.name, _input_definition(body)))
+@api_router.post("/inputs/save/")
+def save_input(body: InputBody):
+    events = SESSION.handle_command(_edit_input_command(body))
     return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.delete("/inputs/delete/")
-def remove_input(name: str = Body(embed=True)):
-    events = SESSION.handle_command(RemoveInput(name))
+def delete_input(name: str = Body(embed=True)):
+    events = SESSION.handle_command(DeleteInput(name))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.post("/node/{wf_id}/declare-inputs/")
+def declare_step_inputs(wf_id: str):
+    events = SESSION.handle_command(DeclareStepInputs(wf_id))
     return JSONResponse({"events": serialize_events(events)})
 
 

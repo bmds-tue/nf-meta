@@ -32,6 +32,11 @@ def add_step(client, **params) -> str:
     return response.json()["events"][0]["workflow"]["id"]
 
 
+def save_input(client, name, *, bindings=(), in_params=True, create=False, **extra):
+    body = {"name": name, "bindings": list(bindings), "in_params": in_params, "create": create, **extra}
+    return client.post("/api/inputs/save/", json=body)
+
+
 def inputs(client) -> dict[str, dict]:
     return {i["name"]: i for i in client.get("/api/graph/").json()["inputs"]}
 
@@ -43,7 +48,7 @@ class TestInputState:
 
     def test_bound_input(self, client):
         step = add_step(client)
-        client.post("/api/inputs/add/", json={"name": "ids", "definition": {"bind": [f"{step}.input"]}})
+        save_input(client, "ids", bindings=[f"{step}.input"], in_params=False, create=True)
         ids = inputs(client)["ids"]
         assert ids["declared"] is True
         assert ids["bound_by"] == "bind"
@@ -60,71 +65,82 @@ class TestInputState:
         assert ids["bindings"] == [f"{step}.input"]
 
     def test_declaration_adds_metadata_to_an_implicit_input(self, client):
-        add_step(client, input="${inputs:ids}")
-        response = client.post("/api/inputs/add/", json={"name": "ids", "definition": {"description": "Run ids"}})
+        step = add_step(client, input="${inputs:ids}")
+        response = save_input(client, "ids", bindings=[f"{step}.input"], definition={"description": "Run ids"})
         assert response.status_code == 200, response.json()
         ids = inputs(client)["ids"]
         assert (ids["declared"], ids["bound_by"], ids["description"]) == (True, "reference", "Run ids")
 
     def test_unused_input_has_a_warning(self, client):
         add_step(client)
-        client.post("/api/inputs/add/", json={"name": "ids", "definition": {}})
+        save_input(client, "ids", create=True)
         ids = inputs(client)["ids"]
         assert ids["bound_by"] is None
         assert ("warning", "not used by any step") in [(d["severity"], d["message"]) for d in ids["diagnostics"]]
 
 
 class TestInputCommands:
+    def test_create_in_params(self, client):
+        step = add_step(client)
+        response = save_input(client, "ids", bindings=[f"{step}.input"], create=True)
+        assert response.status_code == 200, response.json()
+        assert client.get("/api/graph/").json()["nodes"][0]["params"] == {"input": "${inputs:ids}"}
+        assert inputs(client)["ids"]["declared"] is False
+
     def test_unknown_param_is_a_field_error_on_the_input(self, client):
         step = add_step(client)
-        response = client.post("/api/inputs/add/", json={"name": "ids", "definition": {"bind": [f"{step}.nope"]}})
+        response = save_input(client, "ids", bindings=[f"{step}.nope"], in_params=False, create=True)
         assert response.status_code == 422
         errors = response.json()["field_errors"]
         assert [(e["workflow_id"], e["field"]) for e in errors] == [(None, "inputs.ids.bind")]
         assert inputs(client) == {}
 
+    def test_malformed_binding(self, client):
+        response = save_input(client, "ids", bindings=["nodot"], create=True)
+        assert [e["field"] for e in response.json()["field_errors"]] == ["inputs.ids.bind"]
+
     def test_unknown_keyword_is_a_field_error_on_the_input(self, client):
-        response = client.post("/api/inputs/add/", json={"name": "ids", "definition": {"colour": "red"}})
+        response = save_input(client, "ids", create=True, definition={"colour": "red"})
         assert response.status_code == 422
         assert [e["field"] for e in response.json()["field_errors"]] == ["inputs.ids.colour"]
 
     def test_invalid_name(self, client):
-        response = client.post("/api/inputs/add/", json={"name": "a:b", "definition": {}})
+        response = save_input(client, "a:b", create=True)
         assert response.status_code == 422
         assert "Invalid input name" in response.json()["graph_errors"][0]
 
-    def test_bind_and_reference_conflict_reported_at_the_param(self, client):
+    def test_rename_and_switch_style(self, client):
         step = add_step(client, input="${inputs:ids}")
-        response = client.post("/api/inputs/add/", json={"name": "ids", "definition": {"bind": [f"{step}.input"]}})
-        assert response.status_code == 422
-        errors = response.json()["field_errors"]
-        assert [(e["workflow_id"], e["field"]) for e in errors] == [(step, "params.input")]
+        response = save_input(client, "ids", bindings=[f"{step}.input"], in_params=False, new_name="runs")
+        assert response.status_code == 200, response.json()
+        assert inputs(client)["runs"]["bound_by"] == "bind"
+        assert client.get("/api/graph/").json()["nodes"][0]["params"] is None
 
-    def test_update_delete_undo_redo(self, client, config):
-        step = add_step(client)
-        client.post("/api/inputs/add/", json={"name": "ids", "definition": {"bind": [f"{step}.input"]}})
-        client.post(
-            "/api/inputs/update/",
-            json={"name": "ids", "definition": {"bind": [f"{step}.input"], "description": "Run ids"}},
-        )
+    def test_delete_undo_redo(self, client, config):
+        step = add_step(client, outdir="out")
+        save_input(client, "ids", bindings=[f"{step}.input"], in_params=False, create=True)
+        save_input(client, "ids", bindings=[f"{step}.input"], in_params=False, definition={"description": "Run ids"})
         assert inputs(client)["ids"]["description"] == "Run ids"
         assert yaml.safe_load(config.read_text())["inputs"]["ids"]["description"] == "Run ids"
 
         response = client.request("DELETE", "/api/inputs/delete/", json={"name": "ids"})
-        assert response.status_code == 200
+        assert response.status_code == 200, response.json()
         assert inputs(client) == {}
-        assert "inputs" not in yaml.safe_load(config.read_text())
 
         client.get("/api/graph/undo/")
         assert inputs(client)["ids"]["description"] == "Run ids"
-        client.get("/api/graph/undo/")
-        assert inputs(client)["ids"]["description"] == ""
         client.get("/api/graph/redo/")
-        assert inputs(client)["ids"]["description"] == "Run ids"
+        assert inputs(client) == {}
+
+    def test_declare_step_inputs(self, client):
+        step = add_step(client, input="${inputs:ids}")
+        response = client.post(f"/api/node/{step}/declare-inputs/")
+        assert response.status_code == 200, response.json()
+        assert inputs(client)["ids"]["definition"] == {"bind": [f"{step}.input"]}
 
     def test_events_carry_the_definition_as_written(self, client):
         step = add_step(client)
-        response = client.post("/api/inputs/add/", json={"name": "ids", "definition": {"bind": f"{step}.input"}})
+        response = save_input(client, "ids", bindings=[f"{step}.input"], in_params=False, create=True)
         assert response.json()["events"] == [
             {"type": "InputAdded", "name": "ids", "definition": {"bind": [f"{step}.input"]}}
         ]

@@ -271,6 +271,112 @@ class MetaworkflowGraph:
             raise
         self._emit(InputRemoved(name, old))
 
+    def edit_input(
+        self,
+        name: str,
+        definition: InputDefinition,
+        bindings: tuple[Binding, ...],
+        *,
+        in_params: bool,
+        new_name: str | None = None,
+        create: bool = False,
+    ):
+        """Make input `name` (renamed to `new_name`, if given) fill exactly
+        `bindings`, with `definition`'s description, default and keywords
+        (its `bind` is ignored).
+
+        With `in_params`, each bound param's value becomes
+        `${inputs:<name>}` and the input is declared in `inputs:` only if
+        `definition` adds something; otherwise it is declared with `bind:`.
+        References to the input from params not in `bindings` are removed.
+        An input with no bindings is always declared.
+
+        With `create`, the input must not exist yet; otherwise it must.
+        Raises `ValueError` for an unknown, existing or invalid name or a
+        binding to a missing step, and `ConfigValidationError` if the result
+        is invalid (the graph is then unchanged).
+        """
+        target = new_name or name
+        exists = name in self.all_inputs()
+        if create and exists:
+            raise ValueError(f"Input '{name}' already exists")
+        if not create and not exists:
+            raise ValueError(f"Input '{name}' does not exist")
+        if target != name and target in self.all_inputs():
+            raise ValueError(f"Input '{target}' already exists")
+        if not INPUT_NAME_PATTERN.fullmatch(target):
+            raise ValueError(f"Invalid input name '{target}': it can't be empty or contain '}}', ':' or whitespace")
+        for b in bindings:
+            if b.step_id not in self.G:
+                raise ValueError(f"Can't bind input '{target}' to '{b}': there is no step '{b.step_id}'")
+
+        referenced = set(bindings) if in_params else set()
+        declaration = definition.model_copy(
+            update={"bind": () if in_params else tuple(str(b) for b in sorted(bindings))}
+        )
+        keep_declaration = not in_params or not bindings or declaration != InputDefinition()
+        with self._batched():
+            self._set_input_references(name, f"${{inputs:{target}}}", referenced)
+            if name in self.inputs and (target != name or not keep_declaration):
+                self.remove_input(name)
+            if keep_declaration:
+                if target in self.inputs:
+                    self.update_input(target, declaration)
+                else:
+                    self.add_input(target, declaration)
+
+    def delete_input(self, name: str):
+        """Remove input `name`: its declaration and the params referencing it
+        with `${inputs:<name>}`. Raises `ValueError` if there is no such input
+        and `ConfigValidationError` if the result is invalid (e.g. a required
+        param is left without a value)."""
+        if name not in self.all_inputs():
+            raise ValueError(f"Input '{name}' does not exist")
+        with self._batched():
+            self._set_input_references(name, "", set())
+            if name in self.inputs:
+                self.remove_input(name)
+
+    def declare_step_inputs(self, wf_id: str):
+        """Declare every input that step `wf_id` references with
+        `${inputs:<name>}` in `inputs:`, bound with `bind:` to all params it
+        fills (in this and other steps). Raises `ValueError` if the step
+        references no inputs."""
+        wf = self.get_workflow_by_id(wf_id)
+        if wf is None:
+            raise ValueError(f"Workflow with id '{wf_id}' does not exist")
+        names = sorted({n for found in input_refs(wf.params).values() for n in found})
+        if not names:
+            raise ValueError(f"Step '{wf_id}' uses no inputs from its params")
+        bindings = self.input_bindings()
+        with self._batched():
+            for name in names:
+                self.edit_input(name, self.inputs.get(name, InputDefinition()), bindings[name], in_params=False)
+
+    def _set_input_references(self, name: str, value: str, bindings: set[Binding]) -> None:
+        """Remove every whole-value `${inputs:<name>}` from params, then set
+        each param in `bindings` to `value`."""
+        for wf in self.get_workflows():
+            params = dict(wf.params or {})
+            for param, current in list(params.items()):
+                whole = INPUT_REF_PATTERN.fullmatch(current) if isinstance(current, str) else None
+                if whole and whole.group(1) == name and Binding(wf.id, param) not in bindings:
+                    del params[param]
+            for b in bindings:
+                if b.step_id == wf.id:
+                    params[b.param] = value
+            if params != (wf.params or {}):
+                self.update_workflow(wf.model_copy(update={"params": params or None}))
+
+    @contextmanager
+    def _batched(self):
+        """`deferred_validation`, or nothing if validation is already deferred."""
+        if self._validation_suspended is not None:
+            yield self
+        else:
+            with self.deferred_validation():
+                yield self
+
     def _after_input_change(self, affected_step_ids: list[str]) -> None:
         if self._validation_suspended is not None:
             self._validation_suspended.update(affected_step_ids)

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { INPUT_COLOR } from '../store'
+import { INPUT_COLOR, REF_COLOR } from '../store'
 import type { StepSchema } from '../types'
-import { paramSuggestions } from '../utils'
+import { paramSuggestions, type ReferenceTarget } from '../utils'
 
 const props = defineProps<{
   schema?: StepSchema | null
@@ -12,11 +12,13 @@ const props = defineProps<{
   setParams: string[]
   // The input a param would get (shared if it exists already)
   inputFor: (param: string) => { name: string, shared: boolean }
+  // Params of the direct predecessors, which a param can reference
+  references: ReferenceTarget[]
 }>()
 
 const emit = defineEmits<{
-  // asInput: fill the param with a run input instead of a value
-  add: [param: string, asInput: boolean],
+  // value: '' (to be filled in), ${inputs:<name>} or ${<step>:params:<key>}
+  add: [param: string, value: string],
 }>()
 
 const suggestions = computed(() => paramSuggestions(props.schema, props.setParams))
@@ -27,11 +29,20 @@ const optionalItems = computed(() => suggestions.value.optional.map(param => ({
 })))
 const picked = ref<string | null>(null)
 const menuOpen = ref(false)
+const canReference = computed(() => props.references.length > 0)
 
-function pick(param: string | null, asInput = false) {
-  if (param) emit('add', param, asInput)
+function add(param: string | null, value = '') {
+  if (param) emit('add', param, value)
   picked.value = null
   menuOpen.value = false
+}
+
+function addInput(param: string) {
+  add(param, `\${inputs:${props.inputFor(param).name}}`)
+}
+
+function addReference(param: string, stepId: string, key: string) {
+  add(param, `\${${stepId}:params:${key}}`)
 }
 
 function inputTitle(param: string) {
@@ -39,6 +50,12 @@ function inputTitle(param: string) {
   return shared
     ? `Fill '${param}' per run with the existing input '${name}'`
     : `Fill '${param}' per run: new input '${name}'`
+}
+
+function referenceTitle(param: string) {
+  return canReference.value
+    ? `Fill '${param}' with a param of a previous step`
+    : `Fill '${param}' with a param of a previous step: connect a step to this one first`
 }
 </script>
 
@@ -54,15 +71,33 @@ function inputTitle(param: string) {
           v-for="param in suggestions.required" :key="param"
           color="warning" variant="tonal" class="param-pill"
           :title="schema[param]?.description ?? `Add '${param}'`"
-          @click="pick(param)">
+          @click="add(param)">
           <v-icon icon="mdi-asterisk" size="12" start />
           {{ param }}
           <template #append>
+            <v-menu location="bottom start">
+              <template #activator="{ props: menuProps }">
+                <v-btn
+                  v-bind="menuProps"
+                  icon="mdi-transit-connection-variant" size="22" variant="flat" class="pill-btn ml-2"
+                  :color="REF_COLOR" :disabled="!canReference" :title="referenceTitle(param)"
+                  @click.stop />
+              </template>
+              <v-list density="compact" class="reference-list">
+                <template v-for="target in references" :key="target.stepId">
+                  <v-list-subheader>{{ target.stepName }} ({{ target.stepId }})</v-list-subheader>
+                  <v-list-item
+                    v-for="p in target.params" :key="p.key"
+                    :title="p.key" :subtitle="p.value"
+                    @click="addReference(param, target.stepId, p.key)" />
+                </template>
+              </v-list>
+            </v-menu>
             <v-btn
-              icon="mdi-import" size="22" variant="flat" class="input-btn ml-2 mr-n1"
+              icon="mdi-import" size="22" variant="flat" class="pill-btn ml-1 mr-n1"
               :color="INPUT_COLOR"
               :title="inputTitle(param)"
-              @click.stop="pick(param, true)" />
+              @click.stop="addInput(param)" />
           </template>
         </v-chip>
       </div>
@@ -79,15 +114,33 @@ function inputTitle(param: string) {
         color="info" base-color="info"
         prepend-inner-icon="mdi-plus"
         variant="outlined" density="compact" hide-details
-        @update:model-value="pick">
+        @update:model-value="add">
         <template #item="{ props: itemProps, item }">
           <v-list-item v-bind="itemProps" :subtitle="item.subtitle" lines="one">
             <template #append>
+              <v-menu location="end">
+                <template #activator="{ props: menuProps }">
+                  <v-btn
+                    v-bind="menuProps"
+                    icon="mdi-transit-connection-variant" size="26" variant="flat" class="pill-btn mr-1"
+                    :color="REF_COLOR" :disabled="!canReference" :title="referenceTitle(item.value)"
+                    @click.stop />
+                </template>
+                <v-list density="compact" class="reference-list">
+                  <template v-for="target in references" :key="target.stepId">
+                    <v-list-subheader>{{ target.stepName }} ({{ target.stepId }})</v-list-subheader>
+                    <v-list-item
+                      v-for="p in target.params" :key="p.key"
+                      :title="p.key" :subtitle="p.value"
+                      @click="addReference(item.value, target.stepId, p.key)" />
+                  </template>
+                </v-list>
+              </v-menu>
               <v-btn
-                icon="mdi-import" size="26" variant="flat" class="input-btn"
+                icon="mdi-import" size="26" variant="flat" class="pill-btn"
                 :color="INPUT_COLOR"
                 :title="inputTitle(item.value)"
-                @click.stop="pick(item.value, true)" />
+                @click.stop="addInput(item.value)" />
             </template>
           </v-list-item>
         </template>
@@ -100,8 +153,12 @@ function inputTitle(param: string) {
 .param-pill {
   font-weight: 500;
 }
-.input-btn :deep(.v-icon) {
+.pill-btn :deep(.v-icon) {
   color: white;
   font-size: 15px;
+}
+.reference-list {
+  max-height: 320px;
+  min-width: 240px;
 }
 </style>

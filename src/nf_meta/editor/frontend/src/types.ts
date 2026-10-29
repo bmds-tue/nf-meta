@@ -67,6 +67,7 @@ export type NewNodeData = { type?: WorkflowTypeValue }
 export type APIGlobalOptions = {
   nf_profile?: string,
   nf_config?: string,
+  nextflow_version?: string,
   params?: object
 }
 

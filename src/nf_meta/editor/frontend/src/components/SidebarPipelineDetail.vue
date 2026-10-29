@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { usePipelineStore, useGraphStore } from '../store';
-import { extractFieldErrors, inputFor, inputsOfStep, shortVersion } from '../utils';
+import { extractFieldErrors, inputFor, inputsOfStep, referenceTargets, shortVersion } from '../utils';
 import type { APINfPipelineNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import YamlEditor from './YamlEditor.vue';
@@ -131,9 +131,11 @@ function inputForParam(param: string) {
   return inputFor(param, form.value.name, graphStore.inputs, schema.value?.[param])
 }
 
-function addParam(param: string, asInput: boolean) {
-  yamlEditor.value?.addParam(param, asInput ? `\${inputs:${inputForParam(param).name}}` : '')
+function addParam(param: string, value: string) {
+  yamlEditor.value?.addParam(param, value)
 }
+
+const references = computed(() => referenceTargets(graphStore.getPredecessors(form.value.id)))
 
 const hasParams = computed(() => !!form.value.params && Object.keys(form.value.params).length > 0)
 const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.params).trim() : '')
@@ -242,7 +244,7 @@ const pathRows = computed(() => [
     <div class="text-caption mt-1">Params</div>
     <ParamAssist
       :schema="schema" :loading="schemaLoading" :error="schemaError"
-      :set-params="setParams" :input-for="inputForParam"
+      :set-params="setParams" :input-for="inputForParam" :references="references"
       @add="addParam" />
     <p v-if="errors['params']?.length" class="field-error mb-1">{{ errors['params']!.join(' ') }}</p>
     <div class="params-editor">

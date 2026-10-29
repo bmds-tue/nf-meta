@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Node, Connection, NodeMouseEvent } from '@vue-flow/core'
-import { VueFlow, useVueFlow, ConnectionMode, Panel} from '@vue-flow/core'
+import { VueFlow, useVueFlow, ConnectionMode } from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
 import { Background } from '@vue-flow/background'
 import WorkflowNode from './components/WorkflowNode.vue'
@@ -14,6 +14,8 @@ import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 import { useLayout } from './layout_graph'
+import { useTheme } from 'vuetify'
+import { THEME_CHOICES, storeTheme, type ThemeName } from './themes'
 // Inlined so the logo takes the text color (it is drawn in currentColor)
 import logoSvg from './assets/nf-meta-octo.svg?raw'
 import { DOCS_URL } from './links'
@@ -21,12 +23,21 @@ import { DOCS_URL } from './links'
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
+const theme = useTheme()
+const themeName = computed(() => theme.global.name.value)
+// The canvas dots are an SVG attribute, so they need the color itself, not a CSS variable
+const gridColor = computed(() => theme.current.value.colors.grid as string)
+
+function setTheme(name: ThemeName) {
+  theme.change(name)
+  storeTheme(name)
+}
+
 const { sideBarTab, sideBarOpen } = storeToRefs(editorStore)
 const { setNodes, getNodes, getEdges, onNodesInitialized, fitView, findNode, addSelectedNodes, removeSelectedNodes } = useVueFlow({id: "main-flow"})
 const { layout } = useLayout()
 
-// Room for the action bar, which floats over the top left of the graph
-const fitGraph = () => fitView({ padding: 0.25 })
+const fitGraph = () => fitView({ padding: 0.15 })
 
 const toggleLayoutAndFitView = async function() {
   graphStore.switchLayout()
@@ -149,67 +160,50 @@ onMounted(async () => {
 
 <template>
 <v-app class="editor">
-    <Panel class="process-panel" position="top-left">
-      <v-container class="layout-panel">
-          <a class="logo" :href="DOCS_URL" target="_blank" title="nf-meta: open the documentation" v-html="logoSvg"></a>
-        <v-btn 
-          title="add a workflow node" 
-          icon="mdi-plus"
-          @click=onAddNodeClick>
-        </v-btn>
-        
-        <v-btn
-          title="save to file"
-          icon="mdi-content-save"
-          :loading="saving"
-          @click="onSave">
-        </v-btn>
+    <header class="app-bar">
+      <a class="logo" :href="DOCS_URL" target="_blank" title="nf-meta: open the documentation" v-html="logoSvg"></a>
 
-        <v-btn
-          title="open from file"
-          icon="mdi-upload"
-          @click="onOpen">
-        </v-btn>
+      <div class="bar-group">
+        <v-btn title="Add a workflow" icon="mdi-plus" variant="text" @click="onAddNodeClick" />
+        <v-btn title="Save to file" icon="mdi-content-save-outline" variant="text" :loading="saving" @click="onSave" />
+        <v-btn title="Open a config" icon="mdi-folder-open-outline" variant="text" @click="onOpen" />
+      </div>
+      <v-divider vertical inset />
+      <div class="bar-group">
+        <v-btn title="Undo" icon="mdi-undo" variant="text" :disabled="!graphStore.undoable" :loading="undoing" @click="onUndo" />
+        <v-btn title="Redo" icon="mdi-redo" variant="text" :disabled="!graphStore.redoable" :loading="redoing" @click="onRedo" />
+      </div>
 
-        <v-btn
-          title="undo last operation"
-          :disabled="!graphStore.undoable"
-          :loading="undoing"
-          icon="mdi-undo"
-          @click="onUndo">
-        </v-btn>
+      <v-spacer />
 
+      <div class="bar-group">
         <v-btn
-          title="redo last operations"
-          :disabled="!graphStore.redoable"
-          :loading="redoing"
-          icon="mdi-redo"
-          @click="onRedo">
-        </v-btn>
-
+          :title="graphStore.showInputsNode ? 'Hide the inputs node' : 'Show the inputs node'"
+          icon="mdi-import" variant="text"
+          :active="graphStore.showInputsNode" active-color="primary"
+          @click="graphStore.toggleInputsNode" />
         <v-btn
-          :title="graphStore.showInputsNode ? 'hide the inputs node' : 'show the inputs node'"
-          :active="graphStore.showInputsNode"
-          active-color="primarySoft"
-          @click="graphStore.toggleInputsNode"
-          icon="mdi-import">
-        </v-btn>
-
+          :title="graphStore.isHorizontalLayout ? 'Vertical layout' : 'Horizontal layout'"
+          :icon="graphStore.isHorizontalLayout ? 'mdi-arrow-up-down' : 'mdi-arrow-left-right'" variant="text"
+          @click="toggleLayoutAndFitView" />
         <v-btn
-          :title="graphStore.isHorizontalLayout ? 'set vertical layout' : 'set horizontal layout'" 
-          @click="toggleLayoutAndFitView"
-          :icon="graphStore.isHorizontalLayout ? 'mdi-arrow-up-down' : 'mdi-arrow-left-right'">
-        </v-btn>
-
-        <v-btn 
-          title="toggle sidebar" 
-          :active="editorStore.sideBarOpen"
-          active-color="primarySoft"
-          @click="editorStore.toggleSidebar"
-          icon="mdi-view-split-vertical">
-        </v-btn>
-      </v-container>
-    </Panel>
+          title="Show or hide the sidebar"
+          icon="mdi-dock-right" variant="text"
+          :active="editorStore.sideBarOpen" active-color="primary"
+          @click="editorStore.toggleSidebar" />
+      </div>
+      <v-divider vertical inset />
+      <v-menu location="bottom end">
+        <template #activator="{ props: menuProps }">
+          <v-btn v-bind="menuProps" title="Theme" icon="mdi-theme-light-dark" variant="text" class="mr-1" />
+        </template>
+        <v-list density="compact" :selected="[themeName]" @update:selected="(names: unknown[]) => names[0] && setTheme(names[0] as ThemeName)">
+          <v-list-item
+            v-for="choice in THEME_CHOICES" :key="choice.name" :value="choice.name"
+            :title="choice.title" :subtitle="choice.subtitle" color="primary" />
+        </v-list>
+      </v-menu>
+    </header>
 
     <div class="split-view">
       <VueFlow 
@@ -224,7 +218,7 @@ onMounted(async () => {
         @node-mouse-leave="onNodeHoverLeave"
         :delete-key-code="null"
         fit-view-on-init>
-        <Background />
+        <Background :pattern-color="gridColor" :gap="20" />
         
         <template #node-workflow-node="nodeProps">
           <WorkflowNode 
@@ -277,34 +271,40 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.process-panel {
-  background-color: rgb(var(--v-theme-surface));
-  backdrop-filter: blur(6px);
-  border-radius: 8px;
+.app-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 52px;
+  padding: 0 8px;
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  z-index: 5;
+}
 
-  .layout-panel {
-    display: flex;
-    flex-direction: row;
-    gap: 5px;
-  }
-  
-  .logo {
-    display: flex;
-    align-items: center;
-    color: white;
-    margin-right: 12px;
-    transition: opacity 0.15s;
-  }
+.bar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 
-  .logo:hover {
-    opacity: 0.8;
-  }
+.logo {
+  display: flex;
+  align-items: center;
+  color: rgb(var(--v-theme-on-surface));
+  margin: 0 10px 0 4px;
+  transition: opacity 0.15s;
+}
 
-  .logo :deep(svg) {
-    width: 40px;
-    height: 40px;
-  }
+.logo:hover {
+  opacity: 0.8;
+}
 
+.logo :deep(svg) {
+  width: 34px;
+  height: 34px;
 }
 
 </style>

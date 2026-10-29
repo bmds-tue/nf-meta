@@ -1,5 +1,5 @@
 import YAML, { isMap, isScalar } from 'yaml'
-import type { APIInput, APIInputDefinition, FieldError, ParamSpec, StepSchema } from './types'
+import type { APIInput, APIInputDefinition, APINodeData, FieldError, ParamSpec, StepSchema } from './types'
 import { WorkflowType } from './types'
 
 /**
@@ -204,4 +204,25 @@ export function paramSuggestions(schema: StepSchema | null | undefined, set: Ite
         else if (!spec.hidden) optional.push(param)
     }
     return { required: required.sort(), optional: optional.sort() }
+}
+
+export type ReferenceTarget = { stepId: string, stepName: string, params: { key: string, value: string }[] }
+
+/**
+ * The params a step can reference, `${<step>:params:<key>}`: those with a
+ * value in each of its direct predecessors (a reference must point at one).
+ * Steps without params are left out.
+ */
+export function referenceTargets(predecessors: APINodeData[]): ReferenceTarget[] {
+    return predecessors
+        .filter((node): node is APINodeData & { id: string } => !!node.id)
+        .map(node => ({
+            stepId: node.id,
+            stepName: node.name ?? node.id,
+            params: Object.entries(node.params ?? {})
+                .filter(([, value]) => value !== null && value !== undefined && value !== '')
+                .map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) }))
+                .sort((a, b) => a.key.localeCompare(b.key)),
+        }))
+        .filter(target => target.params.length > 0)
 }

@@ -103,7 +103,7 @@ async function copyToClipboard() {
 
 <style scoped>
 .workflow-node-handle {
-    background: #2d3f46;
+    background: rgb(var(--v-theme-handle));
     width: 20px;
     height: 10px;
     border-radius: 10px;

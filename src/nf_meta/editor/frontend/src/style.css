@@ -18,8 +18,8 @@ html, body, #app, :root {
 
 .workflow-node {
     padding: 10px;
-    color: rgb(var(--v-theme-onPrimary));
-    background: rgb(var(--v-theme-background));;
+    color: rgb(var(--v-theme-nodeText));
+    background: rgb(var(--v-theme-nodeBackground));
     border-width: 4px;
     border-style: solid;
     border-radius: 8px;

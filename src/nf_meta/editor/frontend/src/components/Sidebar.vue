@@ -55,7 +55,7 @@ const stopDrag = () => {
     document.body.style.cursor = ""
 
     nextTick(() => {
-        fitView({ padding: 0.25 })
+        fitView({ padding: 0.15 })
     })
 }
 
@@ -80,7 +80,6 @@ onBeforeUnmount(stopDrag)
     <v-container class="pa-0 mb-1">
       <v-tabs v-model="sideBarTab">
         <v-tab value="nodes">Workflows</v-tab>
-        <v-tab value="globals">Globals</v-tab>
         <v-tab value="inputs">
           Inputs
           <v-badge
@@ -89,6 +88,7 @@ onBeforeUnmount(stopDrag)
             :color="graphStore.inputs.some(i => i.diagnostics.length) ? 'warning' : 'primary'"
             inline />
         </v-tab>
+        <v-tab value="globals">Globals</v-tab>
       </v-tabs>
     </v-container>
     <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
@@ -111,8 +111,8 @@ onBeforeUnmount(stopDrag)
         </v-container>
       </v-tabs-window-item>
 
-      <v-tabs-window-item value="globals" class="d-flex flex-cloumn fill-height">
-        <v-container class="d-flex flex-column flex-grow-1 pa-1">
+      <v-tabs-window-item value="globals">
+        <v-container class="content pa-1">
           <GlobalConfig></GlobalConfig>
         </v-container>
       </v-tabs-window-item>
@@ -150,8 +150,8 @@ onBeforeUnmount(stopDrag)
     box-shadow:0 5px 10px #0000004d;
 
     border-radius: 8px;
-    border: 2px solid rgb(var(--v-theme-surfaceVariant));
-    background: rgb(var(--v-theme-surfaceVariant));
+    border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+    background: rgb(var(--v-theme-panel));
 }
 
 /* critical flex rule */

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    canShareInput, inputFillsStep, inputFor, inputsOfStep, lintInputReferences, paramSuggestions, shortVersion,
+    canShareInput, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -137,5 +137,19 @@ describe('paramSuggestions', () => {
         }
         expect(paramSuggestions(schema, ['outdir', 'aligner'])).toEqual({ required: ['input'], optional: ['genome'] })
         expect(paramSuggestions(null, [])).toEqual({ required: [], optional: [] })
+    })
+})
+
+describe('referenceTargets', () => {
+    it('lists the set params of each predecessor, sorted, without empty steps', () => {
+        const targets = referenceTargets([
+            { type: 'nf-pipeline', id: 'n01', name: 'nf-core/fetchngs', params: { outdir: 'out', input: '${inputs:ids}', empty: '' } },
+            { type: 'nf-pipeline', id: 'n02', name: 'nf-core/rnaseq', params: {} },
+            { type: 'nf-pipeline', id: 'n03', name: 'x', params: { count: 3 } },
+        ])
+        expect(targets).toEqual([
+            { stepId: 'n01', stepName: 'nf-core/fetchngs', params: [{ key: 'input', value: '${inputs:ids}' }, { key: 'outdir', value: 'out' }] },
+            { stepId: 'n03', stepName: 'x', params: [{ key: 'count', value: '3' }] },
+        ])
     })
 })

@@ -19,6 +19,7 @@ from nf_meta.core.events import (
     EditWorkflow,
     RemoveTransition,
     RemoveWorkflow,
+    SetInputsStyle,
     Transaction,
     UpdateGlobalOptions,
 )
@@ -215,6 +216,12 @@ def save_input(body: InputBody):
 @api_router.delete("/inputs/delete/")
 def delete_input(name: str = Body(embed=True)):
     events = SESSION.handle_command(DeleteInput(name))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.post("/inputs/style/")
+def set_inputs_style(in_params: bool = Body(embed=True)):
+    events = SESSION.handle_command(SetInputsStyle(in_params))
     return JSONResponse({"events": serialize_events(events)})
 
 

@@ -43,6 +43,8 @@ class GraphEventHandler(Protocol):
 
     def declare_step_inputs(self, wf_id: str) -> None: ...
 
+    def set_inputs_style(self, *, in_params: bool) -> None: ...
+
     def deferred_validation(self): ...
 
 
@@ -271,3 +273,14 @@ class DeclareStepInputs:
 
     def apply(self, g: GraphEventHandler):
         g.declare_step_inputs(self.wf_id)
+
+
+@dataclass(frozen=True)
+class SetInputsStyle:
+    """Write all inputs in params or all in `inputs:`; see
+    `MetaworkflowGraph.set_inputs_style`."""
+
+    in_params: bool
+
+    def apply(self, g: GraphEventHandler):
+        g.set_inputs_style(in_params=self.in_params)

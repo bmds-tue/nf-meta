@@ -132,6 +132,14 @@ class TestInputCommands:
         client.get("/api/graph/redo/")
         assert inputs(client) == {}
 
+    def test_set_inputs_style(self, client):
+        add_step(client, input="${inputs:ids}")
+        response = client.post("/api/inputs/style/", json={"in_params": False})
+        assert response.status_code == 200, response.json()
+        assert inputs(client)["ids"]["bound_by"] == "bind"
+        client.post("/api/inputs/style/", json={"in_params": True})
+        assert client.get("/api/graph/").json()["nodes"][0]["params"] == {"input": "${inputs:ids}"}
+
     def test_declare_step_inputs(self, client):
         step = add_step(client, input="${inputs:ids}")
         response = client.post(f"/api/node/{step}/declare-inputs/")

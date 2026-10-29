@@ -353,6 +353,23 @@ class MetaworkflowGraph:
             for name in names:
                 self.edit_input(name, self.inputs.get(name, InputDefinition()), bindings[name], in_params=False)
 
+    def set_inputs_style(self, *, in_params: bool):
+        """Write every input that fills params the same way: with
+        `${inputs:<name>}` in those params (`in_params`) or with `bind:` in
+        `inputs:` (see `edit_input`). Unused inputs stay as they are. Raises
+        `ConfigValidationError` if the result is invalid (the graph is then
+        unchanged)."""
+        bindings = self.input_bindings()
+        with self._batched():
+            for name in sorted(self.all_inputs()):
+                found = bindings.get(name, ())
+                if not found:
+                    continue
+                definition = self.inputs.get(name, InputDefinition())
+                if bool(definition.bind) != in_params:
+                    continue  # already written that way
+                self.edit_input(name, definition, found, in_params=in_params)
+
     def _set_input_references(self, name: str, value: str, bindings: set[Binding]) -> None:
         """Remove every whole-value `${inputs:<name>}` from params, then set
         each param in `bindings` to `value`."""

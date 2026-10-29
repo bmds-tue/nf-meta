@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from nf_meta.core.config import dump_config, to_file, validated_graph
 from nf_meta.core.errors import ConfigValidationError, Severity
-from nf_meta.core.events import AddInput, DeleteInput, EditInput
+from nf_meta.core.events import AddInput, DeleteInput, EditInput, SetInputsStyle
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.history import History
 from nf_meta.core.inputs import (
@@ -553,6 +553,43 @@ class TestDeleteInput:
     def test_unknown(self):
         with pytest.raises(ValueError, match="does not exist"):
             graph(pipeline("n01", input="a.csv")).delete_input("nope")
+
+
+class TestSetInputsStyle:
+    def graph(self):
+        return graph(
+            pipeline("n01", input="${inputs:ids}", outdir="out"),
+            pipeline("n02", input="b.csv", genome="${inputs:genome}"),
+            inputs={"genome": {"description": "g"}, "extra": {}, "outdir": {"bind": ["n02.outdir"]}},
+        )
+
+    def test_all_to_bind(self):
+        g = self.graph()
+        g.set_inputs_style(in_params=False)
+        assert g.inputs == {
+            "genome": InputDefinition(description="g", bind=("n02.genome",)),
+            "extra": InputDefinition(),
+            "outdir": InputDefinition(bind=("n02.outdir",)),
+            "ids": InputDefinition(bind=("n01.input",)),
+        }
+        assert g.get_workflow_by_id("n01").params == {"outdir": "out"}
+
+    def test_all_to_params(self):
+        g = self.graph()
+        g.set_inputs_style(in_params=True)
+        assert g.inputs == {"genome": InputDefinition(description="g"), "extra": InputDefinition()}
+        assert g.get_workflow_by_id("n02").params == {
+            "input": "b.csv",
+            "genome": "${inputs:genome}",
+            "outdir": "${inputs:outdir}",
+        }
+
+    def test_one_undo_step(self):
+        g = self.graph()
+        history = run(g, SetInputsStyle(in_params=False))
+        history.undo(g)
+        assert g.get_workflow_by_id("n01").params == {"input": "${inputs:ids}", "outdir": "out"}
+        assert "ids" not in g.inputs
 
 
 class TestDeclareStepInputs:

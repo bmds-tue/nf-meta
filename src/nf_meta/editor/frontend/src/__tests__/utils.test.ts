@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    inputFillsStep, inputsOfStep, lintInputReferences,
+    inputFillsStep, inputNameFor, inputsOfStep, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -85,5 +85,38 @@ describe('cleanInputDefinition', () => {
     it('drops empty values but keeps false and 0', () => {
         expect(cleanInputDefinition({ description: '', bind: [], exists: false, minimum: 0, pattern: undefined }))
             .toEqual({ exists: false, minimum: 0 })
+    })
+})
+
+describe('shortVersion', () => {
+    it('cuts commit hashes to 8 characters', () => {
+        expect(shortVersion('0.0.0-6c4ed3a9b1f2e3d4c5b6')).toBe('0.0.0-6c4ed3a9')
+        expect(shortVersion('3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a')).toBe('3f2a1b0c')
+    })
+
+    it('leaves release tags and short hashes alone', () => {
+        expect(shortVersion('3.14.0')).toBe('3.14.0')
+        expect(shortVersion('0.0.0-6c4ed3a')).toBe('0.0.0-6c4ed3a')
+        expect(shortVersion(undefined)).toBeUndefined()
+    })
+})
+
+describe('inputNameFor', () => {
+    it('uses the param name, then the step name as prefix, then a number', () => {
+        expect(inputNameFor('input', 'nf-core/rnaseq', [])).toBe('input')
+        expect(inputNameFor('input', 'nf-core/rnaseq', [input('input')])).toBe('rnaseq_input')
+        expect(inputNameFor('input', 'nf-core/rnaseq', [input('input'), input('rnaseq_input')])).toBe('rnaseq_input_2')
+        expect(inputNameFor('input', undefined, [input('input')])).toBe('input_2')
+    })
+})
+
+describe('paramSuggestions', () => {
+    it('splits unset params into required and optional, without hidden ones', () => {
+        const schema = {
+            input: { required: true }, outdir: { required: true }, genome: {},
+            aligner: {}, monochrome_logs: { hidden: true },
+        }
+        expect(paramSuggestions(schema, ['outdir', 'aligner'])).toEqual({ required: ['input'], optional: ['genome'] })
+        expect(paramSuggestions(null, [])).toEqual({ required: [], optional: [] })
     })
 })

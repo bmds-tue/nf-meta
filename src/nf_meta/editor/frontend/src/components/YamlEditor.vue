@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue"
+import { nextTick, ref, watch } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
@@ -388,9 +388,9 @@ const extensions = [
   globalSaveKeymap,
 ]
 
-// Only add the node references features,
-// if YAML-Editor is used in node-details
-if (props.nodeId) {
+// Only add the node references features if YAML-Editor is used in node
+// details: global params pass an empty nodeId, a step not saved yet none
+if (props.nodeId !== "") {
   const nodeRefExtensions = [
     referenceHighlighter,
     referenceHighlightTheme,
@@ -406,6 +406,28 @@ if (props.nodeId) {
     placeholder("Define global params here as yaml. \n\nThey are applied to all workflows.")
   )
 }
+
+// ─── Adding params from outside (param pills) ─────────────────────────────────
+
+let view: EditorView | undefined
+
+function onReady(payload: { view: EditorView }) {
+  view = payload.view
+}
+
+// Append `key: value` as a new line and put the cursor at its end
+function addParam(key: string, value: string) {
+  const line = `${key}: ${value}`
+  const text = code.value.trim() ? `${code.value.replace(/\s*$/, "")}\n${line}\n` : `${line}\n`
+  code.value = text
+  nextTick(() => {
+    if (!view) return
+    view.focus()
+    view.dispatch({ selection: { anchor: Math.min(text.length - 1, view.state.doc.length) } })
+  })
+}
+
+defineExpose({ addParam })
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
 
@@ -431,6 +453,6 @@ function save(): boolean {
   <p v-show="error || serverError" style="color: rgb(var(--v-theme-error))">
     {{ error || serverError }}
   </p>
-  <Codemirror v-model="code" :extensions="extensions" />
+  <Codemirror v-model="code" :extensions="extensions" @ready="onReady" />
   <small>{{ hint }}</small>
 </template>

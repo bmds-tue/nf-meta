@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
     ApiResult, APIGraph, APICommandResponse,
-    APINodeData, APIEdgeData, APIGlobalOptions, APIInputDefinition, Selection, ParamSpec,
+    APINodeData, APIEdgeData, APIGlobalOptions, APIInputSave, Selection, StepSchema,
     NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo,
 } from '../types'
 
@@ -73,12 +73,12 @@ export const useApiStore = defineStore('api', () => {
         return request<APICommandResponse>('/api/globals/update/', { method: 'POST', body: JSON.stringify(globals) })
     }
 
-    function addInput(name: string, definition: APIInputDefinition) {
-        return request<APICommandResponse>('/api/inputs/add/', { method: 'POST', body: JSON.stringify({ name, definition }) })
+    function saveInput(input: APIInputSave) {
+        return request<APICommandResponse>('/api/inputs/save/', { method: 'POST', body: JSON.stringify(input) })
     }
 
-    function updateInput(name: string, definition: APIInputDefinition) {
-        return request<APICommandResponse>('/api/inputs/update/', { method: 'POST', body: JSON.stringify({ name, definition }) })
+    function declareStepInputs(nodeId: string) {
+        return request<APICommandResponse>(`/api/node/${encodeURIComponent(nodeId)}/declare-inputs/`, { method: 'POST' })
     }
 
     function deleteInput(name: string) {
@@ -86,14 +86,37 @@ export const useApiStore = defineStore('api', () => {
     }
 
     function getNodeSchema(nodeId: string) {
-        return request<Record<string, ParamSpec>>(`/api/node/${encodeURIComponent(nodeId)}/schema/`, { method: 'GET' })
+        return request<StepSchema>(`/api/node/${encodeURIComponent(nodeId)}/schema/`, { method: 'GET' })
+    }
+
+    // Param schemas of pipelines and modules that may not be in the graph yet, cached per version
+    const schemaCache = new Map<string, Promise<ApiResult<StepSchema>>>()
+
+    function getPipelineSchema(url: string, version: string) {
+        const key = `pipeline ${url} ${version}`
+        if (!schemaCache.has(key)) {
+            const query = new URLSearchParams({ url, version })
+            schemaCache.set(key, request<StepSchema>(`/api/nfcore/pipelines/schema/?${query}`, { method: 'GET' }))
+        }
+        return schemaCache.get(key)!
+    }
+
+    function getModuleSchema(name: string, version: string) {
+        const key = `module ${name} ${version}`
+        if (!schemaCache.has(key)) {
+            const short = encodeURIComponent(name.replace(/^nf-core\//, ''))
+            const query = new URLSearchParams({ version })
+            schemaCache.set(key, request<StepSchema>(`/api/nfcore/modules/${short}/schema/?${query}`, { method: 'GET' }))
+        }
+        return schemaCache.get(key)!
     }
 
     return {
         getGraph, saveGraph, loadGraph,
         undoGraph, redoGraph,
         addNode, updateNode, deleteSelection, addEdge, updateGlobalOptions,
-        addInput, updateInput, deleteInput, getNodeSchema,
+        saveInput, deleteInput, declareStepInputs,
+        getNodeSchema, getPipelineSchema, getModuleSchema,
     }
 })
 

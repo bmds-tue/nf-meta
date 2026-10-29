@@ -21,7 +21,7 @@ const inputs = computed(() => [...graphStore.inputs].sort((a, b) => a.name.local
 
     <InputDetail v-if="adding" @closed="adding = false" />
 
-    <InputDetail v-for="input in inputs" :key="input.name + (input.declared ? ':d' : ':i')" :input="input" />
+    <InputDetail v-for="input in inputs" :key="input.name" :input="input" />
 
     <v-card v-if="!inputs.length && !adding" class="mt-2">
       <v-card-text>

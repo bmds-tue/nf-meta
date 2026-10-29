@@ -1,5 +1,5 @@
 import { useHotkey } from 'vuetify'
-import { useEditorStore, useGraphStore, useActivityStore } from './store'
+import { INPUTS_NODE_ID, useEditorStore, useGraphStore, useActivityStore } from './store'
 import { useVueFlow } from '@vue-flow/core'
 
 export function useEditorHotkeys() {
@@ -9,8 +9,9 @@ export function useEditorHotkeys() {
   const { getSelectedNodes, getSelectedEdges } = useVueFlow({id: "main-flow"})
 
   async function deleteSelection() {
-    const nodeIds = getSelectedNodes.value.map(n => n.id)
-    const edgeIds = getSelectedEdges.value.map(e => e.id)
+    // The inputs node and its edges are only in the view; there is nothing to delete
+    const nodeIds = getSelectedNodes.value.map(n => n.id).filter(id => id !== INPUTS_NODE_ID)
+    const edgeIds = getSelectedEdges.value.map(e => e.id).filter(id => !id.startsWith(`${INPUTS_NODE_ID}->`))
 
     const result = await graphStore.removeSelectionById({nodes: nodeIds, edges: edgeIds})
     if (result.ok && nodeIds.length > 0) {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useApiStore, useEditorStore, useGraphStore } from '../store'
-import type { APIInput, APIInputDefinition, ParamSpec, Scalar } from '../types'
+import { computed, nextTick, ref, watch } from 'vue'
+import { INPUT_COLOR, useApiStore, useEditorStore, useGraphStore } from '../store'
+import type { APIInput, APIInputDefinition, StepSchema, Scalar } from '../types'
 import { cleanInputDefinition, extractInputFieldErrors } from '../utils'
 
 const props = defineProps<{
@@ -21,12 +21,17 @@ const TYPES = ['string', 'integer', 'number', 'boolean']
 const FORMATS = ['file-path', 'directory-path', 'path', 'file-path-pattern']
 const PATH_FORMATS = new Set(FORMATS)
 const BOOLEANS: Scalar[] = [true, false]
+const STYLES = [
+  { value: true, title: '${inputs:…} in params', icon: 'mdi-code-braces' },
+  { value: false, title: 'bind: in inputs', icon: 'mdi-link-variant' },
+]
 
 type Form = {
   name: string,
+  inParams: boolean,
+  bindings: string[],
   description?: string,
   default?: Scalar | null,
-  bind: string[],
   type?: APIInputDefinition['type'],
   format?: string,
   enum: Scalar[],
@@ -43,14 +48,16 @@ const fieldErrors = ref<Record<string, string[]>>({})
 const otherErrors = ref<string[]>([])
 const form = ref<Form>(initialForm())
 const showKeywords = ref(false)
+const card = ref<{ $el: HTMLElement }>()
 
 function initialForm(): Form {
   const d = props.input?.definition ?? {}
   return {
     name: props.input?.name ?? '',
+    inParams: props.input ? props.input.bound_by !== 'bind' : true,
+    bindings: [...(props.input?.bindings ?? [])],
     description: d.description,
     default: d.default,
-    bind: [...(d.bind ?? [])],
     type: d.type,
     format: d.format,
     enum: [...(d.enum ?? [])],
@@ -61,10 +68,7 @@ function initialForm(): Form {
   }
 }
 
-const boundHint = computed(() => props.input?.bound_by === 'bind'
-  ? 'Bound with bind:'
-  : `Bound by \${inputs:${props.input?.name}} in params`)
-const boundByReference = computed(() => props.input?.bound_by === 'reference')
+const style = computed(() => STYLES.find(s => s.value === (props.input?.bound_by !== 'bind')) ?? STYLES[0]!)
 const warnings = computed(() => props.input?.diagnostics.filter(d => d.severity === 'warning') ?? [])
 const errors = computed(() => props.input?.diagnostics.filter(d => d.severity === 'error') ?? [])
 
@@ -105,7 +109,7 @@ async function loadBindTargets() {
     for (const node of graphStore.nodeData) {
       if (!node.id) continue
       const result = await apiStore.getNodeSchema(node.id)
-      const schema: Record<string, ParamSpec> = result.ok ? result.data : {}
+      const schema: StepSchema = result.ok ? result.data : {}
       const params = new Set([...Object.keys(schema), ...Object.keys(node.params ?? {})])
       for (const param of [...params].sort()) {
         if (schema[param]?.hidden) continue
@@ -124,7 +128,7 @@ function startEditing() {
   otherErrors.value = []
   showKeywords.value = Object.keys(props.input?.definition ?? {}).some(k => !['bind', 'description', 'default'].includes(k))
   isEditing.value = true
-  if (!boundByReference.value) loadBindTargets()
+  loadBindTargets()
 }
 
 if (isNew.value) loadBindTargets()
@@ -150,24 +154,30 @@ function defaultValue(): Scalar | undefined {
 }
 
 async function save() {
-  const definition = cleanInputDefinition({
-    description: form.value.description,
-    default: defaultValue(),
-    bind: boundByReference.value ? [] : form.value.bind,
-    type: form.value.type,
-    format: form.value.format,
-    enum: form.value.enum,
-    pattern: form.value.pattern,
-    minimum: toNumber(form.value.minimum),
-    maximum: toNumber(form.value.maximum),
-    exists: form.value.exists ?? undefined,
-  })
+  const name = form.value.name.trim()
+  const original = props.input?.name ?? name
   saving.value = true
   fieldErrors.value = {}
   otherErrors.value = []
   try {
-    const name = form.value.name.trim()
-    const result = await graphStore.saveInput(name, definition, !props.input?.declared)
+    const result = await graphStore.saveInput({
+      name: original,
+      new_name: name !== original ? name : undefined,
+      create: isNew.value,
+      in_params: form.value.inParams,
+      bindings: form.value.bindings,
+      definition: cleanInputDefinition({
+        description: form.value.description,
+        default: defaultValue(),
+        type: form.value.type,
+        format: form.value.format,
+        enum: form.value.enum,
+        pattern: form.value.pattern,
+        minimum: toNumber(form.value.minimum),
+        maximum: toNumber(form.value.maximum),
+        exists: form.value.exists ?? undefined,
+      }),
+    })
     if (result.ok) {
       isEditing.value = false
       if (isNew.value) emit('closed')
@@ -184,30 +194,35 @@ async function save() {
 }
 
 async function remove() {
-  if (props.input?.declared) await graphStore.removeInput(props.input.name)
+  if (props.input) await graphStore.removeInput(props.input.name)
 }
 
 function hover(name: string | undefined) {
   editorStore.setHoveredInputName(name)
 }
+
+const isFlashing = computed(() => !!props.input && editorStore.flashingInputNames.includes(props.input.name))
+watch(isFlashing, async (flashing) => {
+  if (!flashing) return
+  await nextTick()
+  card.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+})
 </script>
 
 <template>
   <v-card
+    ref="card"
     class="mb-2 mt-2 input-card"
-    :class="{ 'input-card-hovered': !!input && editorStore.hoveredInputName === input.name }"
+    :class="{ 'input-card-hovered': !!input && (editorStore.hoveredInputName === input.name || isFlashing) }"
     @mouseenter="hover(input?.name)"
     @mouseleave="hover(undefined)">
     <v-card-title class="d-flex align-center ga-2">
-      <v-icon icon="mdi-import" size="18" />
+      <v-icon :icon="input ? style.icon : 'mdi-import'" :color="INPUT_COLOR" size="18" :title="input ? style.title : undefined" />
       <strong v-if="input" class="text-truncate">{{ input.name }}</strong>
       <span v-else class="font-italic">New input</span>
-      <v-chip v-if="input && !input.declared" size="small" variant="outlined">implicit</v-chip>
       <v-spacer />
-      <v-icon v-if="errors.length" icon="mdi-alert-circle" color="error" size="18">
-      </v-icon>
-      <v-icon v-else-if="warnings.length" icon="mdi-alert" color="warning" size="18">
-      </v-icon>
+      <v-icon v-if="errors.length" icon="mdi-alert-circle" color="error" size="18" />
+      <v-icon v-else-if="warnings.length" icon="mdi-alert" color="warning" size="18" />
     </v-card-title>
 
     <!-- View -->
@@ -220,13 +235,10 @@ function hover(name: string | undefined) {
           class="d-flex align-center ga-2 text-body-2 binding-row"
           @mouseenter="editorStore.setHoveredNodeId(bindingLabel(binding).stepId)"
           @mouseleave="editorStore.setHoveredNodeId(undefined)">
-          <v-icon :icon="input.bound_by === 'bind' ? 'mdi-link-variant' : 'mdi-code-braces'" size="16" />
+          <v-icon icon="mdi-arrow-right" size="16" />
           <span class="text-truncate">{{ bindingLabel(binding).step }}</span>
           <code>{{ bindingLabel(binding).param }}</code>
         </div>
-        <small class="text-medium-emphasis">
-          {{ boundHint }}
-        </small>
       </div>
 
       <div v-if="input.default !== null" class="d-flex align-center ga-2 text-body-2 mb-2">
@@ -254,8 +266,8 @@ function hover(name: string | undefined) {
       </div>
 
       <v-card-actions class="justify-end pa-0 pt-2">
-        <v-btn size="small" @click.stop="startEditing">{{ input.declared ? 'Edit' : 'Add details' }}</v-btn>
-        <v-btn v-if="input.declared" size="small" color="error" @click.stop="remove">Delete</v-btn>
+        <v-btn size="small" @click.stop="startEditing">Edit</v-btn>
+        <v-btn size="small" color="error" @click.stop="remove">Delete</v-btn>
       </v-card-actions>
     </v-card-text>
 
@@ -263,36 +275,36 @@ function hover(name: string | undefined) {
     <v-card-text v-else class="pt-0">
       <v-form @submit.prevent="save">
         <v-text-field
-          v-if="isNew"
           v-model="form.name"
           label="Name"
           hint="Referenced as ${inputs:<name>}"
-          variant="outlined" density="compact" autofocus
+          variant="outlined" density="compact" :autofocus="isNew"
           :error-messages="fieldErrors.name" />
+
+        <v-combobox
+          v-model="form.bindings"
+          :items="bindTargets"
+          :loading="targetsLoading"
+          :return-object="false"
+          label="Fills step params"
+          multiple chips closable-chips
+          variant="outlined" density="compact"
+          :error-messages="fieldErrors.bind" />
+
+        <div class="d-flex align-center flex-wrap ga-2 mb-3">
+          <span class="text-body-2 text-medium-emphasis">Written as</span>
+          <v-btn-toggle v-model="form.inParams" mandatory density="compact" variant="outlined" divided>
+            <v-btn v-for="s in STYLES" :key="String(s.value)" :value="s.value" size="small" :prepend-icon="s.icon">
+              {{ s.title }}
+            </v-btn>
+          </v-btn-toggle>
+        </div>
 
         <v-textarea
           v-model="form.description"
           label="Description"
-          variant="outlined" density="compact" rows="2" auto-grow
+          variant="outlined" density="compact" rows="1" auto-grow
           :error-messages="fieldErrors.description" />
-
-        <v-combobox
-          v-if="!boundByReference"
-          v-model="form.bind"
-          :items="bindTargets"
-          :loading="targetsLoading"
-          :return-object="false"
-          label="Bind to step params"
-          hint="Or leave empty and write ${inputs:<name>} as a param's value"
-          persistent-hint
-          multiple chips closable-chips
-          variant="outlined" density="compact"
-          :error-messages="fieldErrors.bind" />
-        <p v-else class="text-body-2 text-medium-emphasis mb-3">
-          Bound by <code>${inputs:{{ form.name }}}</code> in
-          {{ input?.bindings.join(', ') }}. An input is bound in one place, so this declaration adds
-          details only.
-        </p>
 
         <v-select
           v-if="effectiveEnum?.length"
@@ -300,7 +312,7 @@ function hover(name: string | undefined) {
           :items="effectiveEnum"
           label="Default"
           clearable
-          variant="outlined" density="compact" class="mt-3"
+          variant="outlined" density="compact"
           :error-messages="fieldErrors.default" />
         <v-select
           v-else-if="effectiveType === 'boolean'"
@@ -308,7 +320,7 @@ function hover(name: string | undefined) {
           :items="BOOLEANS"
           label="Default"
           clearable
-          variant="outlined" density="compact" class="mt-3"
+          variant="outlined" density="compact"
           :error-messages="fieldErrors.default" />
         <v-text-field
           v-else
@@ -318,7 +330,7 @@ function hover(name: string | undefined) {
           :hint="isPath ? 'Relative paths are relative to the config file' : undefined"
           label="Default"
           clearable
-          variant="outlined" density="compact" class="mt-3"
+          variant="outlined" density="compact"
           :error-messages="fieldErrors.default" />
 
         <v-btn
@@ -329,7 +341,7 @@ function hover(name: string | undefined) {
         </v-btn>
         <template v-if="showKeywords">
           <p class="text-body-2 text-medium-emphasis mb-2">
-            Empty fields are inherited from the bound param's schema; set ones narrow it.
+            Empty fields are inherited from the bound params' schema; set ones narrow it.
           </p>
           <div class="d-flex ga-2">
             <v-select

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useModuleStore, useGraphStore } from '../store';
-import { extractFieldErrors } from '../utils';
+import { extractFieldErrors, inputNameFor, inputsOfStep, shortVersion } from '../utils';
 import type { APINfModuleNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import YamlEditor from './YamlEditor.vue';
 import YAML from 'yaml';
 import NodeInputs from './NodeInputs.vue';
+import ParamAssist from './ParamAssist.vue';
+import { useStepSchema } from '../step_schema';
 
 const props = defineProps<{
   initialValue: APINfModuleNodeData,
@@ -108,6 +110,19 @@ function editDetail() {
   isEditing.value = true
 }
 
+// Param pills: unset params from the step's schema, added to the params editor
+const yamlEditor = ref<InstanceType<typeof YamlEditor>>()
+const { schema, loading: schemaLoading, error: schemaError } = useStepSchema(() => ({ kind: 'module', name: form.value.name, version: form.value.version }))
+const setParams = computed(() => [
+  ...Object.keys(form.value.params ?? {}),
+  ...(form.value.id ? inputsOfStep(graphStore.inputs, form.value.id).filter(e => e.input.bound_by === 'bind').map(e => e.param) : []),
+])
+
+function addParam(param: string, asInput: boolean) {
+  const value = asInput ? `\${inputs:${inputNameFor(param, form.value.name, graphStore.inputs)}}` : ''
+  yamlEditor.value?.addParam(param, value)
+}
+
 const hasParams = computed(() => !!form.value.params && Object.keys(form.value.params).length > 0)
 const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.params).trim() : '')
 
@@ -130,7 +145,7 @@ async function copyPath(text: string, field: string) {
       <div class="d-flex flex-column ga-2 mb-2">
         <div v-if="form.version" class="detail-row d-flex align-center ga-2 text-body-2">
           <v-icon icon="mdi-tag-outline" size="16" class="flex-shrink-0" />
-          <span>{{ form.version }}</span>
+          <span :title="form.version">{{ shortVersion(form.version) }}</span>
         </div>
         <div class="detail-row d-flex align-center ga-2 text-body-2">
           <v-icon icon="$nfcore" size="16" class="flex-shrink-0" />
@@ -185,11 +200,16 @@ async function copyPath(text: string, field: string) {
         </v-autocomplete>
 
         <v-label class="mt-2 mb-1">Params</v-label>
+        <ParamAssist
+          :schema="schema" :loading="schemaLoading" :error="schemaError"
+          :set-params="setParams"
+          @add="addParam" />
         <p v-if="errors['params']?.length" style="color: rgb(var(--v-theme-error)); font-size: 0.85em;" class="mb-1">
           {{ errors['params']!.join(' ') }}
         </p>
         <div style="height: 220px;">
           <YamlEditor
+            ref="yamlEditor"
             v-model="form.params"
             :node-id="form.id">
           </YamlEditor>

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useEditorStore } from '../store';
 import type { APINodeData, APINfPipelineNodeData, APINfModuleNodeData, SideBarDetail, NewNodeData, WorkflowTypeValue } from '../types';
 import { WorkflowType } from '../types';
+import { shortVersion } from '../utils';
 import SidebarPipelineDetail from './SidebarPipelineDetail.vue';
 import SidebarModuleDetail from './SidebarModuleDetail.vue';
 
@@ -91,7 +92,7 @@ function onSaved(newNodeData?: APINodeData) {
   >
     <div class="d-flex align-center flex-grow-1 flex-shrink-1" style="min-width: 0;">
       <strong class="text-truncate mr-2" :class="isNew ? 'font-italic' : ''">{{ displayName }}</strong>
-      <v-chip v-if="displayVersion" size="small">{{ displayVersion }}</v-chip>
+      <v-chip v-if="displayVersion" size="small" :title="displayVersion">{{ shortVersion(displayVersion) }}</v-chip>
       <v-chip v-if="confirmedType === WorkflowType.NF_MODULE" size="small" color="success" class="ml-1">module</v-chip>
     </div>
     <div class="d-flex align-center">

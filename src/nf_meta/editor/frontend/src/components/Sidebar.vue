@@ -53,7 +53,7 @@ const stopDrag = () => {
     document.body.style.cursor = ""
 
     nextTick(() => {
-        fitView()
+        fitView({ padding: 0.25 })
     })
 }
 

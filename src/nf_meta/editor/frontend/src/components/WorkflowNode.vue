@@ -5,7 +5,7 @@ import type { NodeProps } from '@vue-flow/core'
 import type { APINodeData } from '../types.ts'
 import { WorkflowType } from '../types.ts'
 import { useEditorStore, useGraphStore } from '../store'
-import { inputFillsStep, inputsOfStep } from '../utils'
+import { inputFillsStep, inputsOfStep, shortVersion } from '../utils'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -55,8 +55,9 @@ async function copyToClipboard() {
             </strong>
             <v-chip
                 v-if="data.version"
-                class="ml-2">
-                {{ data.version }}
+                class="ml-2"
+                :title="data.version">
+                {{ shortVersion(data.version) }}
             </v-chip>
             <v-chip
                 v-if="isModule"
@@ -66,10 +67,12 @@ async function copyToClipboard() {
             </v-chip>
             <v-chip
                 v-if="filledBy.length"
-                class="ml-1"
+                class="ml-1 nodrag"
                 size="small"
                 prepend-icon="mdi-import"
-                :title="filledBy.map(f => `${f.param} ← ${f.input.name}`).join('\n')">
+                :title="filledBy.map(f => `${f.param} ← ${f.input.name}`).join('\n') + '\n\nClick to show in Inputs'"
+                @click.stop="editorStore.showInputs(filledBy.map(f => f.input.name))"
+                @dblclick.stop>
                 {{ filledBy.length }}
             </v-chip>
         </div>

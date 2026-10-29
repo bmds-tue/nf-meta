@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { usePipelineStore, useGraphStore } from '../store';
-import { extractFieldErrors } from '../utils';
+import { extractFieldErrors, inputNameFor, inputsOfStep, shortVersion } from '../utils';
 import type { APINfPipelineNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import CustomFileInput from './CustomFileInput.vue';
 import YamlEditor from './YamlEditor.vue';
 import YAML from 'yaml';
 import NodeInputs from './NodeInputs.vue';
+import ParamAssist from './ParamAssist.vue';
+import { useStepSchema } from '../step_schema';
 
 const props = defineProps<{
   initialValue: APINfPipelineNodeData,
@@ -43,7 +45,7 @@ const selectedPipelineVersions = computed(() => {
 function handleUpdatePipeline() {
   if (form.value.name && selectedPipeline.value?.description) {
     form.value.description = selectedPipeline.value.description
-    form.value.url = selectedPipeline.value.repository_url
+    form.value.url = selectedPipeline.value.url
   }
 }
 
@@ -100,6 +102,23 @@ async function copyPath(text: string, field: string) {
   }
 }
 
+// Param pills: unset params from the step's schema, added to the params editor
+const yamlEditor = ref<InstanceType<typeof YamlEditor>>()
+const { schema, loading: schemaLoading, error: schemaError } = useStepSchema(() => ({
+  kind: 'pipeline',
+  url: form.value.url || (form.value.is_nfcore && form.value.name ? `https://github.com/${form.value.name}` : undefined),
+  version: form.value.version,
+}))
+const setParams = computed(() => [
+  ...Object.keys(form.value.params ?? {}),
+  ...(form.value.id ? inputsOfStep(graphStore.inputs, form.value.id).filter(e => e.input.bound_by === 'bind').map(e => e.param) : []),
+])
+
+function addParam(param: string, asInput: boolean) {
+  const value = asInput ? `\${inputs:${inputNameFor(param, form.value.name, graphStore.inputs)}}` : ''
+  yamlEditor.value?.addParam(param, value)
+}
+
 const hasParams = computed(() => !!form.value.params && Object.keys(form.value.params).length > 0)
 const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.params).trim() : '')
 </script>
@@ -111,7 +130,7 @@ const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.
     <div class="d-flex flex-column ga-2">
       <div v-if="form.version" class="detail-row d-flex align-center ga-2 text-body-2">
         <v-icon icon="mdi-tag-outline" size="16" class="flex-shrink-0" />
-        <span>{{ form.version }}</span>
+        <span :title="form.version">{{ shortVersion(form.version) }}</span>
       </div>
       <div v-if="form.is_nfcore" class="detail-row d-flex align-center ga-2 text-body-2">
         <v-icon icon="$nfcore" size="16" class="flex-shrink-0" />
@@ -239,11 +258,16 @@ const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.
       </CustomFileInput>
 
       <v-label class="mt-2 mb-1">Params</v-label>
+      <ParamAssist
+        :schema="schema" :loading="schemaLoading" :error="schemaError"
+        :set-params="setParams"
+        @add="addParam" />
       <p v-if="errors['params']?.length" style="color: rgb(var(--v-theme-error)); font-size: 0.85em;" class="mb-1">
         {{ errors['params']!.join(' ') }}
       </p>
       <div style="height: 220px;">
         <YamlEditor
+          ref="yamlEditor"
           v-model="form.params"
           :node-id="form.id">
         </YamlEditor>

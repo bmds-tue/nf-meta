@@ -76,6 +76,16 @@ export const useEditorStore = defineStore('editor', () => {
         hoveredInputName.value = name
     }
 
+    // Inputs to point out in the inputs panel (scrolled to and flashed)
+    const flashingInputNames = ref<string[]>([])
+
+    function showInputs(names: string[]) {
+        if (!_sideBarOpen.value) toggleSidebar()
+        sideBarTab.value = 'inputs'
+        flashingInputNames.value = names
+        setTimeout(() => { flashingInputNames.value = [] }, 1200)
+    }
+
     function flashNode(nodeId: string) {
         flashingNodeId.value = nodeId
         setTimeout(() => { flashingNodeId.value = undefined }, 800)
@@ -131,6 +141,7 @@ export const useEditorStore = defineStore('editor', () => {
         removeSidebarDetail, removeSidebarDetailsForNodeIds, collapseSidebarDetail,
         hoveredNodeId, setHoveredNodeId,
         hoveredInputName, setHoveredInputName,
+        flashingInputNames, showInputs,
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,

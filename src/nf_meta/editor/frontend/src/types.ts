@@ -113,6 +113,19 @@ export type ParamSpec = {
   description?: string,
   required?: boolean,
   hidden?: boolean,
+  default?: unknown,
+}
+
+export type StepSchema = Record<string, ParamSpec>
+
+// An input as saved from the inputs panel (POST /api/inputs/save/)
+export type APIInputSave = {
+  name: string,
+  new_name?: string,
+  create: boolean,
+  in_params: boolean,
+  bindings: string[],
+  definition: APIInputDefinition,
 }
 
 export type APIGraph = {
@@ -134,7 +147,7 @@ export type NfCorePipelineReleaseInfo = {
 export type NfCorePipelineInfo = {
   name: string
   description: string,
-  repository_url: string,
+  url: string,
   releases: NfCorePipelineReleaseInfo[]
 }
 

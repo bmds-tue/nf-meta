@@ -16,6 +16,11 @@ function bindingTitle(input: APIInput) {
 }
 
 const filled = computed(() => props.nodeId ? inputsOfStep(graphStore.inputs, props.nodeId) : [])
+const inParams = computed(() => filled.value.some(f => f.input.bound_by === 'reference'))
+
+async function declareInputs() {
+  if (props.nodeId) await graphStore.declareStepInputs(props.nodeId)
+}
 </script>
 
 <template>
@@ -28,7 +33,7 @@ const filled = computed(() => props.nodeId ? inputsOfStep(graphStore.inputs, pro
         :title="bindingTitle(input)"
         @mouseenter="editorStore.setHoveredInputName(input.name)"
         @mouseleave="editorStore.setHoveredInputName(undefined)"
-        @click.stop="editorStore.sideBarTab = 'inputs'">
+        @click.stop="editorStore.showInputs([input.name])">
         <v-icon icon="mdi-import" size="16" class="flex-shrink-0" />
         <code>{{ param }}</code>
         <v-icon icon="mdi-arrow-left" size="14" class="flex-shrink-0" />
@@ -40,6 +45,13 @@ const filled = computed(() => props.nodeId ? inputsOfStep(graphStore.inputs, pro
           size="14" />
       </div>
     </div>
+    <v-btn
+      v-if="inParams"
+      size="x-small" variant="text" prepend-icon="mdi-link-variant" class="mt-1 px-1"
+      title="Declare the inputs this step references with ${inputs:…} in the inputs: section, bound with bind:"
+      @click.stop="declareInputs">
+      Move to inputs: section
+    </v-btn>
   </template>
 </template>
 

@@ -1,5 +1,5 @@
 import YAML, { isMap, isScalar } from 'yaml'
-import type { APIInput, APIInputDefinition, FieldError } from './types'
+import type { APIInput, APIInputDefinition, FieldError, StepSchema } from './types'
 import { WorkflowType } from './types'
 
 /**
@@ -130,4 +130,50 @@ export function cleanInputDefinition(definition: APIInputDefinition): APIInputDe
         result[key] = value
     }
     return result as APIInputDefinition
+}
+
+/**
+ * `version` with every commit hash in it (12 or more hex digits) cut to its
+ * first 8 characters, for display: `0.0.0-6c4ed3a9b1f2e3d4` -> `0.0.0-6c4ed3a9`.
+ */
+export function shortVersion(version: string | undefined): string | undefined {
+    return version?.replace(/\b[0-9a-f]{12,}\b/gi, hash => hash.slice(0, 8))
+}
+
+/**
+ * A name for a new input filling `param`: the param's name, or, if an input
+ * of that name exists, the name prefixed with the step's (`rnaseq_input`),
+ * numbered if needed.
+ */
+export function inputNameFor(param: string, stepName: string | undefined, inputs: APIInput[]): string {
+    const taken = new Set(inputs.map(i => i.name))
+    const clean = (text: string) => text.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
+    const step = clean(stepName?.split('/').pop() ?? '')
+    const candidates = [clean(param), step ? `${step}_${clean(param)}` : '']
+    for (const candidate of candidates) {
+        if (candidate && !taken.has(candidate)) return candidate
+    }
+    const base = candidates[1] || clean(param) || 'input'
+    let n = 2
+    while (taken.has(`${base}_${n}`)) n++
+    return `${base}_${n}`
+}
+
+export type ParamSuggestions = { required: string[], optional: string[] }
+
+/**
+ * The params of `schema` a step doesn't set yet, as required and optional
+ * (hidden ones left out), sorted. `set` are the params with a value or a
+ * `bind:` input.
+ */
+export function paramSuggestions(schema: StepSchema | null | undefined, set: Iterable<string>): ParamSuggestions {
+    const done = new Set(set)
+    const required: string[] = []
+    const optional: string[] = []
+    for (const [param, spec] of Object.entries(schema ?? {})) {
+        if (done.has(param)) continue
+        if (spec.required) required.push(param)
+        else if (!spec.hidden) optional.push(param)
+    }
+    return { required: required.sort(), optional: optional.sort() }
 }

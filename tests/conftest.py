@@ -40,6 +40,15 @@ FAKE_NFCORE_PIPELINES = [
 ]
 
 
+# nf-core component catalog entries (components.json), incl. a nested module and
+# one whose subtool name contains an underscore
+FAKE_NFCORE_COMPONENTS = [
+    {"name": "fastqc", "path": "modules/nf-core/fastqc/meta.yml", "meta": {"description": "QC"}},
+    {"name": "samtools_stats", "path": "modules/nf-core/samtools/stats/meta.yml", "meta": {}},
+    {"name": "plastid_make_wiggle", "path": "modules/nf-core/plastid/make_wiggle/meta.yml", "meta": {}},
+]
+
+
 # ---------------------------------------------------------------------------
 # Autouse: patch out all network calls for every test
 # ---------------------------------------------------------------------------
@@ -84,6 +93,7 @@ FAKE_MODULE_SCHEMA: dict[str, dict] = {
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
     monkeypatch.setattr("nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES)
+    monkeypatch.setattr("nf_meta.core.registry._get_nfcore_components_raw", lambda: FAKE_NFCORE_COMPONENTS)
     monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.github_file_exists",

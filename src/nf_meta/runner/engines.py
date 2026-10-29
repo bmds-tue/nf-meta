@@ -11,6 +11,7 @@ from typing import Any, cast
 import yaml
 
 from nf_meta.core.models import NfModule, NfPipeline, WorkflowType
+from nf_meta.core.registry import registry_module_name
 
 from .errors import NfMetaRunnerError
 from .spec import StepSpec
@@ -152,7 +153,7 @@ class NextflowModuleEngine(Engine, workflow_type=WorkflowType.NF_MODULE):
         if params_file:
             argv += ["-params-file", str(params_file)]
         # Nextflow rejects `<name>@<version>` ("Invalid module reference")
-        argv += [wf.name, "-version", wf.version]
+        argv += [registry_module_name(wf.name), "-version", wf.version]
         # -stub after the positional module arg -- see NextflowPipelineEngine.build.
         if spec.stub:
             argv += ["-stub"]

@@ -204,3 +204,54 @@ def test_editor_answers_503_when_unavailable():
     resp = handle_registry_unavailable(None, RegistryUnavailableError("offline"))  # type: ignore[arg-type]
     assert resp.status_code == 503
     assert json.loads(resp.body) == {"detail": "offline"}
+
+
+class TestRegistryModuleName:
+    @pytest.mark.parametrize(
+        ("config_name", "registry_name"),
+        [
+            ("nf-core/fastqc", "nf-core/fastqc"),
+            ("nf-core/samtools_stats", "nf-core/samtools/stats"),
+            ("nf-core/plastid_make_wiggle", "nf-core/plastid/make_wiggle"),
+            ("nf-core/samtools/stats", "nf-core/samtools/stats"),
+            ("my-custom-module", "my-custom-module"),
+            ("nf-core/notincatalog_sub", "nf-core/notincatalog/sub"),
+        ],
+    )
+    def test_mapping(self, config_name, registry_name):
+        assert registry.registry_module_name(config_name) == registry_name
+
+    def test_without_the_catalog_underscores_become_slashes(self, monkeypatch):
+        def unreachable():
+            raise RegistryUnavailableError("offline")
+
+        monkeypatch.setattr(registry, "_get_nfcore_components_raw", unreachable)
+        assert registry.registry_module_name("nf-core/plastid_make_wiggle") == "nf-core/plastid/make/wiggle"
+
+    def test_releases_use_the_registry_name(self, monkeypatch):
+        urls = []
+
+        def get(url, **k):
+            urls.append(url)
+            return response(200, {"releases": []})
+
+        monkeypatch.setattr(registry.requests, "get", get)
+        get_nfcore_module_releases("plastid_make_wiggle")
+        assert urls[0].endswith("/nf-core%2Fplastid%2Fmake_wiggle/releases")
+
+    def test_schema_uses_the_repository_path(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("nf_meta.core.cache.read_schema_cache", lambda *a: None)
+        monkeypatch.setattr("nf_meta.core.cache.write_schema_cache", lambda *a: None)
+        registry.get_module_schema.cache_clear()
+        urls = []
+
+        def get(url, **k):
+            urls.append(url)
+            resp = response(200)
+            resp.text = "input: []"
+            return resp
+
+        monkeypatch.setattr(registry.requests, "get", get)
+        registry.get_module_schema("nf-core/plastid_make_wiggle", "0.0.0-6c4ed3a")
+        registry.get_module_schema.cache_clear()
+        assert urls[0].endswith("/6c4ed3a/modules/nf-core/plastid/make_wiggle/meta.yml")

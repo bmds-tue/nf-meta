@@ -7,6 +7,7 @@ import os
 import re
 import time
 from typing import Any, Required, TypedDict, cast
+from urllib.parse import quote
 
 import requests
 import yaml
@@ -22,6 +23,7 @@ _NFCORE_PIPELINES_URL = "https://nf-co.re/pipelines.json"
 _NFCORE_COMPONENTS_URL = "https://nf-co.re/components.json"
 _NXF_REGISTRY_BASE = "https://registry.nextflow.io/api/v1/modules"
 _REQUEST_TIMEOUT = 10
+NFCORE_MODULE_PREFIX = "nf-core/"
 
 
 class PipelineRelease(TypedDict):
@@ -210,6 +212,31 @@ def _get_nfcore_components_raw() -> list[dict]:
     return data.get("modules", [])
 
 
+def registry_module_name(name: str) -> str:
+    """The Nextflow module registry name of module `name` as written in a
+    config. nf-core's short form names nested modules with an underscore
+    (`nf-core/samtools_stats`); the registry uses the repository path
+    (`nf-core/samtools/stats`). Names that already contain a path, and
+    modules outside nf-core, are returned unchanged.
+
+    The path comes from nf-core's component catalog, since a tool name can
+    itself contain an underscore (`plastid_make_wiggle` is
+    `plastid/make_wiggle`). Without the catalog (unreachable, or a module
+    not in it), every underscore is taken as a path separator.
+    """
+    short = name.removeprefix(NFCORE_MODULE_PREFIX)
+    if short == name or "/" in short:
+        return name
+    try:
+        entry = next((m for m in _get_nfcore_components_raw() if m.get("name") == short), None)
+    except RegistryUnavailableError:
+        entry = None
+    path = (entry or {}).get("path", "")
+    if path.startswith("modules/nf-core/") and path.endswith("/meta.yml"):
+        return NFCORE_MODULE_PREFIX + path.removeprefix("modules/nf-core/").removesuffix("/meta.yml")
+    return NFCORE_MODULE_PREFIX + short.replace("_", "/")
+
+
 @functools.cache
 def get_nfcore_modules() -> list[ModuleInfo]:
     """
@@ -238,11 +265,12 @@ def get_nfcore_module_releases(name: str) -> list[ModuleRelease]:
     registry can't be reached. Results are cached for the process lifetime --
     restart the editor to refresh.
     """
-    name = name.removeprefix("nf-core/")
+    name = name.removeprefix(NFCORE_MODULE_PREFIX)
     # The registry endpoints expects underscore ("_")
     # characters in the name to be urlencoded!
-    name_enc = name.replace("_", "%2F")
-    url = f"{_NXF_REGISTRY_BASE}/nf-core%2F{name_enc}/releases"
+    # The registry expects the name URL-encoded, "/" included
+    registry_name = registry_module_name(NFCORE_MODULE_PREFIX + name)
+    url = f"{_NXF_REGISTRY_BASE}/{quote(registry_name, safe='')}/releases"
     data = _fetch_json(url, f"releases for nf-core/{name}")
     if not isinstance(data, dict):
         return []
@@ -348,9 +376,7 @@ def get_module_schema(name: str, version: str) -> Schema:
     if cached is not None:
         return cached
 
-    # nf-core uses "_" as a path separator in short names (e.g. "nf-core/samtools_sort"),
-    # but the GitHub repo stores submodules as nested directories ("samtools/sort").
-    path = _NFCORE_MODULES_META_PATH.format(name=name.replace("_", "/"))
+    path = _NFCORE_MODULES_META_PATH.format(name=registry_module_name(name))
     url = f"{_MODULES_RAW_BASE}/{sha}/{path}"
     auth_headers = _get_auth_headers("github.com")
 

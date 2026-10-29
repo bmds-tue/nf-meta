@@ -1,7 +1,7 @@
 import pytest
 import yaml
 
-from nf_meta.core.models import GlobalOptions, WorkflowType
+from nf_meta.core.models import GlobalOptions, NfModule, WorkflowType
 from nf_meta.runner.engines import (
     NextflowModuleEngine,
     NextflowPipelineEngine,
@@ -170,6 +170,10 @@ class TestModuleCommand:
 
     def test_module_and_version_are_last(self, build, module_fastqc):
         assert build(module_fastqc).argv[-3:] == [module_fastqc.name, "-version", module_fastqc.version]
+
+    def test_nested_module_runs_under_its_registry_name(self, build):
+        wf = NfModule(name="nf-core/samtools_stats", version="0.0.0-6c4ed3a")
+        assert build(wf).argv[-3:] == ["nf-core/samtools/stats", "-version", "0.0.0-6c4ed3a"]
 
     def test_resume_adds_flag(self, build, module_fastqc):
         assert "-resume" in build(module_fastqc, resume=True).argv

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useEditorStore } from '../store';
 import type { APINodeData, APINfPipelineNodeData, APINfModuleNodeData, SideBarDetail, NewNodeData, WorkflowTypeValue } from '../types';
 import { WorkflowType } from '../types';
+import { shortVersion } from '../utils';
 import SidebarPipelineDetail from './SidebarPipelineDetail.vue';
 import SidebarModuleDetail from './SidebarModuleDetail.vue';
 
@@ -62,6 +63,12 @@ const nodeId = computed(() => 'id' in props.detailData ? props.detailData.id : u
 const isMouseOver = ref(false)
 const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId === nodeId.value && !isMouseOver.value)
 const isFlashing = computed(() => !!nodeId.value && editorStore.flashingNodeId === nodeId.value)
+const card = ref<{ $el: HTMLElement }>()
+watch(isFlashing, async (flashing) => {
+  if (!flashing) return
+  await nextTick()
+  card.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+})
 
 function onSaved(newNodeData?: APINodeData) {
   if (isNew.value) {
@@ -77,7 +84,7 @@ function onSaved(newNodeData?: APINodeData) {
 </script>
 
 <template>
-<v-card class="mb-2 mt-2"
+<v-card ref="card" class="mb-2"
   :class="{
     'workflow-node-nfcore': confirmedType === WorkflowType.NF_PIPELINE && 'is_nfcore' in detailData && detailData.is_nfcore,
     'workflow-node-module': confirmedType === WorkflowType.NF_MODULE,
@@ -86,32 +93,33 @@ function onSaved(newNodeData?: APINodeData) {
   @mouseenter="isMouseOver = true; editorStore.setHoveredNodeId(nodeId)"
   @mouseleave="isMouseOver = false; editorStore.setHoveredNodeId(undefined)">
   <v-card-title
-    class="node-title d-flex justify-space-between align-center w-100"
+    class="node-title d-flex justify-space-between align-center w-100 py-1 text-subtitle-1"
     @click="!isActive ? expandDetails() : collapseDetails()"
   >
     <div class="d-flex align-center flex-grow-1 flex-shrink-1" style="min-width: 0;">
       <strong class="text-truncate mr-2" :class="isNew ? 'font-italic' : ''">{{ displayName }}</strong>
-      <v-chip v-if="displayVersion" size="small">{{ displayVersion }}</v-chip>
+      <small v-if="nodeId" class="muted mr-2">{{ nodeId }}</small>
+      <v-chip v-if="displayVersion" size="small" :title="displayVersion">{{ shortVersion(displayVersion) }}</v-chip>
       <v-chip v-if="confirmedType === WorkflowType.NF_MODULE" size="small" color="success" class="ml-1">module</v-chip>
     </div>
     <div class="d-flex align-center">
       <v-icon :icon="isActive ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="20" class="ml-1" />
       <v-btn
+        v-if="isNew"
         @click.stop="removeDetail"
         icon="mdi-close"
-        flat
-        height="30" width="30" class="ml-1">
+        title="Discard"
+        variant="text" size="small" density="comfortable" class="ml-1">
       </v-btn>
     </div>
   </v-card-title>
 
-  <v-card-text class="pb-0 h-100">
-    <v-select v-if="isActive && isNew" 
+  <v-card-text v-if="isActive" class="pt-1 pb-0">
+    <v-select v-if="isNew"
       v-model="confirmedType"
-      :items="Object.values(WorkflowType)"
-      variant="outlined"
-      density="compact"
-    >
+      :items="[{ title: 'Pipeline', value: WorkflowType.NF_PIPELINE }, { title: 'Module', value: WorkflowType.NF_MODULE }]"
+      label="Type"
+      variant="outlined" density="compact" hide-details class="mb-2">
     </v-select>
 
     <SidebarPipelineDetail

@@ -4,11 +4,17 @@ import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import type {
     ApiResult, APINodeData, APIEdgeData, APICommandResponse,
-    APIGlobalOptions, Selection,
+    APIGlobalOptions, APIInput, APIInputSave, Selection,
 } from '../types'
 import { useLayout } from '../layout_graph'
 import { useMessageStore, useActivityStore } from './ui_store'
 import { useApiStore } from './api_store'
+
+export const INPUTS_NODE_ID = '__inputs__'
+// Inputs in the graph and the params editor (oneDark's purple)
+export const INPUT_COLOR = '#c678dd'
+// Edges between steps: solid, in the theme's surface grey (input edges are dashed)
+const EDGE_COLOR = '#2d3748'
 
 export const useGraphStore = defineStore('graph', () => {
     const { layoutOptions } = useLayout()
@@ -16,13 +22,53 @@ export const useGraphStore = defineStore('graph', () => {
     const activityStore = useActivityStore()
     const apiStore = useApiStore()
 
+    const _inputs = ref<APIInput[]>([])
+    const inputs = computed(() => _inputs.value)
     const _edgeData = ref<APIEdgeData[]>([])
     const _nodeData = ref<APINodeData[]>([])
     const _edges = ref<Edge<APIEdgeData>[]>([])
     const _nodes = ref<Node<APINodeData>[]>([])
 
-    const edges = computed(() => _edges.value)
-    const nodes = computed(() => _nodes.value)
+    // A node standing for the config's inputs, with an edge to every step they fill.
+    // Only in the view: it isn't part of the graph and can't be selected or connected.
+    const _showInputsNode = ref(localStorage.getItem('showInputsNode') !== 'false')
+    const showInputsNode = computed(() => _showInputsNode.value)
+
+    function toggleInputsNode() {
+        _showInputsNode.value = !_showInputsNode.value
+        localStorage.setItem('showInputsNode', String(_showInputsNode.value))
+    }
+
+    const inputsNode = computed<Node[]>(() => {
+        if (!_showInputsNode.value || !_inputs.value.length) return []
+        return [{
+            id: INPUTS_NODE_ID,
+            type: 'inputs-node',
+            position: { x: 0, y: 0 },
+            data: { inputs: _inputs.value },
+            selectable: false,
+            connectable: false,
+            deletable: false,
+        }]
+    })
+
+    const inputsEdges = computed<Edge[]>(() => {
+        if (!inputsNode.value.length) return []
+        const steps = new Set(_inputs.value.flatMap(i => i.bindings.map(b => b.slice(0, b.indexOf('.')))))
+        return [...steps].filter(id => _nodeData.value.some(n => n.id === id)).map(id => ({
+            id: `${INPUTS_NODE_ID}->${id}`,
+            source: INPUTS_NODE_ID,
+            target: id,
+            selectable: false,
+            deletable: false,
+            class: 'inputs-edge',
+            style: { stroke: INPUT_COLOR, strokeDasharray: '6 4', strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: INPUT_COLOR },
+        }))
+    })
+
+    const edges = computed(() => [..._edges.value, ...inputsEdges.value] as Edge<APIEdgeData>[])
+    const nodes = computed(() => [..._nodes.value, ...inputsNode.value] as Node<APINodeData>[])
 
     const globalOptions = ref<APIGlobalOptions>({ params: {}, nf_config: '', nf_profile: '' })
 
@@ -65,7 +111,8 @@ export const useGraphStore = defineStore('graph', () => {
             target: edgeData.target,
             data: edgeData,
             animated: false,
-            markerEnd: MarkerType.ArrowClosed,
+            style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR },
         }
     }
 
@@ -93,6 +140,7 @@ export const useGraphStore = defineStore('graph', () => {
             _nodes.value = []
             _edgeData.value = []
             _nodeData.value = []
+            _inputs.value = []
         } else {
             _edgeData.value = response.data.transitions
             _nodeData.value = response.data.nodes
@@ -102,6 +150,7 @@ export const useGraphStore = defineStore('graph', () => {
             _redoable.value = response.data.redoable
             _filename.value = response.data.filename
             globalOptions.value = response.data.globals ?? { params: null, nf_config: null, nf_profile: null }
+            _inputs.value = response.data.inputs ?? []
         }
     }
 
@@ -129,6 +178,22 @@ export const useGraphStore = defineStore('graph', () => {
     async function updateGlobalOptions(globals: APIGlobalOptions) {
         const result = await apiStore.updateGlobalOptions(globals)
         return applyMutation(result, 'Saved')
+    }
+
+    async function saveInput(input: APIInputSave) {
+        return applyMutation(await apiStore.saveInput(input), 'Saved')
+    }
+
+    async function setInputsStyle(inParams: boolean) {
+        return applyMutation(await apiStore.setInputsStyle(inParams), 'Saved')
+    }
+
+    async function declareStepInputs(nodeId: string) {
+        return applyMutation(await apiStore.declareStepInputs(nodeId), 'Inputs moved to the inputs: section')
+    }
+
+    async function removeInput(name: string) {
+        return applyMutation(await apiStore.deleteInput(name))
     }
 
     async function removeSelectionById(selection: Selection) {
@@ -211,11 +276,12 @@ export const useGraphStore = defineStore('graph', () => {
     const nodeData = computed(() => _nodeData.value)
 
     return {
-        nodes, nodeData, edges, globalOptions, filename,
+        nodes, nodeData, edges, globalOptions, inputs, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
         undoable, redoable,
         getAndUpdateGraph,
-        saveNode, saveEdge, updateGlobalOptions,
+        saveNode, saveEdge, updateGlobalOptions, saveInput, removeInput, declareStepInputs, setInputsStyle,
+        showInputsNode, toggleInputsNode,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,
         getPredecessors, getParams,

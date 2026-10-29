@@ -4,9 +4,11 @@ import { computed, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import type { APINodeData } from '../types.ts'
 import { WorkflowType } from '../types.ts'
-import { useEditorStore } from '../store'
+import { useEditorStore, useGraphStore } from '../store'
+import { inputFillsStep, inputsOfStep, shortVersion } from '../utils'
 
 const editorStore = useEditorStore()
+const graphStore = useGraphStore()
 
 const copyIcon = ref("mdi-content-copy")
 
@@ -21,7 +23,11 @@ const isModule = computed(() => props.data.type === WorkflowType.NF_MODULE)
 const isNfCorePipeline = computed(() =>
     props.data.type === WorkflowType.NF_PIPELINE && props.data.is_nfcore
 )
-const isHovered = computed(() => editorStore.hoveredNodeId === props.id)
+const hoveredInput = computed(() => graphStore.inputs.find(i => i.name === editorStore.hoveredInputName))
+const isHovered = computed(() =>
+    editorStore.hoveredNodeId === props.id || inputFillsStep(hoveredInput.value, props.id)
+)
+const filledBy = computed(() => inputsOfStep(graphStore.inputs, props.id))
 
 async function copyToClipboard() {
     try {
@@ -49,14 +55,25 @@ async function copyToClipboard() {
             </strong>
             <v-chip
                 v-if="data.version"
-                class="ml-2">
-                {{ data.version }}
+                class="ml-2"
+                :title="data.version">
+                {{ shortVersion(data.version) }}
             </v-chip>
             <v-chip
                 v-if="isModule"
                 color="success"
                 class="ml-1">
                 module
+            </v-chip>
+            <v-chip
+                v-if="filledBy.length"
+                class="ml-1 nodrag"
+                size="small"
+                prepend-icon="mdi-import"
+                :title="filledBy.map(f => `${f.param} ← ${f.input.name}`).join('\n') + '\n\nClick to show in Inputs'"
+                @click.stop="editorStore.showInputs(filledBy.map(f => f.input.name))"
+                @dblclick.stop>
+                {{ filledBy.length }}
             </v-chip>
         </div>
         <div class="d-flex flex-row align-center">

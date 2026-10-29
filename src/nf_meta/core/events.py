@@ -8,6 +8,11 @@ from .models import GlobalOptions, Transition, Workflow
 # Event Handler
 # TODO: Test that Metaworkflow implements GraphEventHandler: isinstance(graph, GraphEventHandler)
 class GraphEventHandler(Protocol):
+    # Read access, for commands that work out their changes from the graph (see `edits`)
+    inputs: dict[str, InputDefinition]
+
+    def get_workflows(self) -> list[Workflow]: ...
+
     def pop_events(self) -> tuple["Event"]: ...
 
     def add_workflow(self, w: Workflow) -> None: ...

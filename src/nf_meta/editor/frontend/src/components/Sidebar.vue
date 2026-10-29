@@ -5,8 +5,13 @@ import { useVueFlow } from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from "../store"
 import GlobalConfig from "./GlobalConfig.vue"
+import InputsPanel from "./InputsPanel.vue"
+import { useGraphStore } from "../store"
 
 const editorStore = useEditorStore()
+const graphStore = useGraphStore()
+
+watch(() => graphStore.nodeData, (nodes) => editorStore.syncSidebarNodes(nodes), { immediate: true })
 
 const { fitView } = useVueFlow()
 const { sideBarTab } = storeToRefs(editorStore)
@@ -50,7 +55,7 @@ const stopDrag = () => {
     document.body.style.cursor = ""
 
     nextTick(() => {
-        fitView()
+        fitView({ padding: 0.25 })
     })
 }
 
@@ -74,12 +79,23 @@ onBeforeUnmount(stopDrag)
   <v-container class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
     <v-container class="pa-0 mb-1">
       <v-tabs v-model="sideBarTab">
-        <v-tab value="nodes">Node Details</v-tab>
+        <v-tab value="nodes">Workflows</v-tab>
         <v-tab value="globals">Globals</v-tab>
+        <v-tab value="inputs">
+          Inputs
+          <v-badge
+            v-if="graphStore.inputs.length"
+            :content="graphStore.inputs.length"
+            :color="graphStore.inputs.some(i => i.diagnostics.length) ? 'warning' : 'primary'"
+            inline />
+        </v-tab>
       </v-tabs>
     </v-container>
     <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
       <v-tabs-window-item value="nodes">
+        <div class="d-flex justify-end px-1 pt-1">
+          <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="editorStore.addNodeToSideBar({})">Add workflow</v-btn>
+        </div>
         <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
           <TransitionGroup name="detail-fade">
             <NodeDetail
@@ -91,15 +107,19 @@ onBeforeUnmount(stopDrag)
           </TransitionGroup>
         </v-container>
         <v-container v-if="editorStore.sideBarNodes.length == 0" class="content">
-          <v-card
-            text="Double click nodes to show detail"
-          ></v-card>
+          <v-card text="No workflows yet."></v-card>
         </v-container>
       </v-tabs-window-item>
 
       <v-tabs-window-item value="globals" class="d-flex flex-cloumn fill-height">
         <v-container class="d-flex flex-column flex-grow-1 pa-1">
           <GlobalConfig></GlobalConfig>
+        </v-container>
+      </v-tabs-window-item>
+
+      <v-tabs-window-item value="inputs">
+        <v-container class="content pa-1">
+          <InputsPanel></InputsPanel>
         </v-container>
       </v-tabs-window-item>
 

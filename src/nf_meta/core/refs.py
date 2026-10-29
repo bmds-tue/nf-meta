@@ -5,8 +5,9 @@ from typing import Protocol
 
 # ${<wf_id>:<namespace>:<key>} -- namespace "params" (resolved) or "outputs" (reserved)
 STEP_REF_PATTERN = re.compile(r"\$\{([^}:]+):(params|outputs):([^}]+)\}")
-# ${inputs:<name>} -- the value of a declared input
+# ${inputs:<name>} -- the value of an input (declared or implicit)
 INPUT_REF_PATTERN = re.compile(r"\$\{inputs:([^}:]+)\}")
+INPUT_NAME_PATTERN = re.compile(r"[^}:\s]+")
 ANY_BRACE_PATTERN = re.compile(r"\$\{[^}]*\}")
 
 RESERVED_STEP_IDS = frozenset({"inputs"})

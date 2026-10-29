@@ -35,7 +35,7 @@ from .models import (
     Workflow,
     WorkflowReference,
 )
-from .refs import ANY_BRACE_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
+from .refs import ANY_BRACE_PATTERN, INPUT_NAME_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
 
 logger = logging.getLogger(__name__)
 
@@ -232,6 +232,8 @@ class MetaworkflowGraph:
         supports inputs if needed."""
         if name in self.inputs:
             raise ValueError(f"Input '{name}' already exists")
+        if not INPUT_NAME_PATTERN.fullmatch(name):
+            raise ValueError(f"Invalid input name '{name}': it can't be empty or contain '}}', ':' or whitespace")
         self.inputs[name] = definition
         try:
             self._after_input_change([b.step_id for b in definition.bindings])

@@ -5,9 +5,11 @@ from fastapi import APIRouter, Body, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ValidationError
 
-from nf_meta.core.dynamic_validation import run_dynamic_checks
-from nf_meta.core.errors import SessionCommandError, Severity
+from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
+from nf_meta.core.edits import DeclareStepInputs, DeleteInput, EditInput, SetInputsStyle
+from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
     AddTransition,
     AddWorkflow,
@@ -18,12 +20,14 @@ from nf_meta.core.events import (
     Transaction,
     UpdateGlobalOptions,
 )
+from nf_meta.core.inputs import Binding, InputDefinition
 from nf_meta.core.models import GlobalOptions, Transition, Workflow
 from nf_meta.core.registry import (
     ModuleSchemaError,
     NotInRegistryError,
     PipelineSchemaError,
     RegistryUnavailableError,
+    SchemaUnavailableError,
     get_module_metadata,
     get_module_schema,
     get_nfcore_module_releases,
@@ -165,6 +169,75 @@ def remove(selection: Selection):
 def add_edge(tr: Transition):
     events = SESSION.handle_command(AddTransition(tr))
     return JSONResponse({"events": serialize_events(events)})
+
+
+class InputBody(BaseModel):
+    """An input as edited in the inputs panel: its details (`definition`,
+    without `bind`), the params it fills, and whether it is written as
+    `${inputs:<name>}` in those params (`in_params`) or with `bind:`."""
+
+    name: str
+    definition: dict = {}
+    bindings: list[str] = []
+    in_params: bool = True
+    new_name: str | None = None
+    create: bool = False
+
+
+def _edit_input_command(body: InputBody) -> EditInput:
+    target = body.new_name or body.name
+    try:
+        definition = InputDefinition.from_config({k: v for k, v in body.definition.items() if k != "bind"})
+    except ValidationError as exc:
+        raise SessionCommandError.from_diagnostics(
+            diagnostics_from_pydantic_error(exc, None, yaml_path_prefix=f"inputs.{target}.")
+        ) from exc
+    try:
+        bindings = tuple(Binding.parse(text) for text in body.bindings)
+    except ValueError as exc:
+        raise SessionCommandError(
+            field_errors=[
+                SessionCommandError.FieldError(workflow_id=None, field=f"inputs.{target}.bind", message=str(exc))
+            ],
+            graph_errors=[],
+        ) from exc
+    return EditInput(body.name, definition, bindings, body.in_params, body.new_name, body.create)
+
+
+@api_router.post("/inputs/save/")
+def save_input(body: InputBody):
+    events = SESSION.handle_command(_edit_input_command(body))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.delete("/inputs/delete/")
+def delete_input(name: str = Body(embed=True)):
+    events = SESSION.handle_command(DeleteInput(name))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.post("/inputs/style/")
+def set_inputs_style(in_params: bool = Body(embed=True)):
+    events = SESSION.handle_command(SetInputsStyle(in_params))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.post("/node/{wf_id}/declare-inputs/")
+def declare_step_inputs(wf_id: str):
+    events = SESSION.handle_command(DeclareStepInputs(wf_id))
+    return JSONResponse({"events": serialize_events(events)})
+
+
+@api_router.get("/node/{wf_id}/schema/")
+def get_node_schema(wf_id: str):
+    """The flat param schema of step `wf_id` (see `get_step_schema`)."""
+    step = SESSION.graph.get_workflow_by_id(wf_id)
+    if step is None:
+        return JSONResponse(status_code=404, content={"detail": f"No step '{wf_id}'"})
+    try:
+        return get_step_schema(step)
+    except SchemaUnavailableError as exc:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 @api_router.get("/nfcore/pipelines/")

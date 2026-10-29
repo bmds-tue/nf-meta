@@ -5,6 +5,7 @@ import { VueFlow, useVueFlow, ConnectionMode, Panel} from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
 import { Background } from '@vue-flow/background'
 import WorkflowNode from './components/WorkflowNode.vue'
+import InputsNode from './components/InputsNode.vue'
 import Sidebar from './components/Sidebar.vue'
 import Footer from './components/Footer.vue'
 import Snackbar from './components/Snackbar.vue'
@@ -13,6 +14,9 @@ import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 import { useLayout } from './layout_graph'
+// Inlined so the logo takes the text color (it is drawn in currentColor)
+import logoSvg from './assets/nf-meta-octo.svg?raw'
+import { DOCS_URL } from './links'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -21,10 +25,13 @@ const { sideBarTab, sideBarOpen } = storeToRefs(editorStore)
 const { setNodes, getNodes, getEdges, onNodesInitialized, fitView, findNode, addSelectedNodes, removeSelectedNodes } = useVueFlow({id: "main-flow"})
 const { layout } = useLayout()
 
+// Room for the action bar, which floats over the top left of the graph
+const fitGraph = () => fitView({ padding: 0.25 })
+
 const toggleLayoutAndFitView = async function() {
   graphStore.switchLayout()
   applyLayout()
-  nextTick(fitView)
+  nextTick(fitGraph)
 }
 
 const openNodeDetail = function (node: Node<APINodeData> | null | undefined = null) {
@@ -43,6 +50,10 @@ const openNodeDetail = function (node: Node<APINodeData> | null | undefined = nu
 }
 
 const onNodeDbClick = function (event: NodeMouseEvent) {
+  if (event.node.type === 'inputs-node') {
+    editorStore.showInputs([])
+    return
+  }
   openNodeDetail(event.node)
 }
 
@@ -93,7 +104,7 @@ function applyLayout() {
 onNodesInitialized(() => {
     // Real dimensions now available — refine positions without re-fetching from backend
     applyLayout()
-    nextTick(fitView)
+    nextTick(fitGraph)
 })
 
 // Subsequent backend-driven changes — watch the store refs
@@ -110,7 +121,7 @@ watch(
   sideBarOpen,
   async () => {
     nextTick(() => {
-      setTimeout(fitView, 300)
+      setTimeout(fitGraph, 300)
     })
   }
 )
@@ -140,7 +151,7 @@ onMounted(async () => {
 <v-app class="editor">
     <Panel class="process-panel" position="top-left">
       <v-container class="layout-panel">
-          <h1>nf-meta</h1>
+          <a class="logo" :href="DOCS_URL" target="_blank" title="nf-meta: open the documentation" v-html="logoSvg"></a>
         <v-btn 
           title="add a workflow node" 
           icon="mdi-plus"
@@ -177,6 +188,14 @@ onMounted(async () => {
         </v-btn>
 
         <v-btn
+          :title="graphStore.showInputsNode ? 'hide the inputs node' : 'show the inputs node'"
+          :active="graphStore.showInputsNode"
+          active-color="primarySoft"
+          @click="graphStore.toggleInputsNode"
+          icon="mdi-import">
+        </v-btn>
+
+        <v-btn
           :title="graphStore.isHorizontalLayout ? 'set vertical layout' : 'set horizontal layout'" 
           @click="toggleLayoutAndFitView"
           :icon="graphStore.isHorizontalLayout ? 'mdi-arrow-up-down' : 'mdi-arrow-left-right'">
@@ -210,6 +229,9 @@ onMounted(async () => {
         <template #node-workflow-node="nodeProps">
           <WorkflowNode 
             v-bind="nodeProps"/>
+        </template>
+        <template #node-inputs-node="nodeProps">
+          <InputsNode v-bind="nodeProps" />
         </template>
       </VueFlow>
   
@@ -266,11 +288,23 @@ onMounted(async () => {
     gap: 5px;
   }
   
-  h1 {
+  .logo {
+    display: flex;
+    align-items: center;
     color: white;
-    margin: 0;
-    margin-right: 25px;
+    margin-right: 12px;
+    transition: opacity 0.15s;
   }
+
+  .logo:hover {
+    opacity: 0.8;
+  }
+
+  .logo :deep(svg) {
+    width: 40px;
+    height: 40px;
+  }
+
 }
 
 </style>

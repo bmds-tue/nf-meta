@@ -706,13 +706,13 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
     for w in g.get_workflows():
         wf_dict = dict(w.model_dump_config())
         if w.id in from_by_target:
-            wf_dict["from"] = from_by_target[w.id]
+            wf_dict["from"] = _FlowList(from_by_target[w.id])
         workflows_dict[w.id] = wf_dict
 
     config_dict = {
         "config_version": g.config_version,
         "globals": g.global_options.model_dump(exclude_none=True) if g.global_options else None,
-        "inputs": {name: d.model_dump_config() for name, d in g.inputs.items()},
+        "inputs": {name: _flow_bind(d.model_dump_config()) for name, d in g.inputs.items()},
         "workflows": workflows_dict,
     }
 
@@ -724,13 +724,33 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
     return config_dict
 
 
+class _FlowList(list):
+    """A list that `to_file` writes in flow style: `[a, b]`."""
+
+
+class _ConfigDumper(yaml.SafeDumper):
+    pass
+
+
+_ConfigDumper.add_representer(
+    _FlowList, lambda dumper, data: dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+)
+
+
+def _flow_bind(entry: dict) -> dict:
+    if "bind" in entry:
+        return {**entry, "bind": _FlowList(entry["bind"])}
+    return entry
+
+
 SCHEMA_URL = "https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/schemas/metapipeline.schema.json"
 
 
 def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
-    """Write `g` to `file` as YAML (via `dump_config`), prefixed with a
+    """Write `g` to `file` as YAML (via `dump_config`; `from:` and `bind:`
+    lists in flow style, `[n01, n02]`), prefixed with a
     `# yaml-language-server: $schema=...` comment pointing at the published
     JSON Schema for editor autocompletion. Overwrites `file` if it exists."""
     with open(file, "w") as fh:
         fh.write(f"# yaml-language-server: $schema={SCHEMA_URL}\n")
-        yaml.safe_dump(dump_config(g), fh, sort_keys=False)
+        yaml.dump(dump_config(g), fh, Dumper=_ConfigDumper, sort_keys=False)

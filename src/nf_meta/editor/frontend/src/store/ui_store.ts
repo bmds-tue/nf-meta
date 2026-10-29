@@ -27,6 +27,8 @@ export const useEditorStore = defineStore('editor', () => {
 
     const sideBarTab = ref('nodes')
     const hoveredNodeId = ref<string>()
+    // Input hovered in the inputs panel; the steps it fills are highlighted
+    const hoveredInputName = ref<string>()
     const flashingNodeId = ref<string>()
     const sideBarActiveDetailId = ref(0)
     const _nextSideBarId = ref(1)
@@ -70,6 +72,28 @@ export const useEditorStore = defineStore('editor', () => {
         hoveredNodeId.value = id
     }
 
+    function setHoveredInputName(name: string | undefined) {
+        hoveredInputName.value = name
+    }
+
+    // Open a step in the Workflows tab (expanded, scrolled to and flashed)
+    function showNode(node: APINodeData) {
+        if (!_sideBarOpen.value) toggleSidebar()
+        sideBarTab.value = 'nodes'
+        addNodeToSideBar(node)
+        if (node.id) flashNode(node.id)
+    }
+
+    // Inputs to point out in the inputs panel (scrolled to and flashed)
+    const flashingInputNames = ref<string[]>([])
+
+    function showInputs(names: string[]) {
+        if (!_sideBarOpen.value) toggleSidebar()
+        sideBarTab.value = 'inputs'
+        flashingInputNames.value = names
+        setTimeout(() => { flashingInputNames.value = [] }, 1200)
+    }
+
     function flashNode(nodeId: string) {
         flashingNodeId.value = nodeId
         setTimeout(() => { flashingNodeId.value = undefined }, 800)
@@ -100,6 +124,23 @@ export const useEditorStore = defineStore('editor', () => {
         setActiveSidebarDetailId(newDetail.id)
     }
 
+    // Show every step of the graph (in graph order, after unsaved new ones),
+    // keeping each step's detail (and so whether it is expanded)
+    function syncSidebarNodes(nodes: APINodeData[]) {
+        const existing = new Map<string, SideBarDetail<APINodeData | NewNodeData>>()
+        const drafts: SideBarDetail<APINodeData | NewNodeData>[] = []
+        for (const detail of _sideBarNodes.value) {
+            const id = 'id' in detail.detailData ? detail.detailData.id : undefined
+            if (id) existing.set(id, detail)
+            else drafts.push(detail)
+        }
+        const synced = nodes.map((node) => {
+            const detail = node.id ? existing.get(node.id) : undefined
+            return detail ? { ...detail, detailData: node } : createSideBarDetailWithId<APINodeData | NewNodeData>(node)
+        })
+        _sideBarNodes.value = [...drafts, ...synced]
+    }
+
     function removeSidebarDetail(id: number) {
         _sideBarNodes.value = _sideBarNodes.value.filter((d) => d.id != id)
     }
@@ -121,9 +162,11 @@ export const useEditorStore = defineStore('editor', () => {
     return {
         showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
         sideBarActiveDetailId, setActiveSidebarDetailId,
-        sideBarTab, sideBarNodes, addNodeToSideBar,
+        sideBarTab, sideBarNodes, addNodeToSideBar, syncSidebarNodes,
         removeSidebarDetail, removeSidebarDetailsForNodeIds, collapseSidebarDetail,
         hoveredNodeId, setHoveredNodeId,
+        hoveredInputName, setHoveredInputName,
+        flashingInputNames, showInputs, showNode,
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,

@@ -107,9 +107,12 @@ class SessionCommandError(Exception):
 
     @classmethod
     def from_diagnostics(cls, diagnostics: list[Diagnostic]) -> "SessionCommandError":
+        """The errors among `diagnostics`. Errors about an input (not about a
+        step) get the input's yaml path as their field, e.g.
+        `inputs.ids.bind`."""
         return cls(
             field_errors=[
-                cls.FieldError(workflow_id=d.workflow_id, field=d.field, message=d.message)
+                cls.FieldError(workflow_id=d.workflow_id, field=_field_for(d), message=d.message)
                 for d in diagnostics
                 if d.severity == Severity.ERROR
             ],
@@ -123,6 +126,12 @@ class SessionCommandError(Exception):
             ],
             "graph_errors": self.graph_errors,
         }
+
+
+def _field_for(d: Diagnostic) -> str:
+    if d.workflow_id is None and d.yaml_path and d.yaml_path.split(".")[0] == "inputs":
+        return d.yaml_path
+    return d.field
 
 
 @dataclass(frozen=True)

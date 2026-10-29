@@ -55,6 +55,7 @@ export type APINfPipelineNodeData = APINodeBase & {
 
 export type APINfModuleNodeData = APINodeBase & {
     type: typeof WorkflowType.NF_MODULE,
+    container_engine?: 'docker' | 'singularity' | 'conda' | 'podman',
 }
 
 export type APINodeData = APINfPipelineNodeData | APINfModuleNodeData
@@ -69,13 +70,73 @@ export type APIGlobalOptions = {
   params?: object
 }
 
+export type Scalar = string | number | boolean
+
+// One entry of the config's `inputs:` section, as written
+export type APIInputDefinition = {
+  bind?: string[],
+  default?: Scalar,
+  description?: string,
+  type?: 'string' | 'integer' | 'number' | 'boolean',
+  format?: string,
+  enum?: Scalar[],
+  pattern?: string,
+  minimum?: number,
+  maximum?: number,
+  exists?: boolean,
+  mimetype?: string,
+  schema?: string,
+}
+
+export type APIInputDiagnostic = {
+  severity: 'error' | 'warning',
+  message: string,
+  yaml_path: string,
+}
+
+// An input as the backend reports it: declared in `inputs:` or implicit
+// (only referenced as `${inputs:<name>}`), with its effective schema
+export type APIInput = {
+  name: string,
+  declared: boolean,
+  definition: APIInputDefinition | null,
+  bound_by: 'bind' | 'reference' | null,
+  bindings: string[],
+  schema: Omit<APIInputDefinition, 'bind' | 'default' | 'description'>,
+  default: Scalar | null,
+  description: string,
+  diagnostics: APIInputDiagnostic[],
+}
+
+export type ParamSpec = {
+  type?: string,
+  format?: string,
+  description?: string,
+  required?: boolean,
+  hidden?: boolean,
+  default?: unknown,
+}
+
+export type StepSchema = Record<string, ParamSpec>
+
+// An input as saved from the inputs panel (POST /api/inputs/save/)
+export type APIInputSave = {
+  name: string,
+  new_name?: string,
+  create: boolean,
+  in_params: boolean,
+  bindings: string[],
+  definition: APIInputDefinition,
+}
+
 export type APIGraph = {
   redoable: boolean,
   undoable: boolean,
   filename: string,
   nodes: APINodeData[],
   transitions: APIEdgeData[],
-  globals: APIGlobalOptions
+  globals: APIGlobalOptions,
+  inputs: APIInput[],
 }
 
 export type NfCorePipelineReleaseInfo = {
@@ -87,7 +148,7 @@ export type NfCorePipelineReleaseInfo = {
 export type NfCorePipelineInfo = {
   name: string
   description: string,
-  repository_url: string,
+  url: string,
   releases: NfCorePipelineReleaseInfo[]
 }
 

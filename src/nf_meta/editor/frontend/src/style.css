@@ -57,3 +57,8 @@ button:active {
 .min-h-0 {
   min-height: 0;
 }
+
+/* Secondary text on the dark cards (Vuetify's text-medium-emphasis uses the page's dark text color) */
+.muted {
+  opacity: 0.72;
+}

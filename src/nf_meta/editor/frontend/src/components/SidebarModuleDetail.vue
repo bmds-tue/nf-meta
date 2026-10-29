@@ -202,6 +202,8 @@ async function copyPath(text: string, field: string) {
       variant="outlined" density="compact" hide-details="auto"
       :error-messages="errors.version ?? (versionsError ? [versionsError] : [])" />
 
+    <NodeInputs :node-id="form.id" readonly />
+
     <div class="text-caption mt-1">Params</div>
     <ParamAssist
       :schema="schema" :loading="schemaLoading" :error="schemaError"

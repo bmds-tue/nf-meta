@@ -234,7 +234,7 @@ watch(isFlashing, async (flashing) => {
     @mouseenter="hover(input?.name)"
     @mouseleave="hover(undefined)">
     <v-card-title class="d-flex align-center ga-2 py-1 text-subtitle-1">
-      <v-icon icon="mdi-import" :color="INPUT_COLOR" size="18" />
+      <v-icon :icon="input ? style.icon : 'mdi-import'" :color="INPUT_COLOR" size="18" :title="input ? style.title : undefined" />
       <strong v-if="input" class="text-truncate">{{ input.name }}</strong>
       <span v-else class="font-italic">New input</span>
       <v-icon v-if="errors.length" icon="mdi-alert-circle" color="error" size="16" />
@@ -253,12 +253,12 @@ watch(isFlashing, async (flashing) => {
       <div class="d-flex flex-wrap align-center ga-1">
         <v-chip
           v-for="binding in input.bindings" :key="binding"
-          size="small" :prepend-icon="style.icon"
-          :title="`Fills ${bindingLabel(binding).param} of ${bindingLabel(binding).step} (${bindingLabel(binding).stepId}), ${style.title}. Click to open the step.`"
+          size="small" prepend-icon="mdi-import" class="binding-chip"
+          :title="`Fills ${bindingLabel(binding).param} of ${bindingLabel(binding).step} (${bindingLabel(binding).stepId}). Click to open the step.`"
           @mouseenter="editorStore.setHoveredNodeId(bindingLabel(binding).stepId)"
           @mouseleave="editorStore.setHoveredNodeId(undefined)"
           @click.stop="openStep(bindingLabel(binding).stepId)">
-          {{ bindingLabel(binding).step.split('/').pop() }} · {{ bindingLabel(binding).param }}
+          <span class="binding-step">{{ bindingLabel(binding).step.split('/').pop() }}</span>&nbsp;· {{ bindingLabel(binding).param }}
         </v-chip>
         <v-chip v-if="input.default !== null" size="small" variant="outlined" prepend-icon="mdi-format-text" title="default">
           {{ input.default }}
@@ -301,17 +301,6 @@ watch(isFlashing, async (flashing) => {
           variant="outlined" density="compact" hide-details="auto"
           :error-messages="fieldErrors.bind" />
 
-        <v-radio-group v-model="form.inParams" density="compact" hide-details class="style-choice">
-          <template #label><span class="text-body-2">Where the config says which params it fills</span></template>
-          <v-radio v-for="choice in styleChoices" :key="String(choice.value)" :value="choice.value" color="primary">
-            <template #label>
-              <div class="d-flex flex-column">
-                <span class="text-body-2">{{ choice.title }}</span>
-                <code class="style-preview">{{ choice.preview }}</code>
-              </div>
-            </template>
-          </v-radio>
-        </v-radio-group>
 
         <v-textarea
           v-model="form.description"
@@ -345,6 +334,18 @@ watch(isFlashing, async (flashing) => {
           clearable
           variant="outlined" density="compact" hide-details="auto"
           :error-messages="fieldErrors.default" />
+
+        <v-radio-group v-model="form.inParams" density="compact" hide-details class="style-choice">
+          <template #label><span class="text-body-2">Where the config says which params it fills</span></template>
+          <v-radio v-for="choice in styleChoices" :key="String(choice.value)" :value="choice.value" color="primary">
+            <template #label>
+              <div class="d-flex flex-column">
+                <span class="text-body-2">{{ choice.title }}</span>
+                <code class="style-preview">{{ choice.preview }}</code>
+              </div>
+            </template>
+          </v-radio>
+        </v-radio-group>
 
         <v-btn
           size="small" variant="text" class="px-1 align-self-start"
@@ -418,6 +419,12 @@ watch(isFlashing, async (flashing) => {
   font-size: 0.75rem;
   opacity: 0.75;
   word-break: break-all;
+}
+.binding-chip {
+  cursor: pointer;
+}
+.binding-chip:hover .binding-step {
+  text-decoration: underline;
 }
 .compact-form {
   display: flex;

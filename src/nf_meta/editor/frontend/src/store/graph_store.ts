@@ -13,8 +13,8 @@ import { useApiStore } from './api_store'
 export const INPUTS_NODE_ID = '__inputs__'
 // Inputs in the graph and the params editor (oneDark's purple)
 export const INPUT_COLOR = '#c678dd'
-// Edges between steps: solid and wider than the dashed input edges
-const EDGE_COLOR = '#4b5563'
+// Edges between steps: solid, in the theme's surface grey (input edges are dashed)
+const EDGE_COLOR = '#2d3748'
 
 export const useGraphStore = defineStore('graph', () => {
     const { layoutOptions } = useLayout()
@@ -111,8 +111,8 @@ export const useGraphStore = defineStore('graph', () => {
             target: edgeData.target,
             data: edgeData,
             animated: false,
-            style: { stroke: EDGE_COLOR, strokeWidth: 3 },
-            markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR, width: 6, height: 6 },
+            style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR },
         }
     }
 

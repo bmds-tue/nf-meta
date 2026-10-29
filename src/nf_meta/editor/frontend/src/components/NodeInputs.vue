@@ -6,6 +6,8 @@ import { inputsOfStep } from '../utils'
 
 const props = defineProps<{
   nodeId?: string
+  // In a step being edited: list only, no actions that change the step
+  readonly?: boolean
 }>()
 
 const graphStore = useGraphStore()
@@ -46,7 +48,7 @@ async function declareInputs() {
       </div>
     </div>
     <v-btn
-      v-if="inParams"
+      v-if="inParams && !readonly"
       size="x-small" variant="text" prepend-icon="mdi-link-variant" class="mt-1 px-1"
       title="Declare the inputs this step references with ${inputs:…} in the inputs: section, bound with bind:"
       @click.stop="declareInputs">

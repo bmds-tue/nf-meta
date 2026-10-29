@@ -23,7 +23,7 @@ from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResul
 from .collect import InputMode, Request, collect
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
-from .paths import absolutize_input_paths, declared_path, is_url, param_schema
+from .paths import absolutize_input_paths, declared_path, input_fingerprints, is_url, param_schema
 from .spec import StepSpec, build_step_spec, resolve_references
 from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
 
@@ -55,7 +55,8 @@ class SimplePythonRunner(BaseRunner):
 
     `resume=True` works on two levels: a step that already succeeded with an
     identical step key (its definition, the content of its config and params
-    files, the globals and all upstream step keys) is skipped; a step that
+    files, size and modification time of its local input files, the globals
+    and all upstream step keys) is skipped; a step that
     runs is started with `-resume`, and each step has its own Nextflow cache
     dir, so Nextflow resumes that step's last run.
     """
@@ -95,13 +96,16 @@ class SimplePythonRunner(BaseRunner):
         wf: Workflow,
         global_options: GlobalOptions | None,
         upstream_keys: list[str],
+        input_files: dict[str, list] | None = None,
     ) -> str:
         """Hash of everything that defines a step's result: the resolved step,
-        the content of its config and params files, the globals, run-level
+        the content of its config and params files, the local input files its
+        params name (see `input_fingerprints`), the globals, run-level
         profile, Nextflow config and stub flag, and the keys of all upstream
         steps."""
         data = {
             "workflow": wf.hash(),
+            "input_files": input_files or {},
             "nf_config": _file_digest(wf.nf_config),
             "params_file": _file_digest(getattr(wf, "params_file", None)),
             "globals": global_options.model_dump(mode="json") if global_options else None,
@@ -269,11 +273,14 @@ class SimplePythonRunner(BaseRunner):
             elif project_dir is None:
                 self._reject_relative_inputs(wf, schema)
 
+            # Before references are resolved: other steps' outputs are covered by
+            # their step keys, and may not exist yet
+            input_files = input_fingerprints(wf.params or {})
             wf_resolved = resolve_references(wf, graph, resolved=resolved)
             resolved[wf.id] = wf_resolved.params or {}
 
             upstream = [keys[p.id] for p in graph.predecessors(wf) if p.id in keys]
-            key = self._step_key(wf_resolved, global_options, upstream)
+            key = self._step_key(wf_resolved, global_options, upstream, input_files)
             keys[wf.id] = key
             state_dir = self._state_dir(wf, key)
 

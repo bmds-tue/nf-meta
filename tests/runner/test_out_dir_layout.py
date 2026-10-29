@@ -1,5 +1,6 @@
 """Project dir vs out dir (plans/P2-project-out-dir-layout.md)."""
 
+import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -220,6 +221,57 @@ class TestStepKey:
         changed = write_config(project, two_steps(n02={"genome": "GRCh38"}))
         skips = {s.workflow.id: s.skip for s in plan(changed, resume=True)}
         assert skips == {"n01": True, "n02": False}
+
+
+class TestInputFilesInStepKey:
+    """plans/ISSUES.md I1: a changed input file must not be skipped on resume."""
+
+    def _keys(self, path, **options):
+        return {s.workflow.id: s.spec.state_dir.name for s in plan(path, **options)}
+
+    def test_changed_content_changes_the_step_and_downstream_keys(self, project):
+        path = write_config(project, two_steps())
+        before = self._keys(path)
+        (project / "ids.csv").write_text("SRR1\nSRR2\n")
+        after = self._keys(path)
+        assert before["n01"] != after["n01"]
+        assert before["n02"] != after["n02"]
+
+    def test_touched_file_changes_the_key(self, project):
+        path = write_config(project, two_steps())
+        before = self._keys(path)
+        stat = (project / "ids.csv").stat()
+        os.utime(project / "ids.csv", ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+        assert self._keys(path)["n01"] != before["n01"]
+
+    def test_unchanged_files_keep_the_key(self, project):
+        path = write_config(project, two_steps())
+        assert self._keys(path) == self._keys(path)
+
+    def test_upstream_output_appearing_keeps_the_downstream_key(self, project):
+        path = write_config(project, two_steps())
+        before = self._keys(path)
+        sheet = project / "nf-meta-out" / "out_fetchngs" / "samplesheet" / "samplesheet.csv"
+        sheet.parent.mkdir(parents=True)
+        sheet.write_text("sample\n")
+        assert self._keys(path) == before
+
+    def test_directory_entries_count(self, project):
+        (project / "refs").mkdir()
+        path = write_config(project, two_steps(n02={"extra": "refs"}))
+        before = self._keys(path)
+        (project / "refs" / "genome.fa").write_text(">chr1\n")
+        assert self._keys(path)["n02"] != before["n02"]
+
+    def test_resume_reruns_a_step_whose_input_changed(self, project):
+        path = write_config(project, two_steps())
+        runner = SimplePythonRunner(RunOptions())
+        runner._stream_proc_out = MagicMock(return_value=(0, "out", ""))
+        runner.run(from_file(path))
+        assert {s.workflow.id: s.skip for s in plan(path, resume=True)} == {"n01": True, "n02": True}
+
+        (project / "ids.csv").write_text("SRR1\nSRR2\n")
+        assert {s.workflow.id: s.skip for s in plan(path, resume=True)} == {"n01": False, "n02": False}
 
 
 class TestRemoteConfig:

@@ -63,3 +63,44 @@ def absolutize_input_paths(
         else value
         for key, value in params.items()
     }
+
+
+def input_fingerprints(params: dict[str, Any]) -> dict[str, list]:
+    """A fingerprint of the local files and directories that `params` name by
+    absolute path, by param: path, size and modification time per file; per
+    directory the same for each direct entry (not recursive); per glob
+    pattern one fingerprint per match. Outputs (`outdir`), URLs, values with
+    references and paths that don't exist are left out."""
+    result: dict[str, list] = {}
+    for key, value in params.items():
+        if key in OUTPUT_PARAMS or not isinstance(value, str) or not value:
+            continue
+        if is_url(value) or "${" in value or is_placeholder(value) or not Path(value).is_absolute():
+            continue
+        path = Path(value)
+        paths = (
+            sorted(Path(path.anchor).glob(str(path.relative_to(path.anchor))))
+            if any(c in value for c in "*?[")
+            else [path]
+        )
+        prints = [fp for p in paths if (fp := _fingerprint(p)) is not None]
+        if prints:
+            result[key] = prints
+    return result
+
+
+def _fingerprint(path: Path) -> list | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    if not path.is_dir():
+        return [str(path), stat.st_size, stat.st_mtime_ns]
+    entries = []
+    for child in sorted(path.iterdir()):
+        try:
+            child_stat = child.stat()
+        except OSError:
+            continue
+        entries.append([child.name, child_stat.st_size, child_stat.st_mtime_ns])
+    return [str(path), entries]

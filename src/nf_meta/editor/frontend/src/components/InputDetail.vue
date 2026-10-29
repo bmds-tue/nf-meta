@@ -22,8 +22,8 @@ const FORMATS = ['file-path', 'directory-path', 'path', 'file-path-pattern']
 const PATH_FORMATS = new Set(FORMATS)
 const BOOLEANS: Scalar[] = [true, false]
 const STYLES = [
-  { value: true, title: '${inputs:…} in params', icon: 'mdi-code-braces' },
-  { value: false, title: 'bind: in inputs', icon: 'mdi-link-variant' },
+  { value: true, title: 'written in the step params', icon: 'mdi-code-braces' },
+  { value: false, title: 'bound in the inputs: section', icon: 'mdi-link-variant' },
 ]
 
 type Form = {
@@ -67,6 +67,18 @@ function initialForm(): Form {
     exists: d.exists,
   }
 }
+
+// The two ways to write the bindings, with the YAML each would produce
+const styleChoices = computed(() => {
+  const name = form.value.name.trim() || '<name>'
+  const bindings = form.value.bindings.length ? form.value.bindings : ['<step>.<param>']
+  const first = bindingLabel(bindings[0]!)
+  const more = bindings.length > 1 ? ` (and ${bindings.length - 1} more)` : ''
+  return [
+    { value: true, title: 'In the step params', preview: `${first.stepId}: params: ${first.param}: \${inputs:${name}}${more}` },
+    { value: false, title: 'In the inputs: section', preview: `inputs: ${name}: bind: [${bindings.join(', ')}]` },
+  ]
+})
 
 const style = computed(() => STYLES.find(s => s.value === (props.input?.bound_by !== 'bind')) ?? STYLES[0]!)
 const warnings = computed(() => props.input?.diagnostics.filter(d => d.severity === 'warning') ?? [])
@@ -197,6 +209,11 @@ async function remove() {
   if (props.input) await graphStore.removeInput(props.input.name)
 }
 
+function openStep(stepId: string) {
+  const node = graphStore.nodeData.find(n => n.id === stepId)
+  if (node) editorStore.showNode(node)
+}
+
 function hover(name: string | undefined) {
   editorStore.setHoveredInputName(name)
 }
@@ -217,7 +234,7 @@ watch(isFlashing, async (flashing) => {
     @mouseenter="hover(input?.name)"
     @mouseleave="hover(undefined)">
     <v-card-title class="d-flex align-center ga-2 py-1 text-subtitle-1">
-      <v-icon :icon="input ? style.icon : 'mdi-import'" :color="INPUT_COLOR" size="18" :title="input ? style.title : undefined" />
+      <v-icon icon="mdi-import" :color="INPUT_COLOR" size="18" />
       <strong v-if="input" class="text-truncate">{{ input.name }}</strong>
       <span v-else class="font-italic">New input</span>
       <v-icon v-if="errors.length" icon="mdi-alert-circle" color="error" size="16" />
@@ -236,10 +253,11 @@ watch(isFlashing, async (flashing) => {
       <div class="d-flex flex-wrap align-center ga-1">
         <v-chip
           v-for="binding in input.bindings" :key="binding"
-          size="small" prepend-icon="mdi-arrow-right"
-          :title="`Fills ${bindingLabel(binding).param} of ${bindingLabel(binding).step} (${bindingLabel(binding).stepId})`"
+          size="small" :prepend-icon="style.icon"
+          :title="`Fills ${bindingLabel(binding).param} of ${bindingLabel(binding).step} (${bindingLabel(binding).stepId}), ${style.title}. Click to open the step.`"
           @mouseenter="editorStore.setHoveredNodeId(bindingLabel(binding).stepId)"
-          @mouseleave="editorStore.setHoveredNodeId(undefined)">
+          @mouseleave="editorStore.setHoveredNodeId(undefined)"
+          @click.stop="openStep(bindingLabel(binding).stepId)">
           {{ bindingLabel(binding).step.split('/').pop() }} · {{ bindingLabel(binding).param }}
         </v-chip>
         <v-chip v-if="input.default !== null" size="small" variant="outlined" prepend-icon="mdi-format-text" title="default">
@@ -283,14 +301,17 @@ watch(isFlashing, async (flashing) => {
           variant="outlined" density="compact" hide-details="auto"
           :error-messages="fieldErrors.bind" />
 
-        <div class="d-flex align-center flex-wrap ga-2">
-          <span class="text-body-2 muted">Written as</span>
-          <v-btn-toggle v-model="form.inParams" mandatory density="compact" variant="outlined" divided>
-            <v-btn v-for="s in STYLES" :key="String(s.value)" :value="s.value" size="small" :prepend-icon="s.icon">
-              {{ s.title }}
-            </v-btn>
-          </v-btn-toggle>
-        </div>
+        <v-radio-group v-model="form.inParams" density="compact" hide-details class="style-choice">
+          <template #label><span class="text-body-2">Where the config says which params it fills</span></template>
+          <v-radio v-for="choice in styleChoices" :key="String(choice.value)" :value="choice.value" color="primary">
+            <template #label>
+              <div class="d-flex flex-column">
+                <span class="text-body-2">{{ choice.title }}</span>
+                <code class="style-preview">{{ choice.preview }}</code>
+              </div>
+            </template>
+          </v-radio>
+        </v-radio-group>
 
         <v-textarea
           v-model="form.description"
@@ -389,6 +410,14 @@ watch(isFlashing, async (flashing) => {
 }
 .input-card-hovered {
   box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4) !important;
+}
+.style-choice :deep(.v-label) {
+  opacity: 1;
+}
+.style-preview {
+  font-size: 0.75rem;
+  opacity: 0.75;
+  word-break: break-all;
 }
 .compact-form {
   display: flex;

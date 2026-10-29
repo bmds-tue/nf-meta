@@ -76,6 +76,14 @@ export const useEditorStore = defineStore('editor', () => {
         hoveredInputName.value = name
     }
 
+    // Open a step in the Workflows tab (expanded, scrolled to and flashed)
+    function showNode(node: APINodeData) {
+        if (!_sideBarOpen.value) toggleSidebar()
+        sideBarTab.value = 'nodes'
+        addNodeToSideBar(node)
+        if (node.id) flashNode(node.id)
+    }
+
     // Inputs to point out in the inputs panel (scrolled to and flashed)
     const flashingInputNames = ref<string[]>([])
 
@@ -158,7 +166,7 @@ export const useEditorStore = defineStore('editor', () => {
         removeSidebarDetail, removeSidebarDetailsForNodeIds, collapseSidebarDetail,
         hoveredNodeId, setHoveredNodeId,
         hoveredInputName, setHoveredInputName,
-        flashingInputNames, showInputs,
+        flashingInputNames, showInputs, showNode,
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,

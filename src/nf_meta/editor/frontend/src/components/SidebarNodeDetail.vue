@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useEditorStore } from '../store';
 import type { APINodeData, APINfPipelineNodeData, APINfModuleNodeData, SideBarDetail, NewNodeData, WorkflowTypeValue } from '../types';
 import { WorkflowType } from '../types';
@@ -63,6 +63,12 @@ const nodeId = computed(() => 'id' in props.detailData ? props.detailData.id : u
 const isMouseOver = ref(false)
 const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId === nodeId.value && !isMouseOver.value)
 const isFlashing = computed(() => !!nodeId.value && editorStore.flashingNodeId === nodeId.value)
+const card = ref<{ $el: HTMLElement }>()
+watch(isFlashing, async (flashing) => {
+  if (!flashing) return
+  await nextTick()
+  card.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+})
 
 function onSaved(newNodeData?: APINodeData) {
   if (isNew.value) {
@@ -78,7 +84,7 @@ function onSaved(newNodeData?: APINodeData) {
 </script>
 
 <template>
-<v-card class="mb-2"
+<v-card ref="card" class="mb-2"
   :class="{
     'workflow-node-nfcore': confirmedType === WorkflowType.NF_PIPELINE && 'is_nfcore' in detailData && detailData.is_nfcore,
     'workflow-node-module': confirmedType === WorkflowType.NF_MODULE,

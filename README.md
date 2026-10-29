@@ -80,5 +80,24 @@ pip install nf-meta
 uv add nf-meta
 ```
 
-See the [docs](https://bmds-tue.github.io/nf-meta/) for the development setup, the editor, and
-the full API reference.
+## Development setup
+
+```bash
+git clone https://github.com/bmds-tue/nf-meta
+cd nf-meta
+uv sync --group dev
+uv run pytest
+```
+
+To work on the editor, run the frontend dev server and start the editor in dev mode
+(`NF_META_DEVMODE=1`), then open http://127.0.0.1:5180/:
+
+```bash
+# terminal 1
+cd src/nf_meta/editor/frontend && npm install && npm run dev
+# terminal 2
+NF_META_DEVMODE=1 uv run nf-meta editor [path/to/metapipeline.yaml]
+```
+
+See [Contributing](https://bmds-tue.github.io/nf-meta/latest/contributing/) for details, and the
+[docs](https://bmds-tue.github.io/nf-meta/) for the editor and the full API reference.

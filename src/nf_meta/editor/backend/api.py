@@ -8,18 +8,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
 from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
+from nf_meta.core.edits import DeclareStepInputs, DeleteInput, EditInput, SetInputsStyle
 from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
     AddTransition,
     AddWorkflow,
     Command,
-    DeclareStepInputs,
-    DeleteInput,
-    EditInput,
     EditWorkflow,
     RemoveTransition,
     RemoveWorkflow,
-    SetInputsStyle,
     Transaction,
     UpdateGlobalOptions,
 )

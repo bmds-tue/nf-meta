@@ -1,13 +1,18 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from .inputs import Binding, InputDefinition
+from .inputs import InputDefinition
 from .models import GlobalOptions, Transition, Workflow
 
 
 # Event Handler
 # TODO: Test that Metaworkflow implements GraphEventHandler: isinstance(graph, GraphEventHandler)
 class GraphEventHandler(Protocol):
+    # Read access, for commands that work out their changes from the graph (see `edits`)
+    inputs: dict[str, InputDefinition]
+
+    def get_workflows(self) -> list[Workflow]: ...
+
     def pop_events(self) -> tuple["Event"]: ...
 
     def add_workflow(self, w: Workflow) -> None: ...
@@ -27,23 +32,6 @@ class GraphEventHandler(Protocol):
     def update_input(self, name: str, definition: InputDefinition) -> None: ...
 
     def remove_input(self, name: str) -> None: ...
-
-    def edit_input(
-        self,
-        name: str,
-        definition: InputDefinition,
-        bindings: tuple[Binding, ...],
-        *,
-        in_params: bool,
-        new_name: str | None = None,
-        create: bool = False,
-    ) -> None: ...
-
-    def delete_input(self, name: str) -> None: ...
-
-    def declare_step_inputs(self, wf_id: str) -> None: ...
-
-    def set_inputs_style(self, *, in_params: bool) -> None: ...
 
     def deferred_validation(self): ...
 
@@ -229,58 +217,3 @@ class RemoveInput:
 
     def apply(self, g: GraphEventHandler):
         g.remove_input(self.name)
-
-
-@dataclass(frozen=True)
-class EditInput:
-    """Set an input's bindings, binding style and details; see
-    `MetaworkflowGraph.edit_input`."""
-
-    name: str
-    definition: InputDefinition
-    bindings: tuple[Binding, ...]
-    in_params: bool
-    new_name: str | None = None
-    create: bool = False
-
-    def apply(self, g: GraphEventHandler):
-        g.edit_input(
-            self.name,
-            self.definition,
-            self.bindings,
-            in_params=self.in_params,
-            new_name=self.new_name,
-            create=self.create,
-        )
-
-
-@dataclass(frozen=True)
-class DeleteInput:
-    """Remove an input with its references; see `MetaworkflowGraph.delete_input`."""
-
-    name: str
-
-    def apply(self, g: GraphEventHandler):
-        g.delete_input(self.name)
-
-
-@dataclass(frozen=True)
-class DeclareStepInputs:
-    """Move a step's `${inputs:...}` inputs to `inputs:`; see
-    `MetaworkflowGraph.declare_step_inputs`."""
-
-    wf_id: str
-
-    def apply(self, g: GraphEventHandler):
-        g.declare_step_inputs(self.wf_id)
-
-
-@dataclass(frozen=True)
-class SetInputsStyle:
-    """Write all inputs in params or all in `inputs:`; see
-    `MetaworkflowGraph.set_inputs_style`."""
-
-    in_params: bool
-
-    def apply(self, g: GraphEventHandler):
-        g.set_inputs_style(in_params=self.in_params)

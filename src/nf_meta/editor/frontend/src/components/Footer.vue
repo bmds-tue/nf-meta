@@ -29,7 +29,7 @@
 
     <v-footer class="app-footer pt-0 pb-0 d-flex align-center justify-space-between text-caption flex-shrink-0">
       <span class="d-flex align-center ga-1">
-        <span>v{{ version }}</span>
+        <span>nf-meta v{{ version }}</span>
         <v-btn :href="github" target="_blank" title="nf-meta on GitHub" size="x-small" variant="text" icon="mdi-github"></v-btn>
         <v-btn :href="docs" target="_blank" title="Documentation" size="x-small" variant="text" icon="mdi-book-open-variant"></v-btn>
       </span>
@@ -50,12 +50,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { APP_VERSION } from '../version'
+import { DOCS_URL, GITHUB_URL } from '../links'
 import ActivityLog from './ActivityLog.vue'
 import { useActivityStore, useGraphStore } from '../store'
 
 const version = APP_VERSION
-const github = "https://github.com/bmds-tue/nf-meta"
-const docs = "https://bmds-tue.github.io/nf-meta/latest/"
+const github = GITHUB_URL
+const docs = DOCS_URL
 
 const activeTab = ref('history')
 const activityStore = useActivityStore()

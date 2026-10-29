@@ -16,6 +16,7 @@ import LoadDialog from './components/LoadDialog.vue'
 import { useLayout } from './layout_graph'
 // Inlined so the logo takes the text color (it is drawn in currentColor)
 import logoSvg from './assets/nf-meta-octo.svg?raw'
+import { DOCS_URL } from './links'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -150,8 +151,7 @@ onMounted(async () => {
 <v-app class="editor">
     <Panel class="process-panel" position="top-left">
       <v-container class="layout-panel">
-          <span class="logo" v-html="logoSvg" aria-hidden="true"></span>
-          <h1>nf-meta</h1>
+          <a class="logo" :href="DOCS_URL" target="_blank" title="nf-meta: open the documentation" v-html="logoSvg"></a>
         <v-btn 
           title="add a workflow node" 
           icon="mdi-plus"
@@ -292,7 +292,12 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     color: white;
-    margin-right: 4px;
+    margin-right: 12px;
+    transition: opacity 0.15s;
+  }
+
+  .logo:hover {
+    opacity: 0.8;
   }
 
   .logo :deep(svg) {
@@ -300,11 +305,6 @@ onMounted(async () => {
     height: 40px;
   }
 
-  h1 {
-    color: white;
-    margin: 0;
-    margin-right: 25px;
-  }
 }
 
 </style>

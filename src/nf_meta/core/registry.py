@@ -5,6 +5,7 @@ import functools
 import logging
 import os
 import re
+from typing import Any, Required, TypedDict
 
 import requests
 import yaml
@@ -20,6 +21,72 @@ _NFCORE_PIPELINES_URL = "https://nf-co.re/pipelines.json"
 _NFCORE_COMPONENTS_URL = "https://nf-co.re/components.json"
 _NXF_REGISTRY_BASE = "https://registry.nextflow.io/api/v1/modules"
 _REQUEST_TIMEOUT = 10
+
+
+class PipelineRelease(TypedDict):
+    """One release of an nf-core pipeline."""
+
+    tag_name: str
+    tag_sha: str
+    published_at: str
+
+
+class PipelineInfo(TypedDict):
+    """An nf-core pipeline in the catalog. `name` is the full name
+    (`nf-core/rnaseq`)."""
+
+    name: str
+    url: str
+    description: str
+    releases: list[PipelineRelease]
+
+
+class ModuleInfo(TypedDict):
+    """An nf-core module in the catalog. `name` is nf-core's short name
+    (`fastqc`, `samtools_stats`)."""
+
+    name: str
+    description: str
+    keywords: list[str]
+
+
+class ModuleRelease(TypedDict, total=False):
+    """One release of a module in the Nextflow module registry, as the
+    registry returns it. `metadata` holds description, keywords, input,
+    output and tools."""
+
+    version: Required[str]
+    createdAt: str
+    status: str
+    checksum: str
+    size: int
+    url: str
+    metadata: dict[str, Any]
+
+
+class ParamSpec(TypedDict, total=False):
+    """One param of a pipeline or module schema. `type` is a JSON Schema type
+    for pipelines and a meta.yml type (`file`, `map`, ...) for modules; the
+    other keys besides `type`, `required`, `enum` and `pattern` are only set
+    for pipelines."""
+
+    type: str | None
+    required: bool
+    enum: list[Any] | None
+    pattern: str | None
+    format: str | None
+    default: Any
+    hidden: bool
+    exists: bool
+    mimetype: str
+    schema: str
+    minimum: float
+    maximum: float
+    description: str
+
+
+Schema = dict[str, ParamSpec]
+"""A flat param schema: param name → `ParamSpec`."""
 
 
 def _fetch_json(
@@ -80,7 +147,7 @@ def _fetch_json(
 
 
 @functools.cache
-def get_nfcore_pipelines() -> list[dict]:
+def get_nfcore_pipelines() -> list[PipelineInfo]:
     """
     Adapted from nf-core/tools `nf_core.pipelines.list.Workflows:get_remote_workflows` method
     """
@@ -120,7 +187,7 @@ def _get_nfcore_components_raw() -> list[dict]:
 
 
 @functools.cache
-def get_nfcore_modules() -> list[dict]:
+def get_nfcore_modules() -> list[ModuleInfo]:
     """
     Summary list (name, description, keywords) for all nf-core modules.
     Suitable for the browse/search UI without shipping full I/O schemas.
@@ -136,7 +203,7 @@ def get_nfcore_modules() -> list[dict]:
 
 
 @functools.cache
-def get_nfcore_module_releases(name: str) -> list[dict]:
+def get_nfcore_module_releases(name: str) -> list[ModuleRelease]:
     """
     All published releases for nf-core module `name` (short name, e.g. "fastqc") available
     in the nextflow registry. (registry.nextflow.io)
@@ -183,7 +250,7 @@ class ModuleSchemaError(SchemaUnavailableError):
     """Raised when a module's meta.yml cannot be fetched or parsed."""
 
 
-def _parse_module_schema(meta_yml: dict) -> dict[str, dict]:
+def _parse_module_schema(meta_yml: dict) -> Schema:
     """
     Convert a parsed meta.yml into a flat {param_name: spec} dict.
 
@@ -191,7 +258,7 @@ def _parse_module_schema(meta_yml: dict) -> dict[str, dict]:
     vocabulary (file, map, list, string, integer, boolean, number, directory).
     Callers must handle map/list types specially in required checks.
     """
-    result: dict[str, dict] = {}
+    result: Schema = {}
     for entry in meta_yml.get("input", []):
         if isinstance(entry, dict):
             elements = [entry]
@@ -214,7 +281,7 @@ def _parse_module_schema(meta_yml: dict) -> dict[str, dict]:
 
 
 @functools.cache
-def get_module_schema(name: str, version: str) -> dict[str, dict]:
+def get_module_schema(name: str, version: str) -> Schema:
     """
     Fetch and parse ``meta.yml`` for the nf-core module ``name`` at ``version``.
 
@@ -347,7 +414,7 @@ def _extra_spec_keywords(spec: dict) -> dict:
     return {k: spec[k] for k in _EXTRA_SPEC_KEYWORDS if k in spec}
 
 
-def _parse_nextflow_schema(data: dict) -> dict[str, dict]:
+def _parse_nextflow_schema(data: dict) -> Schema:
     """
     Flatten a nextflow_schema.json into {param_name: spec}.
 
@@ -356,7 +423,7 @@ def _parse_nextflow_schema(data: dict) -> dict[str, dict]:
     hidden, plus exists, mimetype, schema, minimum, maximum and description
     where the schema sets them.
     """
-    result: dict[str, dict] = {}
+    result: Schema = {}
 
     definitions = data.get("definitions") or data.get("$defs") or {}
     for _, group in definitions.items():
@@ -396,7 +463,7 @@ def _parse_nextflow_schema(data: dict) -> dict[str, dict]:
 
 
 @functools.cache
-def get_pipeline_schema(url: str, version: str) -> dict[str, dict]:
+def get_pipeline_schema(url: str, version: str) -> Schema:
     """
     Fetch and parse ``nextflow_schema.json`` for the pipeline at ``url@version``.
 

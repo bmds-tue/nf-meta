@@ -4,6 +4,7 @@ from typing import Any
 
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.models import GlobalOptions, Workflow, WorkflowType, load_params_file
+from nf_meta.core.registry import Schema
 
 from .errors import NfMetaRunnerError
 from .paths import absolutize_input_paths
@@ -127,7 +128,7 @@ def build_step_spec(
     log_file: Path | None = None,
     nextflow_cache_dir: Path | None = None,
     project_dir: Path | None = None,
-    schema: dict[str, dict] | None = None,
+    schema: Schema | None = None,
     extra_profile: str = "",
     nf_config: Path | None = None,
     resume: bool = False,

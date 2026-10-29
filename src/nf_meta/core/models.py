@@ -24,7 +24,7 @@ from pydantic import (
 from pydantic.functional_serializers import PlainSerializer
 
 from nf_meta.core.refs import RESERVED_STEP_IDS, STEP_REF_PATTERN
-from nf_meta.core.registry import get_nfcore_pipelines
+from nf_meta.core.registry import PipelineInfo, get_nfcore_pipelines
 
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.4.0"
@@ -237,7 +237,7 @@ class NfPipeline(BaseWorkflow):
         return any(p.get("name") == self.name for p in nfcore_pipelines)
 
     @classmethod
-    def get_nfcore_info(cls, name: str) -> dict | None:
+    def get_nfcore_info(cls, name: str) -> PipelineInfo | None:
         nfcore_pipelines = get_nfcore_pipelines()
         return next((wf for wf in nfcore_pipelines if wf.get("name") == name), None)
 

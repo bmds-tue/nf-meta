@@ -24,7 +24,9 @@ from .inputs import Binding, Input, InputDefinition, effective_input
 from .models import NfModule, NfPipeline, Workflow
 from .nf_param_validation import validate_params
 from .registry import (
+    ParamSpec,
     PipelineSchemaError,
+    Schema,
     SchemaUnavailableError,
     get_module_schema,
     get_nfcore_module_releases,
@@ -376,7 +378,7 @@ def log_warnings(diagnostics: Iterable[Diagnostic]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def workflow_schema(wf: Workflow) -> dict[str, dict] | None:
+def workflow_schema(wf: Workflow) -> Schema | None:
     """`wf`'s flat param schema (see `get_pipeline_schema` /
     `get_module_schema`), or `None` if it can't be fetched."""
     try:
@@ -413,7 +415,7 @@ def check_inputs(
     inputs: dict[str, Input] = {}
     diagnostics: list[Diagnostic] = []
     for name, definition in definitions.items():
-        specs: dict[Binding, dict | None] = {}
+        specs: dict[Binding, ParamSpec | None] = {}
         for binding in bindings.get(name, ()):
             if binding.step_id not in workflows:
                 continue  # reported by the graph's static input checks

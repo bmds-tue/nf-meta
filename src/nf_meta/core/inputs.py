@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from .errors import Diagnostic, Severity
 from .nf_param_validation import _check_type
 from .refs import INPUT_REF_PATTERN
+from .registry import ParamSpec
 
 PATH_FORMATS = frozenset({"file-path", "directory-path", "path", "file-path-pattern"})
 SCHEMA_KEYWORDS = (
@@ -121,7 +122,7 @@ class InputDefinition(BaseModel):
         return cls(**data)
 
 
-def param_spec_keywords(spec: dict | None) -> dict[str, Any]:
+def param_spec_keywords(spec: ParamSpec | None) -> dict[str, Any]:
     """Translate a param spec (as returned by `get_pipeline_schema` /
     `get_module_schema`) into input schema keywords."""
     if not spec:
@@ -215,7 +216,7 @@ def effective_input(
     name: str,
     definition: InputDefinition,
     bindings: tuple[Binding, ...],
-    param_specs: dict[Binding, dict | None],
+    param_specs: dict[Binding, ParamSpec | None],
     project_dir: Path | None = None,
 ) -> tuple[Input, list[Diagnostic]]:
     """Combine an input's own keywords with the specs of the params it fills.

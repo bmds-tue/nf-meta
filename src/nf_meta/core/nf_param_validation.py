@@ -2,6 +2,7 @@ import logging
 
 from .errors import Diagnostic, Severity
 from .refs import contains_reference
+from .registry import Schema
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def _check_type(param_name: str, value: object, expected_type: str) -> str | Non
 
 def validate_params(
     params: dict[str, object],
-    schema: dict[str, dict],
+    schema: Schema,
     *,
     pipeline_id: str,
     skip_required: bool = False,
@@ -101,7 +102,7 @@ def validate_params(
 
     # Check types and enum values for provided params
     for param_name, value in params.items():
-        spec: dict | None = schema.get(param_name)
+        spec = schema.get(param_name)
         if spec is None:
             continue  # already flagged as unknown above
 

@@ -17,6 +17,7 @@ from rich.text import Text
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.inputs import Binding, InputDefinition, effective_input, input_refs, substitute_inputs
 from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType
+from nf_meta.core.registry import Schema
 
 from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
 from .collect import InputMode, Request, collect
@@ -376,7 +377,7 @@ class SimplePythonRunner(BaseRunner):
             yaml.dump(values, f)
 
     @staticmethod
-    def _reject_relative_inputs(wf: Workflow, schema: dict[str, dict]) -> None:
+    def _reject_relative_inputs(wf: Workflow, schema: Schema) -> None:
         relative = [
             f"{wf.id}.{key} = {value!r}"
             for key, value in (wf.params or {}).items()

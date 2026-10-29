@@ -2,8 +2,43 @@
 
 ## Development setup
 
-See [Installation → Development setup](getting-started/installation.md#development-setup)
-for cloning, installing the `dev` dependency group, and running the editor frontend.
+Clone the repository and install with the dev dependency group:
+
+```bash
+git clone https://github.com/bmds-tue/nf-meta
+cd nf-meta
+uv sync --group dev
+```
+
+### Editor in dev mode
+
+The browser editor's frontend lives under `src/nf_meta/editor/frontend`. During development it
+runs as a separate Vite dev server with hot reload:
+
+```bash
+cd src/nf_meta/editor/frontend
+npm install
+npm run dev          # serves on http://127.0.0.1:5180
+```
+
+With the frontend dev server running, start the editor with `NF_META_DEVMODE=1`, so the backend
+serves the API for the dev server instead of the bundled build:
+
+```bash
+NF_META_DEVMODE=1 uv run nf-meta editor [path/to/metapipeline.yaml]
+```
+
+Open <http://127.0.0.1:5180/>. In dev mode the API always runs on `127.0.0.1:8080` (the dev
+server proxies `/api` there) and `--host` / `--port` are ignored. nf-meta exits with a hint if the
+dev server isn't running.
+
+Frontend checks:
+
+```bash
+cd src/nf_meta/editor/frontend
+npm test             # unit tests (Vitest)
+npm run build        # type-check and build into ../frontend_dist
+```
 
 ## Tests and type checking
 

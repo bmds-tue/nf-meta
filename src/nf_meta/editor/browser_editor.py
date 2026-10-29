@@ -51,7 +51,7 @@ class BrowserEditor(BaseEditor):
 
     With `NF_META_DEVMODE=1` set, proxies to a separately-running frontend
     dev server (`npm run dev` under `editor/frontend`) instead of the bundled
-    build -- see `docs/getting-started/installation.md`.
+    build -- see `docs/contributing.md`.
     """
 
     EDITOR_NAME = "browser"

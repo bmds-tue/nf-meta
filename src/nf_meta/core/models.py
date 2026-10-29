@@ -1,3 +1,4 @@
+import difflib
 import hashlib
 import json
 import re
@@ -24,7 +25,9 @@ from pydantic import (
 from pydantic.functional_serializers import PlainSerializer
 
 from nf_meta.core.refs import RESERVED_STEP_IDS, STEP_REF_PATTERN
-from nf_meta.core.registry import PipelineInfo, get_nfcore_pipelines
+from nf_meta.core.registry import PipelineInfo, RegistryUnavailableError, get_nfcore_pipelines
+
+NFCORE_PREFIX = "nf-core/"
 
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.4.0"
@@ -233,32 +236,54 @@ class NfPipeline(BaseWorkflow):
     @computed_field  # type: ignore[misc]
     @property
     def is_nfcore(self) -> bool:
-        nfcore_pipelines = get_nfcore_pipelines()
-        return any(p.get("name") == self.name for p in nfcore_pipelines)
+        # Validation guarantees that a name with the prefix is in the nf-core catalog
+        return self.name.startswith(NFCORE_PREFIX)
 
     @classmethod
     def get_nfcore_info(cls, name: str) -> PipelineInfo | None:
-        nfcore_pipelines = get_nfcore_pipelines()
-        return next((wf for wf in nfcore_pipelines if wf.get("name") == name), None)
+        """The catalog entry for an `nf-core/...` pipeline name, or `None` for
+        other names and names not in the catalog. Raises
+        `RegistryUnavailableError` if the catalog can't be fetched."""
+        if not name.startswith(NFCORE_PREFIX):
+            return None
+        return next((wf for wf in get_nfcore_pipelines() if wf.get("name") == name), None)
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def validate_nfcore_name(cls, value: str) -> str:
+        if not value.startswith(NFCORE_PREFIX):
+            return value
+        try:
+            nfcore_wf_info = cls.get_nfcore_info(value)
+        except RegistryUnavailableError as e:
+            raise ValueError(
+                f"Can't look up '{value}' in the nf-core catalog: {e}. Check the network connection."
+            ) from e
+        if nfcore_wf_info is None:
+            names = [p["name"] for p in get_nfcore_pipelines()]
+            close = difflib.get_close_matches(value, names, n=1)
+            hint = f" Did you mean '{close[0]}'?" if close else ""
+            raise ValueError(f"'{value}' is not an nf-core pipeline.{hint}")
+        return value
 
     @field_validator("url", mode="after")
     @classmethod
-    def validate_url(cls, value: str | None, info: ValidationInfo):
+    def validate_url(cls, value: str, info: ValidationInfo):
         name = info.data.get("name")
-        nfcore_wf_info = cls.get_nfcore_info(name) if name else None
-        is_nfcore = bool(nfcore_wf_info)
+        if name and name.startswith(NFCORE_PREFIX):
+            nfcore_wf_info = cls.get_nfcore_info(name)
+            assert nfcore_wf_info is not None  # checked by validate_nfcore_name
+            if value and value != nfcore_wf_info["url"]:
+                raise ValueError(
+                    f"url '{value}' doesn't match nf-core's url for '{name}' ({nfcore_wf_info['url']}); "
+                    "leave it out for nf-core pipelines."
+                )
+            return nfcore_wf_info["url"]
 
         if not value:
-            if not is_nfcore:
-                raise ValueError("Workflows from outside nf-core must specify a repository!")
-            return nfcore_wf_info.get("url")  # type: ignore
-
-        if is_nfcore and value != nfcore_wf_info.get("url"):  # type: ignore
-            raise ValueError("nf-core workflow referenced, but url does not match!")
-
-        if not is_nfcore and not value.startswith("http"):
+            raise ValueError("Pipelines outside nf-core need a repository url (https://...).")
+        if not value.startswith("http"):
             raise ValueError("Url should start with https://")
-
         return value
 
     @field_validator("main_script", mode="after")
@@ -268,7 +293,7 @@ class NfPipeline(BaseWorkflow):
             return None
 
         name = info.data.get("name")
-        if name and cls.get_nfcore_info(name):
+        if name and name.startswith(NFCORE_PREFIX):
             raise ValueError("main_script cannot be set for nf-core workflows")
 
         return value
@@ -276,13 +301,23 @@ class NfPipeline(BaseWorkflow):
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:
-        data.setdefault("url", None)
+        # "" instead of a missing url, so validate_url reports it with a clear message
+        if data.get("url") is None:
+            data["url"] = ""
 
         name = data.get("name")
-        if not name:
+        if not isinstance(name, str) or not name:
             return data
 
-        nfcore_info = cls.get_nfcore_info(name)
+        try:
+            nfcore_info = cls.get_nfcore_info(name)
+        except RegistryUnavailableError:
+            nfcore_info = None
+        if nfcore_info is None and name.startswith(NFCORE_PREFIX):
+            # validate_nfcore_name reports the name; a stand-in url keeps that
+            # the only error
+            data["url"] = data["url"] or f"https://github.com/{name}"
+            return data
 
         if nfcore_info:
             if not data.get("url"):

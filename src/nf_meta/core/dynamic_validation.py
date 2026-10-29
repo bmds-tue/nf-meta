@@ -26,6 +26,8 @@ from .nf_param_validation import validate_params
 from .registry import (
     ParamSpec,
     PipelineSchemaError,
+    RegistryError,
+    RegistryUnavailableError,
     Schema,
     SchemaUnavailableError,
     get_module_schema,
@@ -69,7 +71,18 @@ def check_pipeline_main_script_exists(wf: NfPipeline) -> list[Diagnostic]:
         return []
 
     if wf.url and "github.com" in wf.url and wf.version:
-        if not github_file_exists(wf.url, wf.main_script, wf.version):
+        try:
+            exists = github_file_exists(wf.url, wf.main_script, wf.version)
+        except RegistryUnavailableError as e:
+            return [
+                Diagnostic(
+                    workflow_id=wf.id,
+                    field="main_script",
+                    message=f"Cannot check main_script '{wf.main_script}': {e}",
+                    severity=Severity.WARNING,
+                )
+            ]
+        if not exists:
             return [
                 Diagnostic(
                     workflow_id=wf.id,
@@ -175,7 +188,17 @@ def check_module_version_in_registry(wf: NfModule) -> list[Diagnostic]:
     if not short_name or short_name == name:
         return []
 
-    releases = get_nfcore_module_releases(short_name)
+    try:
+        releases = get_nfcore_module_releases(short_name)
+    except RegistryUnavailableError as e:
+        return [
+            Diagnostic(
+                workflow_id=wf.id,
+                field="version",
+                message=f"Cannot check version '{wf.version}' of module '{name}': {e}",
+                severity=Severity.WARNING,
+            )
+        ]
     valid_versions = {r["version"] for r in releases}
     if valid_versions and wf.version not in valid_versions:
         return [
@@ -333,8 +356,8 @@ def _prefetch(workflows: list[Workflow]) -> None:
         return
 
     def _safe_call(fn: Callable, args: tuple) -> None:
-        # An unavailable schema surfaces again, via the real check, once it runs
-        with contextlib.suppress(SchemaUnavailableError):
+        # A failed lookup surfaces again, via the real check, once it runs
+        with contextlib.suppress(RegistryError):
             fn(*args)
 
     with ThreadPoolExecutor(max_workers=len(tasks)) as executor:

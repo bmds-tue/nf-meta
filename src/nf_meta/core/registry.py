@@ -5,7 +5,8 @@ import functools
 import logging
 import os
 import re
-from typing import Any, Required, TypedDict
+import time
+from typing import Any, Required, TypedDict, cast
 
 import requests
 import yaml
@@ -89,36 +90,63 @@ Schema = dict[str, ParamSpec]
 """A flat param schema: param name → `ParamSpec`."""
 
 
+class RegistryError(Exception):
+    """A lookup in the nf-core catalog, the Nextflow module registry or a
+    pipeline repository failed."""
+
+
+class RegistryUnavailableError(RegistryError):
+    """The service can't be reached or gave no usable answer (network error,
+    timeout, rate limit, server error, malformed response)."""
+
+
+class NotInRegistryError(RegistryError, LookupError):
+    """The requested module or release doesn't exist."""
+
+
+# A failed request is not repeated for this many seconds; the stored error is
+# raised again instead, so an offline run doesn't wait for every timeout.
+_FAILURE_TTL = 30.0
+_recent_failures: dict[str, tuple[float, str]] = {}
+
+
 def _fetch_json(
     url: str,
     label: str,
     headers: dict | None = None,
 ) -> dict | list | None:
     """
-    Shared HTTP GET helper. Returns parsed JSON or None on any failure.
+    Shared HTTP GET helper. Returns the parsed JSON, or `None` for a 404 or
+    an empty response.
 
-    Handles: timeout, connection error, rate-limiting (429), not-found (404),
-    no-content (204 / empty body), unexpected status codes, and malformed JSON.
+    Raises `RegistryUnavailableError` on timeouts, connection errors, rate
+    limiting (429), other unexpected status codes and malformed JSON.
     Callers are responsible for caching; this function is not cached itself.
     """
+    failed = _recent_failures.get(url)
+    if failed and time.monotonic() - failed[0] < _FAILURE_TTL:
+        raise RegistryUnavailableError(failed[1])
+    try:
+        return _fetch_json_once(url, label, headers)
+    except RegistryUnavailableError as e:
+        _recent_failures[url] = (time.monotonic(), str(e))
+        raise
+
+
+def _fetch_json_once(url: str, label: str, headers: dict | None) -> dict | list | None:
     try:
         response = requests.get(url, timeout=_REQUEST_TIMEOUT, headers=headers)
-    except requests.exceptions.Timeout:
-        logger.warning("Timeout fetching %s from %s", label, url)
-        return None
+    except requests.exceptions.Timeout as e:
+        raise RegistryUnavailableError(f"Timeout fetching {label} from {url}") from e
     except requests.exceptions.RequestException as e:
-        logger.warning("Network error fetching %s from %s: %s", label, url, e)
-        return None
+        raise RegistryUnavailableError(f"Network error fetching {label} from {url}: {e}") from e
 
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After", "unknown")
-        logger.warning(
-            "Rate-limited (429) fetching %s from %s — Retry-After: %s",
-            label,
-            url,
-            retry_after,
+        hint = " Set GITHUB_TOKEN to increase the rate limit." if "github.com" in url else ""
+        raise RegistryUnavailableError(
+            f"Rate-limited (429) fetching {label} from {url}. Retry-After: {retry_after}.{hint}"
         )
-        return None
     if response.status_code == 404:
         logger.debug("Not found (404) for %s at %s", label, url)
         return None
@@ -126,19 +154,12 @@ def _fetch_json(
         logger.debug("No content for %s at %s", label, url)
         return None
     if response.status_code != 200:
-        logger.warning(
-            "Unexpected status %d fetching %s from %s",
-            response.status_code,
-            label,
-            url,
-        )
-        return None
+        raise RegistryUnavailableError(f"Unexpected status {response.status_code} fetching {label} from {url}")
 
     try:
         return response.json()
-    except ValueError:
-        logger.warning("Invalid JSON in response for %s from %s", label, url)
-        return None
+    except ValueError as e:
+        raise RegistryUnavailableError(f"Invalid JSON in response for {label} from {url}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -148,12 +169,15 @@ def _fetch_json(
 
 @functools.cache
 def get_nfcore_pipelines() -> list[PipelineInfo]:
-    """
+    """All nf-core pipelines with their releases, from the nf-core catalog.
+    Cached for the process lifetime. Raises `RegistryUnavailableError` if the
+    catalog can't be fetched.
+
     Adapted from nf-core/tools `nf_core.pipelines.list.Workflows:get_remote_workflows` method
     """
     data = _fetch_json(_NFCORE_PIPELINES_URL, "nf-core pipelines")
     if not isinstance(data, dict):
-        return []
+        raise RegistryUnavailableError(f"No usable nf-core pipeline catalog at {_NFCORE_PIPELINES_URL}")
     return [
         {
             "name": p.get("full_name", ""),
@@ -182,7 +206,7 @@ def _get_nfcore_components_raw() -> list[dict]:
     """Raw list of components from nf-co.re/components.json. Cached once per process."""
     data = _fetch_json(_NFCORE_COMPONENTS_URL, "nf-core components")
     if not isinstance(data, dict):
-        return []
+        raise RegistryUnavailableError(f"No usable nf-core component catalog at {_NFCORE_COMPONENTS_URL}")
     return data.get("modules", [])
 
 
@@ -191,6 +215,7 @@ def get_nfcore_modules() -> list[ModuleInfo]:
     """
     Summary list (name, description, keywords) for all nf-core modules.
     Suitable for the browse/search UI without shipping full I/O schemas.
+    Raises `RegistryUnavailableError` if the catalog can't be fetched.
     """
     return [
         {
@@ -205,15 +230,15 @@ def get_nfcore_modules() -> list[ModuleInfo]:
 @functools.cache
 def get_nfcore_module_releases(name: str) -> list[ModuleRelease]:
     """
-    All published releases for nf-core module `name` (short name, e.g. "fastqc") available
-    in the nextflow registry. (registry.nextflow.io)
+    All published releases of nf-core module `name` (`fastqc`, `samtools_stats`;
+    an `nf-core/` prefix is accepted) in the Nextflow module registry
+    (registry.nextflow.io).
 
-    Each release contains: version, createdAt, status, checksum, size, url,
-    and a metadata dict with description, keywords, input, output, and tools.
-
-    Returns [] for unknown modules (404) or on any network/parse error.
-    Results are cached for the process lifetime — restart the editor to refresh.
+    Returns [] for unknown modules. Raises `RegistryUnavailableError` if the
+    registry can't be reached. Results are cached for the process lifetime --
+    restart the editor to refresh.
     """
+    name = name.removeprefix("nf-core/")
     # The registry endpoints expects underscore ("_")
     # characters in the name to be urlencoded!
     name_enc = name.replace("_", "%2F")
@@ -221,7 +246,7 @@ def get_nfcore_module_releases(name: str) -> list[ModuleRelease]:
     data = _fetch_json(url, f"releases for nf-core/{name}")
     if not isinstance(data, dict):
         return []
-    return data.get("releases", [])
+    return cast(list[ModuleRelease], data.get("releases", []))
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +267,7 @@ def _extract_module_sha(version: str) -> str | None:
     return match.group(1) if match else None
 
 
-class SchemaUnavailableError(Exception):
+class SchemaUnavailableError(RegistryError):
     """A pipeline's or module's param schema can't be fetched or parsed."""
 
 
@@ -345,7 +370,8 @@ def get_module_schema(name: str, version: str) -> Schema:
 def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
     """
     Check whether a file exists at `path` in a GitHub repository at `ref`
-    using the GitHub Contents API.
+    using the GitHub Contents API. Raises `RegistryUnavailableError` if
+    GitHub can't be reached or rate-limits the request.
     """
     after_host = repo_url.rstrip("/").split("github.com/", 1)[-1]
     parts = after_host.split("/")

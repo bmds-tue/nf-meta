@@ -55,6 +55,7 @@ export type APINfPipelineNodeData = APINodeBase & {
 
 export type APINfModuleNodeData = APINodeBase & {
     type: typeof WorkflowType.NF_MODULE,
+    container_engine?: 'docker' | 'singularity' | 'conda' | 'podman',
 }
 
 export type APINodeData = APINfPipelineNodeData | APINfModuleNodeData

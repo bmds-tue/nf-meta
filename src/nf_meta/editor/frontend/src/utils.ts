@@ -1,5 +1,5 @@
 import YAML, { isMap, isScalar } from 'yaml'
-import type { APIInput, APIInputDefinition, FieldError, StepSchema } from './types'
+import type { APIInput, APIInputDefinition, FieldError, ParamSpec, StepSchema } from './types'
 import { WorkflowType } from './types'
 
 /**
@@ -140,23 +140,51 @@ export function shortVersion(version: string | undefined): string | undefined {
     return version?.replace(/\b[0-9a-f]{12,}\b/gi, hash => hash.slice(0, 8))
 }
 
+// nf-core module meta.yml types, as JSON-Schema type + format (as the backend translates them)
+const MODULE_TYPES: Record<string, { type: string, format: string }> = {
+    file: { type: 'string', format: 'file-path' },
+    directory: { type: 'string', format: 'directory-path' },
+    path: { type: 'string', format: 'path' },
+}
+
 /**
- * A name for a new input filling `param`: the param's name, or, if an input
- * of that name exists, the name prefixed with the step's (`rnaseq_input`),
- * numbered if needed.
+ * Whether a param with `spec` can be filled by the existing input `input`
+ * through a `${inputs:...}` reference: the input isn't bound with `bind:`, and
+ * its type and format (where both are known) match the param's.
  */
-export function inputNameFor(param: string, stepName: string | undefined, inputs: APIInput[]): string {
-    const taken = new Set(inputs.map(i => i.name))
+export function canShareInput(input: APIInput, spec?: ParamSpec): boolean {
+    if (input.definition?.bind?.length) return false
+    const param = MODULE_TYPES[spec?.type ?? ''] ?? { type: spec?.type, format: spec?.format }
+    for (const key of ['type', 'format'] as const) {
+        const ours = param[key]
+        const theirs = input.schema[key]
+        if (ours && theirs && ours !== theirs) return false
+    }
+    return true
+}
+
+/**
+ * The input to fill `param` (with `spec`) of a step named `stepName`: the
+ * input named after the param, shared if it exists and can be
+ * (`canShareInput`); otherwise one prefixed with the step's name
+ * (`rnaseq_input`), numbered if needed. `shared` tells whether it exists.
+ */
+export function inputFor(
+    param: string, stepName: string | undefined, inputs: APIInput[], spec?: ParamSpec,
+): { name: string, shared: boolean } {
+    const byName = new Map(inputs.map(i => [i.name, i]))
     const clean = (text: string) => text.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
     const step = clean(stepName?.split('/').pop() ?? '')
-    const candidates = [clean(param), step ? `${step}_${clean(param)}` : '']
-    for (const candidate of candidates) {
-        if (candidate && !taken.has(candidate)) return candidate
+    const candidates = [clean(param), step ? `${step}_${clean(param)}` : ''].filter(Boolean)
+    for (const name of candidates) {
+        const existing = byName.get(name)
+        if (!existing) return { name, shared: false }
+        if (canShareInput(existing, spec)) return { name, shared: true }
     }
-    const base = candidates[1] || clean(param) || 'input'
+    const base = candidates[candidates.length - 1] ?? 'input'
     let n = 2
-    while (taken.has(`${base}_${n}`)) n++
-    return `${base}_${n}`
+    while (byName.has(`${base}_${n}`)) n++
+    return { name: `${base}_${n}`, shared: false }
 }
 
 export type ParamSuggestions = { required: string[], optional: string[] }

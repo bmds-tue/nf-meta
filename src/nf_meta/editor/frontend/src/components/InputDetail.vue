@@ -212,73 +212,65 @@ watch(isFlashing, async (flashing) => {
 <template>
   <v-card
     ref="card"
-    class="mb-2 mt-2 input-card"
+    class="mt-2 input-card"
     :class="{ 'input-card-hovered': !!input && (editorStore.hoveredInputName === input.name || isFlashing) }"
     @mouseenter="hover(input?.name)"
     @mouseleave="hover(undefined)">
-    <v-card-title class="d-flex align-center ga-2">
+    <v-card-title class="d-flex align-center ga-2 py-1 text-subtitle-1">
       <v-icon :icon="input ? style.icon : 'mdi-import'" :color="INPUT_COLOR" size="18" :title="input ? style.title : undefined" />
       <strong v-if="input" class="text-truncate">{{ input.name }}</strong>
       <span v-else class="font-italic">New input</span>
+      <v-icon v-if="errors.length" icon="mdi-alert-circle" color="error" size="16" />
+      <v-icon v-else-if="warnings.length" icon="mdi-alert" color="warning" size="16" />
       <v-spacer />
-      <v-icon v-if="errors.length" icon="mdi-alert-circle" color="error" size="18" />
-      <v-icon v-else-if="warnings.length" icon="mdi-alert" color="warning" size="18" />
+      <template v-if="input && !isEditing">
+        <v-btn icon="mdi-pencil" size="small" variant="text" density="comfortable" title="Edit" @click.stop="startEditing" />
+        <v-btn icon="mdi-delete-outline" size="small" variant="text" density="comfortable" color="error" title="Delete" @click.stop="remove" />
+      </template>
     </v-card-title>
 
     <!-- View -->
-    <v-card-text v-if="input && !isEditing" class="pt-0">
-      <p v-if="input.description" class="text-body-2 mb-2">{{ input.description }}</p>
+    <v-card-text v-if="input && !isEditing" class="pt-0 pb-2">
+      <p v-if="input.description" class="text-body-2 muted mt-0 mb-1">{{ input.description }}</p>
 
-      <div v-if="input.bindings.length" class="d-flex flex-column ga-1 mb-2">
-        <div
+      <div class="d-flex flex-wrap align-center ga-1">
+        <v-chip
           v-for="binding in input.bindings" :key="binding"
-          class="d-flex align-center ga-2 text-body-2 binding-row"
+          size="small" prepend-icon="mdi-arrow-right"
+          :title="`Fills ${bindingLabel(binding).param} of ${bindingLabel(binding).step} (${bindingLabel(binding).stepId})`"
           @mouseenter="editorStore.setHoveredNodeId(bindingLabel(binding).stepId)"
           @mouseleave="editorStore.setHoveredNodeId(undefined)">
-          <v-icon icon="mdi-arrow-right" size="16" />
-          <span class="text-truncate">{{ bindingLabel(binding).step }}</span>
-          <code>{{ bindingLabel(binding).param }}</code>
-        </div>
-      </div>
-
-      <div v-if="input.default !== null" class="d-flex align-center ga-2 text-body-2 mb-2">
-        <v-icon icon="mdi-format-text" size="16" />
-        <span>default</span>
-        <code class="text-truncate">{{ input.default }}</code>
-      </div>
-
-      <div v-if="keywords.length" class="d-flex flex-wrap ga-1 mb-2">
+          {{ bindingLabel(binding).step.split('/').pop() }} · {{ bindingLabel(binding).param }}
+        </v-chip>
+        <v-chip v-if="input.default !== null" size="small" variant="outlined" prepend-icon="mdi-format-text" title="default">
+          {{ input.default }}
+        </v-chip>
         <v-chip
           v-for="kw in keywords" :key="kw.key"
-          size="small"
+          size="x-small"
           :variant="kw.own ? 'flat' : 'outlined'"
           :title="kw.own ? 'set on this input' : 'from the bound param'">
           {{ kw.key }}: {{ kw.value }}
         </v-chip>
       </div>
 
-      <div v-for="d in [...errors, ...warnings]" :key="d.yaml_path + d.message" class="d-flex ga-2 text-body-2 mb-1">
+      <div v-for="d in [...errors, ...warnings]" :key="d.yaml_path + d.message" class="d-flex align-center ga-1 text-caption mt-1">
         <v-icon
           :icon="d.severity === 'error' ? 'mdi-alert-circle' : 'mdi-alert'"
           :color="d.severity === 'error' ? 'error' : 'warning'"
-          size="16" class="mt-1" />
+          size="14" />
         <span>{{ d.message }}</span>
       </div>
-
-      <v-card-actions class="justify-end pa-0 pt-2">
-        <v-btn size="small" @click.stop="startEditing">Edit</v-btn>
-        <v-btn size="small" color="error" @click.stop="remove">Delete</v-btn>
-      </v-card-actions>
     </v-card-text>
 
     <!-- Edit -->
-    <v-card-text v-else class="pt-0">
-      <v-form @submit.prevent="save">
+    <v-card-text v-else class="pt-0 pb-2">
+      <v-form class="compact-form" @submit.prevent="save">
         <v-text-field
           v-model="form.name"
           label="Name"
           hint="Referenced as ${inputs:<name>}"
-          variant="outlined" density="compact" :autofocus="isNew"
+          variant="outlined" density="compact" hide-details="auto" :autofocus="isNew"
           :error-messages="fieldErrors.name" />
 
         <v-combobox
@@ -288,11 +280,11 @@ watch(isFlashing, async (flashing) => {
           :return-object="false"
           label="Fills step params"
           multiple chips closable-chips
-          variant="outlined" density="compact"
+          variant="outlined" density="compact" hide-details="auto"
           :error-messages="fieldErrors.bind" />
 
-        <div class="d-flex align-center flex-wrap ga-2 mb-3">
-          <span class="text-body-2 text-medium-emphasis">Written as</span>
+        <div class="d-flex align-center flex-wrap ga-2">
+          <span class="text-body-2 muted">Written as</span>
           <v-btn-toggle v-model="form.inParams" mandatory density="compact" variant="outlined" divided>
             <v-btn v-for="s in STYLES" :key="String(s.value)" :value="s.value" size="small" :prepend-icon="s.icon">
               {{ s.title }}
@@ -303,7 +295,7 @@ watch(isFlashing, async (flashing) => {
         <v-textarea
           v-model="form.description"
           label="Description"
-          variant="outlined" density="compact" rows="1" auto-grow
+          variant="outlined" density="compact" hide-details="auto" rows="1" auto-grow
           :error-messages="fieldErrors.description" />
 
         <v-select
@@ -312,7 +304,7 @@ watch(isFlashing, async (flashing) => {
           :items="effectiveEnum"
           label="Default"
           clearable
-          variant="outlined" density="compact"
+          variant="outlined" density="compact" hide-details="auto"
           :error-messages="fieldErrors.default" />
         <v-select
           v-else-if="effectiveType === 'boolean'"
@@ -320,7 +312,7 @@ watch(isFlashing, async (flashing) => {
           :items="BOOLEANS"
           label="Default"
           clearable
-          variant="outlined" density="compact"
+          variant="outlined" density="compact" hide-details="auto"
           :error-messages="fieldErrors.default" />
         <v-text-field
           v-else
@@ -330,17 +322,17 @@ watch(isFlashing, async (flashing) => {
           :hint="isPath ? 'Relative paths are relative to the config file' : undefined"
           label="Default"
           clearable
-          variant="outlined" density="compact"
+          variant="outlined" density="compact" hide-details="auto"
           :error-messages="fieldErrors.default" />
 
         <v-btn
-          size="small" variant="text" class="px-1 mb-2"
+          size="small" variant="text" class="px-1 align-self-start"
           :prepend-icon="showKeywords ? 'mdi-chevron-up' : 'mdi-chevron-down'"
           @click="showKeywords = !showKeywords">
           Type and constraints
         </v-btn>
         <template v-if="showKeywords">
-          <p class="text-body-2 text-medium-emphasis mb-2">
+          <p class="text-caption muted mb-0">
             Empty fields are inherited from the bound params' schema; set ones narrow it.
           </p>
           <div class="d-flex ga-2">
@@ -348,33 +340,33 @@ watch(isFlashing, async (flashing) => {
               v-model="form.type" :items="TYPES" label="Type" clearable
               :placeholder="input?.schema.type"
               persistent-placeholder
-              variant="outlined" density="compact" :error-messages="fieldErrors.type" />
+              variant="outlined" density="compact" hide-details="auto" :error-messages="fieldErrors.type" />
             <v-combobox
               v-model="form.format" :items="FORMATS" label="Format" clearable
               :placeholder="input?.schema.format"
               persistent-placeholder
-              variant="outlined" density="compact" :error-messages="fieldErrors.format" />
+              variant="outlined" density="compact" hide-details="auto" :error-messages="fieldErrors.format" />
           </div>
           <v-combobox
             v-model="form.enum" label="Allowed values" multiple chips closable-chips
-            variant="outlined" density="compact" :error-messages="fieldErrors.enum" />
+            variant="outlined" density="compact" hide-details="auto" :error-messages="fieldErrors.enum" />
           <v-text-field
             v-model="form.pattern" label="Pattern (regex)" :placeholder="input?.schema.pattern"
             persistent-placeholder
-            variant="outlined" density="compact" :error-messages="fieldErrors.pattern" />
+            variant="outlined" density="compact" hide-details="auto" :error-messages="fieldErrors.pattern" />
           <div class="d-flex ga-2">
             <v-text-field
               v-model="form.minimum" type="number" label="Minimum"
-              variant="outlined" density="compact" :error-messages="fieldErrors.minimum" />
+              variant="outlined" density="compact" hide-details="auto" :error-messages="fieldErrors.minimum" />
             <v-text-field
               v-model="form.maximum" type="number" label="Maximum"
-              variant="outlined" density="compact" :error-messages="fieldErrors.maximum" />
+              variant="outlined" density="compact" hide-details="auto" :error-messages="fieldErrors.maximum" />
           </div>
           <v-select
             v-model="form.exists"
             :items="[{ title: 'Must exist', value: true }, { title: 'May be missing', value: false }]"
             label="Path existence" clearable
-            variant="outlined" density="compact" :error-messages="fieldErrors.exists" />
+            variant="outlined" density="compact" hide-details="auto" :error-messages="fieldErrors.exists" />
         </template>
 
         <div v-for="message in otherErrors" :key="message" class="d-flex ga-2 text-body-2 mb-1">
@@ -382,10 +374,10 @@ watch(isFlashing, async (flashing) => {
           <span>{{ message }}</span>
         </div>
 
-        <v-card-actions class="justify-end pa-0 pt-2">
-          <v-btn size="small" type="submit" :loading="saving">Save</v-btn>
-          <v-btn size="small" color="error" @click="cancel">Cancel</v-btn>
-        </v-card-actions>
+        <div class="d-flex justify-end ga-1">
+          <v-btn size="small" variant="flat" color="primary" type="submit" :loading="saving" prepend-icon="mdi-check">Save</v-btn>
+          <v-btn size="small" variant="text" color="error" @click="cancel">Cancel</v-btn>
+        </div>
       </v-form>
     </v-card-text>
   </v-card>
@@ -398,8 +390,9 @@ watch(isFlashing, async (flashing) => {
 .input-card-hovered {
   box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4) !important;
 }
-.binding-row {
-  min-width: 0;
-  cursor: default;
+.compact-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

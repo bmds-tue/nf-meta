@@ -116,6 +116,23 @@ export const useEditorStore = defineStore('editor', () => {
         setActiveSidebarDetailId(newDetail.id)
     }
 
+    // Show every step of the graph (in graph order, after unsaved new ones),
+    // keeping each step's detail (and so whether it is expanded)
+    function syncSidebarNodes(nodes: APINodeData[]) {
+        const existing = new Map<string, SideBarDetail<APINodeData | NewNodeData>>()
+        const drafts: SideBarDetail<APINodeData | NewNodeData>[] = []
+        for (const detail of _sideBarNodes.value) {
+            const id = 'id' in detail.detailData ? detail.detailData.id : undefined
+            if (id) existing.set(id, detail)
+            else drafts.push(detail)
+        }
+        const synced = nodes.map((node) => {
+            const detail = node.id ? existing.get(node.id) : undefined
+            return detail ? { ...detail, detailData: node } : createSideBarDetailWithId<APINodeData | NewNodeData>(node)
+        })
+        _sideBarNodes.value = [...drafts, ...synced]
+    }
+
     function removeSidebarDetail(id: number) {
         _sideBarNodes.value = _sideBarNodes.value.filter((d) => d.id != id)
     }
@@ -137,7 +154,7 @@ export const useEditorStore = defineStore('editor', () => {
     return {
         showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
         sideBarActiveDetailId, setActiveSidebarDetailId,
-        sideBarTab, sideBarNodes, addNodeToSideBar,
+        sideBarTab, sideBarNodes, addNodeToSideBar, syncSidebarNodes,
         removeSidebarDetail, removeSidebarDetailsForNodeIds, collapseSidebarDetail,
         hoveredNodeId, setHoveredNodeId,
         hoveredInputName, setHoveredInputName,

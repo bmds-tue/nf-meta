@@ -10,10 +10,12 @@ const props = defineProps<{
   error?: string
   // Params that already have a value or a bind: input
   setParams: string[]
+  // The input a param would get (shared if it exists already)
+  inputFor: (param: string) => { name: string, shared: boolean }
 }>()
 
 const emit = defineEmits<{
-  // asInput: fill the param with a new run input instead of a value
+  // asInput: fill the param with a run input instead of a value
   add: [param: string, asInput: boolean],
 }>()
 
@@ -31,34 +33,41 @@ function pick(param: string | null, asInput = false) {
   picked.value = null
   menuOpen.value = false
 }
+
+function inputTitle(param: string) {
+  const { name, shared } = props.inputFor(param)
+  return shared
+    ? `Fill '${param}' per run with the existing input '${name}'`
+    : `Fill '${param}' per run: new input '${name}'`
+}
 </script>
 
 <template>
-  <div class="param-assist mb-2">
-    <div v-if="loading" class="text-body-2 text-medium-emphasis">
+  <div class="param-assist">
+    <div v-if="loading" class="text-body-2 muted">
       <v-progress-circular indeterminate size="14" width="2" class="mr-1" /> Loading params…
     </div>
-    <div v-else-if="error" class="text-body-2 text-medium-emphasis">{{ error }}</div>
+    <div v-else-if="error" class="text-body-2 muted">{{ error }}</div>
     <template v-else-if="schema">
-      <div v-if="suggestions.required.length" class="d-flex flex-wrap align-center ga-1 mb-2">
-        <span class="text-caption mr-1">Required</span>
+      <div v-if="suggestions.required.length" class="d-flex flex-wrap align-center ga-2 mb-2">
         <v-chip
           v-for="param in suggestions.required" :key="param"
-          size="small" color="warning" variant="tonal"
+          color="warning" variant="tonal" class="param-pill"
           :title="schema[param]?.description ?? `Add '${param}'`"
           @click="pick(param)">
+          <v-icon icon="mdi-asterisk" size="12" start />
           {{ param }}
           <template #append>
             <v-btn
-              icon="mdi-import" size="x-small" variant="text" density="comfortable" class="ml-1 mr-n2"
+              icon="mdi-import" size="22" variant="flat" class="input-btn ml-2 mr-n1"
               :color="INPUT_COLOR"
-              :title="`Set '${param}' per run: add it as an input`"
+              :title="inputTitle(param)"
               @click.stop="pick(param, true)" />
           </template>
         </v-chip>
       </div>
-      <div v-else class="text-caption text-success mb-2">
-        <v-icon icon="mdi-check" size="14" /> All required params are set
+      <div v-else class="text-body-2 text-success mb-2">
+        <v-icon icon="mdi-check" size="16" /> All required params are set
       </div>
 
       <v-autocomplete
@@ -75,9 +84,9 @@ function pick(param: string | null, asInput = false) {
           <v-list-item v-bind="itemProps" :subtitle="item.subtitle" lines="one">
             <template #append>
               <v-btn
-                icon="mdi-import" size="x-small" variant="text"
+                icon="mdi-import" size="26" variant="flat" class="input-btn"
                 :color="INPUT_COLOR"
-                :title="`Set '${item.value}' per run: add it as an input`"
+                :title="inputTitle(item.value)"
                 @click.stop="pick(item.value, true)" />
             </template>
           </v-list-item>
@@ -86,3 +95,13 @@ function pick(param: string | null, asInput = false) {
     </template>
   </div>
 </template>
+
+<style scoped>
+.param-pill {
+  font-weight: 500;
+}
+.input-btn :deep(.v-icon) {
+  color: white;
+  font-size: 15px;
+}
+</style>

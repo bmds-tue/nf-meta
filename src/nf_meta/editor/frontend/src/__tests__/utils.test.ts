@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    inputFillsStep, inputNameFor, inputsOfStep, lintInputReferences, paramSuggestions, shortVersion,
+    canShareInput, inputFillsStep, inputFor, inputsOfStep, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -101,12 +101,31 @@ describe('shortVersion', () => {
     })
 })
 
-describe('inputNameFor', () => {
-    it('uses the param name, then the step name as prefix, then a number', () => {
-        expect(inputNameFor('input', 'nf-core/rnaseq', [])).toBe('input')
-        expect(inputNameFor('input', 'nf-core/rnaseq', [input('input')])).toBe('rnaseq_input')
-        expect(inputNameFor('input', 'nf-core/rnaseq', [input('input'), input('rnaseq_input')])).toBe('rnaseq_input_2')
-        expect(inputNameFor('input', undefined, [input('input')])).toBe('input_2')
+describe('inputFor / canShareInput', () => {
+    const fileInput = input('input', { bound_by: 'reference', schema: { type: 'string', format: 'file-path' } })
+
+    it('uses the param name for a new input', () => {
+        expect(inputFor('input', 'nf-core/rnaseq', [])).toEqual({ name: 'input', shared: false })
+    })
+
+    it('shares an existing input of the same type and format', () => {
+        expect(inputFor('input', 'nf-core/rnaseq', [fileInput], { type: 'string', format: 'file-path' }))
+            .toEqual({ name: 'input', shared: true })
+        expect(inputFor('input', 'nf-core/rnaseq', [fileInput])).toEqual({ name: 'input', shared: true })
+    })
+
+    it('uses the step name as prefix when the input can not be shared', () => {
+        expect(inputFor('input', 'nf-core/rnaseq', [fileInput], { type: 'string', format: 'directory-path' }))
+            .toEqual({ name: 'rnaseq_input', shared: false })
+        const bound = input('input', { definition: { bind: ['n01.input'] } })
+        expect(inputFor('input', 'nf-core/rnaseq', [bound])).toEqual({ name: 'rnaseq_input', shared: false })
+        const both = [bound, input('rnaseq_input', { definition: { bind: ['n02.input'] } })]
+        expect(inputFor('input', 'nf-core/rnaseq', both)).toEqual({ name: 'rnaseq_input_2', shared: false })
+    })
+
+    it('translates module types', () => {
+        expect(canShareInput(fileInput, { type: 'file' })).toBe(true)
+        expect(canShareInput(fileInput, { type: 'directory' })).toBe(false)
     })
 })
 

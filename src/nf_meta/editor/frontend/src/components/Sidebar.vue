@@ -11,6 +11,8 @@ import { useGraphStore } from "../store"
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
+watch(() => graphStore.nodeData, (nodes) => editorStore.syncSidebarNodes(nodes), { immediate: true })
+
 const { fitView } = useVueFlow()
 const { sideBarTab } = storeToRefs(editorStore)
 
@@ -77,7 +79,7 @@ onBeforeUnmount(stopDrag)
   <v-container class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
     <v-container class="pa-0 mb-1">
       <v-tabs v-model="sideBarTab">
-        <v-tab value="nodes">Node Details</v-tab>
+        <v-tab value="nodes">Workflows</v-tab>
         <v-tab value="globals">Globals</v-tab>
         <v-tab value="inputs">
           Inputs
@@ -102,9 +104,7 @@ onBeforeUnmount(stopDrag)
           </TransitionGroup>
         </v-container>
         <v-container v-if="editorStore.sideBarNodes.length == 0" class="content">
-          <v-card
-            text="Double click nodes to show detail"
-          ></v-card>
+          <v-card text="No workflows yet. Add one with + in the action bar."></v-card>
         </v-container>
       </v-tabs-window-item>
 

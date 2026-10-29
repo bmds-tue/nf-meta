@@ -11,12 +11,8 @@ const inputs = computed(() => [...graphStore.inputs].sort((a, b) => a.name.local
 
 <template>
   <div class="d-flex flex-column">
-    <div class="d-flex align-center px-2">
-      <span class="text-body-2 text-medium-emphasis">
-        Values set per run: prompted for, or given with <code>--input name=value</code>.
-      </span>
-      <v-spacer />
-      <v-btn size="small" prepend-icon="mdi-plus" :disabled="adding" @click="adding = true">Add input</v-btn>
+    <div class="d-flex justify-end px-1">
+      <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" :disabled="adding" @click="adding = true">Add input</v-btn>
     </div>
 
     <InputDetail v-if="adding" @closed="adding = false" />

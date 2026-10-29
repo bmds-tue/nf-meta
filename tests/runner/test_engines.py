@@ -168,8 +168,8 @@ class TestModuleCommand:
         assert argv[:3] == ["nextflow", "module", "run"]
         assert "-ansi-log" in argv
 
-    def test_module_ref_is_last_arg(self, build, module_fastqc):
-        assert build(module_fastqc).argv[-1] == f"{module_fastqc.name}@{module_fastqc.version}"
+    def test_module_and_version_are_last(self, build, module_fastqc):
+        assert build(module_fastqc).argv[-3:] == [module_fastqc.name, "-version", module_fastqc.version]
 
     def test_resume_adds_flag(self, build, module_fastqc):
         assert "-resume" in build(module_fastqc, resume=True).argv

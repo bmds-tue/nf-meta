@@ -136,7 +136,7 @@ class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
 
 
 class NextflowModuleEngine(Engine, workflow_type=WorkflowType.NF_MODULE):
-    """`nextflow module run <name>@<version>` (Nextflow >= 26.04)."""
+    """`nextflow module run <name> -version <version>` (Nextflow >= 26.04)."""
 
     def build(self, spec: StepSpec) -> StepCommand:
         wf = cast(NfModule, spec.workflow)
@@ -151,7 +151,8 @@ class NextflowModuleEngine(Engine, workflow_type=WorkflowType.NF_MODULE):
             argv += [f"-with-{wf.container_engine}"]
         if params_file:
             argv += ["-params-file", str(params_file)]
-        argv += [f"{wf.name}@{wf.version}"]
+        # Nextflow rejects `<name>@<version>` ("Invalid module reference")
+        argv += [wf.name, "-version", wf.version]
         # -stub after the positional module arg -- see NextflowPipelineEngine.build.
         if spec.stub:
             argv += ["-stub"]

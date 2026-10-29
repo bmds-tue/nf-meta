@@ -70,13 +70,22 @@ def test_param_side_reference_keeps_type(project):
     assert plan(path)[0].command.params["count"] == 4
 
 
-def test_embedded_reference(project):
-    path = config(
-        project,
-        {"dir": {"type": "string", "default": "data"}},
-        {"input": "${inputs:dir}/../ids.csv"},
-    )
-    assert plan(path)[0].command.params["input"] == str(project / "data/../ids.csv")
+def test_implicit_input_given_at_run(project):
+    path = config(project, {}, {"input": "${inputs:ids}"})
+    given = str(project / "ids.csv")
+    assert plan(path, inputs={"ids": given})[0].command.params["input"] == given
+
+
+def test_implicit_input_missing_is_an_error(project):
+    path = config(project, {}, {"input": "${inputs:ids}"})
+    with pytest.raises(NfMetaRunnerError, match=r"Missing values:\n  ids"):
+        plan(path)
+
+
+def test_implicit_input_in_a_dry_run_is_a_placeholder(project):
+    path = config(project, {}, {"input": "${inputs:ids}"})
+    steps = SimplePythonRunner(RunOptions()).plan(from_file(path), dry_run=True)
+    assert steps[0].command.params["input"] == "<input: ids>"
 
 
 def test_missing_value_is_an_error(project):

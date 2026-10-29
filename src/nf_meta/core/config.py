@@ -43,6 +43,7 @@ from .models import (
     WorkflowType,
     validate_config_version,
 )
+from .refs import INPUT_REF_PATTERN
 
 logger = logging.getLogger()
 
@@ -343,8 +344,41 @@ def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
 
 def parse_inputs(data: dict, config_version: str) -> tuple[dict[str, InputDefinition], list[Diagnostic]]:
     """Parse the config's `inputs:` section. Returns the definitions that
-    parsed and a diagnostic per problem (malformed entries, or `inputs:` in a
-    config version that predates it)."""
+    parsed and a diagnostic per problem (malformed entries, or `inputs:` or
+    `${inputs:...}` in a config version that predates them)."""
+    version_diagnostics = _input_refs_before_inputs(data, config_version)
+    definitions, diagnostics = _parse_inputs_section(data, config_version)
+    return definitions, version_diagnostics + diagnostics
+
+
+def _input_refs_before_inputs(data: dict, config_version: str) -> list[Diagnostic]:
+    if Version(config_version) >= Version(INPUTS_MIN_CONFIG_VERSION):
+        return []
+    workflows = data.get("workflows")
+    if isinstance(workflows, dict):
+        items = [(str(k), v) for k, v in workflows.items()]
+    elif isinstance(workflows, list):
+        items = [(str(w.get("id", "")), w) for w in workflows if isinstance(w, dict)]
+    else:
+        return []
+    diagnostics = []
+    for wf_id, wf in items:
+        params = wf.get("params") if isinstance(wf, dict) else None
+        for key, value in (params or {}).items() if isinstance(params, dict) else ():
+            if isinstance(value, str) and INPUT_REF_PATTERN.search(value):
+                diagnostics.append(
+                    Diagnostic(
+                        workflow_id=wf_id,
+                        field=f"params.{key}",
+                        yaml_path=f"workflows.{wf_id}.params.{key}",
+                        message=f"'${{inputs:...}}' needs config_version {INPUTS_MIN_CONFIG_VERSION} or later",
+                        severity=Severity.ERROR,
+                    )
+                )
+    return diagnostics
+
+
+def _parse_inputs_section(data: dict, config_version: str) -> tuple[dict[str, InputDefinition], list[Diagnostic]]:
     raw = data.get("inputs")
     if raw is None:
         return {}, []

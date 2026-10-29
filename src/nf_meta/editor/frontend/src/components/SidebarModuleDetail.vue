@@ -6,6 +6,7 @@ import type { APINfModuleNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import YamlEditor from './YamlEditor.vue';
 import YAML from 'yaml';
+import NodeInputs from './NodeInputs.vue';
 
 const props = defineProps<{
   initialValue: APINfModuleNodeData,
@@ -144,6 +145,8 @@ async function copyPath(text: string, field: string) {
             @click.stop="copyPath(form.nf_config!, 'nf_config')" />
         </div>
       </div>
+
+      <NodeInputs :node-id="form.id" />
 
       <template v-if="hasParams">
         <div class="text-caption mb-1">Params</div>

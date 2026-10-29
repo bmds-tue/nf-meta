@@ -5,8 +5,11 @@ import { useVueFlow } from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from "../store"
 import GlobalConfig from "./GlobalConfig.vue"
+import InputsPanel from "./InputsPanel.vue"
+import { useGraphStore } from "../store"
 
 const editorStore = useEditorStore()
+const graphStore = useGraphStore()
 
 const { fitView } = useVueFlow()
 const { sideBarTab } = storeToRefs(editorStore)
@@ -76,6 +79,14 @@ onBeforeUnmount(stopDrag)
       <v-tabs v-model="sideBarTab">
         <v-tab value="nodes">Node Details</v-tab>
         <v-tab value="globals">Globals</v-tab>
+        <v-tab value="inputs">
+          Inputs
+          <v-badge
+            v-if="graphStore.inputs.length"
+            :content="graphStore.inputs.length"
+            :color="graphStore.inputs.some(i => i.diagnostics.length) ? 'warning' : 'primary'"
+            inline />
+        </v-tab>
       </v-tabs>
     </v-container>
     <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
@@ -100,6 +111,12 @@ onBeforeUnmount(stopDrag)
       <v-tabs-window-item value="globals" class="d-flex flex-cloumn fill-height">
         <v-container class="d-flex flex-column flex-grow-1 pa-1">
           <GlobalConfig></GlobalConfig>
+        </v-container>
+      </v-tabs-window-item>
+
+      <v-tabs-window-item value="inputs">
+        <v-container class="content pa-1">
+          <InputsPanel></InputsPanel>
         </v-container>
       </v-tabs-window-item>
 

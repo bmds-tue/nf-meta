@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
     ApiResult, APIGraph, APICommandResponse,
-    APINodeData, APIEdgeData, APIGlobalOptions, Selection,
+    APINodeData, APIEdgeData, APIGlobalOptions, APIInputDefinition, Selection, ParamSpec,
     NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo,
 } from '../types'
 
@@ -73,10 +73,27 @@ export const useApiStore = defineStore('api', () => {
         return request<APICommandResponse>('/api/globals/update/', { method: 'POST', body: JSON.stringify(globals) })
     }
 
+    function addInput(name: string, definition: APIInputDefinition) {
+        return request<APICommandResponse>('/api/inputs/add/', { method: 'POST', body: JSON.stringify({ name, definition }) })
+    }
+
+    function updateInput(name: string, definition: APIInputDefinition) {
+        return request<APICommandResponse>('/api/inputs/update/', { method: 'POST', body: JSON.stringify({ name, definition }) })
+    }
+
+    function deleteInput(name: string) {
+        return request<APICommandResponse>('/api/inputs/delete/', { method: 'DELETE', body: JSON.stringify({ name }) })
+    }
+
+    function getNodeSchema(nodeId: string) {
+        return request<Record<string, ParamSpec>>(`/api/node/${encodeURIComponent(nodeId)}/schema/`, { method: 'GET' })
+    }
+
     return {
         getGraph, saveGraph, loadGraph,
         undoGraph, redoGraph,
         addNode, updateNode, deleteSelection, addEdge, updateGlobalOptions,
+        addInput, updateInput, deleteInput, getNodeSchema,
     }
 })
 

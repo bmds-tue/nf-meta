@@ -4,7 +4,7 @@ import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import type {
     ApiResult, APINodeData, APIEdgeData, APICommandResponse,
-    APIGlobalOptions, Selection,
+    APIGlobalOptions, APIInput, APIInputDefinition, Selection,
 } from '../types'
 import { useLayout } from '../layout_graph'
 import { useMessageStore, useActivityStore } from './ui_store'
@@ -25,6 +25,8 @@ export const useGraphStore = defineStore('graph', () => {
     const nodes = computed(() => _nodes.value)
 
     const globalOptions = ref<APIGlobalOptions>({ params: {}, nf_config: '', nf_profile: '' })
+    const _inputs = ref<APIInput[]>([])
+    const inputs = computed(() => _inputs.value)
 
     const _filename = ref<string>()
     const filename = computed(() => _filename.value)
@@ -93,6 +95,7 @@ export const useGraphStore = defineStore('graph', () => {
             _nodes.value = []
             _edgeData.value = []
             _nodeData.value = []
+            _inputs.value = []
         } else {
             _edgeData.value = response.data.transitions
             _nodeData.value = response.data.nodes
@@ -102,6 +105,7 @@ export const useGraphStore = defineStore('graph', () => {
             _redoable.value = response.data.redoable
             _filename.value = response.data.filename
             globalOptions.value = response.data.globals ?? { params: null, nf_config: null, nf_profile: null }
+            _inputs.value = response.data.inputs ?? []
         }
     }
 
@@ -129,6 +133,15 @@ export const useGraphStore = defineStore('graph', () => {
     async function updateGlobalOptions(globals: APIGlobalOptions) {
         const result = await apiStore.updateGlobalOptions(globals)
         return applyMutation(result, 'Saved')
+    }
+
+    async function saveInput(name: string, definition: APIInputDefinition, isNew: boolean) {
+        const result = await (isNew ? apiStore.addInput(name, definition) : apiStore.updateInput(name, definition))
+        return applyMutation(result, 'Saved')
+    }
+
+    async function removeInput(name: string) {
+        return applyMutation(await apiStore.deleteInput(name))
     }
 
     async function removeSelectionById(selection: Selection) {
@@ -211,11 +224,11 @@ export const useGraphStore = defineStore('graph', () => {
     const nodeData = computed(() => _nodeData.value)
 
     return {
-        nodes, nodeData, edges, globalOptions, filename,
+        nodes, nodeData, edges, globalOptions, inputs, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
         undoable, redoable,
         getAndUpdateGraph,
-        saveNode, saveEdge, updateGlobalOptions,
+        saveNode, saveEdge, updateGlobalOptions, saveInput, removeInput,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,
         getPredecessors, getParams,

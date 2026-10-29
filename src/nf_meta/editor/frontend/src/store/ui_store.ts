@@ -27,6 +27,8 @@ export const useEditorStore = defineStore('editor', () => {
 
     const sideBarTab = ref('nodes')
     const hoveredNodeId = ref<string>()
+    // Input hovered in the inputs panel; the steps it fills are highlighted
+    const hoveredInputName = ref<string>()
     const flashingNodeId = ref<string>()
     const sideBarActiveDetailId = ref(0)
     const _nextSideBarId = ref(1)
@@ -68,6 +70,10 @@ export const useEditorStore = defineStore('editor', () => {
 
     function setHoveredNodeId(id: string | undefined) {
         hoveredNodeId.value = id
+    }
+
+    function setHoveredInputName(name: string | undefined) {
+        hoveredInputName.value = name
     }
 
     function flashNode(nodeId: string) {
@@ -124,6 +130,7 @@ export const useEditorStore = defineStore('editor', () => {
         sideBarTab, sideBarNodes, addNodeToSideBar,
         removeSidebarDetail, removeSidebarDetailsForNodeIds, collapseSidebarDetail,
         hoveredNodeId, setHoveredNodeId,
+        hoveredInputName, setHoveredInputName,
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,

@@ -7,6 +7,7 @@ import type { SubmitEventPromise } from 'vuetify';
 import CustomFileInput from './CustomFileInput.vue';
 import YamlEditor from './YamlEditor.vue';
 import YAML from 'yaml';
+import NodeInputs from './NodeInputs.vue';
 
 const props = defineProps<{
   initialValue: APINfPipelineNodeData,
@@ -138,6 +139,8 @@ const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.
           @click.stop="copyPath(form.nf_config!, 'nf_config')" />
       </div>
     </div>
+
+    <NodeInputs :node-id="form.id" />
 
     <template v-if="hasParams">
       <div class="text-caption mt-3 mb-1">Params</div>

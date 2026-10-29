@@ -15,6 +15,7 @@ import {
 } from "@codemirror/autocomplete"
 import { useGraphStore, useEditorStore } from "../store"
 import type { APINodeData } from "../types"
+import { lintInputReferences } from "../utils"
 
 const props = defineProps<{
   modelValue?: object
@@ -62,6 +63,7 @@ const refMark = {
   nodeId:    Decoration.mark({ class: "cm-ref-node" }),       // n01
   params:    Decoration.mark({ class: "cm-ref-params" }),     // :params:
   paramKey:  Decoration.mark({ class: "cm-ref-paramkey" }),   // outdir
+  input:     Decoration.mark({ class: "cm-ref-input" }),      // ids in ${inputs:ids}
 }
 
 // Matches: ${nodeId}  or  ${nodeId:params:key}  (not preceded by \)
@@ -96,6 +98,22 @@ const referenceHighlighter = ViewPlugin.fromClass(
           const closing   = match[4]  // "}" or undefined
 
           let cursor = base
+
+          // ${inputs:<name>}: the namespace styled like ":params:", the name as an input
+          if (nodeId === "inputs" && text[match.index + 2 + nodeId.length] === ":") {
+            const rest = text.slice(match.index + 2 + nodeId.length + 1)
+            const name = rest.match(/^[^}:\s]*/)?.[0] ?? ""
+            const closed = rest[name.length] === "}"
+            builder.add(cursor, cursor + 2, refMark.delimiter)
+            cursor += 2
+            builder.add(cursor, cursor + nodeId.length + 1, refMark.params)
+            cursor += nodeId.length + 1
+            if (name) builder.add(cursor, cursor + name.length, refMark.input)
+            cursor += name.length
+            if (closed) builder.add(cursor, cursor + 1, refMark.delimiter)
+            REF_PATTERN.lastIndex = Math.max(REF_PATTERN.lastIndex, cursor - from + (closed ? 1 : 0))
+            continue
+          }
 
           // "${" — 2 chars
           builder.add(cursor, cursor + 2, refMark.delimiter)
@@ -137,6 +155,7 @@ const referenceHighlightTheme = EditorView.baseTheme({
   ".cm-ref-params":    { color: "#5a6478", fontStyle: "italic" },
   ".cm-ref-node":      { color: "#61afef" },
   ".cm-ref-paramkey":  { color: "#61afef" },
+  ".cm-ref-input":     { color: "#c678dd" },
 })
 
 // ==== AUTOCOMPLETION ==============================
@@ -145,6 +164,22 @@ async function referenceCompletionSource(
 ): Promise<CompletionResult | null> {
   const line = context.state.doc.lineAt(context.pos)
   const textBefore = line.text.slice(0, context.pos - line.from)
+
+  // ${inputs:<partial>  ->  suggest inputs that a reference may use
+  const inputMatch = textBefore.match(/(?<!\\)\$\{inputs:([^:}]*)$/)
+  if (inputMatch) {
+    const partial = inputMatch[1] ?? ""
+    const from = context.pos - partial.length
+    const closed = context.state.doc.sliceString(context.pos, context.pos + 1) === "}"
+    const options = graphStore.inputs
+      .filter((input) => !input.definition?.bind?.length)
+      .map((input) => ({
+        label: input.name,
+        detail: input.declared ? input.description || undefined : "implicit",
+        apply: closed ? input.name : input.name + "}",
+      }))
+    return { from, options, validFor: /^[^:}]*$/ }
+  }
 
   // Stage 2 - inside ${nodeId:params:<partial> ->  suggest param keys
   const paramMatch = textBefore.match(/(?<!\\)\$\{([^:}]+):params:([^}]*)$/)
@@ -175,6 +210,7 @@ async function referenceCompletionSource(
         label: `${node.id} (${node.name})`,
         apply: node.id + ":params:",
       }))
+      options.push({ label: "inputs", apply: "inputs:" })
       return { from, options, validFor: /^[^:}]*$/ }
     } catch {
       return null
@@ -277,6 +313,7 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
     const paramKey = match[2] ?? ""  // undefined if no :params: section
     const from     = match.index
     const to       = from + match[0].length
+    if (nodeId === "inputs") continue  // ${inputs} without a name; checked below
 
     if (nodeId) {
       if (!validNodeIds.has(nodeId)) {
@@ -321,6 +358,10 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
     }
   }
 
+  for (const problem of lintInputReferences(text, graphStore.inputs)) {
+    diagnostics.push({ ...problem, severity: "error" })
+  }
+
   return diagnostics
 })
 
@@ -357,7 +398,7 @@ if (props.nodeId) {
     completionTriggerKeymap,
     smartBackspaceKeymap,
     autocompletion({ override: [referenceCompletionSource] }),
-    placeholder("Define Workflow Params here as yaml. \n\nThey overwrite global params \nand complement a params-file. \n\nUse '${}' to reference \npredecessor nodes' params, \ne.g. ${n01:params:outdir}")
+    placeholder("Define Workflow Params here as yaml. \n\nThey overwrite global params \nand complement a params-file. \n\nUse '${}' to reference \npredecessor nodes' params, \ne.g. ${n01:params:outdir}, \nor a run input with ${inputs:<name>}")
   ]
   extensions.push(nodeRefExtensions)
 } else {

@@ -4,9 +4,11 @@ import { computed, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import type { APINodeData } from '../types.ts'
 import { WorkflowType } from '../types.ts'
-import { useEditorStore } from '../store'
+import { useEditorStore, useGraphStore } from '../store'
+import { inputFillsStep, inputsOfStep } from '../utils'
 
 const editorStore = useEditorStore()
+const graphStore = useGraphStore()
 
 const copyIcon = ref("mdi-content-copy")
 
@@ -21,7 +23,11 @@ const isModule = computed(() => props.data.type === WorkflowType.NF_MODULE)
 const isNfCorePipeline = computed(() =>
     props.data.type === WorkflowType.NF_PIPELINE && props.data.is_nfcore
 )
-const isHovered = computed(() => editorStore.hoveredNodeId === props.id)
+const hoveredInput = computed(() => graphStore.inputs.find(i => i.name === editorStore.hoveredInputName))
+const isHovered = computed(() =>
+    editorStore.hoveredNodeId === props.id || inputFillsStep(hoveredInput.value, props.id)
+)
+const filledBy = computed(() => inputsOfStep(graphStore.inputs, props.id))
 
 async function copyToClipboard() {
     try {
@@ -57,6 +63,14 @@ async function copyToClipboard() {
                 color="success"
                 class="ml-1">
                 module
+            </v-chip>
+            <v-chip
+                v-if="filledBy.length"
+                class="ml-1"
+                size="small"
+                prepend-icon="mdi-import"
+                :title="filledBy.map(f => `${f.param} ← ${f.input.name}`).join('\n')">
+                {{ filledBy.length }}
             </v-chip>
         </div>
         <div class="d-flex flex-row align-center">

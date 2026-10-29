@@ -14,6 +14,8 @@ import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 import { useLayout } from './layout_graph'
+// Inlined so the logo takes the text color (it is drawn in currentColor)
+import logoSvg from './assets/nf-meta-octo.svg?raw'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
@@ -148,6 +150,7 @@ onMounted(async () => {
 <v-app class="editor">
     <Panel class="process-panel" position="top-left">
       <v-container class="layout-panel">
+          <span class="logo" v-html="logoSvg" aria-hidden="true"></span>
           <h1>nf-meta</h1>
         <v-btn 
           title="add a workflow node" 
@@ -285,6 +288,18 @@ onMounted(async () => {
     gap: 5px;
   }
   
+  .logo {
+    display: flex;
+    align-items: center;
+    color: white;
+    margin-right: 4px;
+  }
+
+  .logo :deep(svg) {
+    width: 40px;
+    height: 40px;
+  }
+
   h1 {
     color: white;
     margin: 0;

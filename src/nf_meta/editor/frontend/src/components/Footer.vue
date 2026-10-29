@@ -30,7 +30,8 @@
     <v-footer class="app-footer pt-0 pb-0 d-flex align-center justify-space-between text-caption flex-shrink-0">
       <span class="d-flex align-center ga-1">
         <span>v{{ version }}</span>
-        <v-btn :href="github" target="_blank" size="x-small" variant="text" icon="mdi-github"></v-btn>
+        <v-btn :href="github" target="_blank" title="nf-meta on GitHub" size="x-small" variant="text" icon="mdi-github"></v-btn>
+        <v-btn :href="docs" target="_blank" title="Documentation" size="x-small" variant="text" icon="mdi-book-open-variant"></v-btn>
       </span>
 
       <span>{{ graphStore.filename }}</span>
@@ -54,6 +55,7 @@ import { useActivityStore, useGraphStore } from '../store'
 
 const version = APP_VERSION
 const github = "https://github.com/bmds-tue/nf-meta"
+const docs = "https://bmds-tue.github.io/nf-meta/latest/"
 
 const activeTab = ref('history')
 const activityStore = useActivityStore()

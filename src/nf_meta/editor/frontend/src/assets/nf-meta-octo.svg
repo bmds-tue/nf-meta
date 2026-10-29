@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="30" height="30" role="img" aria-label="nf-meta">
+  <g fill="none" stroke="currentColor" stroke-width="2.18" stroke-linecap="butt">
+    <path d="M 11 15 L 11 16 Q 11 19 8 19 Q 5 19 5 22 L 5 23"/>
+    <path d="M 15 15 L 15 25"/>
+    <path d="M 19 15 L 19 16 Q 19 19 22 19 Q 25 19 25 22 L 25 23"/>
+  </g>
+  <path fill="currentColor" fill-rule="evenodd" d="M 8 15 C 5 15 3 12 3 9 C 3 5 8 2 15 2 C 22 2 27 5 27 9 C 27 12 25 15 22 15 Z M 8.4 10 a 2.6 2.6 0 1 0 5.2 0 a 2.6 2.6 0 1 0 -5.2 0 Z M 16.4 10 a 2.6 2.6 0 1 0 5.2 0 a 2.6 2.6 0 1 0 -5.2 0 Z"/>
+  <g fill="var(--nfmeta-accent, #24B064)">
+    <circle cx="5" cy="23" r="2.6"/>
+    <circle cx="15" cy="25" r="2.6"/>
+    <circle cx="25" cy="23" r="2.6"/>
+  </g>
+</svg>

@@ -1,9 +1,9 @@
 """
 Tests for pipeline and module parameter validation:
-  - _parse_nextflow_schema   (nf_core_utils)
-  - _parse_module_schema     (nf_core_utils)
+  - _parse_nextflow_schema   (registry)
+  - _parse_module_schema     (registry)
   - validate_params           (nf_param_validation)
-  - get_pipeline_schema       (nf_core_utils — HTTP layer mocked)
+  - get_pipeline_schema       (registry — HTTP layer mocked)
   - NfPipeline model-level validation (integration, autouse mock_nfcore fixture)
   - NfModule  model-level validation  (integration, schema mock per-test)
   - Workflow version validator
@@ -20,7 +20,8 @@ from nf_meta.core.dynamic_validation import (
 )
 from nf_meta.core.errors import Severity
 from nf_meta.core.models import NfModule, NfPipeline
-from nf_meta.core.nf_core_utils import (
+from nf_meta.core.nf_param_validation import validate_params
+from nf_meta.core.registry import (
     PipelineSchemaError,
     _parse_module_schema,
     _parse_nextflow_schema,
@@ -28,7 +29,6 @@ from nf_meta.core.nf_core_utils import (
     _raw_url,
     get_pipeline_schema,
 )
-from nf_meta.core.nf_param_validation import validate_params
 
 # ---------------------------------------------------------------------------
 # Shared schema fixture
@@ -337,7 +337,7 @@ class TestGetPipelineSchema:
     def test_successful_fetch_and_parse(self):
         mock_resp = self._mock_response(200, json_data=SAMPLE_SCHEMA_JSON)
         with (
-            patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.registry.requests.get", return_value=mock_resp),
             patch("nf_meta.core.cache.read_schema_cache", return_value=None),
             patch("nf_meta.core.cache.write_schema_cache") as mock_write,
         ):
@@ -348,7 +348,7 @@ class TestGetPipelineSchema:
     def test_cache_hit_skips_http(self):
         with (
             patch("nf_meta.core.cache.read_schema_cache", return_value=PARSED_SCHEMA),
-            patch("nf_meta.core.nf_core_utils.requests.get") as mock_get,
+            patch("nf_meta.core.registry.requests.get") as mock_get,
         ):
             schema = get_pipeline_schema("https://github.com/my-org/pipeline", "2.0.0")
         mock_get.assert_not_called()
@@ -357,7 +357,7 @@ class TestGetPipelineSchema:
     def test_404_raises_schema_error(self):
         mock_resp = self._mock_response(404)
         with (
-            patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.registry.requests.get", return_value=mock_resp),
             patch("nf_meta.core.cache.read_schema_cache", return_value=None),
             pytest.raises(PipelineSchemaError, match="not found"),
         ):
@@ -366,7 +366,7 @@ class TestGetPipelineSchema:
     def test_429_raises_with_token_hint(self):
         mock_resp = self._mock_response(429, headers={"Retry-After": "60"})
         with (
-            patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.registry.requests.get", return_value=mock_resp),
             patch("nf_meta.core.cache.read_schema_cache", return_value=None),
             pytest.raises(PipelineSchemaError, match="GITHUB_TOKEN"),
         ):
@@ -376,7 +376,7 @@ class TestGetPipelineSchema:
         import requests as req
 
         with (
-            patch("nf_meta.core.nf_core_utils.requests.get", side_effect=req.exceptions.ConnectionError("down")),
+            patch("nf_meta.core.registry.requests.get", side_effect=req.exceptions.ConnectionError("down")),
             patch("nf_meta.core.cache.read_schema_cache", return_value=None),
             pytest.raises(PipelineSchemaError, match="Network error"),
         ):

@@ -23,8 +23,8 @@ from pydantic import (
 )
 from pydantic.functional_serializers import PlainSerializer
 
-from nf_meta.core.nf_core_utils import get_nfcore_pipelines
 from nf_meta.core.refs import RESERVED_STEP_IDS, STEP_REF_PATTERN
+from nf_meta.core.registry import get_nfcore_pipelines
 
 CONFIG_VERSION_MIN = "0.0.1"
 CONFIG_VERSION_MAX = "0.4.0"

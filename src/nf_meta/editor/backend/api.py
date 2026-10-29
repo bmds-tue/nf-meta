@@ -19,7 +19,7 @@ from nf_meta.core.events import (
     UpdateGlobalOptions,
 )
 from nf_meta.core.models import GlobalOptions, Transition, Workflow
-from nf_meta.core.nf_core_utils import (
+from nf_meta.core.registry import (
     ModuleSchemaError,
     PipelineSchemaError,
     get_module_schema,

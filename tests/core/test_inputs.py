@@ -17,8 +17,8 @@ from nf_meta.core.inputs import (
     substitute_inputs,
 )
 from nf_meta.core.models import NfPipeline
-from nf_meta.core.nf_core_utils import _parse_nextflow_schema
 from nf_meta.core.nf_param_validation import validate_params
+from nf_meta.core.registry import _parse_nextflow_schema
 from nf_meta.core.schema_export import generate_schema
 
 # Shaped like nf-core/fetchngs 1.12.0's `input` param, as get_pipeline_schema returns it

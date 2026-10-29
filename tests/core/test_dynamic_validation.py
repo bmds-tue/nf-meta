@@ -21,7 +21,7 @@ from nf_meta.core.dynamic_validation import (
 )
 from nf_meta.core.errors import Severity
 from nf_meta.core.models import NfModule, NfPipeline
-from nf_meta.core.nf_core_utils import PipelineSchemaError
+from nf_meta.core.registry import PipelineSchemaError
 
 # ---------------------------------------------------------------------------
 # check_pipeline_url_reachable
@@ -369,13 +369,13 @@ class TestCheckAll:
 class TestModuleSchemaErrors:
     @pytest.fixture(autouse=True)
     def real_get_module_schema(self, monkeypatch):
-        from nf_meta.core import nf_core_utils
+        from nf_meta.core import registry
 
-        nf_core_utils.get_module_schema.cache_clear()
+        registry.get_module_schema.cache_clear()
         monkeypatch.setattr("nf_meta.core.cache.read_schema_cache", lambda *a: None)
         monkeypatch.setattr("nf_meta.core.cache.write_schema_cache", lambda *a: None)
-        yield nf_core_utils.get_module_schema
-        nf_core_utils.get_module_schema.cache_clear()
+        yield registry.get_module_schema
+        registry.get_module_schema.cache_clear()
 
     def _response(self, status=200, text=""):
         from unittest.mock import MagicMock
@@ -383,35 +383,35 @@ class TestModuleSchemaErrors:
         return MagicMock(status_code=status, text=text, headers={})
 
     def test_version_without_sha_raises(self, real_get_module_schema):
-        from nf_meta.core.nf_core_utils import ModuleSchemaError
+        from nf_meta.core.registry import ModuleSchemaError
 
         with pytest.raises(ModuleSchemaError, match="No commit SHA"):
             real_get_module_schema("nf-core/fastqc", "1.0.0")
 
     def test_http_error_raises(self, real_get_module_schema, monkeypatch):
-        from nf_meta.core.nf_core_utils import ModuleSchemaError
+        from nf_meta.core.registry import ModuleSchemaError
 
-        monkeypatch.setattr("nf_meta.core.nf_core_utils.requests.get", lambda *a, **k: self._response(404))
+        monkeypatch.setattr("nf_meta.core.registry.requests.get", lambda *a, **k: self._response(404))
         with pytest.raises(ModuleSchemaError, match="HTTP 404"):
             real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a")
 
     def test_bad_yaml_raises(self, real_get_module_schema, monkeypatch):
-        from nf_meta.core.nf_core_utils import ModuleSchemaError, SchemaUnavailableError
+        from nf_meta.core.registry import ModuleSchemaError, SchemaUnavailableError
 
         monkeypatch.setattr(
-            "nf_meta.core.nf_core_utils.requests.get", lambda *a, **k: self._response(200, "input: [unclosed")
+            "nf_meta.core.registry.requests.get", lambda *a, **k: self._response(200, "input: [unclosed")
         )
         with pytest.raises(ModuleSchemaError) as exc:
             real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a")
         assert isinstance(exc.value, SchemaUnavailableError)
 
     def test_module_without_inputs_is_empty_schema(self, real_get_module_schema, monkeypatch):
-        monkeypatch.setattr("nf_meta.core.nf_core_utils.requests.get", lambda *a, **k: self._response(200, "name: x\n"))
+        monkeypatch.setattr("nf_meta.core.registry.requests.get", lambda *a, **k: self._response(200, "name: x\n"))
         assert real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a") == {}
 
 
 def test_module_schema_error_becomes_warning(monkeypatch, module_fastqc):
-    from nf_meta.core.nf_core_utils import ModuleSchemaError
+    from nf_meta.core.registry import ModuleSchemaError
 
     def fail(name, version):
         raise ModuleSchemaError("offline")

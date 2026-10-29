@@ -22,7 +22,8 @@ import yaml
 from .errors import Diagnostic, Severity
 from .inputs import Binding, Input, InputDefinition, effective_input
 from .models import NfModule, NfPipeline, Workflow
-from .nf_core_utils import (
+from .nf_param_validation import validate_params
+from .registry import (
     PipelineSchemaError,
     SchemaUnavailableError,
     get_module_schema,
@@ -31,7 +32,6 @@ from .nf_core_utils import (
     github_file_exists,
     url_exists,
 )
-from .nf_param_validation import validate_params
 
 logger = logging.getLogger()
 

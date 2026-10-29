@@ -1,3 +1,6 @@
+"""Lookups in the nf-core catalog, the Nextflow module registry and pipeline
+repositories: pipeline and module lists, module releases, param schemas."""
+
 import functools
 import logging
 import os
@@ -114,15 +117,6 @@ def _get_nfcore_components_raw() -> list[dict]:
     if not isinstance(data, dict):
         return []
     return data.get("modules", [])
-
-
-@functools.cache
-def get_nfcore_module_lookup() -> dict[str, dict]:
-    """
-    Returns {short_name: module_entry} built from components.json.
-    Useful for O(1) name-existence checks during validation.
-    """
-    return {m["name"]: m for m in _get_nfcore_components_raw()}
 
 
 @functools.cache

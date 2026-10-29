@@ -706,7 +706,7 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
     for w in g.get_workflows():
         wf_dict = dict(w.model_dump_config())
         if w.id in from_by_target:
-            wf_dict["from"] = from_by_target[w.id]
+            wf_dict["from"] = _FlowList(from_by_target[w.id])
         workflows_dict[w.id] = wf_dict
 
     config_dict = {
@@ -747,8 +747,8 @@ SCHEMA_URL = "https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main
 
 
 def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
-    """Write `g` to `file` as YAML (via `dump_config`; `bind:` lists in flow
-    style, `[n01.input, n02.input]`), prefixed with a
+    """Write `g` to `file` as YAML (via `dump_config`; `from:` and `bind:`
+    lists in flow style, `[n01, n02]`), prefixed with a
     `# yaml-language-server: $schema=...` comment pointing at the published
     JSON Schema for editor autocompletion. Overwrites `file` if it exists."""
     with open(file, "w") as fh:

@@ -16,7 +16,7 @@ from nf_meta.core.inputs import (
     effective_input,
     substitute_inputs,
 )
-from nf_meta.core.models import NfPipeline
+from nf_meta.core.models import NfPipeline, Transition
 from nf_meta.core.nf_param_validation import validate_params
 from nf_meta.core.registry import _parse_nextflow_schema
 from nf_meta.core.schema_export import generate_schema
@@ -572,14 +572,18 @@ class TestDeclareStepInputs:
             graph(pipeline("n01", input="a.csv")).declare_step_inputs("n01")
 
 
-def test_bind_is_written_in_flow_style(tmp_path):
+def test_bind_and_from_are_written_in_flow_style(tmp_path):
     g = graph(
         pipeline("n01", input="a.csv"),
         pipeline("n02", input="b.csv"),
         inputs={"ids": {"bind": ["n01.input", "n02.input"], "description": "Run ids"}},
     )
+    g.add_transition(Transition(source="n01", target="n02"))
     path = tmp_path / "mp.yaml"
     to_file(g, path)
     text = path.read_text()
     assert "bind: [n01.input, n02.input]" in text
-    assert yaml.safe_load(text)["inputs"]["ids"] == {"bind": ["n01.input", "n02.input"], "description": "Run ids"}
+    assert "from: [n01]" in text
+    data = yaml.safe_load(text)
+    assert data["inputs"]["ids"] == {"bind": ["n01.input", "n02.input"], "description": "Run ids"}
+    assert data["workflows"]["n02"]["from"] == ["n01"]

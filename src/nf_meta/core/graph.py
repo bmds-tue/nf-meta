@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 from contextlib import contextmanager
 from pathlib import Path
@@ -290,12 +291,13 @@ class MetaworkflowGraph:
     def all_inputs(self) -> dict[str, InputDefinition]:
         """Every input, declared or implicit: the `inputs:` declarations, plus
         an empty definition for each input that is only referenced with
-        `${inputs:<name>}` in step params."""
+        `${inputs:<name>}` as a step param's whole value."""
         result = dict(self.inputs)
         for wf in self.get_workflows():
-            for names in input_refs(wf.params).values():
-                for name in names:
-                    result.setdefault(name, InputDefinition())
+            for value in (wf.params or {}).values():
+                whole = INPUT_REF_PATTERN.fullmatch(value) if isinstance(value, str) else None
+                if whole:
+                    result.setdefault(whole.group(1), InputDefinition())
         return result
 
     def input_bindings(self) -> dict[str, tuple[Binding, ...]]:
@@ -338,13 +340,25 @@ class MetaworkflowGraph:
                 if isinstance(value, str) and INPUT_REF_PATTERN.fullmatch(value):
                     whole_value.add(Binding(wf.id, param))
         workflows = {wf.id: wf for wf in self.get_workflows()}
-        return check_inputs(
+        inputs, diagnostics = check_inputs(
             self.all_inputs(),
             bindings,
             whole_value,
             declared,
             workflows,
             self.project_dir,
+        )
+        return inputs, [self._at_reference(d, bindings) for d in diagnostics]
+
+    def _at_reference(self, d: Diagnostic, bindings: dict[str, tuple[Binding, ...]]) -> Diagnostic:
+        """`d` moved to the first param referencing its input, if it is about
+        an implicit input (which has no `inputs.<name>` entry to point at)."""
+        parts = d.yaml_path.split(".") if d.yaml_path else []
+        if len(parts) < 2 or parts[0] != "inputs" or parts[1] in self.inputs or not bindings.get(parts[1]):
+            return d
+        b = bindings[parts[1]][0]
+        return dataclasses.replace(
+            d, workflow_id=b.step_id, field=f"params.{b.param}", yaml_path=f"workflows.{b.step_id}.params.{b.param}"
         )
 
     def input_diagnostics(self) -> list[Diagnostic]:

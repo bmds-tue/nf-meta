@@ -278,6 +278,23 @@ class TestGraph:
                 inputs={"ids": {"bind": "n01.genome"}},
             )
 
+    def test_implicit_input_problems_point_at_the_param(self, monkeypatch):
+        from nf_meta.core.registry import PipelineSchemaError
+
+        def unavailable(url, version):
+            raise PipelineSchemaError("offline")
+
+        g = graph(pipeline("n01", input="${inputs:ids}", outdir="o"))
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", unavailable)
+        _, diagnostics = g.effective_inputs()
+        assert {d.yaml_path for d in diagnostics} == {"workflows.n01.params.input"}
+
+    def test_partial_reference_declares_no_input(self):
+        g = MetaworkflowGraph()
+        with pytest.raises(ConfigValidationError), g.deferred_validation():
+            g.add_workflow(pipeline("n01", input="${inputs:dir}/x.csv", outdir="o"))
+            assert g.all_inputs() == {}  # checked before validation runs on exit
+
     def test_partial_reference_rejected(self):
         with pytest.raises(ConfigValidationError, match=r"'\$\{inputs:dir\}' must be the whole value of 'input'"):
             graph(pipeline("n01", input="${inputs:dir}/x.csv", outdir="o"))

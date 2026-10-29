@@ -401,17 +401,22 @@ def log_warnings(diagnostics: Iterable[Diagnostic]) -> None:
 # ---------------------------------------------------------------------------
 
 
+def get_step_schema(step: Workflow) -> Schema:
+    """The flat param schema of a step's pipeline or module (see
+    `get_pipeline_schema` / `get_module_schema`). Raises
+    `SchemaUnavailableError` if it can't be fetched or parsed."""
+    if isinstance(step, NfPipeline):
+        return get_pipeline_schema(step.url, step.version)
+    return get_module_schema(step.name, step.version)
+
+
 def workflow_schema(wf: Workflow) -> Schema | None:
-    """`wf`'s flat param schema (see `get_pipeline_schema` /
-    `get_module_schema`), or `None` if it can't be fetched."""
+    """`wf`'s flat param schema (see `get_step_schema`), or `None` if it
+    can't be fetched."""
     try:
-        if isinstance(wf, NfPipeline) and wf.url:
-            return get_pipeline_schema(wf.url, wf.version)
-        if isinstance(wf, NfModule):
-            return get_module_schema(wf.name, wf.version)
+        return get_step_schema(wf)
     except SchemaUnavailableError:
         return None
-    return None
 
 
 def check_inputs(

@@ -21,7 +21,10 @@ from nf_meta.core.events import (
 from nf_meta.core.models import GlobalOptions, Transition, Workflow
 from nf_meta.core.registry import (
     ModuleSchemaError,
+    NotInRegistryError,
     PipelineSchemaError,
+    RegistryUnavailableError,
+    get_module_metadata,
     get_module_schema,
     get_nfcore_module_releases,
     get_nfcore_modules,
@@ -48,6 +51,11 @@ app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 @app.exception_handler(SessionCommandError)
 def handle_session_error(request: Request, exc: SessionCommandError):
     return JSONResponse(status_code=422, content=exc.to_dict())
+
+
+@app.exception_handler(RegistryUnavailableError)
+def handle_registry_unavailable(request: Request, exc: RegistryUnavailableError):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
 @app.exception_handler(RequestValidationError)
@@ -184,22 +192,10 @@ def get_nfcore_module_versions(name: str):
 
 @api_router.get("/nfcore/modules/{name}/meta/")
 def get_nfcore_module_meta(name: str, version: str | None = None):
-    releases = get_nfcore_module_releases(name)
-    if not releases:
-        return JSONResponse(
-            status_code=404,
-            content={"detail": f"Module '{name}' not found or has no published releases"},
-        )
-
-    if version is not None:
-        release = next((r for r in releases if r["version"] == version), None)
-        if release is None:
-            return JSONResponse(
-                status_code=404,
-                content={"detail": f"Version '{version}' not found for module '{name}'"},
-            )
-    else:
-        release = max(releases, key=lambda r: r.get("createdAt", ""))
+    try:
+        release = get_module_metadata(name, version)
+    except NotInRegistryError as exc:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
 
     return {
         "name": name,

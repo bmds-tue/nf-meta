@@ -1,4 +1,4 @@
-"""Registry lookups: error contract, failure memo."""
+"""Registry lookups: error contract, failure memo, module metadata."""
 
 import json
 from unittest.mock import MagicMock
@@ -11,8 +11,10 @@ from nf_meta.core.dynamic_validation import check_module_version_in_registry, ch
 from nf_meta.core.errors import Severity
 from nf_meta.core.models import NfModule, NfPipeline
 from nf_meta.core.registry import (
+    NotInRegistryError,
     RegistryUnavailableError,
     _fetch_json,
+    get_module_metadata,
     get_nfcore_module_releases,
     get_nfcore_pipelines,
 )
@@ -123,6 +125,31 @@ class TestCatalogs:
         assert urls[0].endswith("/nf-core%2Ffastqc/releases")
 
 
+class TestModuleMetadata:
+    RELEASES = [
+        {"version": "0.0.0-aaaaaaa", "createdAt": "2025-01-01", "metadata": {"description": "old"}},
+        {"version": "0.0.0-bbbbbbb", "createdAt": "2026-01-01", "metadata": {"description": "new"}},
+    ]
+
+    @pytest.fixture(autouse=True)
+    def releases(self, monkeypatch):
+        monkeypatch.setattr(registry, "get_nfcore_module_releases", lambda name: self.RELEASES if name else [])
+
+    def test_latest_by_default(self):
+        assert get_module_metadata("fastqc")["version"] == "0.0.0-bbbbbbb"
+
+    def test_given_version(self):
+        assert get_module_metadata("fastqc", "0.0.0-aaaaaaa")["metadata"]["description"] == "old"
+
+    def test_unknown_version(self):
+        with pytest.raises(NotInRegistryError, match="Version"):
+            get_module_metadata("fastqc", "9.9.9")
+
+    def test_unknown_module(self):
+        with pytest.raises(NotInRegistryError, match="not found"):
+            get_module_metadata("")
+
+
 class TestPipelineLookupErrors:
     def test_custom_pipeline_does_not_need_the_catalog(self, monkeypatch):
         def unreachable():
@@ -169,3 +196,11 @@ class TestChecksWhenUnavailable:
         wf = wf_custom.model_copy(update={"main_script": "main.nf"})
         [d] = check_pipeline_main_script_exists(wf)
         assert d.severity == Severity.WARNING
+
+
+def test_editor_answers_503_when_unavailable():
+    from nf_meta.editor.backend.api import handle_registry_unavailable
+
+    resp = handle_registry_unavailable(None, RegistryUnavailableError("offline"))  # type: ignore[arg-type]
+    assert resp.status_code == 503
+    assert json.loads(resp.body) == {"detail": "offline"}

@@ -249,6 +249,26 @@ def get_nfcore_module_releases(name: str) -> list[ModuleRelease]:
     return cast(list[ModuleRelease], data.get("releases", []))
 
 
+def get_module_metadata(name: str, version: str | None = None) -> ModuleRelease:
+    """The registry release of nf-core module `name` (as for
+    `get_nfcore_module_releases`) at `version`, or the latest one. Its
+    `metadata` holds description, keywords, input, output and tools.
+
+    Raises `NotInRegistryError` if the module has no releases or not
+    `version`, and `RegistryUnavailableError` if the registry can't be
+    reached.
+    """
+    releases = get_nfcore_module_releases(name)
+    if not releases:
+        raise NotInRegistryError(f"Module '{name}' not found or has no published releases")
+    if version is None:
+        return max(releases, key=lambda r: r.get("createdAt", ""))
+    release = next((r for r in releases if r["version"] == version), None)
+    if release is None:
+        raise NotInRegistryError(f"Version '{version}' not found for module '{name}'")
+    return release
+
+
 # ---------------------------------------------------------------------------
 # Module schema fetching and parsing
 # ---------------------------------------------------------------------------

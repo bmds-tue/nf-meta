@@ -198,6 +198,28 @@ class TestDeleteNode:
         assert ("warning", "not used by any step") in [(d["severity"], d["message"]) for d in count["diagnostics"]]
 
 
+class TestLoadAndSave:
+    def test_missing_file(self, client, tmp_path):
+        response = client.post("/api/graph/load/", json={"config": str(tmp_path / "nope.yaml")})
+        assert response.status_code == 404
+        assert "No such file" in response.json()["detail"]
+
+    def test_invalid_config_keeps_the_current_one(self, client, config, tmp_path):
+        add_step(client)
+        bad = tmp_path / "bad.yaml"
+        bad.write_text("config_version: 0.4.0\nworkflows:\n  n01: {name: nf-core/nope, version: '1'}\n")
+        response = client.post("/api/graph/load/", json={"config": str(bad)})
+        assert response.status_code == 422
+        assert response.json()["detail"].startswith("Invalid config: ")
+        state = client.get("/api/graph/").json()
+        assert (state["filename"], len(state["nodes"])) == (str(config), 1)
+
+    def test_save_to_an_unwritable_place(self, client, tmp_path):
+        response = client.post("/api/graph/save/", json={"config": str(tmp_path / "missing-dir" / "mp.yaml")})
+        assert response.status_code == 400
+        assert "Can't write" in response.json()["detail"]
+
+
 class TestNodeSchema:
     def test_schema_of_a_step(self, client):
         step = add_step(client)

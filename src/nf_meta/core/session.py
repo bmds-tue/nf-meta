@@ -34,15 +34,14 @@ class EditorSession:
         self.history = History()
 
     def start(self, config: Path | str | None):
-
+        """Start editing `config` (a path or URL), or an empty graph. If the
+        config can't be read or is invalid, the session stays as it was."""
         # Kept as given: a URL must not go through Path
-        self.config_file = config or None
-        if self.config_file:
-            self.graph = from_file(self.config_file, collect_errors=True)
-        else:
-            self.graph = MetaworkflowGraph()
+        config_file = config or None
+        graph = from_file(config_file, collect_errors=True) if config_file else MetaworkflowGraph()
+        self.config_file = config_file
+        self.graph = graph
         self.warnings = self.graph.warnings
-
         self.history = History()
 
     def execute(self, c: Command):

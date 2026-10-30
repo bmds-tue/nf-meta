@@ -1,6 +1,6 @@
 import pytest
 
-from nf_meta.core.errors import SessionCommandError  # type: ignore[import]
+from nf_meta.core.errors import ConfigValidationError, SessionCommandError  # type: ignore[import]
 from nf_meta.core.events import RemoveWorkflow  # type: ignore[import]
 from nf_meta.core.session import EditorSession  # type: ignore[import]
 
@@ -41,6 +41,18 @@ class TestSessionStart:
         session.load_config(config_yaml)
         assert not session.history.undoable()
         assert not session.history.redoable()
+
+    def test_failed_load_leaves_the_session_and_both_files_alone(self, loaded_session, config_yaml, tmp_path):
+        bad = tmp_path / "bad.yaml"
+        bad.write_text("config_version: 0.4.0\nworkflows:\n  n01: {name: nf-core/nope, version: '1'}\n")
+        before = loaded_session.graph
+        with pytest.raises(ConfigValidationError):
+            loaded_session.load_config(bad)
+        assert loaded_session.config_file == config_yaml
+        assert loaded_session.graph is before
+        # the next auto-save writes to the config being edited, not to the one that failed
+        loaded_session.handle_command(RemoveWorkflow(before.get_workflows()[0].id))
+        assert "nf-core/nope" in bad.read_text()
 
 
 # ---------------------------------------------------------------------------

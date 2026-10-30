@@ -88,6 +88,7 @@ def cli() -> None:
     type=int,
     help="Port for the editor server (auto-assigned if omitted)",
 )
+@click.option("--no-browser", is_flag=True, help="Don't open a browser; open the printed link yourself")
 @click.option(
     "--no-redirect-file",
     is_flag=True,
@@ -96,13 +97,13 @@ def cli() -> None:
 )
 @click.argument("config", required=False, type=click.Path())
 @handle_validation_errors
-def edit_browser(config, verbose, editor, host, port, no_redirect_file):
+def edit_browser(config, verbose, editor, host, port, no_browser, no_redirect_file):
     from nf_meta.core.session import start_session
     from nf_meta.editor import EditorOptions, run_editor
 
     session = start_session(config)
     _echo_warnings(session.warnings, config)
-    opts = EditorOptions(editor_name=editor, use_redirect_file=not no_redirect_file)
+    opts = EditorOptions(editor_name=editor, open_browser=not no_browser, use_redirect_file=not no_redirect_file)
     if host is not None:
         opts.host = host
     if port is not None:

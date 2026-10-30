@@ -1,19 +1,22 @@
+import getpass
 import html
 import http.client
 import logging
 import os
 import signal
 import socket
+import sys
 import tempfile
 import threading
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 import click
 import uvicorn
 
 from .backend import DEV_HOST, DEV_MODE, DEV_PORT, DEV_VITE_PORT, app, configure_access, configure_shutdown, new_token
-from .backend.guard import WILDCARD_HOSTS
+from .backend.guard import LOOPBACK_HOSTS, WILDCARD_HOSTS
 from .base_editor import BaseEditor
 
 logger = logging.getLogger(__name__)
@@ -98,8 +101,39 @@ def _open_browser_when_ready(host: str, port: int, target: str) -> None:
     click.launch(target)
 
 
+def _can_open_browser(env: Mapping[str, str] = os.environ, platform: str = sys.platform) -> bool:
+    """False on a Linux machine without a display (e.g. an HPC login node) unless `$BROWSER` names
+    a way to open links (as VS Code's remote terminals do)."""
+    if env.get("BROWSER"):
+        return True
+    if platform.startswith("linux"):
+        # without a display, xdg-open falls back to text browsers (lynx, w3m) in this terminal
+        return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"))
+    return True
+
+
+def _tunnel_hint(port: int, env: Mapping[str, str] = os.environ) -> str | None:
+    """For an editor started over SSH: how to reach it from the user's own computer."""
+    if "SSH_CONNECTION" not in env:
+        return None
+    return (
+        "Started over SSH: to use the editor from your own computer, forward its port there\n"
+        f"    ssh -N -L {port}:localhost:{port} {getpass.getuser()}@{socket.gethostname()}\n"
+        "(with the host name you log in with), then open the link above in your browser."
+    )
+
+
 def _exit_on_signal(signum, frame) -> None:
     raise SystemExit(128 + signum)
+
+
+def _exit_cleanly_on_signals() -> None:
+    """Turn SIGTERM and SIGHUP into a normal exit, so clean-up code runs. An ignored SIGHUP
+    (started with `nohup`) stays ignored, so the editor outlives the terminal or SSH session."""
+    for name in ("SIGTERM", "SIGHUP"):
+        sig = getattr(signal, name, None)  # no SIGHUP on Windows
+        if sig is not None and signal.getsignal(sig) is not signal.SIG_IGN:
+            signal.signal(sig, _exit_on_signal)
 
 
 class BrowserEditor(BaseEditor):
@@ -163,23 +197,27 @@ class BrowserEditor(BaseEditor):
                         fg="yellow",
                     )
                 )
-            self._serve(host, port, _editor_url(host, port, token), wait_on=(host, port))
+            hint = _tunnel_hint(port) if host.strip("[]") in LOOPBACK_HOSTS else None
+            self._serve(host, port, _editor_url(host, port, token), wait_on=(host, port), hint=hint)
 
-    def _serve(self, host: str, port: int, url: str, wait_on: tuple[str, int]) -> None:
-        page = _write_redirect_file(url, _redirect_folder()) if self.options.use_redirect_file else None
-        # The browser gets a local file, so the token doesn't show in a process's arguments
-        target = page.as_uri() if page else url
-        thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, target), daemon=True)
-        thread.start()
+    def _serve(self, host: str, port: int, url: str, wait_on: tuple[str, int], hint: str | None = None) -> None:
+        open_browser = self.options.open_browser and _can_open_browser()
+        page = None
+        if open_browser:
+            page = _write_redirect_file(url, _redirect_folder()) if self.options.use_redirect_file else None
+            # The browser gets a local file, so the token doesn't show in a process's arguments
+            target = page.as_uri() if page else url
+            thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, target), daemon=True)
+            thread.start()
         config = uvicorn.Config(app, host=host, port=port, log_level="warning")
         click.echo(f"Editor running at: {url}")
         if page:
             click.echo("If no browser tab opens, open this link, or start with --no-redirect-file.")
+        if hint:
+            click.echo(hint)
         # uvicorn re-sends the SIGTERM it stopped on, and doesn't handle SIGHUP (terminal or SSH
         # connection closed); either would end the process without the clean-up below
-        for name in ("SIGTERM", "SIGHUP"):
-            if hasattr(signal, name):  # no SIGHUP on Windows
-                signal.signal(getattr(signal, name), _exit_on_signal)
+        _exit_cleanly_on_signals()
         self._server = uvicorn.Server(config)
         configure_shutdown(app, self.stop)
         try:

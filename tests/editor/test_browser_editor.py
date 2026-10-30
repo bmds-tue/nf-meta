@@ -1,4 +1,5 @@
 import os
+import signal
 import stat
 
 import pytest
@@ -86,3 +87,49 @@ def test_stop_without_a_running_server_does_nothing(capsys):
     editor = browser_editor.BrowserEditor(EditorOptions())
     editor.stop()
     assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize(
+    ("env", "platform", "expected"),
+    [
+        ({}, "linux", False),  # e.g. an HPC login node
+        ({"DISPLAY": ":0"}, "linux", True),
+        ({"WAYLAND_DISPLAY": "wayland-0"}, "linux", True),
+        ({"BROWSER": "/vscode/helpers/browser.sh"}, "linux", True),  # VS Code remote terminal
+        ({}, "darwin", True),
+    ],
+)
+def test_can_open_browser(env, platform, expected):
+    assert browser_editor._can_open_browser(env, platform) is expected
+
+
+def test_tunnel_hint_over_ssh(monkeypatch):
+    monkeypatch.setattr(browser_editor.getpass, "getuser", lambda: "alice")
+    monkeypatch.setattr(browser_editor.socket, "gethostname", lambda: "login01")
+    hint = browser_editor._tunnel_hint(8080, {"SSH_CONNECTION": "10.0.0.2 51000 10.0.0.1 22"})
+    assert "ssh -N -L 8080:localhost:8080 alice@login01" in hint
+
+
+def test_no_tunnel_hint_without_ssh():
+    assert browser_editor._tunnel_hint(8080, {}) is None
+
+
+@pytest.fixture
+def restore_signals():
+    saved = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    yield
+    for sig, handler in saved.items():
+        signal.signal(sig, handler)
+
+
+def test_signals_exit_cleanly(restore_signals):
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    browser_editor._exit_cleanly_on_signals()
+    assert signal.getsignal(signal.SIGTERM) is browser_editor._exit_on_signal
+    assert signal.getsignal(signal.SIGHUP) is browser_editor._exit_on_signal
+
+
+def test_ignored_sighup_stays_ignored(restore_signals):
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)  # as under nohup
+    browser_editor._exit_cleanly_on_signals()
+    assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN

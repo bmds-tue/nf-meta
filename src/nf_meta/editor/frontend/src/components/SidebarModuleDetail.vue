@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useModuleStore, useGraphStore } from '../store';
-import { extractFieldErrors, inputFor, inputsOfStep, referenceTargets, shortVersion } from '../utils';
+import { extractFieldErrors, inputFor, inputsOfStep, shortVersion } from '../utils';
 import type { APINfModuleNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import YamlEditor from './YamlEditor.vue';
@@ -134,7 +134,9 @@ function addParam(param: string, value: string) {
   yamlEditor.value?.addParam(param, value)
 }
 
-const references = computed(() => referenceTargets(graphStore.getPredecessors(form.value.id)))
+const references = computed(() => graphStore.getReferenceTargets(form.value.id))
+// Params with a value of their own (not filled by a bind: input), which a reference or input can replace
+const valuedParams = computed(() => Object.keys(form.value.params ?? {}))
 
 const hasParams = computed(() => !!form.value.params && Object.keys(form.value.params).length > 0)
 const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.params).trim() : '')
@@ -209,7 +211,7 @@ async function copyPath(text: string, field: string) {
     <div class="text-caption mt-1">Params</div>
     <ParamAssist
       :schema="schema" :loading="schemaLoading" :error="schemaError"
-      :set-params="setParams" :input-for="inputForParam" :references="references"
+      :set-params="setParams" :input-for="inputForParam" :references="references" :valued-params="valuedParams"
       @add="addParam" />
     <p v-if="errors['params']?.length" class="field-error mb-1">{{ errors['params']!.join(' ') }}</p>
     <div class="params-editor">

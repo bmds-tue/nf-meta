@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { INPUT_COLOR, REF_COLOR } from '../store'
+import { INPUT_COLOR } from '../store'
+import ReferenceMenu from './ReferenceMenu.vue'
 import type { StepSchema } from '../types'
 import { paramSuggestions, type ReferenceTarget } from '../utils'
 
@@ -12,8 +13,10 @@ const props = defineProps<{
   setParams: string[]
   // The input a param would get (shared if it exists already)
   inputFor: (param: string) => { name: string, shared: boolean }
-  // Params of the direct predecessors, which a param can reference
+  // The other steps' params a param can reference
   references: ReferenceTarget[]
+  // Params with a value of their own, which a reference or input can replace
+  valuedParams: string[]
 }>()
 
 const emit = defineEmits<{
@@ -29,7 +32,6 @@ const optionalItems = computed(() => suggestions.value.optional.map(param => ({
 })))
 const picked = ref<string | null>(null)
 const menuOpen = ref(false)
-const canReference = computed(() => props.references.length > 0)
 
 function add(param: string | null, value = '') {
   if (param) emit('add', param, value)
@@ -52,11 +54,7 @@ function inputTitle(param: string) {
     : `Fill '${param}' per run: new input '${name}'`
 }
 
-const NO_REFERENCES = 'No previous step yet: connect a step to this one first'
 
-function referenceTitle(param: string) {
-  return `Fill '${param}' with a param of a previous step`
-}
 </script>
 
 <template>
@@ -75,25 +73,7 @@ function referenceTitle(param: string) {
           <v-icon icon="mdi-asterisk" size="12" start />
           {{ param }}
           <template #append>
-            <v-menu location="bottom start">
-              <template #activator="{ props: menuProps }">
-                <v-btn
-                  v-bind="menuProps"
-                  icon="mdi-transit-connection-variant" size="22" variant="flat" class="pill-btn ml-2"
-                  :color="REF_COLOR" :title="referenceTitle(param)"
-                  @click.stop />
-              </template>
-              <v-list density="compact" class="reference-list">
-                <v-list-item v-if="!canReference" disabled :title="NO_REFERENCES" />
-                <template v-for="target in references" :key="target.stepId">
-                  <v-list-subheader>{{ target.stepName }} ({{ target.stepId }})</v-list-subheader>
-                  <v-list-item
-                    v-for="p in target.params" :key="p.key"
-                    :title="p.key" :subtitle="p.value"
-                    @click="addReference(param, target.stepId, p.key)" />
-                </template>
-              </v-list>
-            </v-menu>
+            <ReferenceMenu :param="param" :references="references" :size="22" class="ml-2" @pick="(stepId, key) => addReference(param, stepId, key)" />
             <v-btn
               icon="mdi-import" size="22" variant="flat" class="pill-btn ml-1 mr-n1"
               :color="INPUT_COLOR"
@@ -119,25 +99,7 @@ function referenceTitle(param: string) {
         <template #item="{ props: itemProps, item }">
           <v-list-item v-bind="itemProps" :subtitle="item.subtitle" lines="one">
             <template #append>
-              <v-menu location="end">
-                <template #activator="{ props: menuProps }">
-                  <v-btn
-                    v-bind="menuProps"
-                    icon="mdi-transit-connection-variant" size="26" variant="flat" class="pill-btn mr-1"
-                    :color="REF_COLOR" :title="referenceTitle(item.value)"
-                    @click.stop />
-                </template>
-                <v-list density="compact" class="reference-list">
-                  <v-list-item v-if="!canReference" disabled :title="NO_REFERENCES" />
-                  <template v-for="target in references" :key="target.stepId">
-                    <v-list-subheader>{{ target.stepName }} ({{ target.stepId }})</v-list-subheader>
-                    <v-list-item
-                      v-for="p in target.params" :key="p.key"
-                      :title="p.key" :subtitle="p.value"
-                      @click="addReference(item.value, target.stepId, p.key)" />
-                  </template>
-                </v-list>
-              </v-menu>
+              <ReferenceMenu :param="item.value" :references="references" :size="26" location="end" class="mr-1" @pick="(stepId, key) => addReference(item.value, stepId, key)" />
               <v-btn
                 icon="mdi-import" size="26" variant="flat" class="pill-btn"
                 :color="INPUT_COLOR"
@@ -148,6 +110,24 @@ function referenceTitle(param: string) {
         </template>
       </v-autocomplete>
     </template>
+
+    <div v-if="valuedParams.length" class="d-flex flex-wrap align-center ga-2 mt-2">
+      <span class="text-caption muted">Set: replace with</span>
+      <v-chip
+        v-for="param in valuedParams" :key="param"
+        variant="outlined" size="small" class="param-pill"
+        :title="`'${param}' has a value; replace it with a reference or an input`">
+        {{ param }}
+        <template #append>
+          <ReferenceMenu :param="param" :references="references" :size="20" class="ml-2" @pick="(stepId, key) => addReference(param, stepId, key)" />
+          <v-btn
+            icon="mdi-import" size="20" variant="flat" class="pill-btn ml-1 mr-n1"
+            :color="INPUT_COLOR"
+            :title="inputTitle(param)"
+            @click.stop="addInput(param)" />
+        </template>
+      </v-chip>
+    </div>
   </div>
 </template>
 

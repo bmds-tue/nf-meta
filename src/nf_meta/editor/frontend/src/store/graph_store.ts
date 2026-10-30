@@ -9,6 +9,7 @@ import type {
 import { useLayout } from '../layout_graph'
 import { useMessageStore, useActivityStore } from './ui_store'
 import { useApiStore } from './api_store'
+import { referenceTargets } from '../utils'
 
 export const INPUTS_NODE_ID = '__inputs__'
 // Inputs in the graph and the params editor (oneDark's purple)
@@ -277,6 +278,11 @@ export const useGraphStore = defineStore('graph', () => {
 
     const nodeData = computed(() => _nodeData.value)
 
+    // The steps step `nodeId` can reference (see `referenceTargets`); every step for an unsaved one
+    function getReferenceTargets(nodeId: string | undefined | null) {
+        return referenceTargets(_nodeData.value, _edgeData.value, nodeId ?? undefined)
+    }
+
     return {
         nodes, nodeData, edges, globalOptions, inputs, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
@@ -286,6 +292,6 @@ export const useGraphStore = defineStore('graph', () => {
         showInputsNode, toggleInputsNode,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,
-        getPredecessors, getParams,
+        getPredecessors, getParams, getReferenceTargets,
     }
 })

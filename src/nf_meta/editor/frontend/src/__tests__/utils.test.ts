@@ -141,15 +141,25 @@ describe('paramSuggestions', () => {
 })
 
 describe('referenceTargets', () => {
-    it('lists the set params of each predecessor, sorted, without empty steps', () => {
-        const targets = referenceTargets([
-            { type: 'nf-pipeline', id: 'n01', name: 'nf-core/fetchngs', params: { outdir: 'out', input: '${inputs:ids}', empty: '' } },
-            { type: 'nf-pipeline', id: 'n02', name: 'nf-core/rnaseq', params: {} },
-            { type: 'nf-pipeline', id: 'n03', name: 'x', params: { count: 3 } },
-        ])
-        expect(targets).toEqual([
-            { stepId: 'n01', stepName: 'nf-core/fetchngs', params: [{ key: 'input', value: '${inputs:ids}' }, { key: 'outdir', value: 'out' }] },
-            { stepId: 'n03', stepName: 'x', params: [{ key: 'count', value: '3' }] },
-        ])
+    const node = (id: string, params: object) => ({ type: 'nf-pipeline' as const, id, name: `step ${id}`, params })
+    const nodes = [
+        node('n01', { outdir: 'out', input: '${inputs:ids}', empty: '' }),
+        node('n02', { outdir: 'out2' }),
+        node('n03', { outdir: 'out3' }),
+        node('n04', {}),
+        node('n05', { outdir: 'out5' }),
+    ]
+    // n01 -> n03 -> n05, n02 unconnected
+    const edges = [{ source: 'n01', target: 'n03' }, { source: 'n03', target: 'n05' }]
+
+    it('lists predecessors first, then unconnected steps; not itself or later steps', () => {
+        const targets = referenceTargets(nodes, edges, 'n03')
+        expect(targets.map(t => [t.stepId, t.connected])).toEqual([['n01', true], ['n02', false], ['n04', false]])
+        expect(targets[0]!.params).toEqual([{ key: 'input', value: '${inputs:ids}' }, { key: 'outdir', value: 'out' }])
+    })
+
+    it('offers every step to a step that is not saved yet', () => {
+        expect(referenceTargets(nodes, edges).map(t => t.stepId)).toEqual(['n01', 'n02', 'n03', 'n04', 'n05'])
     })
 })
+

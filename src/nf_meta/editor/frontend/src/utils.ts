@@ -206,23 +206,46 @@ export function paramSuggestions(schema: StepSchema | null | undefined, set: Ite
     return { required: required.sort(), optional: optional.sort() }
 }
 
-export type ReferenceTarget = { stepId: string, stepName: string, params: { key: string, value: string }[] }
+export type ReferenceTarget = {
+    stepId: string,
+    stepName: string,
+    // Already a direct predecessor; otherwise saving adds the edge
+    connected: boolean,
+    params: { key: string, value: string }[],
+}
 
 /**
- * The params a step can reference, `${<step>:params:<key>}`: those with a
- * value in each of its direct predecessors (a reference must point at one).
- * Steps without params are left out.
+ * The steps whose params step `stepId` can reference, `${<step>:params:<key>}`,
+ * with their params that have a value: every step except `stepId` itself and
+ * the steps after it (a reference to those would make a cycle). Direct
+ * predecessors come first and are marked `connected`; for the others saving
+ * adds the edge. Pass no `stepId` for a step that isn't saved yet.
  */
-export function referenceTargets(predecessors: APINodeData[]): ReferenceTarget[] {
-    return predecessors
-        .filter((node): node is APINodeData & { id: string } => !!node.id)
+export function referenceTargets(
+    nodes: APINodeData[], edges: { source: string, target: string }[], stepId?: string,
+): ReferenceTarget[] {
+    const after = new Set<string>()
+    const queue = stepId ? [stepId] : []
+    while (queue.length) {
+        const current = queue.shift()!
+        for (const e of edges) {
+            if (e.source === current && !after.has(e.target)) {
+                after.add(e.target)
+                queue.push(e.target)
+            }
+        }
+    }
+    const predecessors = new Set(edges.filter(e => e.target === stepId).map(e => e.source))
+    return nodes
+        .filter((node): node is APINodeData & { id: string } => !!node.id && node.id !== stepId && !after.has(node.id))
         .map(node => ({
             stepId: node.id,
             stepName: node.name ?? node.id,
+            connected: predecessors.has(node.id),
             params: Object.entries(node.params ?? {})
                 .filter(([, value]) => value !== null && value !== undefined && value !== '')
                 .map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) }))
                 .sort((a, b) => a.key.localeCompare(b.key)),
         }))
-        .filter(target => target.params.length > 0)
+        .sort((a, b) => Number(b.connected) - Number(a.connected))
 }

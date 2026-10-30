@@ -164,10 +164,20 @@ onMounted(async () => {
       <a class="logo" :href="DOCS_URL" target="_blank" title="nf-meta: open the documentation" v-html="logoSvg"></a>
 
       <!-- config file -->
-      <div class="bar-group" aria-label="Config file">
-        <v-btn title="Open a config" icon="mdi-folder-open-outline" variant="text" @click="onOpen" />
-        <v-btn title="Save to file" icon="mdi-content-save-outline" variant="text" :loading="saving" @click="onSave" />
-      </div>
+      <v-menu location="bottom start">
+        <template #activator="{ props: menuProps }">
+          <v-btn v-bind="menuProps" title="Config file" variant="text" :loading="saving" class="file-btn">
+            <v-icon icon="mdi-folder-outline" />
+            <v-icon icon="mdi-menu-down" size="16" class="ml-n1" />
+          </v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item prepend-icon="mdi-folder-open-outline" title="Open config…" subtitle="Ctrl/⌘+O" @click="onOpen" />
+          <v-list-item prepend-icon="mdi-content-save-outline" title="Save" subtitle="Ctrl/⌘+S" @click="onSave" />
+          <v-list-item prepend-icon="mdi-content-save-edit-outline" title="Save as…" subtitle="Ctrl/⌘+Shift+S" @click="editorStore.openSaveDialog" />
+          <v-list-item prepend-icon="mdi-web" title="Load from URL" subtitle="Coming soon" disabled />
+        </v-list>
+      </v-menu>
       <v-divider vertical inset class="mx-1" />
       <!-- graph -->
       <div class="bar-group" aria-label="Graph">
@@ -284,6 +294,11 @@ onMounted(async () => {
   color: rgb(var(--v-theme-on-surface));
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   z-index: 5;
+}
+
+.file-btn {
+  min-width: 0;
+  padding: 0 8px;
 }
 
 .bar-group {

@@ -197,12 +197,14 @@ function inputTitle(name: string) {
     <template v-else-if="mode === 'form'">
       <p v-for="message in generalErrors" :key="message" class="field-error mb-0">{{ message }}</p>
       <div v-for="row in rows" :key="row.name" class="param-row" :class="{ missing: missing(row) }" :title="row.spec?.description">
+        <div class="param-main">
         <!-- a whole input: a chip, closed to give the param a value again -->
         <div v-if="inputChip(row)" class="chip-field">
           <span class="chip-label">{{ label(row) }}</span>
-          <div class="d-flex align-center">
+          <div class="d-flex align-center w-100">
             <v-chip
-              size="small" variant="tonal" :color="INPUT_COLOR" prepend-icon="mdi-import"
+              size="small" variant="tonal" :color="INPUT_COLOR"
+              :prepend-icon="inputChip(row)!.bound ? 'mdi-link-variant' : 'mdi-import'"
               :closable="!inputChip(row)!.bound"
               :title="inputChip(row)!.bound ? 'Bound with bind: in the inputs section; change it in the Inputs tab' : undefined"
               @click:close="setValue(row.name, '')">
@@ -211,9 +213,9 @@ function inputTitle(name: string) {
             <v-spacer />
             <ParamRowActions
               v-if="!inputChip(row)!.bound"
-              :param="row.name" :references="references" :input-title="inputTitle(row.name)" :removable="!row.required"
+              :param="row.name" :references="references" :input-title="inputTitle(row.name)"
               @reference="(stepId, key) => setValue(row.name, referenceValue(stepId, key))"
-              @input="setValue(row.name, inputValue(row.name))" @remove="remove(row.name)" />
+              @input="setValue(row.name, inputValue(row.name))" />
           </div>
           <div v-for="message in errors[row.name] ?? []" :key="message" class="field-error">{{ message }}</div>
         </div>
@@ -226,9 +228,9 @@ function inputTitle(name: string) {
           @update:model-value="(v: unknown) => setValue(row.name, v ?? '')">
           <template #append-inner>
             <ParamRowActions
-              :param="row.name" :references="references" :input-title="inputTitle(row.name)" :removable="!row.required"
+              :param="row.name" :references="references" :input-title="inputTitle(row.name)"
               @reference="(stepId, key) => setValue(row.name, referenceValue(stepId, key))"
-              @input="setValue(row.name, inputValue(row.name))" @remove="remove(row.name)" />
+              @input="setValue(row.name, inputValue(row.name))" />
           </template>
         </v-select>
         <v-text-field
@@ -251,11 +253,16 @@ function inputTitle(name: string) {
           </template>
           <template #append-inner>
             <ParamRowActions
-              :param="row.name" :references="references" :input-title="inputTitle(row.name)" :removable="!row.required"
+              :param="row.name" :references="references" :input-title="inputTitle(row.name)"
               @reference="(stepId, key) => setValue(row.name, referenceValue(stepId, key) + (leadingReference(row)?.rest ?? ''))"
-              @input="setValue(row.name, inputValue(row.name))" @remove="remove(row.name)" />
+              @input="setValue(row.name, inputValue(row.name))" />
           </template>
         </v-text-field>
+        </div>
+        <v-btn
+          v-if="!row.required && !row.boundBy"
+          icon="mdi-close" size="small" variant="text" density="comfortable" class="remove-btn" title="Remove this param"
+          @click="remove(row.name)" />
       </div>
     </template>
 
@@ -282,6 +289,16 @@ function inputTitle(name: string) {
 }
 .param-row {
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+.param-main {
+  flex: 1;
+  min-width: 0;
+}
+.remove-btn {
+  margin-top: 4px;
 }
 /* a required param without a value: an amber bar in the margin, like the required pills */
 .param-row.missing::before {

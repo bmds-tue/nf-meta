@@ -3,18 +3,16 @@ import { INPUT_COLOR } from '../store'
 import type { ReferenceTarget } from '../utils'
 import ReferenceMenu from './ReferenceMenu.vue'
 
-// The buttons at the end of a param's field: reference, input, and remove for optional params
+// The buttons at the end of a param's field: reference and input
 defineProps<{
   param: string
   references: ReferenceTarget[]
   inputTitle: string
-  removable: boolean
 }>()
 
 const emit = defineEmits<{
   reference: [stepId: string, key: string],
   input: [],
-  remove: [],
 }>()
 </script>
 
@@ -26,10 +24,6 @@ const emit = defineEmits<{
       icon="mdi-import" size="22" variant="flat" class="pill-btn"
       :color="INPUT_COLOR" :title="inputTitle"
       @click="emit('input')" />
-    <v-btn
-      v-if="removable"
-      icon="mdi-close" size="22" variant="text" density="comfortable" title="Remove this param"
-      @click="emit('remove')" />
   </span>
 </template>
 

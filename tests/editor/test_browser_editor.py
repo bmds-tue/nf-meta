@@ -1,6 +1,5 @@
 import os
 import stat
-import time
 
 import pytest
 
@@ -38,16 +37,6 @@ def test_browser_opens_the_link(monkeypatch):
     assert launched == ["http://127.0.0.1:8080/?token=abc"]
 
 
-def test_browser_opens_the_redirect_file_and_removes_it(monkeypatch, tmp_path):
-    launched = []
-    monkeypatch.setattr(browser_editor, "_wait_for_backend", lambda host, port: None)
-    monkeypatch.setattr(browser_editor.click, "launch", launched.append)
-    page = _write_redirect_file("http://127.0.0.1:8080/?token=abc", tmp_path)
-    browser_editor._open_browser_when_ready("127.0.0.1", 8080, page.as_uri(), page, keep_page=0)
-    assert launched == [page.as_uri()]
-    assert not page.exists()
-
-
 def test_redirect_file_is_private_and_forwards_to_the_url(tmp_path):
     page = _write_redirect_file("http://127.0.0.1:8080/?token=a&b", tmp_path)
     assert page.parent == tmp_path
@@ -55,16 +44,16 @@ def test_redirect_file_is_private_and_forwards_to_the_url(tmp_path):
     assert 'url=http://127.0.0.1:8080/?token=a&amp;b"' in page.read_text()
 
 
-def test_redirect_files_of_earlier_runs_are_removed(tmp_path):
-    old = tmp_path / "editor-old.html"
-    old.write_text("x")
-    an_hour_ago = time.time() - 3600
-    os.utime(old, (an_hour_ago, an_hour_ago))
-    recent = tmp_path / "editor-recent.html"
-    recent.write_text("x")
+def test_redirect_files_of_ended_editors_are_removed(tmp_path):
+    ended = tmp_path / "editor-999999999-abc.html"
+    running = tmp_path / f"editor-{os.getpid()}-abc.html"
+    unknown = tmp_path / "editor-abc.html"
+    for page in (ended, running, unknown):
+        page.write_text("x")
     _write_redirect_file("http://127.0.0.1:8080/?token=abc", tmp_path)
-    assert not old.exists()
-    assert recent.exists()
+    assert not ended.exists()
+    assert not unknown.exists()
+    assert running.exists()
 
 
 @pytest.mark.parametrize("runtime", [True, False])

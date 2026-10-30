@@ -32,11 +32,11 @@ On start, the editor prints its address with an access token, for example
 `Editor running at: http://127.0.0.1:8080/?token=…`, and opens that link in your browser. The page
 keeps the token for the tab and sends it with every request; without it, the editor refuses to
 read or write anything. This keeps other users of a shared machine (and websites open in your
-browser) out of your configs. If a tab shows "This page can't reach the editor", open the printed
+browser) out of your configs. If a tab shows "Cannot reach the editor backend", open the printed
 link again; each start of `nf-meta editor` makes a new token.
 
 The browser gets the link through a small file only you can read (in `$XDG_RUNTIME_DIR` or
-`~/.cache/nf-meta/editor`, removed right after), so the token doesn't show up in the process list
+`~/.cache/nf-meta/editor`, removed when the editor stops), so the token doesn't show up in the process list
 of a shared machine. When the browser runs on another machine (VS Code Remote-SSH, dev containers,
 Codespaces), that file doesn't exist there: start with `--no-redirect-file` to open the link
 directly, or open the printed link yourself.

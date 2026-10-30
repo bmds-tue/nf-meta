@@ -314,3 +314,19 @@ class TestDeleteSteps:
         run(g, DeleteSteps(("n03",), (("n01", "n02"),)))
         assert g.get_transitions() == []
         assert [wf.id for wf in g.get_workflows()] == ["n01", "n02"]
+
+
+def test_module_version_problem_and_param_errors_are_reported_together(monkeypatch):
+    from nf_meta.core.models import GlobalOptions, NfModule
+
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_module_schema",
+        lambda name, version: {"reads": {"type": "file", "required": True, "enum": None, "pattern": None}},
+    )
+    g = graph(pipeline("n01", input="a.csv"))
+    g.update_global_options(GlobalOptions(nextflow_version="25"))
+    with pytest.raises(ConfigValidationError) as exc:
+        run(g, SaveWorkflow(NfModule(id="m01", name="nf-core/fastqc", version="0.0.0-6c4ed3a"), create=True))
+    fields = {d.field for d in exc.value.errors}
+    assert {"nextflow_version", "params.reads"} <= fields
+    assert [wf.id for wf in g.get_workflows()] == ["n01"]

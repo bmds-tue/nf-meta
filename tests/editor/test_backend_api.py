@@ -92,7 +92,7 @@ class TestInputCommands:
         response = save_input(client, "ids", bindings=[f"{step}.nope"], in_params=False, create=True)
         assert response.status_code == 422
         errors = response.json()["field_errors"]
-        assert [(e["workflow_id"], e["field"]) for e in errors] == [(None, "inputs.ids.bind")]
+        assert (None, "inputs.ids.bind") in [(e["workflow_id"], e["field"]) for e in errors]
         assert inputs(client) == {}
 
     def test_malformed_binding(self, client):

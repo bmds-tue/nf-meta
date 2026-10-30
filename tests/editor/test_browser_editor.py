@@ -3,7 +3,7 @@ import stat
 
 import pytest
 
-from nf_meta.editor import browser_editor
+from nf_meta.editor import EditorOptions, browser_editor
 from nf_meta.editor.backend.guard import host_name
 from nf_meta.editor.browser_editor import _editor_url, _redirect_folder, _write_redirect_file
 
@@ -68,3 +68,21 @@ def test_redirect_folder_is_private(monkeypatch, tmp_path, runtime):
     folder = _redirect_folder()
     assert folder == expected
     assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+
+
+class FakeServer:
+    should_exit = False
+
+
+def test_stop_asks_the_server_to_exit():
+    editor = browser_editor.BrowserEditor(EditorOptions())
+    editor._server = FakeServer()
+    editor.stop()
+    assert editor._server.should_exit
+    assert editor._stop_requested
+
+
+def test_stop_without_a_running_server_does_nothing():
+    editor = browser_editor.BrowserEditor(EditorOptions())
+    editor.stop()
+    assert not editor._stop_requested

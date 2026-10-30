@@ -288,13 +288,13 @@ class TestAccess:
 class TestShutdown:
     def test_shutdown_stops_the_server(self, client):
         stopped = []
-        api.app.state.stop_server = lambda: stopped.append(True)
+        api.configure_shutdown(api.app, lambda: stopped.append(True))
         assert client.post("/api/shutdown/").json() == {"ok": True}
         assert stopped == [True]
 
     def test_shutdown_needs_the_token(self, client):
         stopped = []
-        api.app.state.stop_server = lambda: stopped.append(True)
+        api.configure_shutdown(api.app, lambda: stopped.append(True))
         assert client.post("/api/shutdown/", headers={TOKEN_HEADER: ""}).status_code == 401
         assert stopped == []
 

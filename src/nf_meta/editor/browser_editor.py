@@ -1,12 +1,8 @@
-import html
 import http.client
 import logging
-import os
 import socket
-import tempfile
 import threading
 import time
-from pathlib import Path
 
 import click
 import uvicorn
@@ -53,25 +49,9 @@ def _editor_url(host: str, port: int, token: str) -> str:
     return f"http://{host}:{port}/?token={token}"
 
 
-def _write_redirect_file(url: str) -> Path:
-    """A page, readable only by the current user, that forwards the browser to `url`."""
-    fd, name = tempfile.mkstemp(prefix="nf-meta-editor-", suffix=".html")
-    with os.fdopen(fd, "w") as f:
-        target = html.escape(url, quote=True)
-        f.write(
-            f'<!doctype html><meta http-equiv="refresh" content="0;url={target}"><a href="{target}">Open the editor</a>\n'
-        )
-    return Path(name)
-
-
-def _open_browser_when_ready(host: str, port: int, page: Path, keep_page: float = 10) -> None:
-    try:
-        _wait_for_backend(host, port)
-        # The browser gets a local file, so the token never appears in a process's arguments
-        click.launch(page.as_uri())
-        time.sleep(keep_page)
-    finally:
-        page.unlink(missing_ok=True)
+def _open_browser_when_ready(host: str, port: int, url: str) -> None:
+    _wait_for_backend(host, port)
+    click.launch(url)
 
 
 class BrowserEditor(BaseEditor):
@@ -128,8 +108,7 @@ class BrowserEditor(BaseEditor):
             self._serve(host, port, _editor_url(host, port, token), wait_on=(host, port))
 
     def _serve(self, host: str, port: int, url: str, wait_on: tuple[str, int]) -> None:
-        page = _write_redirect_file(url)
-        thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, page), daemon=True)
+        thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, url), daemon=True)
         thread.start()
         config = uvicorn.Config(app, host=host, port=port, log_level="warning")
         click.echo(f"Editor running at: {url}")

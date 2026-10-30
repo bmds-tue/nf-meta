@@ -174,6 +174,19 @@ class TestSaveNode:
 
 
 class TestDeleteNode:
+    def test_edges_and_nodes_in_one_change(self, client):
+        first = add_step(client, outdir="out")
+        second = add_step(client, input=f"${{{first}:params:outdir}}/x.csv")
+        third = add_step(client)
+        client.post("/api/edge/add/", json={"source": third, "target": second})
+        response = client.request("DELETE", "/api/delete/", json={"nodes": [third], "edges": [f"{third}->{second}"]})
+        assert response.status_code == 200, response.json()
+        state = client.get("/api/graph/").json()
+        assert sorted(n["id"] for n in state["nodes"]) == sorted([first, second])
+        assert [(t["source"], t["target"]) for t in state["transitions"]] == [(first, second)]
+        client.get("/api/graph/undo/")
+        assert len(client.get("/api/graph/").json()["nodes"]) == 3
+
     def test_bound_input_does_not_block_deleting_its_step(self, client):
         step = add_step(client)
         response = save_input(client, "count", bindings=[f"{step}.count"], in_params=False, create=True)

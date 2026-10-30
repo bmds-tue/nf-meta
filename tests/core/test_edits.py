@@ -15,7 +15,7 @@ from nf_meta.core.edits import (
     set_inputs_style_commands,
 )
 from nf_meta.core.errors import ConfigValidationError, GraphValidationError
-from nf_meta.core.events import Transaction
+from nf_meta.core.events import AddTransition, AddWorkflow, EditWorkflow, RemoveTransition, Transaction
 from nf_meta.core.history import History
 from nf_meta.core.inputs import Binding, InputDefinition
 from nf_meta.core.models import Transition
@@ -308,10 +308,10 @@ class TestDeleteSteps:
         assert g.inputs == {"genome": InputDefinition()}
         assert any(d.message == "not used by any step" for d in g.input_diagnostics())
 
-    def test_edges_and_steps_together(self):
+    def test_with_other_commands_in_a_transaction(self):
         g = graph(pipeline("n01", input="a.csv"), pipeline("n02", input="b.csv"), pipeline("n03", input="c.csv"))
         g.add_transition(Transition(source="n01", target="n02"))
-        run(g, DeleteSteps(("n03",), (("n01", "n02"),)))
+        run(g, Transaction((RemoveTransition("n01", "n02"), DeleteSteps(("n03",)))))
         assert g.get_transitions() == []
         assert [wf.id for wf in g.get_workflows()] == ["n01", "n02"]
 
@@ -330,3 +330,27 @@ def test_module_version_problem_and_param_errors_are_reported_together(monkeypat
     fields = {d.field for d in exc.value.errors}
     assert {"nextflow_version", "params.reads"} <= fields
     assert [wf.id for wf in g.get_workflows()] == ["n01"]
+
+
+class TestNestedBatches:
+    """An edit applies its own transaction; inside another one it must not validate early."""
+
+    def test_state_after_the_inner_batch_need_not_be_valid_on_its_own(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="o"), pipeline("n03", input="c.csv"))
+        late = pipeline("n04", input="${n01:params:outdir}/x.csv")
+        # n04 references n01 before the edge exists: valid only once the whole change is applied
+        run(
+            g,
+            Transaction(
+                (DeleteSteps(("n03",)), AddWorkflow(late), AddTransition(Transition(source="n01", target="n04")))
+            ),
+        )
+        assert [wf.id for wf in g.get_workflows()] == ["n01", "n04"]
+
+    def test_steps_changed_before_the_inner_batch_are_still_checked(self):
+        g = graph(pipeline("n01", input="a.csv"), pipeline("n03", input="c.csv"))
+        bad = pipeline("n01", input="a.csv", count="not a number")
+        with pytest.raises(ConfigValidationError):
+            run(g, Transaction((EditWorkflow(bad), DeleteSteps(("n03",)))))
+        assert g.get_workflow_by_id("n01").params == {"input": "a.csv"}
+        assert {wf.id for wf in g.get_workflows()} == {"n01", "n03"}

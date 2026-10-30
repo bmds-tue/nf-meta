@@ -692,7 +692,14 @@ class MetaworkflowGraph:
         validation plus a single batched, concurrent dynamic-check pass
         scoped to the workflows touched while suspended (not the whole
         graph).
+
+        Can be nested (a `Transaction` containing an edit that applies its
+        own): only the outermost batch validates, once, at its end.
         """
+        if self._validation_suspended is not None:
+            # Already deferred: the outer batch records the changes and validates
+            yield self
+            return
         self._validation_suspended = set()
         try:
             yield self

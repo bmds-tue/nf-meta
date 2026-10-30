@@ -18,7 +18,6 @@ from .events import (
     EditWorkflow,
     GraphEventHandler,
     RemoveInput,
-    RemoveTransition,
     RemoveWorkflow,
     Transaction,
     UpdateInput,
@@ -59,14 +58,12 @@ def save_workflow_commands(
     return Transaction(tuple(commands))
 
 
-def delete_steps_commands(
-    graph: GraphEventHandler, steps: Iterable[str], edges: Iterable[tuple[str, str]] = ()
-) -> Transaction:
-    """Remove `edges` (source, target) and `steps` with their edges. Inputs
-    bound to a removed step with `bind:` lose that binding but stay, so an
-    input left unused is reported as such instead of blocking the removal."""
+def delete_steps_commands(graph: GraphEventHandler, steps: Iterable[str]) -> Transaction:
+    """Remove `steps` with their edges. Inputs bound to a removed step with
+    `bind:` lose that binding but stay, so an input left unused is reported
+    as such instead of blocking the removal."""
     removed = set(steps)
-    commands: list[Command] = [RemoveTransition(source, target) for source, target in edges]
+    commands: list[Command] = []
     for name, definition in graph.inputs.items():
         kept = tuple(b for b in definition.bind if Binding.parse(b).step_id not in removed)
         if kept != definition.bind:
@@ -304,10 +301,9 @@ class SaveWorkflow:
 
 @dataclass(frozen=True)
 class DeleteSteps:
-    """Remove steps and edges, dropping bindings to removed steps; see `delete_steps_commands`."""
+    """Remove steps, dropping bindings to them; see `delete_steps_commands`."""
 
     steps: tuple[str, ...]
-    edges: tuple[tuple[str, str], ...] = ()
 
     def apply(self, g: GraphEventHandler):
-        delete_steps_commands(g, self.steps, self.edges).apply(g)
+        delete_steps_commands(g, self.steps).apply(g)

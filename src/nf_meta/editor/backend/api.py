@@ -12,6 +12,9 @@ from nf_meta.core.edits import DeclareStepInputs, DeleteInput, DeleteSteps, Edit
 from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
     AddTransition,
+    Command,
+    RemoveTransition,
+    Transaction,
     UpdateGlobalOptions,
 )
 from nf_meta.core.inputs import Binding, InputDefinition
@@ -147,8 +150,9 @@ def update_node(wf: Workflow):
 
 @api_router.delete("/delete/")
 def remove(selection: Selection):
-    edges = tuple((source, target) for source, target in (edge_id.split("->", 1) for edge_id in selection.edges))
-    events = SESSION.handle_command(DeleteSteps(tuple(selection.nodes), edges))
+    commands: list[Command] = [RemoveTransition(*edge_id.split("->", 1)) for edge_id in selection.edges]
+    commands.append(DeleteSteps(tuple(selection.nodes)))
+    events = SESSION.handle_command(Transaction(tuple(commands)))
     return JSONResponse({"events": serialize_events(events)})
 
 

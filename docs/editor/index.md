@@ -60,55 +60,31 @@ to add another.
 
 ## Running the editor on a remote machine
 
-Your configs and data often live on a cluster, while your browser runs on your own computer. Run
-the editor on the cluster and use it from your computer through an **SSH tunnel**. The editor
-listens only on the cluster machine itself (`127.0.0.1`), so it never opens a port to the cluster
-network. The tunnel carries your browser's requests to it over your SSH login.
+Data and pipelines usually live on a cluster with no access to a display server or a browser.
+In order to still use the nf-meta editor in such a setting, you can connect to a editor backend via an **SSH tunnel**.
 
-On the cluster (a login node is fine):
+On the cluster start the editor backend:
 
 ```bash
-nf-meta editor --port 8080
-```
-
-```text
+$ nf-meta editor --port 8080
 Editor running at: http://127.0.0.1:8080/?token=Xq3…
 Started over SSH: to use the editor from your own computer, forward its port there
     ssh -N -L 8080:localhost:8080 alice@login01
 (with the host name you log in with), then open the link above in your browser.
 ```
 
-On your computer, in a second terminal, run the printed command with the host name you use to log
-in:
+On the computer with a browser, run the following command with the host name of your remote machine to start the tunnel:
 
 ```bash
-ssh -N -L 8080:localhost:8080 alice@hpc.example.org
+$ ssh -N -L 8080:localhost:8080 alice@hpc.example.org
 ```
 
-It prints nothing and keeps running: that's the tunnel. Now open the printed link
-(`http://127.0.0.1:8080/?token=…`) in your browser. Every change is saved to the file on the
-cluster.
-
-To stop: **Quit editor** in the page's file menu (or `Ctrl` + `C` in the cluster terminal), then
-`Ctrl` + `C` in the tunnel terminal.
-
-### Good to know
-
-- **Pick a port with `--port`.** Without it, the editor takes a random free port each time and
-  the tunnel has to change with it. Ports are shared by everyone on a login node. If yours is
-  taken, the editor stops with `address already in use`. Pick another one (e.g. `8642`) on both
-  sides.
-- **The port on your computer can differ.** If `8080` is busy on your computer, forward another
-  local port, `ssh -N -L 9000:localhost:8080 …`, and open the link with `9000` instead of `8080`
-  (same token).
-- **No browser opens on the cluster.** Without a display, the editor doesn't try to start one.
-  `--no-browser` makes that explicit anywhere.
+You will now be able to visit the printed link in your local browser.
 
 ### VS Code Remote-SSH
 
-In a terminal of a VS Code Remote-SSH window, VS Code forwards the port by itself and offers to
-open it. Start the editor with `--no-redirect-file`, so the link it opens is one your computer's
-browser can use:
+In the terminal of a VS Code Remote-SSH window, the port is forwarded automatically.
+Start the editor with `--no-redirect-file`, so the link can be opened on your computer's browser:
 
 ```bash
 nf-meta editor --port 8080 --no-redirect-file

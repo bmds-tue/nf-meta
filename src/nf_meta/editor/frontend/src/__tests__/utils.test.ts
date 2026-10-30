@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    addableParams, canShareInput, lintReferenceCount, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    addableParams, baseName, canShareInput, joinPath, lintReferenceCount, pathCrumbs, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -262,5 +262,23 @@ describe('lintReferenceCount', () => {
     it('accepts one reference and ignores invalid YAML', () => {
         expect(lintReferenceCount('outdir: a/${n01:params:outdir}/b\n')).toEqual([])
         expect(lintReferenceCount('outdir: [unclosed')).toEqual([])
+    })
+})
+
+describe('paths of the editor machine', () => {
+    it('joins and splits POSIX paths', () => {
+        expect(joinPath('/home/me', 'mp.yaml')).toBe('/home/me/mp.yaml')
+        expect(joinPath('/', 'mp.yaml')).toBe('/mp.yaml')
+        expect(baseName('/home/me/mp.yaml')).toBe('mp.yaml')
+        expect(pathCrumbs('/home/me')).toEqual([
+            { label: '/', path: '/' }, { label: 'home', path: '/home' }, { label: 'me', path: '/home/me' },
+        ])
+        expect(pathCrumbs('/')).toEqual([{ label: '/', path: '/' }])
+    })
+
+    it('handles Windows paths', () => {
+        expect(joinPath('C:\\Users\\me', 'mp.yaml')).toBe('C:\\Users\\me\\mp.yaml')
+        expect(baseName('C:\\Users\\me\\mp.yaml')).toBe('mp.yaml')
+        expect(pathCrumbs('C:\\Users\\me').map(c => c.path)).toEqual(['C:\\', 'C:\\Users', 'C:\\Users\\me'])
     })
 })

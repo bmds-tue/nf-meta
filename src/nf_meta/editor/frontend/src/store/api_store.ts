@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
     ApiResult, APIGraph, APICommandResponse,
-    APINodeData, APIEdgeData, APIGlobalOptions, APIInputSave, Selection, StepSchema,
+    APINodeData, APIEdgeData, APIGlobalOptions, APIInputSave, Selection, StepSchema, FolderListing,
     NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo,
 } from '../types'
 
@@ -91,6 +91,14 @@ export const useApiStore = defineStore('api', () => {
         return request<APICommandResponse>('/api/inputs/delete/', { method: 'DELETE', body: JSON.stringify({ name }) })
     }
 
+    // A folder of the machine running the editor; without `path`, where the dialogs start
+    function listFolder(path?: string, allFiles = false) {
+        const query = new URLSearchParams()
+        if (path) query.set('path', path)
+        if (allFiles) query.set('all_files', 'true')
+        return request<FolderListing>(`/api/files/?${query}`, { method: 'GET' })
+    }
+
     function getNodeSchema(nodeId: string) {
         return request<StepSchema>(`/api/node/${encodeURIComponent(nodeId)}/schema/`, { method: 'GET' })
     }
@@ -122,7 +130,7 @@ export const useApiStore = defineStore('api', () => {
         undoGraph, redoGraph,
         addNode, updateNode, deleteSelection, addEdge, updateGlobalOptions,
         saveInput, deleteInput, declareStepInputs, setInputsStyle,
-        getNodeSchema, getPipelineSchema, getModuleSchema,
+        getNodeSchema, getPipelineSchema, getModuleSchema, listFolder,
     }
 })
 

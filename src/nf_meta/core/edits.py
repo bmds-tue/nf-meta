@@ -1,17 +1,60 @@
 """Edits: commands that work out the primitive changes they need from the
-current graph (which steps reference an input, what is declared) and apply
-them as one `Transaction`: validated once at the end, rolled back on error,
-undone in one step.
+current graph (which steps reference an input, what is declared, which edges
+exist) and apply them as one `Transaction`: validated once at the end, rolled
+back on error, undone in one step.
 
 Each `*_commands` function returns that transaction; each edit command
 computes it when applied, so it always starts from the current graph.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .events import AddInput, Command, EditWorkflow, GraphEventHandler, RemoveInput, Transaction, UpdateInput
+from .events import (
+    AddInput,
+    AddTransition,
+    AddWorkflow,
+    Command,
+    EditWorkflow,
+    GraphEventHandler,
+    RemoveInput,
+    Transaction,
+    UpdateInput,
+)
 from .inputs import Binding, InputDefinition
-from .refs import INPUT_NAME_PATTERN, INPUT_REF_PATTERN
+from .models import Transition, Workflow
+from .refs import INPUT_NAME_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
+
+
+def referenced_steps(wf: Workflow) -> list[str]:
+    """The ids of the steps `wf`'s params reference with `${<step>:...}`, in
+    order of first use, without `wf` itself."""
+    found = [
+        m.group(1)
+        for value in (wf.params or {}).values()
+        if isinstance(value, str)
+        for m in STEP_REF_PATTERN.finditer(value)
+    ]
+    return [step_id for step_id in dict.fromkeys(found) if step_id != wf.id]
+
+
+def save_workflow_commands(
+    graph: GraphEventHandler, wf: Workflow, *, create: bool, after: Iterable[str] = ()
+) -> Transaction:
+    """Add `wf` (`create`) or replace the step with its id, together with an
+    edge from every step it references (and every step in `after`) that isn't
+    connected to it yet. Existing edges stay. A reference to a step that
+    doesn't exist gets no edge (validation reports it); one that would make a
+    cycle is rejected by the graph."""
+    existing = {w.id for w in graph.get_workflows()}
+    sources = [s for s in dict.fromkeys([*referenced_steps(wf), *after]) if s in existing and s != wf.id]
+    commands: list[Command] = [AddWorkflow(wf) if create else EditWorkflow(wf)]
+    commands += [
+        AddTransition(Transition(source=source, target=wf.id))
+        for source in sources
+        if create or graph.get_transition(source, wf.id) is None
+    ]
+    return Transaction(tuple(commands))
 
 
 class _Draft:
@@ -227,3 +270,15 @@ class SetInputsStyle:
 
     def apply(self, g: GraphEventHandler):
         set_inputs_style_commands(g, in_params=self.in_params).apply(g)
+
+
+@dataclass(frozen=True)
+class SaveWorkflow:
+    """Add or update a step with the edges its references need; see `save_workflow_commands`."""
+
+    workflow: Workflow
+    create: bool
+    after: tuple[str, ...] = ()
+
+    def apply(self, g: GraphEventHandler):
+        save_workflow_commands(g, self.workflow, create=self.create, after=self.after).apply(g)

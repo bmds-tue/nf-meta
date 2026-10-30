@@ -8,13 +8,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
 from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
-from nf_meta.core.edits import DeclareStepInputs, DeleteInput, EditInput, SetInputsStyle
+from nf_meta.core.edits import DeclareStepInputs, DeleteInput, EditInput, SaveWorkflow, SetInputsStyle
 from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
     AddTransition,
-    AddWorkflow,
     Command,
-    EditWorkflow,
     RemoveTransition,
     RemoveWorkflow,
     Transaction,
@@ -141,13 +139,13 @@ def validate_globals(global_options: GlobalOptions):
 
 @api_router.post("/node/add/")
 def add_node(wf: Workflow):
-    events = SESSION.handle_command(AddWorkflow(workflow=wf))
+    events = SESSION.handle_command(SaveWorkflow(wf, create=True))
     return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.post("/node/update/")
 def update_node(wf: Workflow):
-    events = SESSION.handle_command(EditWorkflow(workflow=wf))
+    events = SESSION.handle_command(SaveWorkflow(wf, create=False))
     return JSONResponse({"events": serialize_events(events)})
 
 

@@ -5,13 +5,15 @@ import pytest
 from nf_meta.core.edits import (
     DeleteInput,
     EditInput,
+    SaveWorkflow,
     SetInputsStyle,
     declare_step_inputs_commands,
     delete_input_commands,
     edit_input_commands,
+    referenced_steps,
     set_inputs_style_commands,
 )
-from nf_meta.core.errors import ConfigValidationError
+from nf_meta.core.errors import ConfigValidationError, GraphValidationError
 from nf_meta.core.events import Transaction
 from nf_meta.core.history import History
 from nf_meta.core.inputs import Binding, InputDefinition
@@ -236,3 +238,38 @@ class TestCommands:
         assert g.get_workflow_by_id("n01").params == {"input": "${inputs:ids}"}
         history.undo(g)
         assert g.get_workflow_by_id("n01").params == {"input": "a.csv"}
+
+
+class TestSaveWorkflow:
+    def test_new_step_gets_edges_for_its_references(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"), pipeline("n02", input="b.csv", outdir="out2"))
+        new = pipeline("n03", input="${n01:params:outdir}/samplesheet.csv", outdir="${n02:params:outdir}/n03")
+        run(g, SaveWorkflow(new, create=True))
+        assert {(t.source, t.target) for t in g.get_transitions()} == {("n01", "n03"), ("n02", "n03")}
+
+    def test_update_adds_missing_edges_and_keeps_existing(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"), pipeline("n02", input="b.csv", outdir="out2"))
+        run(g, SaveWorkflow(pipeline("n03", input="${n01:params:outdir}/x.csv"), create=True))
+        run(g, SaveWorkflow(pipeline("n03", input="${n02:params:outdir}/x.csv"), create=False))
+        assert {(t.source, t.target) for t in g.get_transitions()} == {("n01", "n03"), ("n02", "n03")}
+
+    def test_reference_that_makes_a_cycle_changes_nothing(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"))
+        run(g, SaveWorkflow(pipeline("n02", input="${n01:params:outdir}/x.csv", outdir="out2"), create=True))
+        with pytest.raises(GraphValidationError):
+            run(g, SaveWorkflow(pipeline("n01", input="${n02:params:outdir}/x.csv", outdir="out1"), create=False))
+        assert g.get_workflow_by_id("n01").params == {"input": "a.csv", "outdir": "out1"}
+        assert [(t.source, t.target) for t in g.get_transitions()] == [("n01", "n02")]
+
+    def test_one_undo_step(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"))
+        history = run(g, SaveWorkflow(pipeline("n02", input="${n01:params:outdir}/x.csv"), create=True))
+        history.undo(g)
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+        assert g.get_transitions() == []
+
+    def test_referenced_steps(self):
+        wf = pipeline(
+            "n03", input="${n01:params:outdir}/${n02:params:x}", other="${n01:params:y}", own="${n03:params:z}"
+        )
+        assert referenced_steps(wf) == ["n01", "n02"]

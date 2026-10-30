@@ -154,6 +154,25 @@ class TestInputCommands:
         ]
 
 
+class TestSaveNode:
+    def test_reference_to_an_unconnected_step_adds_the_edge(self, client):
+        first = add_step(client, outdir="out")
+        second = add_step(client, input=f"${{{first}:params:outdir}}/samplesheet.csv")
+        transitions = client.get("/api/graph/").json()["transitions"]
+        assert [(t["source"], t["target"]) for t in transitions] == [(first, second)]
+
+    def test_update_adds_the_edge_too(self, client):
+        first = add_step(client, outdir="out")
+        second = add_step(client)
+        node = next(n for n in client.get("/api/graph/").json()["nodes"] if n["id"] == second)
+        response = client.post(
+            "/api/node/update/", json={**node, "params": {"outdir": f"${{{first}:params:outdir}}/x"}}
+        )
+        assert response.status_code == 200, response.json()
+        transitions = client.get("/api/graph/").json()["transitions"]
+        assert [(t["source"], t["target"]) for t in transitions] == [(first, second)]
+
+
 class TestNodeSchema:
     def test_schema_of_a_step(self, client):
         step = add_step(client)

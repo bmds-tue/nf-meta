@@ -9,11 +9,11 @@ import InputsNode from './components/InputsNode.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AppFooter from './components/AppFooter.vue'
 import AppSnackbar from './components/AppSnackbar.vue'
-import { useEditorStore, useGraphStore } from './store'
+import { useApiStore, useEditorStore, useGraphStore, useMessageStore } from './store'
 import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
-import AccessDenied from './components/AccessDenied.vue'
+import BackendNotice from './components/BackendNotice.vue'
 import { useLayout } from './layout_graph'
 import { useTheme } from 'vuetify'
 import { DARK_THEME, LIGHT_THEME, storeTheme, type ThemeName } from './themes'
@@ -97,6 +97,13 @@ const onOpen = () => {
   editorStore.openLoadDialog()
 }
 
+// Every change is already saved, so the editor can stop without asking
+const onQuit = async () => {
+  const result = await useApiStore().shutdown()
+  if (result.ok) editorStore.setBackendState('unreachable')
+  else useMessageStore().add(result.message, 'error')
+}
+
 const onUndo = async () => {
   undoing.value = true
   try { await graphStore.undo() } finally { undoing.value = false }
@@ -177,6 +184,8 @@ onMounted(async () => {
           <v-list-item title="Save" subtitle="Ctrl/⌘+S" @click="onSave" />
           <v-list-item title="Save as…" subtitle="Ctrl/⌘+Shift+S" @click="editorStore.openSaveDialog" />
           <v-list-item title="Load from URL" subtitle="Coming soon" disabled />
+          <v-divider class="my-1" />
+          <v-list-item title="Quit editor" subtitle="Stops nf-meta editor" @click="onQuit" />
         </v-list>
       </v-menu>
       <v-divider vertical inset class="mx-1" />
@@ -242,7 +251,7 @@ onMounted(async () => {
     </div>
     <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>
-    <AccessDenied></AccessDenied>
+    <BackendNotice></BackendNotice>
     <AppSnackbar></AppSnackbar>
     <AppFooter></AppFooter>
 </v-app>

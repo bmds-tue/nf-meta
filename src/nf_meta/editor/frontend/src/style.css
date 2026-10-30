@@ -25,17 +25,21 @@ html, body, #app, :root {
     border-radius: 8px;
     border-color: rgb(var(--v-theme-nodeDefaultBorder));
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    transition: box-shadow .15s;
 }
 
-.workflow-node:hover, .vue-flow__node.selected {
-    border-radius: 8px;
-    box-shadow:0 0 0 4px rgb(var(--v-theme-surface));
-    transition:box-shadow .2s;
+.workflow-node:hover {
+    box-shadow: 0 0 0 3px rgba(var(--v-theme-nodeHover), 0.8);
 }
 
+/* hovered from the sidebar (a step, or an input it gets) */
 .workflow-node-hovered {
-    box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4);
-    transition: box-shadow .2s;
+    box-shadow: 0 0 0 4px rgba(var(--v-theme-nodeHover), 0.9);
+}
+
+.vue-flow__node.selected .workflow-node,
+.vue-flow__node.selected .inputs-node {
+    box-shadow: 0 0 0 3px rgb(var(--v-theme-nodeSelected)), 0 0 18px 2px rgba(var(--v-theme-nodeSelected), 0.45);
 }
 
 .workflow-node-nfcore {

@@ -5,6 +5,7 @@ import type { ThemeDefinition } from 'vuetify'
 //   panel        sidebar background      node*        graph nodes
 //   edge         edges between steps     grid         canvas dots
 //   handle       node connection handles
+//   nodeHover / nodeSelected   rings around hovered and selected nodes
 // Inputs keep one purple everywhere (INPUT_COLOR) and nf-core its green.
 
 const nfcore = '#24B064'
@@ -30,41 +31,15 @@ const light: ThemeDefinition = {
     edge: '#2d3748',
     grid: '#81818a',
     handle: '#2d3f46',
+    nodeHover: '#64748b',
+    nodeSelected: '#2563eb',
     onSurface: '#cbd5e1',
     onBackground: '#303030',
     onPrimary: '#ffffff',
   },
 }
 
-// A: the current look carried over to dark: slate blues, blue accent
-const slate: ThemeDefinition = {
-  dark: true,
-  colors: {
-    background: '#0f172a',
-    surface: '#1e293b',
-    surfaceVariant: '#273449',
-    panel: '#162033',
-    primary: '#3b82f6',
-    primarySoft: '#2b5fb8',
-    success: '#22c55e',
-    warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#38bdf8',
-    nodeBackground: '#1e293b',
-    nodeText: '#e2e8f0',
-    nodeDefaultBorder: '#c2873a',
-    nodeNfCoreBorder: '#22a565',
-    nfcore,
-    edge: '#94a3b8',
-    grid: '#334155',
-    handle: '#64748b',
-    onSurface: '#e2e8f0',
-    onBackground: '#cbd5e1',
-    onPrimary: '#ffffff',
-  },
-}
-
-// B: neutral greys like a code editor, nf-core green as the accent
+// Dark: neutral greys like a code editor, nf-core green as the accent
 const graphite: ThemeDefinition = {
   dark: true,
   colors: {
@@ -86,60 +61,28 @@ const graphite: ThemeDefinition = {
     edge: '#b4b9c2',
     grid: '#3a3a3a',
     handle: '#9aa0a8',
+    nodeHover: '#8a8f98',
+    nodeSelected: '#ffffff',
     onSurface: '#f2f2f2',
     onBackground: '#e0e0e0',
     onPrimary: '#0b0b0b',
   },
 }
 
-// C: deep navy with a violet accent, closest to the input purple; the highest contrast
-const midnight: ThemeDefinition = {
-  dark: true,
-  colors: {
-    background: '#0a0d1a',
-    surface: '#151a30',
-    surfaceVariant: '#1f2542',
-    panel: '#10142a',
-    primary: '#8b5cf6',
-    primarySoft: '#6d48d6',
-    success: '#34d399',
-    warning: '#fbbf24',
-    error: '#fb7185',
-    info: '#60a5fa',
-    nodeBackground: '#151a30',
-    nodeText: '#eceefb',
-    nodeDefaultBorder: '#e0a04a',
-    nodeNfCoreBorder: '#2fbf71',
-    nfcore,
-    edge: '#7f8bbd',
-    grid: '#1e2442',
-    handle: '#5a6496',
-    onSurface: '#eceefb',
-    onBackground: '#c9cdea',
-    onPrimary: '#ffffff',
-  },
-}
-
-export const THEMES = { light, slate, graphite, midnight }
+export const THEMES = { light, graphite }
 export type ThemeName = keyof typeof THEMES
 
-export const THEME_CHOICES: { name: ThemeName, title: string, subtitle: string }[] = [
-  { name: 'slate', title: 'Dark: Slate', subtitle: 'Slate blues, blue accent' },
-  { name: 'graphite', title: 'Dark: Graphite', subtitle: 'Neutral greys, nf-core green' },
-  { name: 'midnight', title: 'Dark: Midnight', subtitle: 'Deep navy, violet accent' },
-  { name: 'light', title: 'Light', subtitle: 'Light canvas, dark cards' },
-]
-
-export const DEFAULT_THEME: ThemeName = 'slate'
+export const DARK_THEME: ThemeName = 'graphite'
+export const LIGHT_THEME: ThemeName = 'light'
 const STORAGE_KEY = 'theme'
 
 /** The theme picked in this browser, or the default (dark). */
 export function storedTheme(): ThemeName {
   try {
     const name = localStorage.getItem(STORAGE_KEY)
-    return name && name in THEMES ? name as ThemeName : DEFAULT_THEME
+    return name && name in THEMES ? name as ThemeName : DARK_THEME
   } catch {
-    return DEFAULT_THEME
+    return DARK_THEME
   }
 }
 

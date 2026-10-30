@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    addableParams, canShareInput, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    addableParams, canShareInput, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -241,5 +241,12 @@ describe('addableParams', () => {
         expect(addableParams(schema, ['input', 'genome']).map(p => [p.name, p.required, p.hidden])).toEqual([
             ['outdir', true, false], ['aligner', false, false], ['debug', false, true],
         ])
+    })
+})
+
+describe('unshownErrors', () => {
+    it('lists errors of fields the form does not show, labelled', () => {
+        expect(unshownErrors({ name: ['bad'], params: ['p'], nextflow_version: ['too old'], '': ['general'] }, ['name']))
+            .toEqual(['nextflow_version: too old', 'general'])
     })
 })

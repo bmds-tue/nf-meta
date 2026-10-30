@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useModuleStore, useGraphStore } from '../store';
-import { extractFieldErrors, inputFor, inputsOfStep, paramFieldErrors, shortVersion, withoutEmptyValues } from '../utils';
+import { extractFieldErrors, inputFor, inputsOfStep, paramFieldErrors, shortVersion, unshownErrors, withoutEmptyValues } from '../utils';
 import type { APINfModuleNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
 import YAML from 'yaml';
@@ -127,6 +127,9 @@ const boundParams = computed(() => Object.fromEntries(
     : [],
 ))
 const references = computed(() => graphStore.getReferenceTargets(form.value.id))
+// Errors no field of this form shows (e.g. a global setting the step conflicts with)
+const FORM_FIELDS = ['name', 'version', 'nf_config', 'container_engine']
+const otherErrors = computed(() => unshownErrors(errors.value, FORM_FIELDS))
 const paramErrors = ref<{ byParam: Record<string, string[]>, general: string[] }>({ byParam: {}, general: [] })
 
 function inputForParam(param: string) {
@@ -231,6 +234,11 @@ async function copyPath(text: string, field: string) {
         :error-messages="errors.container_engine" />
     </template>
 
+    <div v-for="message in otherErrors" :key="message" class="other-error d-flex align-center ga-2 text-body-2">
+      <v-icon icon="mdi-alert-circle" color="error" size="16" />
+      <span>{{ message }}</span>
+    </div>
+
     <div class="d-flex justify-end ga-1 pt-1">
       <v-btn size="small" variant="flat" color="primary" type="submit" :loading="saving" prepend-icon="mdi-check">Save</v-btn>
       <v-btn size="small" variant="text" color="error" @click="handleReset">Cancel</v-btn>
@@ -246,6 +254,9 @@ async function copyPath(text: string, field: string) {
 }
 .params-editor {
   height: 200px;
+}
+.other-error {
+  color: rgb(var(--v-theme-error));
 }
 .field-error {
   color: rgb(var(--v-theme-error));

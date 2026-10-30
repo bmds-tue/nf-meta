@@ -15,7 +15,7 @@ import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 import { useLayout } from './layout_graph'
 import { useTheme } from 'vuetify'
-import { THEME_CHOICES, storeTheme, type ThemeName } from './themes'
+import { DARK_THEME, LIGHT_THEME, storeTheme, type ThemeName } from './themes'
 // Inlined so the logo takes the text color (it is drawn in currentColor)
 import logoSvg from './assets/nf-meta-octo.svg?raw'
 import { DOCS_URL } from './links'
@@ -24,7 +24,7 @@ const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
 const theme = useTheme()
-const themeName = computed(() => theme.global.name.value)
+const isDark = computed(() => theme.global.name.value === DARK_THEME)
 // The canvas dots are an SVG attribute, so they need the color itself, not a CSS variable
 const gridColor = computed(() => theme.current.value.colors.grid as string)
 
@@ -204,16 +204,10 @@ onMounted(async () => {
           icon="mdi-dock-right" variant="text"
           :active="editorStore.sideBarOpen" active-color="primary"
           @click="editorStore.toggleSidebar" />
-        <v-menu location="bottom end">
-          <template #activator="{ props: menuProps }">
-            <v-btn v-bind="menuProps" title="Theme" icon="mdi-theme-light-dark" variant="text" class="mr-1" />
-          </template>
-          <v-list density="compact" :selected="[themeName]" @update:selected="(names: unknown[]) => names[0] && setTheme(names[0] as ThemeName)">
-            <v-list-item
-              v-for="choice in THEME_CHOICES" :key="choice.name" :value="choice.name"
-              :title="choice.title" :subtitle="choice.subtitle" color="primary" />
-          </v-list>
-        </v-menu>
+        <v-btn
+          :title="isDark ? 'Light theme' : 'Dark theme'"
+          :icon="isDark ? 'mdi-weather-sunny' : 'mdi-weather-night'" variant="text" class="mr-1"
+          @click="setTheme(isDark ? LIGHT_THEME : DARK_THEME)" />
       </div>
     </header>
 

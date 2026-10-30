@@ -196,7 +196,7 @@ function inputTitle(name: string) {
     <!-- Form -->
     <template v-else-if="mode === 'form'">
       <p v-for="message in generalErrors" :key="message" class="field-error mb-0">{{ message }}</p>
-      <div v-for="row in rows" :key="row.name" class="param-row" :class="{ missing: missing(row) }" :title="row.spec?.description">
+      <div v-for="row in rows" :key="row.name" class="param-row" :class="{ missing: missing(row), 'chip-row': !!inputChip(row) }" :title="row.spec?.description">
         <div class="param-main">
         <!-- a whole input: a chip, closed to give the param a value again -->
         <div v-if="inputChip(row)" class="chip-field">
@@ -268,7 +268,9 @@ function inputTitle(name: string) {
 
     <!-- YAML -->
     <template v-else>
-      <p v-if="!schema" class="text-body-2 muted mb-0">{{ error ?? 'No param schema for this step yet: edit the params as YAML.' }}</p>
+      <p v-if="!schema" class="text-body-2 muted mb-0">
+        No param schema{{ error ? `: ${error.replace(/\.\s*$/, '')}` : ' for this step yet' }}. Edit the params as YAML.
+      </p>
       <p v-for="message in allErrors" :key="message" class="field-error mb-0">{{ message }}</p>
       <div class="params-editor">
         <!-- empty rows of the form are left out: they aren't saved either -->
@@ -299,6 +301,11 @@ function inputTitle(name: string) {
 }
 .remove-btn {
   margin-top: 4px;
+}
+/* on a chip row: level with the chip, below its label */
+.chip-row .remove-btn {
+  align-self: flex-end;
+  margin: 0 0 -2px;
 }
 /* a required param without a value: an amber bar in the margin, like the required pills */
 .param-row.missing::before {

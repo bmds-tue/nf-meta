@@ -389,3 +389,15 @@ export function addableParams(schema: StepSchema | null | undefined, set: Iterab
         .map(([name, spec]) => ({ name, required: !!spec.required, hidden: !!spec.hidden, description: spec.description }))
         .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
 }
+
+/**
+ * The messages of `errors` (as from `extractFieldErrors`) that no field of a
+ * form shows, labelled with their field, e.g. a global setting a step's
+ * change conflicts with: `nextflow_version: …`.
+ */
+export function unshownErrors(errors: Record<string, string[]>, shown: Iterable<string>): string[] {
+    const fields = new Set(shown)
+    return Object.entries(errors)
+        .filter(([field]) => !fields.has(field) && field !== 'params')
+        .flatMap(([field, messages]) => messages.map(m => (field ? `${field}: ${m}` : m)))
+}

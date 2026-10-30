@@ -15,7 +15,9 @@ export const useApiStore = defineStore('api', () => {
             })
             const data = await response.json()
             if (!response.ok) {
-                if (response.status === 422) {
+                // A 422 with field or graph errors is a refused change; one with only
+                // a `detail` (e.g. a schema that can't be read) is a plain error
+                if (response.status === 422 && (data.field_errors || data.graph_errors)) {
                     return {
                         ok: false,
                         status: 422,

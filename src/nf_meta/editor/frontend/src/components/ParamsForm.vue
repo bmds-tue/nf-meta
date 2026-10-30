@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { INPUT_COLOR, REF_COLOR } from '../store'
 import type { ParamSpec, StepSchema } from '../types'
-import { paramRows, paramSuggestions, toParamValue, type ParamRow, type ReferenceTarget } from '../utils'
-import ParamAssist from './ParamAssist.vue'
+import { paramRows, paramSuggestions, toParamValue, withoutEmptyValues, type ParamRow, type ReferenceTarget } from '../utils'
 import ReferenceMenu from './ReferenceMenu.vue'
 import YamlEditor from './YamlEditor.vue'
 
@@ -41,12 +40,22 @@ const asked = ref<'form' | 'yaml'>('form')
 const mode = computed(() => !props.schema && !props.loading ? 'yaml' : asked.value)
 
 const rows = computed(() => paramRows(props.schema, params.value, props.bound))
-const optional = computed(() => paramSuggestions(props.schema, [...Object.keys(params.value), ...Object.keys(props.bound)]).optional)
-const optionalItems = computed(() => optional.value.map(name => ({ title: name, value: name, subtitle: props.schema?.[name]?.description })))
-const picked = ref<string | null>(null)
-const menuOpen = ref(false)
-
 const stepNames = computed(() => Object.fromEntries(props.references.map(t => [t.stepId, t.stepName.split('/').pop()])))
+
+// Every error of the last save, for the YAML view (the form shows them under their row)
+const allErrors = computed(() => [
+  ...props.generalErrors,
+  ...Object.entries(props.errors).flatMap(([param, messages]) => messages.map(m => `${param}: ${m}`)),
+])
+
+// "Add param": the schema's optional params not set yet, filtered by what is typed
+const addOpen = ref(false)
+const addFilter = ref('')
+const addable = computed(() => {
+  const set = [...Object.keys(params.value), ...Object.keys(props.bound)]
+  const text = addFilter.value.trim().toLowerCase()
+  return paramSuggestions(props.schema, set).optional.filter(name => !text || name.toLowerCase().includes(text))
+})
 
 function setParams(next: Record<string, unknown>) {
   emit('update:modelValue', Object.keys(next).length ? next : undefined)
@@ -63,18 +72,22 @@ function remove(name: string) {
   setParams(next)
 }
 
-function setInput(name: string) {
-  setValue(name, `\${inputs:${props.inputFor(name).name}}`)
+function inputValue(name: string) {
+  return `\${inputs:${props.inputFor(name).name}}`
 }
 
-function setReference(name: string, stepId: string, key: string) {
-  setValue(name, `\${${stepId}:params:${key}}`)
+function referenceValue(stepId: string, key: string) {
+  return `\${${stepId}:params:${key}}`
 }
 
-function addOptional(name: string | null, value = '') {
-  if (name) setValue(name, value)
-  picked.value = null
-  menuOpen.value = false
+const yamlEditor = ref<InstanceType<typeof YamlEditor>>()
+
+// Add a param from the "Add param" menu: to the form, or as a line of the YAML
+function add(name: string, value = '') {
+  if (mode.value === 'yaml') yamlEditor.value?.addParam(name, value)
+  else setValue(name, value)
+  addOpen.value = false
+  addFilter.value = ''
 }
 
 // How a row's value is shown: a chip for a whole input or reference, else a field
@@ -95,10 +108,6 @@ function fieldKind(spec?: ParamSpec): 'enum' | 'boolean' | 'number' | 'text' {
   return 'text'
 }
 
-function enumItems(spec?: ParamSpec): unknown[] {
-  return spec?.enum ?? []
-}
-
 function isPath(spec?: ParamSpec) {
   return PATH_FORMATS.has(spec?.format ?? '') || MODULE_PATH_TYPES.has(spec?.type ?? '')
 }
@@ -107,40 +116,52 @@ function missing(row: ParamRow) {
   return row.required && !row.boundBy && (row.value === undefined || row.value === null || row.value === '')
 }
 
+function label(row: ParamRow) {
+  return row.required ? `${row.name} *` : row.name
+}
+
 function inputTitle(name: string) {
   const { name: input, shared } = props.inputFor(name)
   return shared ? `Fill '${name}' per run with the existing input '${input}'` : `Fill '${name}' per run: new input '${input}'`
-}
-
-// YAML mode: the existing editor with its param pills
-const yamlEditor = ref<InstanceType<typeof YamlEditor>>()
-const setInYaml = computed(() => [...Object.keys(params.value), ...Object.keys(props.bound)])
-const valuedInYaml = computed(() => Object.keys(params.value))
-
-function addInYaml(param: string, value: string) {
-  yamlEditor.value?.addParam(param, value)
-}
-
-function switchMode(next: 'form' | 'yaml') {
-  asked.value = next
-  nextTick()
 }
 </script>
 
 <template>
   <div class="params-form">
-    <div class="d-flex align-center mb-1">
+    <div class="d-flex align-center ga-1">
       <span class="text-caption">Params</span>
       <v-spacer />
-      <v-btn-toggle
-        :model-value="mode" mandatory density="compact" variant="text" class="mode-toggle"
-        @update:model-value="switchMode">
+      <v-menu v-if="schema" v-model="addOpen" location="bottom end" :close-on-content-click="false">
+        <template #activator="{ props: menuProps }">
+          <v-btn v-bind="menuProps" size="x-small" variant="tonal" color="info" prepend-icon="mdi-plus">Add param</v-btn>
+        </template>
+        <v-card class="add-menu">
+          <v-text-field
+            v-model="addFilter" placeholder="Search optional params" prepend-inner-icon="mdi-magnify"
+            variant="solo-filled" density="compact" hide-details flat autofocus />
+          <v-list density="compact" class="add-list">
+            <v-list-item v-if="!addable.length" disabled title="No more optional params" />
+            <v-list-item
+              v-for="name in addable" :key="name"
+              :title="name" :subtitle="schema[name]?.description" lines="one"
+              @click="add(name)">
+              <template #append>
+                <ReferenceMenu :param="name" :references="references" :size="24" location="end" class="mr-1"
+                  @pick="(stepId, key) => add(name, referenceValue(stepId, key))" />
+                <v-btn
+                  icon="mdi-import" size="24" variant="flat" class="pill-btn"
+                  :color="INPUT_COLOR" :title="inputTitle(name)"
+                  @click.stop="add(name, inputValue(name))" />
+              </template>
+            </v-list-item>
+          </v-list>
+        </v-card>
+      </v-menu>
+      <v-btn-toggle v-model="asked" mandatory density="compact" variant="text" class="mode-toggle">
         <v-btn value="form" size="x-small" :disabled="!schema" title="One field per param, from the schema">Form</v-btn>
         <v-btn value="yaml" size="x-small" title="Edit the params as YAML">YAML</v-btn>
       </v-btn-toggle>
     </div>
-
-    <p v-for="message in generalErrors" :key="message" class="field-error mb-1">{{ message }}</p>
 
     <div v-if="loading" class="text-body-2 muted">
       <v-progress-circular indeterminate size="14" width="2" class="mr-1" /> Loading params…
@@ -148,33 +169,33 @@ function switchMode(next: 'form' | 'yaml') {
 
     <!-- Form -->
     <template v-else-if="mode === 'form'">
-      <div v-for="row in rows" :key="row.name" class="param-row" :class="{ missing: missing(row) }">
+      <p v-for="message in generalErrors" :key="message" class="field-error mb-0">{{ message }}</p>
+      <div v-for="row in rows" :key="row.name" class="param-row" :class="{ missing: missing(row) }" :title="row.spec?.description">
         <div class="param-field">
-          <!-- a whole input or reference: a chip, cleared to edit the value again -->
-          <v-text-field
-            v-if="chip(row)"
-            :model-value="chip(row)!.text"
-            :label="row.required ? `${row.name} *` : row.name"
-            :hint="chip(row)!.bound ? 'Bound with bind: in the inputs section; change it in the Inputs tab' : row.spec?.description"
-            readonly
-            :clearable="!chip(row)!.bound"
-            :prepend-inner-icon="chip(row)!.kind === 'input' ? 'mdi-import' : 'mdi-transit-connection-variant'"
-            :class="['value-chip', chip(row)!.kind === 'input' ? 'is-input' : 'is-ref']"
-            variant="outlined" density="compact" hide-details="auto"
-            :error-messages="errors[row.name]"
-            @click:clear="setValue(row.name, '')" />
+          <!-- a whole input or reference: a chip, closed to edit the value again -->
+          <div v-if="chip(row)" class="chip-field">
+            <span class="chip-label">{{ label(row) }}</span>
+            <v-chip
+              size="small" variant="tonal"
+              :color="chip(row)!.kind === 'input' ? INPUT_COLOR : REF_COLOR"
+              :prepend-icon="chip(row)!.kind === 'input' ? 'mdi-import' : 'mdi-transit-connection-variant'"
+              :closable="!chip(row)!.bound"
+              :title="chip(row)!.bound ? 'Bound with bind: in the inputs section; change it in the Inputs tab' : undefined"
+              @click:close="setValue(row.name, '')">
+              {{ chip(row)!.text }}
+            </v-chip>
+            <div v-for="message in errors[row.name] ?? []" :key="message" class="field-error">{{ message }}</div>
+          </div>
           <v-select
             v-else-if="fieldKind(row.spec) === 'enum'"
-            :model-value="row.value" :items="enumItems(row.spec)"
-            :label="row.required ? `${row.name} *` : row.name" :hint="row.spec?.description"
+            :model-value="row.value" :items="row.spec?.enum ?? []" :label="label(row)"
             :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
             clearable variant="outlined" density="compact" hide-details="auto"
             :error-messages="errors[row.name]"
             @update:model-value="(v: unknown) => setValue(row.name, v ?? '')" />
           <v-select
             v-else-if="fieldKind(row.spec) === 'boolean'"
-            :model-value="row.value" :items="BOOLEANS"
-            :label="row.required ? `${row.name} *` : row.name" :hint="row.spec?.description"
+            :model-value="row.value" :items="BOOLEANS" :label="label(row)"
             :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
             clearable variant="outlined" density="compact" hide-details="auto"
             :error-messages="errors[row.name]"
@@ -183,7 +204,7 @@ function switchMode(next: 'form' | 'yaml') {
             v-else
             :model-value="row.value === undefined || row.value === null ? '' : String(row.value)"
             :type="fieldKind(row.spec) === 'number' ? 'number' : 'text'"
-            :label="row.required ? `${row.name} *` : row.name" :hint="row.spec?.description"
+            :label="label(row)"
             :prepend-inner-icon="isPath(row.spec) ? 'mdi-file-outline' : undefined"
             :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
             variant="outlined" density="compact" hide-details="auto" class="value-text"
@@ -192,11 +213,11 @@ function switchMode(next: 'form' | 'yaml') {
         </div>
         <div class="param-actions">
           <template v-if="!row.boundBy">
-            <ReferenceMenu :param="row.name" :references="references" :size="24" @pick="(stepId, key) => setReference(row.name, stepId, key)" />
+            <ReferenceMenu :param="row.name" :references="references" :size="24" @pick="(stepId, key) => setValue(row.name, referenceValue(stepId, key))" />
             <v-btn
               icon="mdi-import" size="24" variant="flat" class="pill-btn"
               :color="INPUT_COLOR" :title="inputTitle(row.name)"
-              @click="setInput(row.name)" />
+              @click="setValue(row.name, inputValue(row.name))" />
           </template>
           <v-btn
             v-if="!row.required && !row.boundBy"
@@ -205,41 +226,15 @@ function switchMode(next: 'form' | 'yaml') {
           <span v-else class="action-spacer" />
         </div>
       </div>
-
-      <v-autocomplete
-        v-if="optionalItems.length"
-        v-model="picked"
-        v-model:menu="menuOpen"
-        :items="optionalItems"
-        label="Add an optional param"
-        color="info" base-color="info"
-        prepend-inner-icon="mdi-plus"
-        variant="outlined" density="compact" hide-details class="mt-1"
-        @update:model-value="addOptional">
-        <template #item="{ props: itemProps, item }">
-          <v-list-item v-bind="itemProps" :subtitle="item.subtitle" lines="one">
-            <template #append>
-              <ReferenceMenu :param="item.value" :references="references" :size="26" location="end" class="mr-1"
-                @pick="(stepId, key) => addOptional(item.value, `\${${stepId}:params:${key}}`)" />
-              <v-btn
-                icon="mdi-import" size="26" variant="flat" class="pill-btn"
-                :color="INPUT_COLOR" :title="inputTitle(item.value)"
-                @click.stop="addOptional(item.value, `\${inputs:${inputFor(item.value).name}}`)" />
-            </template>
-          </v-list-item>
-        </template>
-      </v-autocomplete>
     </template>
 
     <!-- YAML -->
     <template v-else>
-      <p v-if="!schema" class="text-body-2 muted mb-1">{{ error ?? 'No param schema for this step yet: edit the params as YAML.' }}</p>
-      <ParamAssist
-        :schema="schema" :error="undefined"
-        :set-params="setInYaml" :input-for="inputFor" :references="references" :valued-params="valuedInYaml"
-        @add="addInYaml" />
+      <p v-if="!schema" class="text-body-2 muted mb-0">{{ error ?? 'No param schema for this step yet: edit the params as YAML.' }}</p>
+      <p v-for="message in allErrors" :key="message" class="field-error mb-0">{{ message }}</p>
       <div class="params-editor">
-        <YamlEditor ref="yamlEditor" :model-value="modelValue" :node-id="nodeId" @update:model-value="(v) => emit('update:modelValue', v)" />
+        <!-- empty rows of the form are left out: they aren't saved either -->
+        <YamlEditor ref="yamlEditor" :model-value="withoutEmptyValues(modelValue)" :node-id="nodeId" @update:model-value="(v) => emit('update:modelValue', v)" />
       </div>
     </template>
   </div>
@@ -271,6 +266,17 @@ function switchMode(next: 'form' | 'yaml') {
   flex: 1;
   min-width: 0;
 }
+.chip-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0 2px 2px;
+}
+.chip-label {
+  font-size: 0.75rem;
+  opacity: 0.72;
+}
 .param-actions {
   display: flex;
   align-items: center;
@@ -284,22 +290,18 @@ function switchMode(next: 'form' | 'yaml') {
   font-family: monospace;
   font-size: 0.85rem;
 }
-.value-chip.is-input :deep(input),
-.value-chip.is-input :deep(.v-field__prepend-inner .v-icon) {
-  color: v-bind(INPUT_COLOR);
-  opacity: 1;
-}
-.value-chip.is-ref :deep(input),
-.value-chip.is-ref :deep(.v-field__prepend-inner .v-icon) {
-  color: v-bind(REF_COLOR);
-  opacity: 1;
-}
 .pill-btn :deep(.v-icon) {
   color: white;
   font-size: 15px;
 }
+.add-menu {
+  width: 340px;
+}
+.add-list {
+  max-height: 320px;
+}
 .params-editor {
-  height: 200px;
+  height: 220px;
 }
 .field-error {
   color: rgb(var(--v-theme-error));

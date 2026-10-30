@@ -258,28 +258,28 @@ const pathRows = computed(() => [
       <v-text-field
         v-model="form.params_file"
         label="Params file"
-        hint="YAML/JSON file with params; relative to the config file"
+        placeholder="YAML/JSON file, relative to the config file" persistent-placeholder
         prepend-inner-icon="mdi-file-document-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.params_file" />
       <v-text-field
         v-model="form.nf_config"
         label="Nextflow config"
-        hint="Relative to the config file"
+        placeholder="Path, relative to the config file" persistent-placeholder
         prepend-inner-icon="mdi-cog-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.nf_config" />
       <v-text-field
         v-model="form.nf_profile"
         label="Nextflow profile(s)"
-        hint="Comma-separated, e.g. docker,test"
+        placeholder="e.g. docker,test" persistent-placeholder
         prepend-inner-icon="mdi-account-cog-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.nf_profile" />
       <v-text-field
         v-model="form.main_script"
         label="Main script"
-        hint="Entry script in the repository, if not main.nf"
+        placeholder="Entry script, if not main.nf" persistent-placeholder
         prepend-inner-icon="mdi-script-text-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.main_script" />

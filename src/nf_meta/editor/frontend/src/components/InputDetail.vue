@@ -207,6 +207,8 @@ async function save() {
 
 const deleteProblem = ref<string>()
 
+let deleteProblemTimer: ReturnType<typeof setTimeout> | undefined
+
 async function remove() {
   if (!props.input) return
   deleteProblem.value = undefined
@@ -215,6 +217,9 @@ async function remove() {
     deleteProblem.value = result.fieldErrors?.length
       ? inputDeleteProblem(props.input.name, result.fieldErrors, graphStore.nodeData)
       : result.graphErrors?.[0] ?? result.message
+    // shown for a while, then gone on its own
+    clearTimeout(deleteProblemTimer)
+    deleteProblemTimer = setTimeout(() => { deleteProblem.value = undefined }, 8000)
   }
 }
 
@@ -281,11 +286,10 @@ watch(isFlashing, async (flashing) => {
         </v-chip>
       </div>
 
-      <v-alert
-        v-if="deleteProblem" type="error" variant="tonal" density="compact" class="mt-2 text-body-2"
-        closable @click:close="deleteProblem = undefined">
-        {{ deleteProblem }}
-      </v-alert>
+      <div v-if="deleteProblem" class="delete-problem d-flex align-center ga-2 mt-2 text-body-2">
+        <v-icon icon="mdi-alert-circle" color="error" size="18" />
+        <span class="flex-grow-1">{{ deleteProblem }}</span>
+      </div>
 
       <div v-for="d in [...errors, ...warnings]" :key="d.yaml_path + d.message" class="d-flex align-center ga-1 text-caption mt-1">
         <v-icon
@@ -302,7 +306,7 @@ watch(isFlashing, async (flashing) => {
         <v-text-field
           v-model="form.name"
           label="Name"
-          hint="Referenced as ${inputs:<name>}"
+          placeholder="Referenced as ${inputs:<name>}" persistent-placeholder
           variant="outlined" density="compact" hide-details="auto" :autofocus="isNew"
           :error-messages="fieldErrors.name" />
 
@@ -344,7 +348,7 @@ watch(isFlashing, async (flashing) => {
           v-model="form.default"
           :type="effectiveType === 'integer' || effectiveType === 'number' ? 'number' : 'text'"
           :prepend-inner-icon="isPath ? 'mdi-file-outline' : undefined"
-          :hint="isPath ? 'Relative paths are relative to the config file' : undefined"
+          :placeholder="isPath ? 'Path, relative to the config file' : undefined" :persistent-placeholder="isPath"
           label="Default"
           clearable
           variant="outlined" density="compact" hide-details="auto"
@@ -440,6 +444,11 @@ watch(isFlashing, async (flashing) => {
 }
 .binding-chip:hover .binding-step {
   text-decoration: underline;
+}
+.delete-problem {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(var(--v-theme-error), 0.12);
 }
 .compact-form {
   display: flex;

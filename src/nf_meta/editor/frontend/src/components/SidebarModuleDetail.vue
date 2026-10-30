@@ -218,7 +218,7 @@ async function copyPath(text: string, field: string) {
       <v-text-field
         v-model="form.nf_config"
         label="Nextflow config"
-        hint="Relative to the config file"
+        placeholder="Path, relative to the config file" persistent-placeholder
         prepend-inner-icon="mdi-cog-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.nf_config" />

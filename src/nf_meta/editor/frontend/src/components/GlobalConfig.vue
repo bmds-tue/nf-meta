@@ -92,21 +92,21 @@ async function save() {
         <v-text-field
           v-model="form.nextflow_version"
           label="Nextflow version"
-          hint="e.g. 25.10 or 25.10.4-edge; checked against the installed Nextflow before a run"
+          placeholder="e.g. 25.10 or 25.10.4-edge" persistent-placeholder title="Checked against the installed Nextflow before a run"
           prepend-inner-icon="mdi-tag-outline"
           variant="outlined" density="compact" hide-details="auto" clearable
           :error-messages="errors.nextflow_version" />
         <v-text-field
           v-model="form.nf_profile"
           label="Nextflow profile(s)"
-          hint="Comma-separated, e.g. docker,test"
+          placeholder="e.g. docker,test" persistent-placeholder
           prepend-inner-icon="mdi-account-cog-outline"
           variant="outlined" density="compact" hide-details="auto" clearable
           :error-messages="errors.nf_profile" />
         <v-text-field
           v-model="form.nf_config"
           label="Nextflow config"
-          hint="Relative to the config file"
+          placeholder="Path, relative to the config file" persistent-placeholder
           prepend-inner-icon="mdi-cog-outline"
           variant="outlined" density="compact" hide-details="auto" clearable
           :error-messages="errors.nf_config" />

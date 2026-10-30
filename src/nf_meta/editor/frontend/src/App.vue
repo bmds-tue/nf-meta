@@ -163,20 +163,17 @@ onMounted(async () => {
     <header class="app-bar">
       <a class="logo" :href="DOCS_URL" target="_blank" title="nf-meta: open the documentation" v-html="logoSvg"></a>
 
-      <div class="bar-group">
-        <v-btn title="Add a workflow" icon="mdi-plus" variant="text" @click="onAddNodeClick" />
-        <v-btn title="Save to file" icon="mdi-content-save-outline" variant="text" :loading="saving" @click="onSave" />
+      <!-- config file -->
+      <div class="bar-group" aria-label="Config file">
         <v-btn title="Open a config" icon="mdi-folder-open-outline" variant="text" @click="onOpen" />
+        <v-btn title="Save to file" icon="mdi-content-save-outline" variant="text" :loading="saving" @click="onSave" />
       </div>
-      <v-divider vertical inset />
-      <div class="bar-group">
+      <v-divider vertical inset class="mx-1" />
+      <!-- graph -->
+      <div class="bar-group" aria-label="Graph">
+        <v-btn title="Add a workflow" icon="mdi-plus" variant="text" @click="onAddNodeClick" />
         <v-btn title="Undo" icon="mdi-undo" variant="text" :disabled="!graphStore.undoable" :loading="undoing" @click="onUndo" />
         <v-btn title="Redo" icon="mdi-redo" variant="text" :disabled="!graphStore.redoable" :loading="redoing" @click="onRedo" />
-      </div>
-
-      <v-spacer />
-
-      <div class="bar-group">
         <v-btn
           :title="graphStore.showInputsNode ? 'Hide the inputs node' : 'Show the inputs node'"
           icon="mdi-import" variant="text"
@@ -186,23 +183,28 @@ onMounted(async () => {
           :title="graphStore.isHorizontalLayout ? 'Vertical layout' : 'Horizontal layout'"
           :icon="graphStore.isHorizontalLayout ? 'mdi-arrow-up-down' : 'mdi-arrow-left-right'" variant="text"
           @click="toggleLayoutAndFitView" />
+      </div>
+
+      <v-spacer />
+
+      <!-- editor -->
+      <div class="bar-group" aria-label="Editor">
         <v-btn
           title="Show or hide the sidebar"
           icon="mdi-dock-right" variant="text"
           :active="editorStore.sideBarOpen" active-color="primary"
           @click="editorStore.toggleSidebar" />
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn v-bind="menuProps" title="Theme" icon="mdi-theme-light-dark" variant="text" class="mr-1" />
+          </template>
+          <v-list density="compact" :selected="[themeName]" @update:selected="(names: unknown[]) => names[0] && setTheme(names[0] as ThemeName)">
+            <v-list-item
+              v-for="choice in THEME_CHOICES" :key="choice.name" :value="choice.name"
+              :title="choice.title" :subtitle="choice.subtitle" color="primary" />
+          </v-list>
+        </v-menu>
       </div>
-      <v-divider vertical inset />
-      <v-menu location="bottom end">
-        <template #activator="{ props: menuProps }">
-          <v-btn v-bind="menuProps" title="Theme" icon="mdi-theme-light-dark" variant="text" class="mr-1" />
-        </template>
-        <v-list density="compact" :selected="[themeName]" @update:selected="(names: unknown[]) => names[0] && setTheme(names[0] as ThemeName)">
-          <v-list-item
-            v-for="choice in THEME_CHOICES" :key="choice.name" :value="choice.name"
-            :title="choice.title" :subtitle="choice.subtitle" color="primary" />
-        </v-list>
-      </v-menu>
     </header>
 
     <div class="split-view">

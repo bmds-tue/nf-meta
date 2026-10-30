@@ -52,10 +52,10 @@ function inputTitle(param: string) {
     : `Fill '${param}' per run: new input '${name}'`
 }
 
+const NO_REFERENCES = 'No previous step yet: connect a step to this one first'
+
 function referenceTitle(param: string) {
-  return canReference.value
-    ? `Fill '${param}' with a param of a previous step`
-    : `Fill '${param}' with a param of a previous step: connect a step to this one first`
+  return `Fill '${param}' with a param of a previous step`
 }
 </script>
 
@@ -80,10 +80,11 @@ function referenceTitle(param: string) {
                 <v-btn
                   v-bind="menuProps"
                   icon="mdi-transit-connection-variant" size="22" variant="flat" class="pill-btn ml-2"
-                  :color="REF_COLOR" :disabled="!canReference" :title="referenceTitle(param)"
+                  :color="REF_COLOR" :title="referenceTitle(param)"
                   @click.stop />
               </template>
               <v-list density="compact" class="reference-list">
+                <v-list-item v-if="!canReference" disabled :title="NO_REFERENCES" />
                 <template v-for="target in references" :key="target.stepId">
                   <v-list-subheader>{{ target.stepName }} ({{ target.stepId }})</v-list-subheader>
                   <v-list-item
@@ -123,10 +124,11 @@ function referenceTitle(param: string) {
                   <v-btn
                     v-bind="menuProps"
                     icon="mdi-transit-connection-variant" size="26" variant="flat" class="pill-btn mr-1"
-                    :color="REF_COLOR" :disabled="!canReference" :title="referenceTitle(item.value)"
+                    :color="REF_COLOR" :title="referenceTitle(item.value)"
                     @click.stop />
                 </template>
                 <v-list density="compact" class="reference-list">
+                  <v-list-item v-if="!canReference" disabled :title="NO_REFERENCES" />
                   <template v-for="target in references" :key="target.stepId">
                     <v-list-subheader>{{ target.stepName }} ({{ target.stepId }})</v-list-subheader>
                     <v-list-item

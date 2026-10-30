@@ -26,7 +26,8 @@ const pipelineData = computed<APINfPipelineNodeData>(() => {
   if ('type' in props.detailData && props.detailData.type === WorkflowType.NF_PIPELINE) {
     return props.detailData as APINfPipelineNodeData
   }
-  return { type: WorkflowType.NF_PIPELINE }
+  // a new pipeline starts as an nf-core one
+  return { type: WorkflowType.NF_PIPELINE, is_nfcore: true }
 })
 
 const moduleData = computed<APINfModuleNodeData>(() => {
@@ -50,8 +51,6 @@ function removeDetail() {
 
 const displayName = computed(() => {
   if ('name' in props.detailData && props.detailData.name) return props.detailData.name
-  if (confirmedType.value === WorkflowType.NF_PIPELINE) return 'Add Pipeline'
-  if (confirmedType.value === WorkflowType.NF_MODULE) return 'Add Module'
   return 'Add Workflow'
 })
 

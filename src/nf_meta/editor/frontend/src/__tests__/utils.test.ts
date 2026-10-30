@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    canShareInput, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    canShareInput, inputDeleteProblem, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -170,3 +170,19 @@ describe('referenceTargets', () => {
 })
 
 
+
+describe('inputDeleteProblem', () => {
+    const nodes = [{ type: 'nf-pipeline' as const, id: 'n01', name: 'nf-core/fetchngs' }]
+
+    it('names the required params the input fills', () => {
+        const message = inputDeleteProblem('ids', [
+            { workflow_id: 'n01', field: 'params.input', message: "Required parameter 'input' is not set. Provide it…" },
+        ], nodes)
+        expect(message).toBe("Can't delete 'ids': it fills 'input' of nf-core/fetchngs (n01), which is required. Give the param a value in the step first.")
+    })
+
+    it('passes other errors on', () => {
+        expect(inputDeleteProblem('ids', [{ workflow_id: null, field: 'inputs.ids', message: 'boom' }], nodes))
+            .toBe("Can't delete 'ids': boom")
+    })
+})

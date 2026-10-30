@@ -270,3 +270,25 @@ export function referencableParams(node: APINodeData, inputs: APIInput[]): Refer
     }
     return [...params.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
+
+/**
+ * Why input `name` can't be deleted, from the errors the API returned: the
+ * steps that would be left without a value for a required param (by step
+ * name), or the errors as they are.
+ */
+export function inputDeleteProblem(name: string, fieldErrors: FieldError[], nodes: APINodeData[]): string {
+    const required: string[] = []
+    const other: string[] = []
+    for (const err of fieldErrors) {
+        const param = err.field.replace(/^params\./, '')
+        const step = nodes.find(n => n.id === err.workflow_id)
+        const where = step ? `${step.name ?? step.id} (${step.id})` : (err.workflow_id ?? err.field)
+        if (err.workflow_id && /^Required parameter/.test(err.message)) required.push(`'${param}' of ${where}`)
+        else other.push(err.workflow_id ? `${where} · ${param}: ${err.message}` : err.message)
+    }
+    if (required.length && !other.length) {
+        return `Can't delete '${name}': it fills ${required.join(', ')}, which ${required.length === 1 ? 'is' : 'are'} required. ` +
+            'Give the param a value in the step first.'
+    }
+    return `Can't delete '${name}': ${[...required.map(r => `${r} would be unset`), ...other].join('; ')}`
+}

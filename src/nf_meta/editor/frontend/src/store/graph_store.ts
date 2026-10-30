@@ -157,9 +157,10 @@ export const useGraphStore = defineStore('graph', () => {
         }
     }
 
-    async function applyMutation(result: ApiResult<APICommandResponse>, successMessage?: string) {
+    // With `quiet`, a refused change shows no message: the caller explains it where it happened
+    async function applyMutation(result: ApiResult<APICommandResponse>, successMessage?: string, quiet = false) {
         if (!result.ok) {
-            handleErrors(result)
+            if (!quiet || result.status !== 422) handleErrors(result)
         } else {
             activityStore.pushEvents(result.data.events ?? [])
             await getAndUpdateGraph()
@@ -196,7 +197,7 @@ export const useGraphStore = defineStore('graph', () => {
     }
 
     async function removeInput(name: string) {
-        return applyMutation(await apiStore.deleteInput(name))
+        return applyMutation(await apiStore.deleteInput(name), undefined, true)
     }
 
     async function removeSelectionById(selection: Selection) {

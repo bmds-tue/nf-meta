@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { INPUT_COLOR, useApiStore, useEditorStore, useGraphStore } from '../store'
 import type { APIInput, APIInputDefinition, StepSchema, Scalar } from '../types'
-import { cleanInputDefinition, extractInputFieldErrors } from '../utils'
+import { cleanInputDefinition, extractInputFieldErrors, inputDeleteProblem } from '../utils'
 
 const props = defineProps<{
   // The input shown; none for an input being added
@@ -205,8 +205,17 @@ async function save() {
   }
 }
 
+const deleteProblem = ref<string>()
+
 async function remove() {
-  if (props.input) await graphStore.removeInput(props.input.name)
+  if (!props.input) return
+  deleteProblem.value = undefined
+  const result = await graphStore.removeInput(props.input.name)
+  if (!result.ok) {
+    deleteProblem.value = result.fieldErrors?.length
+      ? inputDeleteProblem(props.input.name, result.fieldErrors, graphStore.nodeData)
+      : result.graphErrors?.[0] ?? result.message
+  }
 }
 
 function openStep(stepId: string) {
@@ -271,6 +280,12 @@ watch(isFlashing, async (flashing) => {
           {{ kw.key }}: {{ kw.value }}
         </v-chip>
       </div>
+
+      <v-alert
+        v-if="deleteProblem" type="error" variant="tonal" density="compact" class="mt-2 text-body-2"
+        closable @click:close="deleteProblem = undefined">
+        {{ deleteProblem }}
+      </v-alert>
 
       <div v-for="d in [...errors, ...warnings]" :key="d.yaml_path + d.message" class="d-flex align-center ga-1 text-caption mt-1">
         <v-icon

@@ -56,12 +56,14 @@ async function copyToClipboard() {
             <v-chip
                 v-if="data.version"
                 class="ml-2"
+                size="small"
                 :title="data.version">
                 {{ shortVersion(data.version) }}
             </v-chip>
             <v-chip
                 v-if="isModule"
                 color="success"
+                size="small"
                 class="ml-1">
                 module
             </v-chip>

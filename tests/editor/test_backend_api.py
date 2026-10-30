@@ -220,6 +220,18 @@ class TestLoadAndSave:
         assert "Can't write" in response.json()["detail"]
 
 
+class TestFiles:
+    def test_starts_in_the_folder_of_the_config(self, client, config):
+        listing = client.get("/api/files/").json()
+        assert listing["path"] == str(config.parent.resolve())
+        assert ("file", "mp.yaml") in [(e["kind"], e["name"]) for e in listing["entries"]]
+
+    def test_missing_folder(self, client, tmp_path):
+        response = client.get("/api/files/", params={"path": str(tmp_path / "nope")})
+        assert response.status_code == 404
+        assert "No such folder" in response.json()["detail"]
+
+
 class TestNodeSchema:
     def test_schema_of_a_step(self, client):
         step = add_step(client)

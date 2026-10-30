@@ -15,7 +15,7 @@ Find a growing collection of examples in the dedicated
 
 Start the editor with `nf-meta editor [metapipeline.yaml]`. Configs on a cluster? Run it there and
 use it from your own browser through an SSH tunnel:
-[Editor on a remote machine (HPC)](https://bmds-tue.github.io/nf-meta/latest/editor/remote/).
+[Running the editor on a remote machine](https://bmds-tue.github.io/nf-meta/latest/editor/#running-the-editor-on-a-remote-machine).
 
 ## Representation
 

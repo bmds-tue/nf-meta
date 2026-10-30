@@ -92,9 +92,7 @@ nav:
       - representation/overview.md
       - representation/reference.md
       - representation/interpolation.md
-  - Editor:
-      - editor/index.md
-      - Remote machine (HPC): editor/remote.md
+  - Editor: editor/index.md
   - Runners:
       - runners/index.md
       - runners/python-runner.md

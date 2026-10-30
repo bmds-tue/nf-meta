@@ -112,6 +112,7 @@ export type APIInput = {
 export type ParamSpec = {
   type?: string,
   format?: string,
+  enum?: unknown[] | null,
   description?: string,
   required?: boolean,
   hidden?: boolean,

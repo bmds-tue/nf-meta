@@ -292,3 +292,74 @@ export function inputDeleteProblem(name: string, fieldErrors: FieldError[], node
     }
     return `Can't delete '${name}': ${[...required.map(r => `${r} would be unset`), ...other].join('; ')}`
 }
+
+export type ParamRow = {
+    name: string,
+    spec?: ParamSpec,
+    required: boolean,
+    // The value in the step's params (undefined: not set)
+    value: unknown,
+    // Filled by this input with bind: (not in the step's params)
+    boundBy?: string,
+}
+
+/**
+ * The rows of a step's params form, in order: the schema's required params
+ * (set or not), then params filled by a `bind:` input, then the other params
+ * the step sets (optional ones of the schema, then unknown ones, each sorted).
+ */
+export function paramRows(
+    schema: StepSchema | null | undefined, params: Record<string, unknown> | undefined, bound: Record<string, string>,
+): ParamRow[] {
+    const values = params ?? {}
+    const specs = schema ?? {}
+    const rows: ParamRow[] = []
+    const seen = new Set<string>()
+    const push = (name: string) => {
+        if (seen.has(name)) return
+        seen.add(name)
+        rows.push({ name, spec: specs[name], required: !!specs[name]?.required, value: values[name], boundBy: bound[name] })
+    }
+    Object.keys(specs).filter(name => specs[name]!.required).sort().forEach(push)
+    Object.keys(bound).sort().forEach(push)
+    Object.keys(values).filter(name => name in specs).sort().forEach(push)
+    Object.keys(values).filter(name => !(name in specs)).sort().forEach(push)
+    return rows
+}
+
+/**
+ * The API's field errors for one step's params, by param (`params.<name>`),
+ * and the ones about the params as a whole. Same filtering as
+ * `extractFieldErrors`.
+ */
+export function paramFieldErrors(
+    fieldErrors: FieldError[], workflowId: string | null,
+): { byParam: Record<string, string[]>, general: string[] } {
+    const byParam: Record<string, string[]> = {}
+    const general: string[] = []
+    const discriminators = new Set<string>(Object.values(WorkflowType))
+    for (const err of fieldErrors.filter(e => workflowId === null || e.workflow_id === workflowId || e.workflow_id === null)) {
+        const parts = err.field.split('.')
+        const field = parts.length > 1 && discriminators.has(parts[0]!) ? parts.slice(1).join('.') : err.field
+        if (field.startsWith('params.')) (byParam[field.slice('params.'.length)] ??= []).push(err.message)
+        else if (field === 'params') general.push(err.message)
+    }
+    return { byParam, general }
+}
+
+/** A form field's text as the param's value: numbers for numeric params, '' as unset. */
+export function toParamValue(text: unknown, spec?: ParamSpec): unknown {
+    if (text === null || text === undefined || text === '') return undefined
+    if ((spec?.type === 'integer' || spec?.type === 'number') && typeof text === 'string' && text.trim() !== '') {
+        const n = Number(text)
+        if (!Number.isNaN(n)) return n
+    }
+    return text
+}
+
+/** `params` without empty values ('' or null), as saved; undefined if none are left. */
+export function withoutEmptyValues(params: object | undefined): object | undefined {
+    if (!params) return params
+    const kept = Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    return kept.length ? Object.fromEntries(kept) : undefined
+}

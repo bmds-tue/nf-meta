@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    canShareInput, inputDeleteProblem, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    canShareInput, inputDeleteProblem, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -184,5 +184,40 @@ describe('inputDeleteProblem', () => {
     it('passes other errors on', () => {
         expect(inputDeleteProblem('ids', [{ workflow_id: null, field: 'inputs.ids', message: 'boom' }], nodes))
             .toBe("Can't delete 'ids': boom")
+    })
+})
+
+describe('paramRows', () => {
+    const schema = { input: { required: true }, outdir: { required: true }, genome: {}, aligner: {} }
+
+    it('orders required, bound, set optional, then unknown params', () => {
+        const rows = paramRows(schema, { aligner: 'star', input: 'a.csv', custom: 1 }, { genome: 'genome' })
+        expect(rows.map(r => [r.name, r.required, r.value, r.boundBy])).toEqual([
+            ['input', true, 'a.csv', undefined],
+            ['outdir', true, undefined, undefined],
+            ['genome', false, undefined, 'genome'],
+            ['aligner', false, 'star', undefined],
+            ['custom', false, 1, undefined],
+        ])
+    })
+})
+
+describe('paramFieldErrors', () => {
+    it('groups errors by param and keeps general ones apart', () => {
+        expect(paramFieldErrors([
+            { workflow_id: 'n01', field: 'nf-pipeline.params.input', message: 'not set' },
+            { workflow_id: 'n01', field: 'params', message: 'bad yaml' },
+            { workflow_id: 'n02', field: 'params.input', message: 'other step' },
+            { workflow_id: 'n01', field: 'url', message: 'not a param' },
+        ], 'n01')).toEqual({ byParam: { input: ['not set'] }, general: ['bad yaml'] })
+    })
+})
+
+describe('toParamValue', () => {
+    it('converts numbers for numeric params and empty text to unset', () => {
+        expect(toParamValue('4', { type: 'integer' })).toBe(4)
+        expect(toParamValue('4', { type: 'string' })).toBe('4')
+        expect(toParamValue('', { type: 'integer' })).toBeUndefined()
+        expect(toParamValue(true, { type: 'boolean' })).toBe(true)
     })
 })

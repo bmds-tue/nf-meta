@@ -26,6 +26,18 @@ This serves the editor's frontend and automaatically opens it in a browser tab, 
 The session tracks graph mutations by updating the internal history, fetches data while keeping a local cache, and responds to validation requests.
 Passing no path starts a new, empty metapipeline.
 
+### The editor link
+
+On start, the editor prints its address with an access token, for example
+`Editor running at: http://127.0.0.1:8080/?token=…`, and opens that link in your browser. The page
+keeps the token for the tab and sends it with every request; without it, the editor refuses to
+read or write anything. This keeps other users of a shared machine (and websites open in your
+browser) out of your configs. If a tab shows "This page can't reach the editor", open the printed
+link again; each start of `nf-meta editor` makes a new token.
+
+The editor also only answers requests addressed to `localhost` or `127.0.0.1` (or the name given
+with `--host`).
+
 ## Editor backends
 
 The editor is extensible via plugins in the same way runners are: `--editor <name>` selects a registered

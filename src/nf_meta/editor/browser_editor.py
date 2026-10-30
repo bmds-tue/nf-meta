@@ -64,10 +64,14 @@ def _write_redirect_file(url: str) -> Path:
     return Path(name)
 
 
-def _open_browser_when_ready(host: str, port: int, page: Path) -> None:
-    _wait_for_backend(host, port)
-    # The browser gets a local file, so the token never appears in a process's arguments
-    click.launch(page.as_uri())
+def _open_browser_when_ready(host: str, port: int, page: Path, keep_page: float = 10) -> None:
+    try:
+        _wait_for_backend(host, port)
+        # The browser gets a local file, so the token never appears in a process's arguments
+        click.launch(page.as_uri())
+        time.sleep(keep_page)
+    finally:
+        page.unlink(missing_ok=True)
 
 
 class BrowserEditor(BaseEditor):
@@ -125,11 +129,8 @@ class BrowserEditor(BaseEditor):
 
     def _serve(self, host: str, port: int, url: str, wait_on: tuple[str, int]) -> None:
         page = _write_redirect_file(url)
-        try:
-            thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, page), daemon=True)
-            thread.start()
-            config = uvicorn.Config(app, host=host, port=port, log_level="warning")
-            print(f"Editor running at: {url}")
-            uvicorn.Server(config).run()
-        finally:
-            page.unlink(missing_ok=True)
+        thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, page), daemon=True)
+        thread.start()
+        config = uvicorn.Config(app, host=host, port=port, log_level="warning")
+        click.echo(f"Editor running at: {url}")
+        uvicorn.Server(config).run()

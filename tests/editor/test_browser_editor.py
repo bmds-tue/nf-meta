@@ -2,6 +2,7 @@ import stat
 
 import pytest
 
+from nf_meta.editor import browser_editor
 from nf_meta.editor.backend.guard import host_name
 from nf_meta.editor.browser_editor import _editor_url, _write_redirect_file
 
@@ -34,3 +35,13 @@ def test_redirect_file_is_private_and_forwards_to_the_url():
 )
 def test_host_name(header, name):
     assert host_name(header) == name
+
+
+def test_redirect_file_is_removed_after_opening(monkeypatch):
+    launched = []
+    monkeypatch.setattr(browser_editor, "_wait_for_backend", lambda host, port: None)
+    monkeypatch.setattr(browser_editor.click, "launch", launched.append)
+    page = _write_redirect_file("http://127.0.0.1:8080/?token=abc")
+    browser_editor._open_browser_when_ready("127.0.0.1", 8080, page, keep_page=0)
+    assert launched == [page.as_uri()]
+    assert not page.exists()

@@ -40,6 +40,7 @@ from nf_meta.core.registry import (
 )
 from nf_meta.core.session import SESSION
 
+from .files import list_folder
 from .serializers import Selection, serialize_events, serialize_state
 
 DEV_MODE = os.getenv("NF_META_DEVMODE", 0) == "1"
@@ -91,6 +92,23 @@ def serve_ui():
 @api_router.get("/graph/")
 def get_graph():
     return serialize_state(SESSION)
+
+
+@api_router.get("/files/")
+def list_files(path: str | None = None, all_files: bool = False):
+    """A folder of the machine running the editor, for the open and save
+    dialogs (see `list_folder`). Without `path`, the folder of the config
+    being edited, or where the editor was started. Anyone who can reach the
+    editor can list folders this way; it listens on 127.0.0.1 by default."""
+    config = SESSION.config_file
+    local = config and not str(config).startswith(("http://", "https://"))
+    start = Path(str(config)).resolve().parent if local else Path.cwd()
+    try:
+        return list_folder(path, start, all_files=all_files)
+    except FileNotFoundError:
+        return JSONResponse(status_code=404, content={"detail": f"No such folder: {path}"})
+    except PermissionError:
+        return JSONResponse(status_code=403, content={"detail": f"Can't read the folder {path}"})
 
 
 @api_router.post("/graph/save/")

@@ -428,3 +428,33 @@ export function lintReferenceCount(text: string): TextProblem[] {
     }
     return problems
 }
+
+/** The separator a path of the editor's machine uses: `\\` for Windows paths, else `/`. */
+export function pathSeparator(path: string): string {
+    return /^[A-Za-z]:\\/.test(path) || (path.includes('\\') && !path.includes('/')) ? '\\' : '/'
+}
+
+/** The last part of a path: a file or folder name. */
+export function baseName(path: string): string {
+    return path.split(/[\\/]/).filter(Boolean).pop() ?? ''
+}
+
+/** `name` in the folder `folder`. */
+export function joinPath(folder: string, name: string): string {
+    const sep = pathSeparator(folder)
+    return folder.endsWith(sep) ? folder + name : folder + sep + name
+}
+
+/** The folders from the root down to `path`, each as a label and its full path. */
+export function pathCrumbs(path: string): { label: string, path: string }[] {
+    const sep = pathSeparator(path)
+    const parts = path.split(sep).filter(Boolean)
+    const rootIsSlash = sep === '/' && path.startsWith('/')
+    const crumbs = rootIsSlash ? [{ label: '/', path: '/' }] : []
+    let current = rootIsSlash ? '' : undefined
+    for (const part of parts) {
+        current = current === undefined ? (sep === '\\' ? part + sep : part) : (current.endsWith(sep) ? current + part : current + sep + part)
+        crumbs.push({ label: part, path: current })
+    }
+    return crumbs
+}

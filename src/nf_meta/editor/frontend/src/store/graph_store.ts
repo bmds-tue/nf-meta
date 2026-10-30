@@ -237,32 +237,42 @@ export const useGraphStore = defineStore('graph', () => {
         await getAndUpdateGraph()
     }
 
-    async function save() {
+    // Save to the current file; returns the error message if it failed
+    async function save(): Promise<string | undefined> {
         if (!filename.value) {
             messageStore.add('No save destination specified!', 'error')
-            return
+            return 'No file to save to'
         }
-        const result = await apiStore.saveGraph(filename.value)
+        return saveTo(filename.value)
+    }
+
+    // Save to `target`, which becomes the current file only if saving worked
+    async function saveAs(target: string): Promise<string | undefined> {
+        const problem = await saveTo(target)
+        if (!problem) _filename.value = target
+        return problem
+    }
+
+    async function saveTo(target: string): Promise<string | undefined> {
+        const result = await apiStore.saveGraph(target)
         if (!result.ok) {
             messageStore.add(`Saving failed: ${result.message}`, 'error')
-        } else {
-            messageStore.add('Saved', 'success')
+            return result.message
         }
+        messageStore.add('Saved', 'success')
+        return undefined
     }
 
-    async function saveAs(newFilename: string) {
-        _filename.value = newFilename
-        save()
-    }
-
-    async function loadConfig(newFilename: string) {
-        const result = await apiStore.loadGraph(newFilename)
+    // Load the config at `path`; returns the error message if it failed
+    async function loadConfig(path: string): Promise<string | undefined> {
+        const result = await apiStore.loadGraph(path)
         if (!result.ok) {
             messageStore.add(`Loading config failed: ${result.message}`, 'error')
-            return
+            return result.message
         }
         await getAndUpdateGraph()
-        messageStore.add('Config Loaded', 'success')
+        messageStore.add('Config loaded', 'success')
+        return undefined
     }
 
     function getPredecessors(nodeId: string | undefined | null) {

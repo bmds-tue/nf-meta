@@ -26,6 +26,10 @@ jobs:
           working-directory: src/nf_meta/editor/frontend
           run: npm test
 
+        - name: Lint frontend
+          working-directory: src/nf_meta/editor/frontend
+          run: npm run lint
+
         - name: Build frontend
           working-directory: src/nf_meta/editor/frontend
           run: npm run build

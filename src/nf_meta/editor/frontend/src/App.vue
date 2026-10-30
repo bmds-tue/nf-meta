@@ -6,9 +6,9 @@ import { storeToRefs } from 'pinia'
 import { Background } from '@vue-flow/background'
 import WorkflowNode from './components/WorkflowNode.vue'
 import InputsNode from './components/InputsNode.vue'
-import Sidebar from './components/Sidebar.vue'
-import Footer from './components/Footer.vue'
-import Snackbar from './components/Snackbar.vue'
+import AppSidebar from './components/AppSidebar.vue'
+import AppFooter from './components/AppFooter.vue'
+import AppSnackbar from './components/AppSnackbar.vue'
 import { useEditorStore, useGraphStore } from './store'
 import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
@@ -68,7 +68,7 @@ const onNodeDbClick = function (event: NodeMouseEvent) {
   openNodeDetail(event.node)
 }
 
-const onAddNodeClick = function (_: any) {
+const onAddNodeClick = function () {
   openNodeDetail()
 }
 
@@ -236,13 +236,13 @@ onMounted(async () => {
       </VueFlow>
   
       <v-expand-x-transition>
-        <Sidebar v-if="editorStore.sideBarOpen"></Sidebar>
+        <AppSidebar v-if="editorStore.sideBarOpen"></AppSidebar>
       </v-expand-x-transition>
     </div>
     <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>
-    <Snackbar></Snackbar>
-    <Footer></Footer>
+    <AppSnackbar></AppSnackbar>
+    <AppFooter></AppFooter>
 </v-app>
 </template>
 

@@ -90,7 +90,7 @@ uv run pytest
 ```
 
 To work on the editor, run the frontend dev server and start the editor in dev mode
-(`NF_META_DEVMODE=1`), then open http://127.0.0.1:5180/:
+(`NF_META_DEVMODE=1`), then open the link it prints (`http://127.0.0.1:5180/?token=…`):
 
 ```bash
 # terminal 1

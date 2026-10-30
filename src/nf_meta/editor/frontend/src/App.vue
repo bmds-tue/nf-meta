@@ -13,6 +13,7 @@ import { useEditorStore, useGraphStore } from './store'
 import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
+import AccessDenied from './components/AccessDenied.vue'
 import { useLayout } from './layout_graph'
 import { useTheme } from 'vuetify'
 import { DARK_THEME, LIGHT_THEME, storeTheme, type ThemeName } from './themes'
@@ -241,6 +242,7 @@ onMounted(async () => {
     </div>
     <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>
+    <AccessDenied></AccessDenied>
     <AppSnackbar></AppSnackbar>
     <AppFooter></AppFooter>
 </v-app>

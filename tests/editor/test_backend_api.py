@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from nf_meta.core.session import EditorSession
 from nf_meta.editor.backend import api
+from nf_meta.editor.backend.guard import TOKEN_HEADER, configure_access
 
 from ..conftest import FAKE_PIPELINE_SCHEMA
 
@@ -15,12 +16,22 @@ def config(tmp_path):
     return path
 
 
+TOKEN = "test-token"
+
+
 @pytest.fixture
-def client(monkeypatch, config):
+def access(monkeypatch):
+    """Restores the app's access settings after the test."""
+    monkeypatch.setattr(api.app, "state", type(api.app.state)())
+    configure_access(api.app, TOKEN)
+
+
+@pytest.fixture
+def client(monkeypatch, config, access):
     session = EditorSession()
     session.start(config)
     monkeypatch.setattr(api, "SESSION", session)
-    return TestClient(api.app)
+    return TestClient(api.app, base_url="http://127.0.0.1", headers={TOKEN_HEADER: TOKEN})
 
 
 def add_step(client, **params) -> str:
@@ -239,3 +250,36 @@ class TestNodeSchema:
 
     def test_unknown_step(self, client):
         assert client.get("/api/node/nope/schema/").status_code == 404
+
+
+class TestAccess:
+    def test_api_needs_the_token(self, client):
+        assert client.get("/api/graph/", headers={TOKEN_HEADER: ""}).status_code == 401
+        assert client.get("/api/graph/", headers={TOKEN_HEADER: "wrong"}).status_code == 401
+        assert client.get("/api/graph/").status_code == 200
+
+    def test_no_configured_token_refuses_the_api(self, client):
+        configure_access(api.app, None)
+        assert client.get("/api/graph/").status_code == 401
+
+    def test_page_loads_without_the_token(self, client):
+        assert client.get("/", headers={TOKEN_HEADER: ""}).status_code == 200
+
+    @pytest.mark.parametrize("path", ["/", "/api/graph/"])
+    def test_foreign_host_is_refused(self, client, path):
+        response = client.get(path, headers={"host": "evil.example"})
+        assert response.status_code == 400
+
+    @pytest.mark.parametrize("host", ["localhost:1234", "127.0.0.1", "[::1]:8080"])
+    def test_loopback_hosts_are_accepted(self, client, host):
+        assert client.get("/api/graph/", headers={"host": host}).status_code == 200
+
+    def test_bind_host_is_accepted(self, client):
+        configure_access(api.app, TOKEN, bind_host="csdnode1")
+        assert client.get("/api/graph/", headers={"host": "csdnode1:8080"}).status_code == 200
+        assert client.get("/api/graph/", headers={"host": "other:8080"}).status_code == 400
+
+    def test_wildcard_bind_host_accepts_any_host_but_needs_the_token(self, client):
+        configure_access(api.app, TOKEN, bind_host="0.0.0.0")
+        assert client.get("/api/graph/", headers={"host": "other:8080"}).status_code == 200
+        assert client.get("/api/graph/", headers={"host": "other:8080", TOKEN_HEADER: ""}).status_code == 401

@@ -64,7 +64,7 @@ async function save() {
 
     <!-- View -->
     <v-card-text v-if="!isEditing" class="pt-0 pb-2">
-      <p class="text-body-2 muted mt-0 mb-2">Applied to every step; a step's own values win.</p>
+      <p class="text-body-2 muted mt-0 mb-2">Applied to every Workflow. Workflow config overwrites global config.</p>
       <p v-if="isEmpty" class="text-body-2 muted mb-0">None set.</p>
       <template v-else>
         <div class="d-flex flex-wrap align-center ga-1 mb-1">

@@ -465,7 +465,8 @@ class MetaworkflowGraph:
 
         Raises `ConfigValidationError` (carrying one `Diagnostic` per bad
         reference) if any reference targets an unknown workflow, a workflow
-        that isn't actually a predecessor of `wf`, or a param with no value.
+        that isn't actually a predecessor of `wf`, or a param with no value
+        (a param filled by a `bind:` input counts as having one).
         """
 
         def diagnostic(ref, message: str) -> Diagnostic:
@@ -515,11 +516,13 @@ class MetaworkflowGraph:
                 )
                 continue
 
-            if not referenced_wf.params or not ref.target_key:
+            # A param filled by a `bind:` input has a value at run time too
+            referenced_params = self.with_input_placeholders(referenced_wf).params
+            if not referenced_params or not ref.target_key:
                 diagnostics.append(diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}"))
                 continue
 
-            if not referenced_wf.params.get(ref.target_key):
+            if not referenced_params.get(ref.target_key):
                 diagnostics.append(diagnostic(ref, f"Reference to unresolvable param: {ref.target_key}"))
 
         if diagnostics:

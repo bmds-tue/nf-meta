@@ -268,6 +268,17 @@ class TestSaveWorkflow:
         assert [wf.id for wf in g.get_workflows()] == ["n01"]
         assert g.get_transitions() == []
 
+    def test_reference_to_a_param_filled_by_a_bind_input(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"), inputs={"genome": {"bind": ["n01.genome"]}})
+        run(g, SaveWorkflow(pipeline("n02", input="b.csv", genome="${n01:params:genome}"), create=True))
+        assert g.get_workflow_by_id("n02").params["genome"] == "${n01:params:genome}"
+
+    def test_reference_to_an_unset_param_is_still_an_error(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"))
+        with pytest.raises(ConfigValidationError, match="unresolvable param: genome"):
+            run(g, SaveWorkflow(pipeline("n02", input="b.csv", genome="${n01:params:genome}"), create=True))
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+
     def test_referenced_steps(self):
         wf = pipeline(
             "n03", input="${n01:params:outdir}/${n02:params:x}", other="${n01:params:y}", own="${n03:params:z}"

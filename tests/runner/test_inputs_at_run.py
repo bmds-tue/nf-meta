@@ -160,3 +160,21 @@ def test_prompted_value_used(project):
     path = config(project, {"genome": {"bind": ["n01.genome"], "enum": ["EB1", "GRCh38"]}}, {"input": "ids.csv"})
     step = plan(path, input_mode="prompt", prompter=lambda inp, problem: "GRCh38")[0]
     assert step.command.params["genome"] == "GRCh38"
+
+
+def test_reference_to_a_param_filled_by_a_bind_input(project):
+    path = config(
+        project,
+        {"genome": {"bind": ["n01.genome"]}},
+        {"input": "ids.csv"},
+        extra_steps={
+            "n02": {
+                "name": "nf-core/rnaseq",
+                "version": "3.14.0",
+                "from": ["n01"],
+                "params": {"input": "ids.csv", "outdir": "o2", "genome": "${n01:params:genome}"},
+            }
+        },
+    )
+    steps = plan(path, inputs={"genome": "GRCh38"})
+    assert [s.command.params["genome"] for s in steps] == ["GRCh38", "GRCh38"]

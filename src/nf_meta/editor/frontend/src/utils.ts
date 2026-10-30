@@ -206,23 +206,32 @@ export function paramSuggestions(schema: StepSchema | null | undefined, set: Ite
     return { required: required.sort(), optional: optional.sort() }
 }
 
+export type ReferenceParam = {
+    key: string,
+    // The value as written, or the input's name for a param filled by an input
+    value: string,
+    // Set when an input fills the param (with bind: or as ${inputs:<name>})
+    input?: string,
+}
+
 export type ReferenceTarget = {
     stepId: string,
     stepName: string,
     // Already a direct predecessor; otherwise saving adds the edge
     connected: boolean,
-    params: { key: string, value: string }[],
+    params: ReferenceParam[],
 }
 
 /**
  * The steps whose params step `stepId` can reference, `${<step>:params:<key>}`,
- * with their params that have a value: every step except `stepId` itself and
- * the steps after it (a reference to those would make a cycle). Direct
- * predecessors come first and are marked `connected`; for the others saving
- * adds the edge. Pass no `stepId` for a step that isn't saved yet.
+ * each with the params that have a value: set in its params, or filled by an
+ * input (`bind:` or `${inputs:<name>}`). Every step is offered except `stepId`
+ * itself and the steps after it (a reference to those would make a cycle).
+ * Direct predecessors come first and are marked `connected`; for the others
+ * saving adds the edge. Pass no `stepId` for a step that isn't saved yet.
  */
 export function referenceTargets(
-    nodes: APINodeData[], edges: { source: string, target: string }[], stepId?: string,
+    nodes: APINodeData[], edges: { source: string, target: string }[], stepId?: string, inputs: APIInput[] = [],
 ): ReferenceTarget[] {
     const after = new Set<string>()
     const queue = stepId ? [stepId] : []
@@ -242,10 +251,22 @@ export function referenceTargets(
             stepId: node.id,
             stepName: node.name ?? node.id,
             connected: predecessors.has(node.id),
-            params: Object.entries(node.params ?? {})
-                .filter(([, value]) => value !== null && value !== undefined && value !== '')
-                .map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) }))
-                .sort((a, b) => a.key.localeCompare(b.key)),
+            params: referencableParams(node, inputs),
         }))
         .sort((a, b) => Number(b.connected) - Number(a.connected))
+}
+
+/** The params of `node` that have a value: set in its params or filled by an input. */
+export function referencableParams(node: APINodeData, inputs: APIInput[]): ReferenceParam[] {
+    const params = new Map<string, ReferenceParam>()
+    for (const [key, value] of Object.entries(node.params ?? {})) {
+        if (value === null || value === undefined || value === '') continue
+        const text = typeof value === 'string' ? value : JSON.stringify(value)
+        const whole = text.match(new RegExp(`^${INPUT_REF.source}$`))
+        params.set(key, whole ? { key, value: whole[1]!, input: whole[1]! } : { key, value: text })
+    }
+    for (const { param, input } of inputsOfStep(inputs, node.id ?? '')) {
+        if (input.bound_by === 'bind' && !params.has(param)) params.set(param, { key: param, value: input.name, input: input.name })
+    }
+    return [...params.values()].sort((a, b) => a.key.localeCompare(b.key))
 }

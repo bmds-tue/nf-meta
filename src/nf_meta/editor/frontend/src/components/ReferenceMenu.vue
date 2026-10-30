@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { REF_COLOR } from '../store'
+import { computed, ref, watch } from 'vue'
+import { INPUT_COLOR, REF_COLOR } from '../store'
 import type { ReferenceTarget } from '../utils'
 
 const props = defineProps<{
@@ -14,49 +14,69 @@ const emit = defineEmits<{
   pick: [stepId: string, key: string],
 }>()
 
-// Steps with params to offer: connected ones, then the others (saving adds their edge)
-const connected = computed(() => props.references.filter(t => t.connected && t.params.length))
-const unconnected = computed(() => props.references.filter(t => !t.connected && t.params.length))
-const empty = computed(() => !connected.value.length && !unconnected.value.length)
+// Two stages: pick a step (connected ones first), then one of its params
+const open = ref(false)
+const stepId = ref<string>()
+watch(open, (isOpen) => { if (!isOpen) stepId.value = undefined })
+
+const connected = computed(() => props.references.filter(t => t.connected))
+const unconnected = computed(() => props.references.filter(t => !t.connected))
+const step = computed(() => props.references.find(t => t.stepId === stepId.value))
+
+function shortName(target: ReferenceTarget) {
+  return target.stepName.split('/').pop()
+}
+
+function pick(key: string) {
+  if (step.value) emit('pick', step.value.stepId, key)
+  open.value = false
+}
 </script>
 
 <template>
   <!-- a wrapper element, so spacing classes from the parent apply -->
   <span class="d-inline-flex">
-  <v-menu :location="location ?? 'bottom start'">
-    <template #activator="{ props: menuProps }">
-      <v-btn
-        v-bind="menuProps"
-        icon="mdi-transit-connection-variant" :size="size" variant="flat" class="pill-btn"
-        :color="REF_COLOR" :title="`Fill '${param}' with a param of another step`"
-        @click.stop />
-    </template>
-    <v-list density="compact" class="reference-list">
-      <v-list-item v-if="empty" disabled title="No other step with params to reference yet" />
-      <template v-if="connected.length">
-        <v-list-subheader>Connected</v-list-subheader>
-        <template v-for="target in connected" :key="target.stepId">
-          <v-list-item
-            v-for="p in target.params" :key="`${target.stepId}.${p.key}`"
-            :title="`${target.stepName.split('/').pop()} · ${p.key}`" :subtitle="p.value"
-            @click="emit('pick', target.stepId, p.key)" />
-        </template>
+    <v-menu v-model="open" :location="location ?? 'bottom start'" :close-on-content-click="false">
+      <template #activator="{ props: menuProps }">
+        <v-btn
+          v-bind="menuProps"
+          icon="mdi-transit-connection-variant" :size="size" variant="flat" class="pill-btn"
+          :color="REF_COLOR" :title="`Fill '${param}' with a param of another step`"
+          @click.stop />
       </template>
-      <template v-if="unconnected.length">
-        <v-list-subheader>Not connected yet: saving adds an edge</v-list-subheader>
-        <template v-for="target in unconnected" :key="target.stepId">
-          <v-list-item
-            v-for="p in target.params" :key="`${target.stepId}.${p.key}`"
-            :title="`${target.stepName.split('/').pop()} · ${p.key}`" :subtitle="p.value"
-            @click="emit('pick', target.stepId, p.key)">
-            <template #append>
-              <v-icon icon="mdi-link-plus" size="16" class="muted" />
-            </template>
-          </v-list-item>
+
+      <!-- stage 1: steps -->
+      <v-list v-if="!step" density="compact" class="reference-list">
+        <v-list-item v-if="!references.length" disabled title="No other step to reference yet" />
+        <template v-for="group in [{ title: 'Connected', targets: connected }, { title: 'Not connected yet: saving adds an edge', targets: unconnected }]" :key="group.title">
+          <template v-if="group.targets.length">
+            <v-list-subheader>{{ group.title }}</v-list-subheader>
+            <v-list-item
+              v-for="target in group.targets" :key="target.stepId"
+              :title="`${shortName(target)} (${target.stepId})`"
+              :subtitle="target.params.length ? `${target.params.length} param${target.params.length === 1 ? '' : 's'}` : 'no params with a value'"
+              :disabled="!target.params.length"
+              append-icon="mdi-chevron-right"
+              @click="stepId = target.stepId" />
+          </template>
         </template>
-      </template>
-    </v-list>
-  </v-menu>
+      </v-list>
+
+      <!-- stage 2: params of the chosen step -->
+      <v-list v-else density="compact" class="reference-list">
+        <v-list-item prepend-icon="mdi-chevron-left" :title="`${shortName(step)} (${step.stepId})`" class="back-row" @click="stepId = undefined" />
+        <v-divider />
+        <v-list-item
+          v-for="p in step.params" :key="p.key"
+          :title="p.key"
+          @click="pick(p.key)">
+          <template #subtitle>
+            <span v-if="p.input" :style="{ color: INPUT_COLOR }">← input {{ p.input }}</span>
+            <span v-else>{{ p.value }}</span>
+          </template>
+        </v-list-item>
+      </v-list>
+    </v-menu>
   </span>
 </template>
 
@@ -68,5 +88,8 @@ const empty = computed(() => !connected.value.length && !unconnected.value.lengt
 .reference-list {
   max-height: 340px;
   min-width: 260px;
+}
+.back-row {
+  font-weight: 600;
 }
 </style>

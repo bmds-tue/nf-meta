@@ -457,3 +457,22 @@ def test_bind_and_from_are_written_in_flow_style(tmp_path):
     data = yaml.safe_load(text)
     assert data["inputs"]["ids"] == {"bind": ["n01.input", "n02.input"], "description": "Run ids"}
     assert data["workflows"]["n02"]["from"] == ["n01"]
+
+
+@pytest.mark.parametrize("collect_errors", [False, True])
+def test_load_reference_to_a_param_filled_by_a_bind_input(collect_errors):
+    data = {
+        "config_version": "0.4.0",
+        "inputs": {"genome": {"bind": ["n01.genome"]}},
+        "workflows": {
+            "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "a.csv"}},
+            "n02": {
+                "name": "nf-core/fetchngs",
+                "version": "1.12.0",
+                "from": ["n01"],
+                "params": {"input": "b.csv", "genome": "${n01:params:genome}"},
+            },
+        },
+    }
+    g = validated_graph(data, collect_errors=collect_errors)
+    assert g.get_workflow_by_id("n02").params["genome"] == "${n01:params:genome}"

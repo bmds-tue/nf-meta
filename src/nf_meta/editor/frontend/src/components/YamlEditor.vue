@@ -187,8 +187,7 @@ async function referenceCompletionSource(
     const partial = paramMatch[2] ?? ""
     const from = context.pos - partial.length
     try {
-      const params = await graphStore.getParams(nodeId) as Record<string, unknown>
-      const options = Object.keys(params ?? {}).map((key) => ({
+      const options = graphStore.getReferencableParams(nodeId).map((key) => ({
         label: key,
         apply: key,
       }))
@@ -336,13 +335,8 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
     }
 
     if (paramKey) {
-      let params: Record<string, unknown>
-      try {
-        params = await graphStore.getParams(nodeId) as Record<string, unknown>
-      } catch {
-        continue
-      }
-      if (!Object.prototype.hasOwnProperty.call(params ?? {}, paramKey)) {
+      // set in the step's params or filled by an input
+      if (!graphStore.getReferencableParams(nodeId).includes(paramKey)) {
         diagnostics.push({
           from,
           to,

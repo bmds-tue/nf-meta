@@ -9,7 +9,7 @@ import type {
 import { useLayout } from '../layout_graph'
 import { useMessageStore, useActivityStore } from './ui_store'
 import { useApiStore } from './api_store'
-import { referenceTargets } from '../utils'
+import { referencableParams, referenceTargets } from '../utils'
 
 export const INPUTS_NODE_ID = '__inputs__'
 // Inputs in the graph and the params editor (oneDark's purple)
@@ -280,7 +280,13 @@ export const useGraphStore = defineStore('graph', () => {
 
     // The steps step `nodeId` can reference (see `referenceTargets`); every step for an unsaved one
     function getReferenceTargets(nodeId: string | undefined | null) {
-        return referenceTargets(_nodeData.value, _edgeData.value, nodeId ?? undefined)
+        return referenceTargets(_nodeData.value, _edgeData.value, nodeId ?? undefined, _inputs.value)
+    }
+
+    // The params of step `nodeId` another step can reference: set ones and ones an input fills
+    function getReferencableParams(nodeId: string | undefined | null): string[] {
+        const node = _nodeData.value.find(n => n.id === nodeId)
+        return node ? referencableParams(node, _inputs.value).map(p => p.key) : []
     }
 
     return {
@@ -292,6 +298,6 @@ export const useGraphStore = defineStore('graph', () => {
         showInputsNode, toggleInputsNode,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,
-        getPredecessors, getParams, getReferenceTargets,
+        getPredecessors, getParams, getReferenceTargets, getReferencableParams,
     }
 })

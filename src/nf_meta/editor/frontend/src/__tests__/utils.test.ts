@@ -149,17 +149,24 @@ describe('referenceTargets', () => {
         node('n04', {}),
         node('n05', { outdir: 'out5' }),
     ]
-    // n01 -> n03 -> n05, n02 unconnected
+    // n01 -> n03 -> n05, n02 and n04 unconnected
     const edges = [{ source: 'n01', target: 'n03' }, { source: 'n03', target: 'n05' }]
+    const genome = input('genome', { bound_by: 'bind', bindings: ['n02.genome'], definition: { bind: ['n02.genome'] } })
 
     it('lists predecessors first, then unconnected steps; not itself or later steps', () => {
         const targets = referenceTargets(nodes, edges, 'n03')
         expect(targets.map(t => [t.stepId, t.connected])).toEqual([['n01', true], ['n02', false], ['n04', false]])
-        expect(targets[0]!.params).toEqual([{ key: 'input', value: '${inputs:ids}' }, { key: 'outdir', value: 'out' }])
+        expect(targets[0]!.params).toEqual([{ key: 'input', value: 'ids', input: 'ids' }, { key: 'outdir', value: 'out' }])
+    })
+
+    it('includes params filled by a bind: input', () => {
+        const n02 = referenceTargets(nodes, edges, 'n03', [genome]).find(t => t.stepId === 'n02')!
+        expect(n02.params).toEqual([{ key: 'genome', value: 'genome', input: 'genome' }, { key: 'outdir', value: 'out2' }])
     })
 
     it('offers every step to a step that is not saved yet', () => {
         expect(referenceTargets(nodes, edges).map(t => t.stepId)).toEqual(['n01', 'n02', 'n03', 'n04', 'n05'])
     })
 })
+
 

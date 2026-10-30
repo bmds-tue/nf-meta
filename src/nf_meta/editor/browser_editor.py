@@ -148,8 +148,8 @@ class BrowserEditor(BaseEditor):
             if host.strip("[]") in WILDCARD_HOSTS:
                 click.echo(
                     click.style(
-                        f"Listening on all network interfaces ({host}): anyone who can reach this machine "
-                        "can reach the editor; the token in the link is its only protection.",
+                        f"Listening on all network interfaces ({host}): anyone with access to this machine "
+                        "can reach the editor.",
                         fg="yellow",
                     )
                 )

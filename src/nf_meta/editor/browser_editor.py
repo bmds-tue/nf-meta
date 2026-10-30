@@ -98,7 +98,7 @@ def _open_browser_when_ready(host: str, port: int, target: str) -> None:
     click.launch(target)
 
 
-def _exit_on_sigterm(signum, frame) -> None:
+def _exit_on_signal(signum, frame) -> None:
     raise SystemExit(128 + signum)
 
 
@@ -165,8 +165,11 @@ class BrowserEditor(BaseEditor):
         click.echo(f"Editor running at: {url}")
         if page:
             click.echo("If no browser tab opens, open this link, or start with --no-redirect-file.")
-        # uvicorn re-sends the signal it stopped on; a SIGTERM would then skip the clean-up below
-        signal.signal(signal.SIGTERM, _exit_on_sigterm)
+        # uvicorn re-sends the SIGTERM it stopped on, and doesn't handle SIGHUP (terminal or SSH
+        # connection closed); either would end the process without the clean-up below
+        for name in ("SIGTERM", "SIGHUP"):
+            if hasattr(signal, name):  # no SIGHUP on Windows
+                signal.signal(getattr(signal, name), _exit_on_signal)
         try:
             uvicorn.Server(config).run()
         finally:

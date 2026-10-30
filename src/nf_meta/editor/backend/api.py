@@ -41,6 +41,7 @@ from nf_meta.core.registry import (
 from nf_meta.core.session import SESSION
 
 from .files import list_folder
+from .guard import guard
 from .serializers import Selection, serialize_events, serialize_state
 
 DEV_MODE = os.getenv("NF_META_DEVMODE", 0) == "1"
@@ -50,6 +51,7 @@ DEV_VITE_PORT = 5180
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend_dist"
 
 app = FastAPI(title="metapipeline_editor")
+app.middleware("http")(guard)
 api_router = APIRouter()
 
 # serve static files for deployment through fastapi
@@ -83,9 +85,10 @@ def handle_request_validation(request: Request, exc: RequestValidationError):
 
 
 @app.api_route("/")
-def serve_ui():
+def serve_ui(request: Request):
     if DEV_MODE:
-        return RedirectResponse(f"http://localhost:{DEV_VITE_PORT}/")
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"http://localhost:{DEV_VITE_PORT}/{query}")
     return FileResponse(DIST_DIR / "index.html")
 
 

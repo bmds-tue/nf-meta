@@ -28,7 +28,14 @@ html, body, #app, :root {
     transition: box-shadow .15s;
 }
 
-.workflow-node:hover {
+/* the inputs node's shadow lives here, so the hover and selection rings below apply to it too */
+.inputs-node {
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.35);
+    transition: box-shadow .15s;
+}
+
+.workflow-node:hover,
+.inputs-node:hover {
     box-shadow: 0 0 0 3px rgba(var(--v-theme-nodeHover), 0.8);
 }
 
@@ -39,7 +46,7 @@ html, body, #app, :root {
 
 .vue-flow__node.selected .workflow-node,
 .vue-flow__node.selected .inputs-node {
-    box-shadow: 0 0 0 3px rgb(var(--v-theme-nodeSelected)), 0 0 18px 2px rgba(var(--v-theme-nodeSelected), 0.45);
+    box-shadow: 0 0 0 3px rgba(var(--v-theme-nodeSelected), 0.85), 0 0 6px 1px rgba(var(--v-theme-nodeSelected), 0.15);
 }
 
 .workflow-node-nfcore {

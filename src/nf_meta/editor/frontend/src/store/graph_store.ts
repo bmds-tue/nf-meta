@@ -33,7 +33,7 @@ export const useGraphStore = defineStore('graph', () => {
     const _nodes = ref<Node<APINodeData>[]>([])
 
     // A node standing for the config's inputs, with an edge to every step they fill.
-    // Only in the view: it isn't part of the graph and can't be selected or connected.
+    // Only in the view: it isn't part of the graph; it can be selected, not connected or deleted.
     const _showInputsNode = ref(localStorage.getItem('showInputsNode') !== 'false')
     const showInputsNode = computed(() => _showInputsNode.value)
 
@@ -49,7 +49,7 @@ export const useGraphStore = defineStore('graph', () => {
             type: 'inputs-node',
             position: { x: 0, y: 0 },
             data: { inputs: _inputs.value },
-            selectable: false,
+            selectable: true,
             connectable: false,
             deletable: false,
         }]

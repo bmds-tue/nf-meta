@@ -59,7 +59,7 @@ const graphite: ThemeDefinition = {
     nodeNfCoreBorder: '#2cc472',
     nfcore,
     edge: '#b4b9c2',
-    grid: '#3a3a3a',
+    grid: '#585858',
     handle: '#9aa0a8',
     nodeHover: '#8a8f98',
     nodeSelected: '#ffffff',

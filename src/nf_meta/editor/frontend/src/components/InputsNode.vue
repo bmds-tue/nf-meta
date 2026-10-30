@@ -46,7 +46,6 @@ const hasProblems = computed(() => props.data.inputs.some(i => i.diagnostics.len
   background: rgb(var(--v-theme-nodeBackground));
   border: 3px solid #8a8f98;
   border-radius: 8px;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.35);
 }
 .inputs-node-handle {
   background: #8a8f98;

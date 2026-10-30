@@ -115,14 +115,13 @@ class BrowserEditor(BaseEditor):
     EDITOR_NAME = "browser"
 
     _server: uvicorn.Server | None = None
-    _stop_requested = False
 
     def stop(self) -> None:
         """Stop the running editor; it answers the requests in progress first.
         Does nothing when it isn't running."""
         if self._server is None:
             return
-        self._stop_requested = True
+        click.echo("Stopping the editor backend")
         self._server.should_exit = True
 
     def start(self) -> None:
@@ -185,9 +184,6 @@ class BrowserEditor(BaseEditor):
         configure_shutdown(app, self.stop)
         try:
             self._server.run()
-            # run() returns here after stop(); after a signal, uvicorn raises instead
-            if self._stop_requested:
-                click.echo("Editor stopped from the page.")
         finally:
             if page:
                 page.unlink(missing_ok=True)

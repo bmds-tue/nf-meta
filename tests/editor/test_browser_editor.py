@@ -74,15 +74,15 @@ class FakeServer:
     should_exit = False
 
 
-def test_stop_asks_the_server_to_exit():
+def test_stop_asks_the_server_to_exit(capsys):
     editor = browser_editor.BrowserEditor(EditorOptions())
     editor._server = FakeServer()
     editor.stop()
     assert editor._server.should_exit
-    assert editor._stop_requested
+    assert capsys.readouterr().out == "Stopping the editor backend\n"
 
 
-def test_stop_without_a_running_server_does_nothing():
+def test_stop_without_a_running_server_does_nothing(capsys):
     editor = browser_editor.BrowserEditor(EditorOptions())
     editor.stop()
-    assert not editor._stop_requested
+    assert capsys.readouterr().out == ""

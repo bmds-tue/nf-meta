@@ -88,15 +88,21 @@ def cli() -> None:
     type=int,
     help="Port for the editor server (auto-assigned if omitted)",
 )
+@click.option(
+    "--no-redirect-file",
+    is_flag=True,
+    help="Open the editor link directly, not through a private local file; "
+    "needed when the browser runs on another machine (VS Code Remote, dev containers)",
+)
 @click.argument("config", required=False, type=click.Path())
 @handle_validation_errors
-def edit_browser(config, verbose, editor, host, port):
+def edit_browser(config, verbose, editor, host, port, no_redirect_file):
     from nf_meta.core.session import start_session
     from nf_meta.editor import EditorOptions, run_editor
 
     session = start_session(config)
     _echo_warnings(session.warnings, config)
-    opts = EditorOptions(editor_name=editor)
+    opts = EditorOptions(editor_name=editor, use_redirect_file=not no_redirect_file)
     if host is not None:
         opts.host = host
     if port is not None:

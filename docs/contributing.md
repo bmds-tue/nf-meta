@@ -28,6 +28,8 @@ serves the API for the dev server instead of the bundled build:
 NF_META_DEVMODE=1 uv run nf-meta editor [path/to/metapipeline.yaml]
 ```
 
+In a dev container, add `--no-redirect-file` so VS Code can open the link in your browser.
+
 Open the link it prints (`http://127.0.0.1:5180/?token=…`): the API needs the session token it
 carries; a plain <http://127.0.0.1:5180/> shows an access notice. In dev mode the API always runs on `127.0.0.1:8080` (the dev
 server proxies `/api` there) and `--host` / `--port` are ignored. nf-meta exits with a hint if the

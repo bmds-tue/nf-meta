@@ -1,8 +1,13 @@
+import html
 import http.client
 import logging
+import os
+import signal
 import socket
+import tempfile
 import threading
 import time
+from pathlib import Path
 
 import click
 import uvicorn
@@ -49,9 +54,52 @@ def _editor_url(host: str, port: int, token: str) -> str:
     return f"http://{host}:{port}/?token={token}"
 
 
-def _open_browser_when_ready(host: str, port: int, url: str) -> None:
-    _wait_for_backend(host, port)
-    click.launch(url)
+REDIRECT_FILE_MAX_AGE = 60
+
+
+def _redirect_folder() -> Path:
+    """A folder only the current user can read: `$XDG_RUNTIME_DIR/nf-meta-editor`,
+    else `~/.cache/nf-meta/editor`."""
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    folder = Path(runtime) / "nf-meta-editor" if runtime else Path.home() / ".cache" / "nf-meta" / "editor"
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    folder.chmod(0o700)
+    return folder
+
+
+def _write_redirect_file(url: str, folder: Path) -> Path:
+    """A page, readable only by the current user, that forwards the browser to
+    `url`. Removes such pages left behind by earlier runs."""
+    now = time.time()
+    for old in folder.glob("editor-*.html"):
+        # a page is only needed while the browser opens it
+        if now - old.stat().st_mtime > REDIRECT_FILE_MAX_AGE:
+            old.unlink(missing_ok=True)
+    fd, name = tempfile.mkstemp(prefix="editor-", suffix=".html", dir=folder)
+    with os.fdopen(fd, "w") as f:
+        target = html.escape(url, quote=True)
+        f.write(
+            f'<!doctype html><meta http-equiv="refresh" content="0;url={target}"><a href="{target}">Open the editor</a>\n'
+        )
+    return Path(name)
+
+
+def _open_browser_when_ready(
+    host: str, port: int, target: str, page: Path | None = None, keep_page: float = 10
+) -> None:
+    """Open `target` once the server answers; remove `page` (the redirect file) after a while."""
+    try:
+        _wait_for_backend(host, port)
+        click.launch(target)
+        if page is not None:
+            time.sleep(keep_page)
+    finally:
+        if page is not None:
+            page.unlink(missing_ok=True)
+
+
+def _exit_on_sigterm(signum, frame) -> None:
+    raise SystemExit(128 + signum)
 
 
 class BrowserEditor(BaseEditor):
@@ -108,8 +156,19 @@ class BrowserEditor(BaseEditor):
             self._serve(host, port, _editor_url(host, port, token), wait_on=(host, port))
 
     def _serve(self, host: str, port: int, url: str, wait_on: tuple[str, int]) -> None:
-        thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, url), daemon=True)
+        page = _write_redirect_file(url, _redirect_folder()) if self.options.use_redirect_file else None
+        # The browser gets a local file, so the token doesn't show in a process's arguments
+        target = page.as_uri() if page else url
+        thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, target, page), daemon=True)
         thread.start()
         config = uvicorn.Config(app, host=host, port=port, log_level="warning")
         click.echo(f"Editor running at: {url}")
-        uvicorn.Server(config).run()
+        if page:
+            click.echo("If no browser tab opens, open this link, or start with --no-redirect-file.")
+        # uvicorn re-sends the signal it stopped on; a SIGTERM would then skip the clean-up below
+        signal.signal(signal.SIGTERM, _exit_on_sigterm)
+        try:
+            uvicorn.Server(config).run()
+        finally:
+            if page:
+                page.unlink(missing_ok=True)

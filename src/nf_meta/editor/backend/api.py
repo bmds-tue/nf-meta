@@ -92,6 +92,21 @@ def serve_ui(request: Request):
     return FileResponse(DIST_DIR / "index.html")
 
 
+@api_router.get("/ping/")
+def ping():
+    return {"ok": True}
+
+
+@api_router.post("/shutdown/")
+def shutdown(request: Request):
+    stop = getattr(request.app.state, "stop_server", None)
+    if stop is None:
+        return JSONResponse(status_code=503, content={"detail": "This editor can't be stopped from the page"})
+    # the server finishes this response before it stops
+    stop()
+    return {"ok": True}
+
+
 @api_router.get("/graph/")
 def get_graph():
     return serialize_state(SESSION)

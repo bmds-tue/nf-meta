@@ -170,8 +170,18 @@ class BrowserEditor(BaseEditor):
         for name in ("SIGTERM", "SIGHUP"):
             if hasattr(signal, name):  # no SIGHUP on Windows
                 signal.signal(getattr(signal, name), _exit_on_signal)
+        server = uvicorn.Server(config)
+        quit_from_page = threading.Event()
+
+        def stop_server() -> None:
+            quit_from_page.set()
+            server.should_exit = True
+
+        app.state.stop_server = stop_server
         try:
-            uvicorn.Server(config).run()
+            server.run()
+            if quit_from_page.is_set():
+                click.echo("Editor stopped from the page.")
         finally:
             if page:
                 page.unlink(missing_ok=True)

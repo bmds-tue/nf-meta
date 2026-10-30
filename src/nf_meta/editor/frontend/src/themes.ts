@@ -32,7 +32,7 @@ const light: ThemeDefinition = {
     grid: '#81818a',
     handle: '#2d3f46',
     nodeHover: '#64748b',
-    nodeSelected: '#2563eb',
+    nodeSelected: '#1d4ed8',
     onSurface: '#cbd5e1',
     onBackground: '#303030',
     onPrimary: '#ffffff',

@@ -429,7 +429,7 @@ watch(isFlashing, async (flashing) => {
   transition: box-shadow 0.2s;
 }
 .input-card-hovered {
-  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4) !important;
+  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), var(--highlight-alpha)) !important;
 }
 .style-choice :deep(.v-label) {
   opacity: 1;

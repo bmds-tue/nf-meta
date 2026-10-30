@@ -16,6 +16,18 @@ html, body, #app, :root {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Highlight strengths per theme: the sidebar card of a hovered node, and the selection ring */
+.v-theme--graphite {
+    --highlight-alpha: 0.4;
+    --selected-ring: 3px;
+    --selected-alpha: 0.85;
+}
+.v-theme--light {
+    --highlight-alpha: 0.8;
+    --selected-ring: 4px;
+    --selected-alpha: 1;
+}
+
 .workflow-node {
     padding: 10px;
     color: rgb(var(--v-theme-nodeText));
@@ -46,7 +58,8 @@ html, body, #app, :root {
 
 .vue-flow__node.selected .workflow-node,
 .vue-flow__node.selected .inputs-node {
-    box-shadow: 0 0 0 3px rgba(var(--v-theme-nodeSelected), 0.85), 0 0 12px 2px rgba(var(--v-theme-nodeSelected), 0.28);
+    box-shadow: 0 0 0 var(--selected-ring) rgba(var(--v-theme-nodeSelected), var(--selected-alpha)),
+                0 0 12px 2px rgba(var(--v-theme-nodeSelected), 0.28);
 }
 
 .workflow-node-nfcore {

@@ -172,10 +172,10 @@ onMounted(async () => {
           </v-btn>
         </template>
         <v-list density="compact">
-          <v-list-item prepend-icon="mdi-folder-open-outline" title="Open config…" subtitle="Ctrl/⌘+O" @click="onOpen" />
-          <v-list-item prepend-icon="mdi-content-save-outline" title="Save" subtitle="Ctrl/⌘+S" @click="onSave" />
-          <v-list-item prepend-icon="mdi-content-save-edit-outline" title="Save as…" subtitle="Ctrl/⌘+Shift+S" @click="editorStore.openSaveDialog" />
-          <v-list-item prepend-icon="mdi-web" title="Load from URL" subtitle="Coming soon" disabled />
+          <v-list-item title="Open config…" subtitle="Ctrl/⌘+O" @click="onOpen" />
+          <v-list-item title="Save" subtitle="Ctrl/⌘+S" @click="onSave" />
+          <v-list-item title="Save as…" subtitle="Ctrl/⌘+Shift+S" @click="editorStore.openSaveDialog" />
+          <v-list-item title="Load from URL" subtitle="Coming soon" disabled />
         </v-list>
       </v-menu>
       <v-divider vertical inset class="mx-1" />
@@ -187,7 +187,7 @@ onMounted(async () => {
         <v-btn
           :title="graphStore.showInputsNode ? 'Hide the inputs node' : 'Show the inputs node'"
           icon="mdi-import" variant="text"
-          :active="graphStore.showInputsNode" active-color="primary"
+          :active="graphStore.showInputsNode" active-color="nfcore"
           @click="graphStore.toggleInputsNode" />
         <v-btn
           :title="graphStore.isHorizontalLayout ? 'Vertical layout' : 'Horizontal layout'"
@@ -202,7 +202,7 @@ onMounted(async () => {
         <v-btn
           title="Show or hide the sidebar"
           icon="mdi-dock-right" variant="text"
-          :active="editorStore.sideBarOpen" active-color="primary"
+          :active="editorStore.sideBarOpen" active-color="nfcore"
           @click="editorStore.toggleSidebar" />
         <v-btn
           :title="isDark ? 'Light theme' : 'Dark theme'"

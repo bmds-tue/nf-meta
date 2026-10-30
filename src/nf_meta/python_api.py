@@ -5,12 +5,11 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from nf_meta.core.edits import SaveWorkflow
+from nf_meta.core.edits import DeleteSteps, SaveWorkflow
 from nf_meta.core.events import (
     AddInput,
     Command,
     RemoveInput,
-    RemoveWorkflow,
     Transaction,
     UpdateGlobalOptions,
     UpdateInput,
@@ -109,8 +108,9 @@ class Metapipeline:
         return step
 
     def remove(self, step: StepOrId) -> None:
-        """Remove a step (a model or an ID) and its edges."""
-        self._execute([RemoveWorkflow(_step_id(step))])
+        """Remove a step (a model or an ID) and its edges. Inputs bound to it
+        with `bind:` lose that binding but stay."""
+        self._execute([DeleteSteps((_step_id(step),))])
 
     # --- globals and inputs ---
 

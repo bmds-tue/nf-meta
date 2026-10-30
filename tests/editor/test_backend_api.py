@@ -173,6 +173,18 @@ class TestSaveNode:
         assert [(t["source"], t["target"]) for t in transitions] == [(first, second)]
 
 
+class TestDeleteNode:
+    def test_bound_input_does_not_block_deleting_its_step(self, client):
+        step = add_step(client)
+        response = save_input(client, "count", bindings=[f"{step}.count"], in_params=False, create=True)
+        assert response.status_code == 200, response.json()
+        response = client.request("DELETE", "/api/delete/", json={"nodes": [step], "edges": []})
+        assert response.status_code == 200, response.json()
+        count = inputs(client)["count"]
+        assert (count["bindings"], count["bound_by"]) == ([], None)
+        assert ("warning", "not used by any step") in [(d["severity"], d["message"]) for d in count["diagnostics"]]
+
+
 class TestNodeSchema:
     def test_schema_of_a_step(self, client):
         step = add_step(client)

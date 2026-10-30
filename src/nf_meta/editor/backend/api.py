@@ -8,14 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
 from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
-from nf_meta.core.edits import DeclareStepInputs, DeleteInput, EditInput, SaveWorkflow, SetInputsStyle
+from nf_meta.core.edits import DeclareStepInputs, DeleteInput, DeleteSteps, EditInput, SaveWorkflow, SetInputsStyle
 from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
     AddTransition,
-    Command,
-    RemoveTransition,
-    RemoveWorkflow,
-    Transaction,
     UpdateGlobalOptions,
 )
 from nf_meta.core.inputs import Binding, InputDefinition
@@ -151,15 +147,8 @@ def update_node(wf: Workflow):
 
 @api_router.delete("/delete/")
 def remove(selection: Selection):
-    cmds: list[Command] = []
-    for edge_id in selection.edges:
-        src, tgt = edge_id.split("->")
-        cmds.append(RemoveTransition(src, tgt))
-
-    for node_id in selection.nodes:
-        cmds.append(RemoveWorkflow(node_id))
-
-    events = SESSION.handle_command(Transaction(tuple(cmds)))
+    edges = tuple((source, target) for source, target in (edge_id.split("->", 1) for edge_id in selection.edges))
+    events = SESSION.handle_command(DeleteSteps(tuple(selection.nodes), edges))
     return JSONResponse({"events": serialize_events(events)})
 
 

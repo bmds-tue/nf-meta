@@ -4,6 +4,7 @@ import pytest
 
 from nf_meta.core.edits import (
     DeleteInput,
+    DeleteSteps,
     EditInput,
     SaveWorkflow,
     SetInputsStyle,
@@ -17,6 +18,7 @@ from nf_meta.core.errors import ConfigValidationError, GraphValidationError
 from nf_meta.core.events import Transaction
 from nf_meta.core.history import History
 from nf_meta.core.inputs import Binding, InputDefinition
+from nf_meta.core.models import Transition
 
 from .test_inputs import graph, pipeline, schema  # noqa: F401  (schema: autouse fixture)
 
@@ -284,3 +286,31 @@ class TestSaveWorkflow:
             "n03", input="${n01:params:outdir}/${n02:params:x}", other="${n01:params:y}", own="${n03:params:z}"
         )
         assert referenced_steps(wf) == ["n01", "n02"]
+
+
+class TestDeleteSteps:
+    def test_bound_input_stays_without_the_binding(self):
+        g = graph(
+            pipeline("n01", input="a.csv", outdir="out1"),
+            pipeline("n02", input="b.csv"),
+            inputs={"genome": {"bind": ["n01.genome", "n02.genome"], "description": "g"}},
+        )
+        history = run(g, DeleteSteps(("n02",)))
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+        assert g.inputs["genome"] == InputDefinition(bind=("n01.genome",), description="g")
+        history.undo(g)
+        assert g.inputs["genome"].bind == ("n01.genome", "n02.genome")
+        assert {wf.id for wf in g.get_workflows()} == {"n01", "n02"}
+
+    def test_input_left_unused_is_kept(self):
+        g = graph(pipeline("n01", input="a.csv"), inputs={"genome": {"bind": ["n01.genome"]}})
+        run(g, DeleteSteps(("n01",)))
+        assert g.inputs == {"genome": InputDefinition()}
+        assert any(d.message == "not used by any step" for d in g.input_diagnostics())
+
+    def test_edges_and_steps_together(self):
+        g = graph(pipeline("n01", input="a.csv"), pipeline("n02", input="b.csv"), pipeline("n03", input="c.csv"))
+        g.add_transition(Transition(source="n01", target="n02"))
+        run(g, DeleteSteps(("n03",), (("n01", "n02"),)))
+        assert g.get_transitions() == []
+        assert [wf.id for wf in g.get_workflows()] == ["n01", "n02"]

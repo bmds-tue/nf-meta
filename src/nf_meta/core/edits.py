@@ -18,6 +18,8 @@ from .events import (
     EditWorkflow,
     GraphEventHandler,
     RemoveInput,
+    RemoveTransition,
+    RemoveWorkflow,
     Transaction,
     UpdateInput,
 )
@@ -54,6 +56,22 @@ def save_workflow_commands(
         for source in sources
         if create or graph.get_transition(source, wf.id) is None
     ]
+    return Transaction(tuple(commands))
+
+
+def delete_steps_commands(
+    graph: GraphEventHandler, steps: Iterable[str], edges: Iterable[tuple[str, str]] = ()
+) -> Transaction:
+    """Remove `edges` (source, target) and `steps` with their edges. Inputs
+    bound to a removed step with `bind:` lose that binding but stay, so an
+    input left unused is reported as such instead of blocking the removal."""
+    removed = set(steps)
+    commands: list[Command] = [RemoveTransition(source, target) for source, target in edges]
+    for name, definition in graph.inputs.items():
+        kept = tuple(b for b in definition.bind if Binding.parse(b).step_id not in removed)
+        if kept != definition.bind:
+            commands.append(UpdateInput(name, definition.model_copy(update={"bind": kept})))
+    commands += [RemoveWorkflow(step_id) for step_id in dict.fromkeys(steps)]
     return Transaction(tuple(commands))
 
 
@@ -282,3 +300,14 @@ class SaveWorkflow:
 
     def apply(self, g: GraphEventHandler):
         save_workflow_commands(g, self.workflow, create=self.create, after=self.after).apply(g)
+
+
+@dataclass(frozen=True)
+class DeleteSteps:
+    """Remove steps and edges, dropping bindings to removed steps; see `delete_steps_commands`."""
+
+    steps: tuple[str, ...]
+    edges: tuple[tuple[str, str], ...] = ()
+
+    def apply(self, g: GraphEventHandler):
+        delete_steps_commands(g, self.steps, self.edges).apply(g)

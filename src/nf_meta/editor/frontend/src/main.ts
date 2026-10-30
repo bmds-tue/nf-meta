@@ -4,6 +4,7 @@ import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import nfcoreIconUrl from './assets/nfcore.svg'
 import App from './App.vue'
 import { THEMES, storedTheme } from './themes'
+import { initAccessToken } from './access'
 
 import { usePipelineStore, useModuleStore } from './store'
 import { useEditorHotkeys } from './hotkeys'
@@ -37,6 +38,8 @@ const vuetify = createVuetify({
   components,
   directives,
 })
+
+initAccessToken()
 
 const pinia = createPinia()
 const app = createApp(App)

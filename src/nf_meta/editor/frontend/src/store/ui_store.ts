@@ -41,6 +41,14 @@ export const useEditorStore = defineStore('editor', () => {
     const _loadDialogOpen = ref<boolean>(false)
     const loadDialogOpen = computed(() => _loadDialogOpen.value)
 
+    // The backend refused the page's session token (none, or one of an earlier run)
+    const _accessDenied = ref(false)
+    const accessDenied = computed(() => _accessDenied.value)
+
+    function denyAccess() {
+        _accessDenied.value = true
+    }
+
     function openLoadDialog() {
         closeSaveDialog()
         _loadDialogOpen.value = true
@@ -170,6 +178,7 @@ export const useEditorStore = defineStore('editor', () => {
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
+        accessDenied, denyAccess,
     }
 })
 

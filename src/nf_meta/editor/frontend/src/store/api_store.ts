@@ -5,14 +5,23 @@ import type {
     APINodeData, APIEdgeData, APIGlobalOptions, APIInputSave, Selection, StepSchema, FolderListing,
     NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo,
 } from '../types'
+import { accessHeaders } from '../access'
+import { useEditorStore } from './ui_store'
+
+// fetch for the editor's API: sends the session token; a 401 means the page lacks it
+async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
+    const response = await fetch(endpoint, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...accessHeaders(), ...options.headers },
+    })
+    if (response.status === 401) useEditorStore().denyAccess()
+    return response
+}
 
 export const useApiStore = defineStore('api', () => {
     async function request<T>(endpoint: string, options: RequestInit): Promise<ApiResult<T>> {
         try {
-            const response = await fetch(endpoint, {
-                headers: { 'Content-Type': 'application/json' },
-                ...options,
-            })
+            const response = await apiFetch(endpoint, options)
             const data = await response.json()
             if (!response.ok) {
                 // A 422 with field or graph errors is a refused change; one with only
@@ -140,7 +149,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
 
     async function initialize() {
         try {
-            const r = await fetch('/api/nfcore/pipelines/', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+            const r = await apiFetch('/api/nfcore/pipelines/')
             if (!r.ok) throw new Error(`HTTP ${r.status}`)
             nfCorePipelines.value = await r.json()
         } catch {
@@ -157,7 +166,7 @@ export const useModuleStore = defineStore('module', () => {
 
     async function initialize() {
         try {
-            const r = await fetch('/api/nfcore/modules/', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+            const r = await apiFetch('/api/nfcore/modules/')
             if (!r.ok) throw new Error(`HTTP ${r.status}`)
             nfCoreModules.value = await r.json()
         } catch {
@@ -166,7 +175,7 @@ export const useModuleStore = defineStore('module', () => {
     }
 
     async function fetchModuleVersions(shortName: string): Promise<NfCoreModuleVersionInfo[]> {
-        const response = await fetch(`/api/nfcore/modules/${shortName}/versions/`, { method: 'GET' })
+        const response = await apiFetch(`/api/nfcore/modules/${shortName}/versions/`)
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         return response.json() as Promise<NfCoreModuleVersionInfo[]>
     }

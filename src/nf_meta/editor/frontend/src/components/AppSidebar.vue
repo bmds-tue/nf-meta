@@ -16,7 +16,6 @@ watch(() => graphStore.nodeData, (nodes) => editorStore.syncSidebarNodes(nodes),
 const { fitView } = useVueFlow()
 const { sideBarTab } = storeToRefs(editorStore)
 
-const props = defineProps(["resized"])
 
 
 const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)

@@ -1,5 +1,5 @@
 <template>
-    <v-snackbar-queue v-model="messageStore.queue" closable="true"></v-snackbar-queue>
+    <v-snackbar-queue v-model="messageStore.queue" closable></v-snackbar-queue>
 </template>
 
 <script setup lang="ts">

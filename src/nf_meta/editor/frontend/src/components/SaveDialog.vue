@@ -1,68 +1,64 @@
 <script setup lang="ts">
-import { useEditorStore } from '../store'
-import { useGraphStore } from '../store'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useEditorStore, useGraphStore } from '../store'
 
 const editorStore = useEditorStore()
 const graphStore = useGraphStore()
 
-const filename = ref<string>(graphStore.filename || "")
-const errorMessages = ref<string[]>([])
+const path = ref('')
+const problem = ref<string>()
 const saving = ref(false)
 
-function resetDialog() {
-    errorMessages.value = []
-    filename.value = graphStore.filename || ""
-}
+// Each time the dialog opens: start from the config being edited
+watch(() => editorStore.saveDialogOpen, (open) => {
+  if (!open) return
+  path.value = graphStore.filename ?? ''
+  problem.value = undefined
+})
 
 async function save() {
-    if (!filename.value) {
-        errorMessages.value.push("Filename Required")
-        return
-    }
-    if (!filename.value.endsWith(".yaml") && !filename.value.endsWith(".yml")) {
-        errorMessages.value.push("File must have a .yaml or .yml extension")
-        return
-    }
-    saving.value = true
-    try {
-        await graphStore.saveAs(filename.value)
-        resetDialog()
-        editorStore.closeSaveDialog()
-    } finally {
-        saving.value = false
-    }
+  const target = path.value.trim()
+  if (!target) {
+    problem.value = 'Enter a file name'
+    return
+  }
+  if (!/\.ya?ml$/i.test(target)) {
+    problem.value = 'The file needs a .yaml or .yml extension'
+    return
+  }
+  saving.value = true
+  try {
+    problem.value = await graphStore.saveAs(target)
+    if (!problem.value) editorStore.closeSaveDialog()
+  } finally {
+    saving.value = false
+  }
 }
-
-function cancel() {
-    resetDialog()
-    editorStore.closeSaveDialog()
-}
-
 </script>
 
 <template>
-  <v-dialog
-    v-model="editorStore.saveDialogOpen"
-    width="500"
-    persistent
-  >
+  <v-dialog v-model="editorStore.saveDialogOpen" width="560" persistent>
     <v-card>
-        <v-card-title>Save Project</v-card-title>
+      <v-card-title>Save config as</v-card-title>
+      <v-form @submit.prevent="save">
         <v-card-text>
-            <v-text-field
-                label="Filename"
-                v-model="filename"
-                :error-messages="errorMessages"
-                autofocus
-                variant="outlined"/>
+          <v-text-field
+            v-model="path"
+            label="Config file"
+            placeholder="path/to/metapipeline.yaml"
+            hint="On the machine running nf-meta; relative paths start where 'nf-meta editor' was started"
+            persistent-hint
+            prepend-inner-icon="mdi-content-save-outline"
+            autofocus
+            variant="outlined"
+            :error-messages="problem" />
         </v-card-text>
-
         <v-card-actions>
-        <v-spacer />
-        <v-btn @click="cancel" :disabled="saving">Cancel</v-btn>
-        <v-btn @click="save" :loading="saving">Save</v-btn>
+          <v-spacer />
+          <v-btn :disabled="saving" @click="editorStore.closeSaveDialog()">Cancel</v-btn>
+          <v-btn type="submit" color="primary" variant="flat" :loading="saving">Save</v-btn>
         </v-card-actions>
+      </v-form>
     </v-card>
   </v-dialog>
 </template>

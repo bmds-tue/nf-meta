@@ -9,7 +9,13 @@ from pydantic import BaseModel, ValidationError
 
 from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
 from nf_meta.core.edits import DeclareStepInputs, DeleteInput, DeleteSteps, EditInput, SaveWorkflow, SetInputsStyle
-from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
+from nf_meta.core.errors import (
+    ConfigValidationError,
+    GraphValidationError,
+    SessionCommandError,
+    Severity,
+    diagnostics_from_pydantic_error,
+)
 from nf_meta.core.events import (
     AddTransition,
     Command,
@@ -89,13 +95,26 @@ def get_graph():
 
 @api_router.post("/graph/save/")
 def save_graph(config: Path = Body(embed=True)):
-    SESSION.save_to_config(config)
+    try:
+        SESSION.save_to_config(config)
+    except OSError as exc:
+        return JSONResponse(status_code=400, content={"detail": f"Can't write {config}: {exc.strerror or exc}"})
     return JSONResponse({})
 
 
 @api_router.post("/graph/load/")
 def load_graph(config: Path = Body(embed=True)):
-    SESSION.load_config(config)
+    """Load the config at `config` (relative to where the editor was
+    started). Answers 404 for a missing file and 422 with the first problems
+    for an invalid config; the current graph stays as it was."""
+    if not config.is_file():
+        return JSONResponse(status_code=404, content={"detail": f"No such file: {config}"})
+    try:
+        SESSION.load_config(config)
+    except (ConfigValidationError, GraphValidationError) as exc:
+        problems = [f"{d.yaml_path}: {d.message}" for d in getattr(exc, "errors", [])] or [str(exc)]
+        more = f" (and {len(problems) - 3} more)" if len(problems) > 3 else ""
+        return JSONResponse(status_code=422, content={"detail": f"Invalid config: {'; '.join(problems[:3])}{more}"})
     return JSONResponse({})
 
 

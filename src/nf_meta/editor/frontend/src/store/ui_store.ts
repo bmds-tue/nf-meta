@@ -175,15 +175,18 @@ export const useEditorStore = defineStore('editor', () => {
 
 export const useActivityStore = defineStore('activity', () => {
     interface LogEntry {
+        // stable key for the list, while new entries are prepended
+        id: number
         event: APIEvent
         timestamp: Date
     }
 
     const log = ref<LogEntry[]>([])
     const drawerOpen = ref(false)
+    let nextId = 0
 
     function pushEvents(events: APIEvent[]) {
-        const entries = events.map(event => ({ event, timestamp: new Date() }))
+        const entries = events.map(event => ({ id: nextId++, event, timestamp: new Date() }))
         log.value = [...entries, ...log.value]
     }
 

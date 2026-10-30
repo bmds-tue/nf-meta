@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import { INPUT_COLOR, REF_COLOR } from '../store'
 import type { ParamSpec, StepSchema } from '../types'
-import { paramRows, paramSuggestions, toParamValue, withoutEmptyValues, type ParamRow, type ReferenceTarget } from '../utils'
+import { addableParams, paramRows, splitLeadingReference, toParamValue, withoutEmptyValues, type ParamRow, type ReferenceTarget } from '../utils'
+import ParamRowActions from './ParamRowActions.vue'
 import ReferenceMenu from './ReferenceMenu.vue'
 import YamlEditor from './YamlEditor.vue'
 
@@ -31,7 +32,6 @@ const PATH_FORMATS = new Set(['file-path', 'directory-path', 'path', 'file-path-
 const MODULE_PATH_TYPES = new Set(['file', 'directory', 'path'])
 const BOOLEANS: unknown[] = [true, false]
 const WHOLE_INPUT = /^\$\{inputs:([^}:]+)\}$/
-const WHOLE_STEP_REF = /^\$\{([^}:]+):params:([^}]+)\}$/
 
 const params = computed(() => (props.modelValue ?? {}) as Record<string, unknown>)
 
@@ -48,13 +48,16 @@ const allErrors = computed(() => [
   ...Object.entries(props.errors).flatMap(([param, messages]) => messages.map(m => `${param}: ${m}`)),
 ])
 
-// "Add param": the schema's optional params not set yet, filtered by what is typed
+// "Add param": every param of the schema without a value yet, filtered by what is typed
 const addOpen = ref(false)
 const addFilter = ref('')
 const addable = computed(() => {
-  const set = [...Object.keys(params.value), ...Object.keys(props.bound)]
+  const set = [
+    ...Object.entries(params.value).filter(([, v]) => v !== '' && v !== null && v !== undefined).map(([k]) => k),
+    ...Object.keys(props.bound),
+  ]
   const text = addFilter.value.trim().toLowerCase()
-  return paramSuggestions(props.schema, set).optional.filter(name => !text || name.toLowerCase().includes(text))
+  return addableParams(props.schema, set).filter(p => !text || p.name.toLowerCase().includes(text))
 })
 
 function setParams(next: Record<string, unknown>) {
@@ -90,15 +93,34 @@ function add(name: string, value = '') {
   addFilter.value = ''
 }
 
-// How a row's value is shown: a chip for a whole input or reference, else a field
-function chip(row: ParamRow): { kind: 'input' | 'ref', text: string, bound?: boolean } | undefined {
-  if (row.boundBy) return { kind: 'input', text: `← input ${row.boundBy}`, bound: true }
+// A whole input value (or a bind: input) is shown as a chip; a reference at the start of a
+// value as a chip inside the text field, with the rest of the value editable after it
+function inputChip(row: ParamRow): { text: string, bound: boolean } | undefined {
+  if (row.boundBy) return { text: `← input ${row.boundBy}`, bound: true }
   if (typeof row.value !== 'string') return undefined
   const input = row.value.match(WHOLE_INPUT)
-  if (input) return { kind: 'input', text: `← input ${input[1]}` }
-  const reference = row.value.match(WHOLE_STEP_REF)
-  if (reference) return { kind: 'ref', text: `${stepNames.value[reference[1]!] ?? reference[1]} (${reference[1]}) · ${reference[2]}` }
-  return undefined
+  return input ? { text: `← input ${input[1]}`, bound: false } : undefined
+}
+
+function leadingReference(row: ParamRow) {
+  return splitLeadingReference(row.value)
+}
+
+// The text of a field: after a leading reference, only the rest
+function fieldText(row: ParamRow): string {
+  const reference = leadingReference(row)
+  if (reference) return reference.rest
+  return row.value === undefined || row.value === null ? '' : String(row.value)
+}
+
+function setText(row: ParamRow, text: string) {
+  const reference = leadingReference(row)
+  if (reference) setValue(row.name, referenceValue(reference.stepId, reference.key) + text)
+  else setValue(row.name, toParamValue(text, row.spec))
+}
+
+function dropReference(row: ParamRow) {
+  setValue(row.name, leadingReference(row)?.rest ?? '')
 }
 
 function fieldKind(spec?: ParamSpec): 'enum' | 'boolean' | 'number' | 'text' {
@@ -137,21 +159,25 @@ function inputTitle(name: string) {
         </template>
         <v-card class="add-menu">
           <v-text-field
-            v-model="addFilter" placeholder="Search optional params" prepend-inner-icon="mdi-magnify"
+            v-model="addFilter" placeholder="Search params" prepend-inner-icon="mdi-magnify"
             variant="solo-filled" density="compact" hide-details flat autofocus />
           <v-list density="compact" class="add-list">
-            <v-list-item v-if="!addable.length" disabled title="No more optional params" />
+            <v-list-item v-if="!addable.length" disabled title="Every param has a value" />
             <v-list-item
-              v-for="name in addable" :key="name"
-              :title="name" :subtitle="schema[name]?.description" lines="one"
-              @click="add(name)">
+              v-for="p in addable" :key="p.name"
+              :subtitle="p.description" lines="one"
+              @click="add(p.name)">
+              <template #title>
+                <span :class="{ 'text-warning': p.required }">{{ p.name }}{{ p.required ? ' *' : '' }}</span>
+                <span v-if="p.hidden" class="text-caption muted ml-1">hidden</span>
+              </template>
               <template #append>
-                <ReferenceMenu :param="name" :references="references" :size="24" location="end" class="mr-1"
-                  @pick="(stepId, key) => add(name, referenceValue(stepId, key))" />
+                <ReferenceMenu :param="p.name" :references="references" :size="24" location="end" class="mr-1"
+                  @pick="(stepId, key) => add(p.name, referenceValue(stepId, key))" />
                 <v-btn
                   icon="mdi-import" size="24" variant="flat" class="pill-btn"
-                  :color="INPUT_COLOR" :title="inputTitle(name)"
-                  @click.stop="add(name, inputValue(name))" />
+                  :color="INPUT_COLOR" :title="inputTitle(p.name)"
+                  @click.stop="add(p.name, inputValue(p.name))" />
               </template>
             </v-list-item>
           </v-list>
@@ -171,60 +197,65 @@ function inputTitle(name: string) {
     <template v-else-if="mode === 'form'">
       <p v-for="message in generalErrors" :key="message" class="field-error mb-0">{{ message }}</p>
       <div v-for="row in rows" :key="row.name" class="param-row" :class="{ missing: missing(row) }" :title="row.spec?.description">
-        <div class="param-field">
-          <!-- a whole input or reference: a chip, closed to edit the value again -->
-          <div v-if="chip(row)" class="chip-field">
-            <span class="chip-label">{{ label(row) }}</span>
+        <!-- a whole input: a chip, closed to give the param a value again -->
+        <div v-if="inputChip(row)" class="chip-field">
+          <span class="chip-label">{{ label(row) }}</span>
+          <div class="d-flex align-center">
             <v-chip
-              size="small" variant="tonal"
-              :color="chip(row)!.kind === 'input' ? INPUT_COLOR : REF_COLOR"
-              :prepend-icon="chip(row)!.kind === 'input' ? 'mdi-import' : 'mdi-transit-connection-variant'"
-              :closable="!chip(row)!.bound"
-              :title="chip(row)!.bound ? 'Bound with bind: in the inputs section; change it in the Inputs tab' : undefined"
+              size="small" variant="tonal" :color="INPUT_COLOR" prepend-icon="mdi-import"
+              :closable="!inputChip(row)!.bound"
+              :title="inputChip(row)!.bound ? 'Bound with bind: in the inputs section; change it in the Inputs tab' : undefined"
               @click:close="setValue(row.name, '')">
-              {{ chip(row)!.text }}
+              {{ inputChip(row)!.text }}
             </v-chip>
-            <div v-for="message in errors[row.name] ?? []" :key="message" class="field-error">{{ message }}</div>
+            <v-spacer />
+            <ParamRowActions
+              v-if="!inputChip(row)!.bound"
+              :param="row.name" :references="references" :input-title="inputTitle(row.name)" :removable="!row.required"
+              @reference="(stepId, key) => setValue(row.name, referenceValue(stepId, key))"
+              @input="setValue(row.name, inputValue(row.name))" @remove="remove(row.name)" />
           </div>
-          <v-select
-            v-else-if="fieldKind(row.spec) === 'enum'"
-            :model-value="row.value" :items="row.spec?.enum ?? []" :label="label(row)"
-            :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
-            clearable variant="outlined" density="compact" hide-details="auto"
-            :error-messages="errors[row.name]"
-            @update:model-value="(v: unknown) => setValue(row.name, v ?? '')" />
-          <v-select
-            v-else-if="fieldKind(row.spec) === 'boolean'"
-            :model-value="row.value" :items="BOOLEANS" :label="label(row)"
-            :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
-            clearable variant="outlined" density="compact" hide-details="auto"
-            :error-messages="errors[row.name]"
-            @update:model-value="(v: unknown) => setValue(row.name, v ?? '')" />
-          <v-text-field
-            v-else
-            :model-value="row.value === undefined || row.value === null ? '' : String(row.value)"
-            :type="fieldKind(row.spec) === 'number' ? 'number' : 'text'"
-            :label="label(row)"
-            :prepend-inner-icon="isPath(row.spec) ? 'mdi-file-outline' : undefined"
-            :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
-            variant="outlined" density="compact" hide-details="auto" class="value-text"
-            :error-messages="errors[row.name]"
-            @update:model-value="(v: string) => setValue(row.name, toParamValue(v, row.spec))" />
+          <div v-for="message in errors[row.name] ?? []" :key="message" class="field-error">{{ message }}</div>
         </div>
-        <div class="param-actions">
-          <template v-if="!row.boundBy">
-            <ReferenceMenu :param="row.name" :references="references" :size="24" @pick="(stepId, key) => setValue(row.name, referenceValue(stepId, key))" />
-            <v-btn
-              icon="mdi-import" size="24" variant="flat" class="pill-btn"
-              :color="INPUT_COLOR" :title="inputTitle(row.name)"
-              @click="setValue(row.name, inputValue(row.name))" />
+        <v-select
+          v-else-if="fieldKind(row.spec) === 'enum' || fieldKind(row.spec) === 'boolean'"
+          :model-value="row.value" :items="fieldKind(row.spec) === 'enum' ? row.spec?.enum ?? [] : BOOLEANS" :label="label(row)"
+          :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
+          clearable variant="outlined" density="compact" hide-details="auto"
+          :error-messages="errors[row.name]"
+          @update:model-value="(v: unknown) => setValue(row.name, v ?? '')">
+          <template #append-inner>
+            <ParamRowActions
+              :param="row.name" :references="references" :input-title="inputTitle(row.name)" :removable="!row.required"
+              @reference="(stepId, key) => setValue(row.name, referenceValue(stepId, key))"
+              @input="setValue(row.name, inputValue(row.name))" @remove="remove(row.name)" />
           </template>
-          <v-btn
-            v-if="!row.required && !row.boundBy"
-            icon="mdi-close" size="24" variant="text" density="comfortable" title="Remove this param"
-            @click="remove(row.name)" />
-          <span v-else class="action-spacer" />
-        </div>
+        </v-select>
+        <v-text-field
+          v-else
+          :model-value="fieldText(row)"
+          :type="fieldKind(row.spec) === 'number' && !leadingReference(row) ? 'number' : 'text'"
+          :label="label(row)"
+          :placeholder="leadingReference(row) ? 'more text, e.g. /samplesheet.csv' : undefined"
+          :prepend-inner-icon="isPath(row.spec) && !leadingReference(row) ? 'mdi-file-outline' : undefined"
+          :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
+          variant="outlined" density="compact" hide-details="auto" class="value-text"
+          :error-messages="errors[row.name]"
+          @update:model-value="(v: string) => setText(row, v)">
+          <template v-if="leadingReference(row)" #prepend-inner>
+            <v-chip
+              size="small" variant="tonal" :color="REF_COLOR" prepend-icon="mdi-transit-connection-variant"
+              closable class="ref-chip" @click:close.stop="dropReference(row)" @mousedown.stop>
+              {{ stepNames[leadingReference(row)!.stepId] ?? leadingReference(row)!.stepId }} · {{ leadingReference(row)!.key }}
+            </v-chip>
+          </template>
+          <template #append-inner>
+            <ParamRowActions
+              :param="row.name" :references="references" :input-title="inputTitle(row.name)" :removable="!row.required"
+              @reference="(stepId, key) => setValue(row.name, referenceValue(stepId, key) + (leadingReference(row)?.rest ?? ''))"
+              @input="setValue(row.name, inputValue(row.name))" @remove="remove(row.name)" />
+          </template>
+        </v-text-field>
       </div>
     </template>
 
@@ -250,21 +281,22 @@ function inputTitle(name: string) {
   height: 24px;
 }
 .param-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding-left: 8px;
-  border-left: 3px solid transparent;
+  position: relative;
+}
+/* a required param without a value: an amber bar in the margin, like the required pills */
+.param-row.missing::before {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
   border-radius: 2px;
-  transition: border-color 0.2s;
+  background: rgb(var(--v-theme-warning));
 }
-/* a required param without a value: an amber bar, like the required pills */
-.param-row.missing {
-  border-left-color: rgb(var(--v-theme-warning));
-}
-.param-field {
-  flex: 1;
-  min-width: 0;
+.ref-chip {
+  flex-shrink: 0;
+  margin-right: 4px;
 }
 .chip-field {
   display: flex;
@@ -276,15 +308,6 @@ function inputTitle(name: string) {
 .chip-label {
   font-size: 0.75rem;
   opacity: 0.72;
-}
-.param-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-top: 6px;
-}
-.action-spacer {
-  width: 24px;
 }
 .value-text :deep(input) {
   font-family: monospace;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    canShareInput, inputDeleteProblem, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    addableParams, canShareInput, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -219,5 +219,27 @@ describe('toParamValue', () => {
         expect(toParamValue('4', { type: 'string' })).toBe('4')
         expect(toParamValue('', { type: 'integer' })).toBeUndefined()
         expect(toParamValue(true, { type: 'boolean' })).toBe(true)
+    })
+})
+
+describe('splitLeadingReference', () => {
+    it('splits a leading reference from the text after it', () => {
+        expect(splitLeadingReference('${n01:params:outdir}/x.csv')).toEqual({ stepId: 'n01', key: 'outdir', rest: '/x.csv' })
+        expect(splitLeadingReference('${n01:params:outdir}')).toEqual({ stepId: 'n01', key: 'outdir', rest: '' })
+    })
+
+    it('leaves other values alone', () => {
+        expect(splitLeadingReference('a/${n01:params:outdir}')).toBeUndefined()
+        expect(splitLeadingReference('${inputs:ids}')).toBeUndefined()
+        expect(splitLeadingReference(4)).toBeUndefined()
+    })
+})
+
+describe('addableParams', () => {
+    it('lists unset params, required first and hidden last', () => {
+        const schema = { outdir: { required: true }, input: { required: true }, aligner: {}, genome: {}, debug: { hidden: true } }
+        expect(addableParams(schema, ['input', 'genome']).map(p => [p.name, p.required, p.hidden])).toEqual([
+            ['outdir', true, false], ['aligner', false, false], ['debug', false, true],
+        ])
     })
 })

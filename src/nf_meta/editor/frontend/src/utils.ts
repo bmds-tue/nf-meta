@@ -363,3 +363,29 @@ export function withoutEmptyValues(params: object | undefined): object | undefin
     const kept = Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
     return kept.length ? Object.fromEntries(kept) : undefined
 }
+
+/**
+ * A value that starts with a step reference, split into the reference and
+ * the text after it: `${n01:params:outdir}/x.csv` -> n01, outdir, `/x.csv`.
+ * Undefined for other values.
+ */
+export function splitLeadingReference(value: unknown): { stepId: string, key: string, rest: string } | undefined {
+    if (typeof value !== 'string') return undefined
+    const match = value.match(/^\$\{([^}:]+):params:([^}]+)\}([\s\S]*)$/)
+    return match ? { stepId: match[1]!, key: match[2]!, rest: match[3]! } : undefined
+}
+
+export type AddableParam = { name: string, required: boolean, hidden: boolean, description?: string }
+
+/**
+ * The params of `schema` that can be added: all those not set yet (`set`),
+ * required ones first, hidden ones last, each group sorted.
+ */
+export function addableParams(schema: StepSchema | null | undefined, set: Iterable<string>): AddableParam[] {
+    const done = new Set(set)
+    const rank = (p: AddableParam) => (p.required ? 0 : p.hidden ? 2 : 1)
+    return Object.entries(schema ?? {})
+        .filter(([name]) => !done.has(name))
+        .map(([name, spec]) => ({ name, required: !!spec.required, hidden: !!spec.hidden, description: spec.description }))
+        .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+}

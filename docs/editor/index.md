@@ -28,6 +28,10 @@ This serves the editor's frontend and automaatically opens it in a browser tab, 
 The session tracks graph mutations by updating the internal history, fetches data while keeping a local cache, and responds to validation requests.
 Passing no path starts a new, empty metapipeline.
 
+!!! tip "Configs on a cluster?"
+    Run the editor on the cluster and use it in your own browser through an SSH tunnel:
+    see [Editor on a remote machine (HPC)](remote.md).
+
 ### The editor link
 
 On start, the editor prints its address with an access token, for example

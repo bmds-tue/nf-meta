@@ -13,6 +13,10 @@ Find a growing collection of examples in the dedicated
 
 ![nf-meta editor](assets/nf-meta-screenshot.png)
 
+Start the editor with `nf-meta editor [metapipeline.yaml]`. Configs on a cluster? Run it there and
+use it from your own browser through an SSH tunnel:
+[Editor on a remote machine (HPC)](https://bmds-tue.github.io/nf-meta/latest/editor/remote/).
+
 ## Representation
 
 A metapipeline is a `.yaml` file. The most important keys are:

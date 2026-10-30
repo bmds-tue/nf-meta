@@ -1,13 +1,18 @@
+import html
 import http.client
 import logging
+import os
 import socket
+import tempfile
 import threading
 import time
+from pathlib import Path
 
 import click
 import uvicorn
 
-from .backend import DEV_HOST, DEV_MODE, DEV_PORT, DEV_VITE_PORT, app
+from .backend import DEV_HOST, DEV_MODE, DEV_PORT, DEV_VITE_PORT, app, configure_access, new_token
+from .backend.guard import WILDCARD_HOSTS
 from .base_editor import BaseEditor
 
 logger = logging.getLogger(__name__)
@@ -39,9 +44,30 @@ def _wait_for_backend(host: str, port: int, timeout: int = 5) -> None:
     raise RuntimeError("Server did not start")
 
 
-def _open_browser_when_ready(host: str, port: int) -> None:
+def _editor_url(host: str, port: int, token: str) -> str:
+    """The page's address with the session token; a wildcard host is shown as `127.0.0.1`."""
+    if host.strip("[]") in WILDCARD_HOSTS:
+        host = "127.0.0.1"
+    elif ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"http://{host}:{port}/?token={token}"
+
+
+def _write_redirect_file(url: str) -> Path:
+    """A page, readable only by the current user, that forwards the browser to `url`."""
+    fd, name = tempfile.mkstemp(prefix="nf-meta-editor-", suffix=".html")
+    with os.fdopen(fd, "w") as f:
+        target = html.escape(url, quote=True)
+        f.write(
+            f'<!doctype html><meta http-equiv="refresh" content="0;url={target}"><a href="{target}">Open the editor</a>\n'
+        )
+    return Path(name)
+
+
+def _open_browser_when_ready(host: str, port: int, page: Path) -> None:
     _wait_for_backend(host, port)
-    click.launch(f"http://{host}:{port}")
+    # The browser gets a local file, so the token never appears in a process's arguments
+    click.launch(page.as_uri())
 
 
 class BrowserEditor(BaseEditor):
@@ -59,6 +85,7 @@ class BrowserEditor(BaseEditor):
     def start(self) -> None:
         host = self.options.host
         port = self.options.port
+        token = new_token()
 
         if DEV_MODE:
             logger.debug(
@@ -78,23 +105,31 @@ class BrowserEditor(BaseEditor):
                 )
                 raise SystemExit(1)
 
-            thread = threading.Thread(
-                target=_open_browser_when_ready,
-                args=(DEV_HOST, DEV_VITE_PORT),
-                daemon=True,
+            configure_access(app, token)
+            self._serve(
+                DEV_HOST, DEV_PORT, _editor_url(DEV_HOST, DEV_VITE_PORT, token), wait_on=(DEV_HOST, DEV_VITE_PORT)
             )
-            thread.start()
-
-            config = uvicorn.Config(app, host=DEV_HOST, port=DEV_PORT, log_level="warning")
-            print(f"Starting editor on: http://{DEV_HOST}:{DEV_VITE_PORT}/")
-            uvicorn.Server(config).run()
         else:
             if port is None:
                 port = _find_free_port()
+            configure_access(app, token, bind_host=host)
+            if host.strip("[]") in WILDCARD_HOSTS:
+                click.echo(
+                    click.style(
+                        f"Listening on all network interfaces ({host}): anyone who can reach this machine "
+                        "can reach the editor; the token in the link is its only protection.",
+                        fg="yellow",
+                    )
+                )
+            self._serve(host, port, _editor_url(host, port, token), wait_on=(host, port))
 
-            thread = threading.Thread(target=_open_browser_when_ready, args=(host, port), daemon=True)
+    def _serve(self, host: str, port: int, url: str, wait_on: tuple[str, int]) -> None:
+        page = _write_redirect_file(url)
+        try:
+            thread = threading.Thread(target=_open_browser_when_ready, args=(*wait_on, page), daemon=True)
             thread.start()
-
             config = uvicorn.Config(app, host=host, port=port, log_level="warning")
-            print(f"Starting editor on: http://{host}:{port}/")
+            print(f"Editor running at: {url}")
             uvicorn.Server(config).run()
+        finally:
+            page.unlink(missing_ok=True)

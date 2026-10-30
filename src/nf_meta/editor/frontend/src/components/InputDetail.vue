@@ -243,7 +243,7 @@ watch(isFlashing, async (flashing) => {
 <template>
   <v-card
     ref="card"
-    class="mt-2 input-card"
+    class="input-card"
     :class="{ 'input-card-hovered': !!input && (editorStore.hoveredInputName === input.name || isFlashing) }"
     @mouseenter="hover(input?.name)"
     @mouseleave="hover(undefined)">

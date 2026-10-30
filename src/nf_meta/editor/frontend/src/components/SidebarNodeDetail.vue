@@ -83,7 +83,7 @@ function onSaved(newNodeData?: APINodeData) {
 </script>
 
 <template>
-<v-card ref="card" class="mb-2"
+<v-card ref="card"
   :class="{
     'workflow-node-nfcore': confirmedType === WorkflowType.NF_PIPELINE && 'is_nfcore' in detailData && detailData.is_nfcore,
     'workflow-node-module': confirmedType === WorkflowType.NF_MODULE,

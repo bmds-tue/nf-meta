@@ -51,7 +51,7 @@ async function save() {
 </script>
 
 <template>
-  <v-card class="mt-2">
+  <v-card>
     <v-card-title class="d-flex align-center ga-2 py-1 text-subtitle-1">
       <v-icon icon="mdi-earth" size="18" />
       <strong>Global settings</strong>

@@ -76,27 +76,26 @@ onBeforeUnmount(stopDrag)
 </script>
 
 <template>
-  <v-container class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
-    <v-container class="pa-0 mb-1">
-      <v-tabs v-model="sideBarTab">
-        <v-tab value="nodes">Workflows</v-tab>
-        <v-tab value="inputs">
-          Inputs
-          <v-badge
-            v-if="graphStore.inputs.length"
-            :content="graphStore.inputs.length"
-            :color="graphStore.inputs.some(i => i.diagnostics.length) ? 'warning' : 'primary'"
-            inline />
-        </v-tab>
-        <v-tab value="globals">Globals</v-tab>
-      </v-tabs>
-    </v-container>
-    <v-tabs-window v-model="sideBarTab" class="d-flex flex-column fill-height overflow-auto">
+  <aside class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
+    <v-tabs v-model="sideBarTab" density="compact" grow class="pane-tabs">
+      <v-tab value="nodes">Workflows</v-tab>
+      <v-tab value="inputs">
+        Inputs
+        <v-badge
+          v-if="graphStore.inputs.length"
+          :content="graphStore.inputs.length"
+          :color="graphStore.inputs.some(i => i.diagnostics.length) ? 'warning' : 'primary'"
+          inline />
+      </v-tab>
+      <v-tab value="globals">Globals</v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="sideBarTab" class="pane-body">
       <v-tabs-window-item value="nodes">
-        <div class="d-flex justify-end px-1 pt-1">
-          <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="editorStore.addNodeToSideBar({})">Add workflow</v-btn>
-        </div>
-        <v-container v-if="editorStore.sideBarNodes.length > 0" class="content">
+        <div class="pane-content">
+          <div class="pane-actions">
+            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="editorStore.addNodeToSideBar({})">Add workflow</v-btn>
+          </div>
           <TransitionGroup name="detail-fade">
             <NodeDetail
               v-for="sbDetail in editorStore.sideBarNodes"
@@ -105,98 +104,93 @@ onBeforeUnmount(stopDrag)
               :detail-data="sbDetail.detailData">
             </NodeDetail>
           </TransitionGroup>
-        </v-container>
-        <v-container v-if="editorStore.sideBarNodes.length == 0" class="content">
-          <v-card text="No workflows yet."></v-card>
-        </v-container>
-      </v-tabs-window-item>
-
-      <v-tabs-window-item value="globals">
-        <v-container class="content pa-1">
-          <GlobalConfig></GlobalConfig>
-        </v-container>
+          <v-card v-if="editorStore.sideBarNodes.length == 0" text="No workflows yet."></v-card>
+        </div>
       </v-tabs-window-item>
 
       <v-tabs-window-item value="inputs">
-        <v-container class="content pa-1">
+        <div class="pane-content">
           <InputsPanel></InputsPanel>
-        </v-container>
+        </div>
       </v-tabs-window-item>
 
+      <v-tabs-window-item value="globals">
+        <div class="pane-content">
+          <GlobalConfig></GlobalConfig>
+        </div>
+      </v-tabs-window-item>
     </v-tabs-window>
+
     <div
       class="resize-handle"
       :class="{'dragging': isDragging}"
+      title="Drag to resize"
       @pointerdown="startDrag">
     </div>
-    
-  </v-container>
+  </aside>
 </template>
 
 <style scoped>
-
+/* docked below the app bar, full height, separated from the graph by a border */
 .split-pane {
-    position: relative;
-    flex-shrink: 0;
-
-    display: flex;
-    flex-direction:column;
-    gap:5px;
-
-    padding:10px;
-    margin-top: 16px;
-
-    -webkit-box-shadow:0px 5px 10px 0px rgba(0,0,0,.3);
-    box-shadow:0 5px 10px #0000004d;
-
-    border-radius: 8px;
-    border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
-    background: rgb(var(--v-theme-panel));
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgb(var(--v-theme-panel));
+  border-left: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
-/* critical flex rule */
-.content {
+.pane-tabs {
+  /* Vuetify's tab bar is flexible by default; it must not grow in the column */
+  flex: 0 0 auto;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.pane-body {
   flex: 1;
-  min-width: 0;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
-/* the draggable bar */
+/* the same padding and spacing in every tab */
+.pane-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* the left edge: drag to resize */
 .resize-handle {
-    position: absolute;
-    left: -4px;
-    top: 50%;
-    transform: translateY(-50%);
-
-    width: 8px;
-    height: 120px;
-
-    cursor: col-resize;
-    border-radius: 6px;
-    border-width: 2px;
-    border-color:rgb(var(--v-theme-surface));;
-
-    background: rgb(var(--v-theme-onSurface));
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 2;
+  transition: background 0.15s;
 }
 
-.resize-handle:hover {
-    background: rgb(var(--v-theme-onSurface));
-    transition: background 0.1s;
-}
-
+.resize-handle:hover,
 .resize-handle.dragging {
-    background: rgba(235,235,235,0.9);
-}
-
-.split-pane.dragging {
-    border-left: 2px solid #4a5568;
+  background: rgba(var(--v-theme-primary), 0.5);
 }
 
 .detail-fade-leave-active {
-    transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 .detail-fade-leave-to {
-    opacity: 0;
-    transform: translateX(12px);
+  opacity: 0;
+  transform: translateX(12px);
 }
 </style>

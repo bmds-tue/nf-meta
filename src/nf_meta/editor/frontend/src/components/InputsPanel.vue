@@ -15,8 +15,8 @@ const anyInSection = computed(() => bound.value.some(i => i.bound_by === 'bind')
 </script>
 
 <template>
-  <div class="d-flex flex-column">
-    <div class="d-flex flex-wrap justify-end ga-1 px-1">
+  <div class="inputs-panel">
+    <div class="pane-actions">
       <v-btn
         size="small" variant="text" prepend-icon="mdi-link-variant" :disabled="!anyInParams"
         title="Declare every input with bind: in the inputs: section"
@@ -36,7 +36,7 @@ const anyInSection = computed(() => bound.value.some(i => i.bound_by === 'bind')
 
     <InputDetail v-for="input in inputs" :key="input.name" :input="input" />
 
-    <v-card v-if="!inputs.length && !adding" class="mt-2">
+    <v-card v-if="!inputs.length && !adding">
       <v-card-text>
         No inputs yet. Add one here and bind it to step params, or write
         <code>${inputs:&lt;name&gt;}</code> as a param's value in a step.
@@ -44,3 +44,17 @@ const anyInSection = computed(() => bound.value.some(i => i.bound_by === 'bind')
     </v-card>
   </div>
 </template>
+
+<style scoped>
+.inputs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+</style>

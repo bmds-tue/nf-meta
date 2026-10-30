@@ -51,6 +51,10 @@ class Ref(str):
     def __truediv__(self, path: object) -> "Ref":
         return self._of(f"{self.rstrip('/')}/{str(path).lstrip('/')}")
 
+    def __reduce__(self):
+        # Copies and pickles are plain strings: `__new__` takes the step and key, not the text
+        return (str, (str(self),))
+
 
 class _InputRef(Ref):
     def __truediv__(self, path: object) -> "Ref":

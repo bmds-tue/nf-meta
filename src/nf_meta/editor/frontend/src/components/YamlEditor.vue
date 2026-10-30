@@ -14,8 +14,7 @@ import {
   type CompletionResult,
 } from "@codemirror/autocomplete"
 import { useGraphStore, useEditorStore } from "../store"
-import type { APINodeData } from "../types"
-import { lintInputReferences } from "../utils"
+import { lintInputReferences, lintReferenceCount } from "../utils"
 
 const props = defineProps<{
   modelValue?: object
@@ -188,8 +187,7 @@ async function referenceCompletionSource(
     const partial = paramMatch[2] ?? ""
     const from = context.pos - partial.length
     try {
-      const params = await graphStore.getParams(nodeId) as Record<string, unknown>
-      const options = Object.keys(params ?? {}).map((key) => ({
+      const options = graphStore.getReferencableParams(nodeId).map((key) => ({
         label: key,
         apply: key,
       }))
@@ -199,16 +197,18 @@ async function referenceCompletionSource(
     }
   }
 
-  // Stage 1 - ${<partial>  ->  suggest predecessor node IDs
+  // Stage 1 - ${<partial>  ->  suggest the steps that can be referenced (connected ones first)
   const nodeMatch = textBefore.match(/(?<!\\)\$\{([^:}]*)$/)
   if (nodeMatch) {
     const partial = nodeMatch[1] ?? ""
     const from = context.pos - partial.length
     try {
-      const predecessors = await graphStore.getPredecessors(props.nodeId) as APINodeData[]
-      const options = predecessors.map((node) => ({
-        label: `${node.id} (${node.name})`,
-        apply: node.id + ":params:",
+      const options: { label: string, apply: string, detail?: string }[] = graphStore.getReferenceTargets(props.nodeId)
+        .filter((target) => target.params.length > 0)
+        .map((target) => ({
+        label: `${target.stepId} (${target.stepName})`,
+        apply: target.stepId + ":params:",
+        detail: target.connected ? "connected" : "saving adds an edge",
       }))
       options.push({ label: "inputs", apply: "inputs:" })
       return { from, options, validFor: /^[^:}]*$/ }
@@ -295,13 +295,10 @@ const smartBackspaceKeymap = Prec.high(
 const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
   const diagnostics: Diagnostic[] = []
 
-  let predecessors: APINodeData[]
-  try {
-    predecessors = graphStore.getPredecessors(props.nodeId) as APINodeData[]
-  } catch {
-    return []  // can't validate without predecessor list
-  }
-  const validNodeIds = new Set(predecessors.map((n) => n.id))
+  // Steps this one can reference; a connected one needs no new edge
+  const targets = graphStore.getReferenceTargets(props.nodeId)
+  const referable = new Map(targets.map((t) => [t.stepId, t.connected]))
+  const existing = new Set(graphStore.nodeData.map((n) => n.id))
 
   // Matches complete references only: ${nodeId}  or  ${nodeId:params:key}
   const pattern = /(?<!\\)\$\{([^:}]*)(?::params:([^}]*))?\}/g
@@ -316,13 +313,17 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
     if (nodeId === "inputs") continue  // ${inputs} without a name; checked below
 
     if (nodeId) {
-      if (!validNodeIds.has(nodeId)) {
+      if (!existing.has(nodeId)) {
+        diagnostics.push({ from, to, severity: "error", message: `No step "${nodeId}"` })
+      } else if (!referable.has(nodeId)) {
         diagnostics.push({
-          from,
-          to,
-          severity: "error",
-          message:  `Referenced node is not a predecessor: "${nodeId}"`,
+          from, to, severity: "error",
+          message: nodeId === props.nodeId
+            ? "A step can't reference its own params"
+            : `"${nodeId}" runs after this step; referencing it would make a cycle`,
         })
+      } else if (!referable.get(nodeId)) {
+        diagnostics.push({ from, to, severity: "info", message: `Saving adds an edge from "${nodeId}" to this step` })
       }
     } else {
       diagnostics.push({
@@ -334,13 +335,8 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
     }
 
     if (paramKey) {
-      let params: Record<string, unknown>
-      try {
-        params = await graphStore.getParams(nodeId) as Record<string, unknown>
-      } catch {
-        continue
-      }
-      if (!Object.prototype.hasOwnProperty.call(params ?? {}, paramKey)) {
+      // set in the step's params or filled by an input
+      if (!graphStore.getReferencableParams(nodeId).includes(paramKey)) {
         diagnostics.push({
           from,
           to,
@@ -359,6 +355,9 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
   }
 
   for (const problem of lintInputReferences(text, graphStore.inputs)) {
+    diagnostics.push({ ...problem, severity: "error" })
+  }
+  for (const problem of lintReferenceCount(text)) {
     diagnostics.push({ ...problem, severity: "error" })
   }
 
@@ -415,8 +414,21 @@ function onReady(payload: { view: EditorView }) {
   view = payload.view
 }
 
-// Append `key: value` as a new line and put the cursor at its end
+// Set `key` to `value`: replace its value if the params have it, otherwise
+// append `key: value` as a new line; put the cursor at the end of that line
 function addParam(key: string, value: string) {
+  const doc = YAML.parseDocument(code.value)
+  if (!doc.errors.length && doc.has(key)) {
+    doc.set(key, value)
+    code.value = doc.toString()
+    nextTick(() => {
+      if (!view) return
+      view.focus()
+      const line = code.value.split("\n").findIndex(l => l.startsWith(`${key}:`))
+      if (line >= 0) view.dispatch({ selection: { anchor: view.state.doc.line(line + 1).to } })
+    })
+    return
+  }
   const line = `${key}: ${value}`
   const text = code.value.trim() ? `${code.value.replace(/\s*$/, "")}\n${line}\n` : `${line}\n`
   code.value = text

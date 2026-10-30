@@ -33,7 +33,7 @@ export function useStepSchema(source: () => StepSchemaSource): {
                 : await apiStore.getModuleSchema(id, s.version)
             if (request !== latest) return
             if (result.ok) schema.value = result.data
-            else error.value = `Param schema unavailable: ${result.message}`
+            else error.value = result.message
         } finally {
             if (request === latest) loading.value = false
         }

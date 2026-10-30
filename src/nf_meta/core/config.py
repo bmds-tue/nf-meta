@@ -548,15 +548,17 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     except GraphValidationError as e:
         graph_messages.append(str(e))
 
+    # Inputs first: a reference may point at a param an input fills with `bind:`
+    inputs, input_errors = parse_inputs(data, config_version)
+    diagnostics.extend(input_errors)
+    g.inputs = inputs
+
     for wf in constructed:
         try:
             g.validate_param_references(wf)
         except ConfigValidationError as e:
             diagnostics.extend(e.errors)
 
-    inputs, input_errors = parse_inputs(data, config_version)
-    diagnostics.extend(input_errors)
-    g.inputs = inputs
     input_diagnostics = g.input_diagnostics()
     if inputs:
         input_diagnostics += g.effective_inputs()[1]

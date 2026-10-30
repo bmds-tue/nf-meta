@@ -56,12 +56,14 @@ async function copyToClipboard() {
             <v-chip
                 v-if="data.version"
                 class="ml-2"
+                size="small"
                 :title="data.version">
                 {{ shortVersion(data.version) }}
             </v-chip>
             <v-chip
                 v-if="isModule"
                 color="success"
+                size="small"
                 class="ml-1">
                 module
             </v-chip>
@@ -103,7 +105,7 @@ async function copyToClipboard() {
 
 <style scoped>
 .workflow-node-handle {
-    background: #2d3f46;
+    background: rgb(var(--v-theme-handle));
     width: 20px;
     height: 10px;
     border-radius: 10px;

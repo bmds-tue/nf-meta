@@ -92,7 +92,7 @@ class TestInputCommands:
         response = save_input(client, "ids", bindings=[f"{step}.nope"], in_params=False, create=True)
         assert response.status_code == 422
         errors = response.json()["field_errors"]
-        assert [(e["workflow_id"], e["field"]) for e in errors] == [(None, "inputs.ids.bind")]
+        assert (None, "inputs.ids.bind") in [(e["workflow_id"], e["field"]) for e in errors]
         assert inputs(client) == {}
 
     def test_malformed_binding(self, client):
@@ -152,6 +152,50 @@ class TestInputCommands:
         assert response.json()["events"] == [
             {"type": "InputAdded", "name": "ids", "definition": {"bind": [f"{step}.input"]}}
         ]
+
+
+class TestSaveNode:
+    def test_reference_to_an_unconnected_step_adds_the_edge(self, client):
+        first = add_step(client, outdir="out")
+        second = add_step(client, input=f"${{{first}:params:outdir}}/samplesheet.csv")
+        transitions = client.get("/api/graph/").json()["transitions"]
+        assert [(t["source"], t["target"]) for t in transitions] == [(first, second)]
+
+    def test_update_adds_the_edge_too(self, client):
+        first = add_step(client, outdir="out")
+        second = add_step(client)
+        node = next(n for n in client.get("/api/graph/").json()["nodes"] if n["id"] == second)
+        response = client.post(
+            "/api/node/update/", json={**node, "params": {"outdir": f"${{{first}:params:outdir}}/x"}}
+        )
+        assert response.status_code == 200, response.json()
+        transitions = client.get("/api/graph/").json()["transitions"]
+        assert [(t["source"], t["target"]) for t in transitions] == [(first, second)]
+
+
+class TestDeleteNode:
+    def test_edges_and_nodes_in_one_change(self, client):
+        first = add_step(client, outdir="out")
+        second = add_step(client, input=f"${{{first}:params:outdir}}/x.csv")
+        third = add_step(client)
+        client.post("/api/edge/add/", json={"source": third, "target": second})
+        response = client.request("DELETE", "/api/delete/", json={"nodes": [third], "edges": [f"{third}->{second}"]})
+        assert response.status_code == 200, response.json()
+        state = client.get("/api/graph/").json()
+        assert sorted(n["id"] for n in state["nodes"]) == sorted([first, second])
+        assert [(t["source"], t["target"]) for t in state["transitions"]] == [(first, second)]
+        client.get("/api/graph/undo/")
+        assert len(client.get("/api/graph/").json()["nodes"]) == 3
+
+    def test_bound_input_does_not_block_deleting_its_step(self, client):
+        step = add_step(client)
+        response = save_input(client, "count", bindings=[f"{step}.count"], in_params=False, create=True)
+        assert response.status_code == 200, response.json()
+        response = client.request("DELETE", "/api/delete/", json={"nodes": [step], "edges": []})
+        assert response.status_code == 200, response.json()
+        count = inputs(client)["count"]
+        assert (count["bindings"], count["bound_by"]) == ([], None)
+        assert ("warning", "not used by any step") in [(d["severity"], d["message"]) for d in count["diagnostics"]]
 
 
 class TestNodeSchema:

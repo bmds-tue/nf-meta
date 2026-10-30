@@ -67,6 +67,7 @@ export type NewNodeData = { type?: WorkflowTypeValue }
 export type APIGlobalOptions = {
   nf_profile?: string,
   nf_config?: string,
+  nextflow_version?: string,
   params?: object
 }
 
@@ -111,6 +112,7 @@ export type APIInput = {
 export type ParamSpec = {
   type?: string,
   format?: string,
+  enum?: unknown[] | null,
   description?: string,
   required?: boolean,
   hidden?: boolean,

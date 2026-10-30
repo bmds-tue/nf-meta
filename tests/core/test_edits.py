@@ -2,19 +2,24 @@
 
 import pytest
 
+from nf_meta.core.config import validated_graph
 from nf_meta.core.edits import (
     DeleteInput,
+    DeleteSteps,
     EditInput,
+    SaveWorkflow,
     SetInputsStyle,
     declare_step_inputs_commands,
     delete_input_commands,
     edit_input_commands,
+    referenced_steps,
     set_inputs_style_commands,
 )
-from nf_meta.core.errors import ConfigValidationError
-from nf_meta.core.events import Transaction
+from nf_meta.core.errors import ConfigValidationError, GraphValidationError
+from nf_meta.core.events import AddTransition, AddWorkflow, EditWorkflow, RemoveTransition, Transaction
 from nf_meta.core.history import History
 from nf_meta.core.inputs import Binding, InputDefinition
+from nf_meta.core.models import Transition
 
 from .test_inputs import graph, pipeline, schema  # noqa: F401  (schema: autouse fixture)
 
@@ -236,3 +241,157 @@ class TestCommands:
         assert g.get_workflow_by_id("n01").params == {"input": "${inputs:ids}"}
         history.undo(g)
         assert g.get_workflow_by_id("n01").params == {"input": "a.csv"}
+
+
+class TestSaveWorkflow:
+    def test_new_step_gets_edges_for_its_references(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"), pipeline("n02", input="b.csv", outdir="out2"))
+        new = pipeline("n03", input="${n01:params:outdir}/samplesheet.csv", outdir="${n02:params:outdir}/n03")
+        run(g, SaveWorkflow(new, create=True))
+        assert {(t.source, t.target) for t in g.get_transitions()} == {("n01", "n03"), ("n02", "n03")}
+
+    def test_update_adds_missing_edges_and_keeps_existing(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"), pipeline("n02", input="b.csv", outdir="out2"))
+        run(g, SaveWorkflow(pipeline("n03", input="${n01:params:outdir}/x.csv"), create=True))
+        run(g, SaveWorkflow(pipeline("n03", input="${n02:params:outdir}/x.csv"), create=False))
+        assert {(t.source, t.target) for t in g.get_transitions()} == {("n01", "n03"), ("n02", "n03")}
+
+    def test_reference_that_makes_a_cycle_changes_nothing(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"))
+        run(g, SaveWorkflow(pipeline("n02", input="${n01:params:outdir}/x.csv", outdir="out2"), create=True))
+        with pytest.raises(GraphValidationError):
+            run(g, SaveWorkflow(pipeline("n01", input="${n02:params:outdir}/x.csv", outdir="out1"), create=False))
+        assert g.get_workflow_by_id("n01").params == {"input": "a.csv", "outdir": "out1"}
+        assert [(t.source, t.target) for t in g.get_transitions()] == [("n01", "n02")]
+
+    def test_one_undo_step(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"))
+        history = run(g, SaveWorkflow(pipeline("n02", input="${n01:params:outdir}/x.csv"), create=True))
+        history.undo(g)
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+        assert g.get_transitions() == []
+
+    def test_reference_to_a_param_filled_by_a_bind_input(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"), inputs={"genome": {"bind": ["n01.genome"]}})
+        run(g, SaveWorkflow(pipeline("n02", input="b.csv", genome="${n01:params:genome}"), create=True))
+        assert g.get_workflow_by_id("n02").params["genome"] == "${n01:params:genome}"
+
+    def test_reference_to_an_unset_param_is_still_an_error(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="out1"))
+        with pytest.raises(ConfigValidationError, match="unresolvable param: genome"):
+            run(g, SaveWorkflow(pipeline("n02", input="b.csv", genome="${n01:params:genome}"), create=True))
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+
+    def test_referenced_steps(self):
+        wf = pipeline(
+            "n03", input="${n01:params:outdir}/${n02:params:x}", other="${n01:params:y}", own="${n03:params:z}"
+        )
+        assert referenced_steps(wf) == ["n01", "n02"]
+
+
+class TestDeleteSteps:
+    def test_bound_input_stays_without_the_binding(self):
+        g = graph(
+            pipeline("n01", input="a.csv", outdir="out1"),
+            pipeline("n02", input="b.csv"),
+            inputs={"genome": {"bind": ["n01.genome", "n02.genome"], "description": "g"}},
+        )
+        history = run(g, DeleteSteps(("n02",)))
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+        assert g.inputs["genome"] == InputDefinition(bind=("n01.genome",), description="g")
+        history.undo(g)
+        assert g.inputs["genome"].bind == ("n01.genome", "n02.genome")
+        assert {wf.id for wf in g.get_workflows()} == {"n01", "n02"}
+
+    def test_input_left_unused_is_kept(self):
+        g = graph(pipeline("n01", input="a.csv"), inputs={"genome": {"bind": ["n01.genome"]}})
+        run(g, DeleteSteps(("n01",)))
+        assert g.inputs == {"genome": InputDefinition()}
+        assert any(d.message == "not used by any step" for d in g.input_diagnostics())
+
+    def test_with_other_commands_in_a_transaction(self):
+        g = graph(pipeline("n01", input="a.csv"), pipeline("n02", input="b.csv"), pipeline("n03", input="c.csv"))
+        g.add_transition(Transition(source="n01", target="n02"))
+        run(g, Transaction((RemoveTransition("n01", "n02"), DeleteSteps(("n03",)))))
+        assert g.get_transitions() == []
+        assert [wf.id for wf in g.get_workflows()] == ["n01", "n02"]
+
+
+def test_module_version_problem_and_param_errors_are_reported_together(monkeypatch):
+    from nf_meta.core.models import GlobalOptions, NfModule
+
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_module_schema",
+        lambda name, version: {"reads": {"type": "file", "required": True, "enum": None, "pattern": None}},
+    )
+    g = graph(pipeline("n01", input="a.csv"))
+    g.update_global_options(GlobalOptions(nextflow_version="25"))
+    with pytest.raises(ConfigValidationError) as exc:
+        run(g, SaveWorkflow(NfModule(id="m01", name="nf-core/fastqc", version="0.0.0-6c4ed3a"), create=True))
+    fields = {d.field for d in exc.value.errors}
+    assert {"nextflow_version", "params.reads"} <= fields
+    assert [wf.id for wf in g.get_workflows()] == ["n01"]
+
+
+class TestNestedBatches:
+    """An edit applies its own transaction; inside another one it must not validate early."""
+
+    def test_state_after_the_inner_batch_need_not_be_valid_on_its_own(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="o"), pipeline("n03", input="c.csv"))
+        late = pipeline("n04", input="${n01:params:outdir}/x.csv")
+        # n04 references n01 before the edge exists: valid only once the whole change is applied
+        run(
+            g,
+            Transaction(
+                (DeleteSteps(("n03",)), AddWorkflow(late), AddTransition(Transition(source="n01", target="n04")))
+            ),
+        )
+        assert [wf.id for wf in g.get_workflows()] == ["n01", "n04"]
+
+    def test_steps_changed_before_the_inner_batch_are_still_checked(self):
+        g = graph(pipeline("n01", input="a.csv"), pipeline("n03", input="c.csv"))
+        bad = pipeline("n01", input="a.csv", count="not a number")
+        with pytest.raises(ConfigValidationError):
+            run(g, Transaction((EditWorkflow(bad), DeleteSteps(("n03",)))))
+        assert g.get_workflow_by_id("n01").params == {"input": "a.csv"}
+        assert {wf.id for wf in g.get_workflows()} == {"n01", "n03"}
+
+
+class TestOneReferencePerValue:
+    @pytest.mark.parametrize(
+        "value",
+        ["${n01:params:outdir}/${n02:params:outdir}", "${n01:params:outdir}/${n01:params:input}"],
+    )
+    def test_two_references_in_one_value(self, value):
+        g = graph(pipeline("n01", input="a.csv", outdir="o1"), pipeline("n02", input="b.csv", outdir="o2"))
+        with pytest.raises(ConfigValidationError, match="contains 2 references") as exc:
+            run(g, SaveWorkflow(pipeline("n03", input="c.csv", outdir=value), create=True))
+        assert [(d.workflow_id, d.field) for d in exc.value.errors if "references" in d.message] == [
+            ("n03", "params.outdir")
+        ]
+        assert [wf.id for wf in g.get_workflows()] == ["n01", "n02"]
+
+    def test_one_reference_with_text_around_it(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="o1"))
+        run(g, SaveWorkflow(pipeline("n02", input="c.csv", outdir="results/${n01:params:outdir}/n02"), create=True))
+        assert g.get_workflow_by_id("n02").params["outdir"] == "results/${n01:params:outdir}/n02"
+
+    @pytest.mark.parametrize("collect_errors", [False, True])
+    def test_loading_a_config(self, collect_errors):
+        data = {
+            "config_version": "0.4.0",
+            "workflows": {
+                "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "a.csv", "outdir": "o"}},
+                "n02": {
+                    "name": "nf-core/fetchngs",
+                    "version": "1.12.0",
+                    "from": ["n01"],
+                    "params": {"input": "${n01:params:outdir}/${n01:params:input}"},
+                },
+            },
+        }
+        with pytest.raises(ConfigValidationError) as exc:
+            validated_graph(data, collect_errors=collect_errors)
+        assert any(
+            d.yaml_path == "workflows.n02.params.input" and "2 references" in d.message for d in exc.value.errors
+        )

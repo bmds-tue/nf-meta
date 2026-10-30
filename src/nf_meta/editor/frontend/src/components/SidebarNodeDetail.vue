@@ -26,7 +26,8 @@ const pipelineData = computed<APINfPipelineNodeData>(() => {
   if ('type' in props.detailData && props.detailData.type === WorkflowType.NF_PIPELINE) {
     return props.detailData as APINfPipelineNodeData
   }
-  return { type: WorkflowType.NF_PIPELINE }
+  // a new pipeline starts as an nf-core one
+  return { type: WorkflowType.NF_PIPELINE, is_nfcore: true }
 })
 
 const moduleData = computed<APINfModuleNodeData>(() => {
@@ -50,8 +51,6 @@ function removeDetail() {
 
 const displayName = computed(() => {
   if ('name' in props.detailData && props.detailData.name) return props.detailData.name
-  if (confirmedType.value === WorkflowType.NF_PIPELINE) return 'Add Pipeline'
-  if (confirmedType.value === WorkflowType.NF_MODULE) return 'Add Module'
   return 'Add Workflow'
 })
 
@@ -84,7 +83,7 @@ function onSaved(newNodeData?: APINodeData) {
 </script>
 
 <template>
-<v-card ref="card" class="mb-2"
+<v-card ref="card"
   :class="{
     'workflow-node-nfcore': confirmedType === WorkflowType.NF_PIPELINE && 'is_nfcore' in detailData && detailData.is_nfcore,
     'workflow-node-module': confirmedType === WorkflowType.NF_MODULE,
@@ -154,6 +153,6 @@ function onSaved(newNodeData?: APINodeData) {
   transition: box-shadow 0.2s;
 }
 .detail-hovered {
-  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4) !important;
+  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), var(--highlight-alpha)) !important;
 }
 </style>

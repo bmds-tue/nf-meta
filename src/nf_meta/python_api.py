@@ -5,21 +5,18 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from nf_meta.core.edits import DeleteSteps, SaveWorkflow
 from nf_meta.core.events import (
     AddInput,
-    AddTransition,
-    AddWorkflow,
     Command,
-    EditWorkflow,
     RemoveInput,
-    RemoveWorkflow,
     Transaction,
     UpdateGlobalOptions,
     UpdateInput,
 )
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.inputs import InputDefinition
-from nf_meta.core.models import GlobalOptions, Transition, Workflow
+from nf_meta.core.models import GlobalOptions, Workflow
 from nf_meta.core.session import EditorSession
 from nf_meta.runner import RunOptions, RunPlan, RunResults, plan_metapipeline, run_metapipeline
 
@@ -101,18 +98,19 @@ class Metapipeline:
         """Add `step` and return it. It runs after the steps it references
         (`Ref(...)` or `${...}` in its params) and after the steps in
         `after`."""
-        self._execute([AddWorkflow(step), *self._edges_to(step, after)])
+        self._execute([SaveWorkflow(step, create=True, after=tuple(_step_id(s) for s in after))])
         return step
 
     def update(self, step: Workflow, after: Iterable[StepOrId] = ()) -> Workflow:
         """Replace the step with `step.id` by `step` and return it. Edges for
         new references and for `after` are added; existing edges stay."""
-        self._execute([EditWorkflow(step), *self._edges_to(step, after)])
+        self._execute([SaveWorkflow(step, create=False, after=tuple(_step_id(s) for s in after))])
         return step
 
     def remove(self, step: StepOrId) -> None:
-        """Remove a step (a model or an ID) and its edges."""
-        self._execute([RemoveWorkflow(_step_id(step))])
+        """Remove a step (a model or an ID) and its edges. Inputs bound to it
+        with `bind:` lose that binding but stay."""
+        self._execute([DeleteSteps((_step_id(step),))])
 
     # --- globals and inputs ---
 
@@ -173,14 +171,6 @@ class Metapipeline:
         return run_metapipeline(self.graph, _run_options(options))
 
     # --- internals ---
-
-    def _edges_to(self, step: Workflow, after: Iterable[StepOrId]) -> list[Command]:
-        sources = [ref.target_wf_id for ref in step.field_refs] + [_step_id(s) for s in after]
-        return [
-            AddTransition(Transition(source=source, target=step.id))
-            for source in dict.fromkeys(sources)
-            if not self.graph.get_transition(source, step.id)
-        ]
 
     def _execute(self, commands: list[Command]) -> None:
         self._session.execute(commands[0] if len(commands) == 1 else Transaction(tuple(commands)))

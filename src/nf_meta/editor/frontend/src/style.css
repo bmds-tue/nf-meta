@@ -16,26 +16,50 @@ html, body, #app, :root {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Highlight strengths per theme: the sidebar card of a hovered node, and the selection ring */
+.v-theme--graphite {
+    --highlight-alpha: 0.4;
+    --selected-ring: 3px;
+    --selected-alpha: 0.85;
+}
+.v-theme--light {
+    --highlight-alpha: 0.8;
+    --selected-ring: 4px;
+    --selected-alpha: 1;
+}
+
 .workflow-node {
     padding: 10px;
-    color: rgb(var(--v-theme-onPrimary));
-    background: rgb(var(--v-theme-background));;
+    color: rgb(var(--v-theme-nodeText));
+    background: rgb(var(--v-theme-nodeBackground));
     border-width: 4px;
     border-style: solid;
     border-radius: 8px;
     border-color: rgb(var(--v-theme-nodeDefaultBorder));
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    transition: box-shadow .15s;
 }
 
-.workflow-node:hover, .vue-flow__node.selected {
-    border-radius: 8px;
-    box-shadow:0 0 0 4px rgb(var(--v-theme-surface));
-    transition:box-shadow .2s;
+/* the inputs node's shadow lives here, so the hover and selection rings below apply to it too */
+.inputs-node {
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.35);
+    transition: box-shadow .15s;
 }
 
+.workflow-node:hover,
+.inputs-node:hover {
+    box-shadow: 0 0 0 3px rgba(var(--v-theme-nodeHover), 0.8);
+}
+
+/* hovered from the sidebar (a step, or an input it gets) */
 .workflow-node-hovered {
-    box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4);
-    transition: box-shadow .2s;
+    box-shadow: 0 0 0 4px rgba(var(--v-theme-nodeHover), 0.9);
+}
+
+.vue-flow__node.selected .workflow-node,
+.vue-flow__node.selected .inputs-node {
+    box-shadow: 0 0 0 var(--selected-ring) rgba(var(--v-theme-nodeSelected), var(--selected-alpha)),
+                0 0 12px 2px rgba(var(--v-theme-nodeSelected), 0.28);
 }
 
 .workflow-node-nfcore {

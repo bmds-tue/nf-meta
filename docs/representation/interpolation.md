@@ -15,6 +15,9 @@ param and substrings it into `n02`'s `input` param at run time.
   and is not yet resolved.
 - **`<key>`** is the referenced workflow's own param name.
 
+A param value can contain **one** reference, with any text around it
+(`results/${n01:params:outdir}/n02`). A value with two references is a validation error.
+
 ## Validation
 
 nf-meta checks references statically as part of `nf-meta validate`/on every graph mutation:

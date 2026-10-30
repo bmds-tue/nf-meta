@@ -1,5 +1,5 @@
 import YAML, { isMap, isScalar } from 'yaml'
-import type { APIInput, APIInputDefinition, FieldError, ParamSpec, StepSchema } from './types'
+import type { APIInput, APIInputDefinition, APINodeData, FieldError, ParamSpec, StepSchema } from './types'
 import { WorkflowType } from './types'
 
 /**
@@ -204,4 +204,227 @@ export function paramSuggestions(schema: StepSchema | null | undefined, set: Ite
         else if (!spec.hidden) optional.push(param)
     }
     return { required: required.sort(), optional: optional.sort() }
+}
+
+export type ReferenceParam = {
+    key: string,
+    // The value as written, or the input's name for a param filled by an input
+    value: string,
+    // Set when an input fills the param (with bind: or as ${inputs:<name>})
+    input?: string,
+}
+
+export type ReferenceTarget = {
+    stepId: string,
+    stepName: string,
+    // Already a direct predecessor; otherwise saving adds the edge
+    connected: boolean,
+    params: ReferenceParam[],
+}
+
+/**
+ * The steps whose params step `stepId` can reference, `${<step>:params:<key>}`,
+ * each with the params that have a value: set in its params, or filled by an
+ * input (`bind:` or `${inputs:<name>}`). Every step is offered except `stepId`
+ * itself and the steps after it (a reference to those would make a cycle).
+ * Direct predecessors come first and are marked `connected`; for the others
+ * saving adds the edge. Pass no `stepId` for a step that isn't saved yet.
+ */
+export function referenceTargets(
+    nodes: APINodeData[], edges: { source: string, target: string }[], stepId?: string, inputs: APIInput[] = [],
+): ReferenceTarget[] {
+    const after = new Set<string>()
+    const queue = stepId ? [stepId] : []
+    while (queue.length) {
+        const current = queue.shift()!
+        for (const e of edges) {
+            if (e.source === current && !after.has(e.target)) {
+                after.add(e.target)
+                queue.push(e.target)
+            }
+        }
+    }
+    const predecessors = new Set(edges.filter(e => e.target === stepId).map(e => e.source))
+    return nodes
+        .filter((node): node is APINodeData & { id: string } => !!node.id && node.id !== stepId && !after.has(node.id))
+        .map(node => ({
+            stepId: node.id,
+            stepName: node.name ?? node.id,
+            connected: predecessors.has(node.id),
+            params: referencableParams(node, inputs),
+        }))
+        .sort((a, b) => Number(b.connected) - Number(a.connected))
+}
+
+/** The params of `node` that have a value: set in its params or filled by an input. */
+export function referencableParams(node: APINodeData, inputs: APIInput[]): ReferenceParam[] {
+    const params = new Map<string, ReferenceParam>()
+    for (const [key, value] of Object.entries(node.params ?? {})) {
+        if (value === null || value === undefined || value === '') continue
+        const text = typeof value === 'string' ? value : JSON.stringify(value)
+        const whole = text.match(new RegExp(`^${INPUT_REF.source}$`))
+        params.set(key, whole ? { key, value: whole[1]!, input: whole[1]! } : { key, value: text })
+    }
+    for (const { param, input } of inputsOfStep(inputs, node.id ?? '')) {
+        if (input.bound_by === 'bind' && !params.has(param)) params.set(param, { key: param, value: input.name, input: input.name })
+    }
+    return [...params.values()].sort((a, b) => a.key.localeCompare(b.key))
+}
+
+/**
+ * Why input `name` can't be deleted, from the errors the API returned: the
+ * steps that would be left without a value for a required param (by step
+ * name), or the errors as they are.
+ */
+export function inputDeleteProblem(name: string, fieldErrors: FieldError[], nodes: APINodeData[]): string {
+    const required: string[] = []
+    const other: string[] = []
+    for (const err of fieldErrors) {
+        const param = err.field.replace(/^params\./, '')
+        const step = nodes.find(n => n.id === err.workflow_id)
+        const where = step ? `${step.name ?? step.id} (${step.id})` : (err.workflow_id ?? err.field)
+        if (err.workflow_id && /^Required parameter/.test(err.message)) required.push(`'${param}' of ${where}`)
+        else other.push(err.workflow_id ? `${where} · ${param}: ${err.message}` : err.message)
+    }
+    if (required.length && !other.length) {
+        return `Can't delete '${name}': it fills ${required.join(', ')}, which ${required.length === 1 ? 'is' : 'are'} required. ` +
+            'Give the param a value in the step first.'
+    }
+    return `Can't delete '${name}': ${[...required.map(r => `${r} would be unset`), ...other].join('; ')}`
+}
+
+export type ParamRow = {
+    name: string,
+    spec?: ParamSpec,
+    required: boolean,
+    // The value in the step's params (undefined: not set)
+    value: unknown,
+    // Filled by this input with bind: (not in the step's params)
+    boundBy?: string,
+}
+
+/**
+ * The rows of a step's params form, in order: the schema's required params
+ * (set or not), then params filled by a `bind:` input, then the other params
+ * the step sets (optional ones of the schema, then unknown ones, each sorted).
+ */
+export function paramRows(
+    schema: StepSchema | null | undefined, params: Record<string, unknown> | undefined, bound: Record<string, string>,
+): ParamRow[] {
+    const values = params ?? {}
+    const specs = schema ?? {}
+    const rows: ParamRow[] = []
+    const seen = new Set<string>()
+    const push = (name: string) => {
+        if (seen.has(name)) return
+        seen.add(name)
+        rows.push({ name, spec: specs[name], required: !!specs[name]?.required, value: values[name], boundBy: bound[name] })
+    }
+    Object.keys(specs).filter(name => specs[name]!.required).sort().forEach(push)
+    Object.keys(bound).sort().forEach(push)
+    Object.keys(values).filter(name => name in specs).sort().forEach(push)
+    Object.keys(values).filter(name => !(name in specs)).sort().forEach(push)
+    return rows
+}
+
+/**
+ * The API's field errors for one step's params, by param (`params.<name>`),
+ * and the ones about the params as a whole. Same filtering as
+ * `extractFieldErrors`.
+ */
+export function paramFieldErrors(
+    fieldErrors: FieldError[], workflowId: string | null,
+): { byParam: Record<string, string[]>, general: string[] } {
+    const byParam: Record<string, string[]> = {}
+    const general: string[] = []
+    const discriminators = new Set<string>(Object.values(WorkflowType))
+    for (const err of fieldErrors.filter(e => workflowId === null || e.workflow_id === workflowId || e.workflow_id === null)) {
+        const parts = err.field.split('.')
+        const field = parts.length > 1 && discriminators.has(parts[0]!) ? parts.slice(1).join('.') : err.field
+        if (field.startsWith('params.')) (byParam[field.slice('params.'.length)] ??= []).push(err.message)
+        else if (field === 'params') general.push(err.message)
+    }
+    return { byParam, general }
+}
+
+/** A form field's text as the param's value: numbers for numeric params, '' as unset. */
+export function toParamValue(text: unknown, spec?: ParamSpec): unknown {
+    if (text === null || text === undefined || text === '') return undefined
+    if ((spec?.type === 'integer' || spec?.type === 'number') && typeof text === 'string' && text.trim() !== '') {
+        const n = Number(text)
+        if (!Number.isNaN(n)) return n
+    }
+    return text
+}
+
+/** `params` without empty values ('' or null), as saved; undefined if none are left. */
+export function withoutEmptyValues(params: object | undefined): object | undefined {
+    if (!params) return params
+    const kept = Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    return kept.length ? Object.fromEntries(kept) : undefined
+}
+
+/**
+ * A value that starts with a step reference, split into the reference and
+ * the text after it: `${n01:params:outdir}/x.csv` -> n01, outdir, `/x.csv`.
+ * Undefined for other values.
+ */
+export function splitLeadingReference(value: unknown): { stepId: string, key: string, rest: string } | undefined {
+    if (typeof value !== 'string') return undefined
+    const match = value.match(/^\$\{([^}:]+):params:([^}]+)\}([\s\S]*)$/)
+    return match ? { stepId: match[1]!, key: match[2]!, rest: match[3]! } : undefined
+}
+
+export type AddableParam = { name: string, required: boolean, hidden: boolean, description?: string }
+
+/**
+ * The params of `schema` that can be added: all those not set yet (`set`),
+ * required ones first, hidden ones last, each group sorted.
+ */
+export function addableParams(schema: StepSchema | null | undefined, set: Iterable<string>): AddableParam[] {
+    const done = new Set(set)
+    const rank = (p: AddableParam) => (p.required ? 0 : p.hidden ? 2 : 1)
+    return Object.entries(schema ?? {})
+        .filter(([name]) => !done.has(name))
+        .map(([name, spec]) => ({ name, required: !!spec.required, hidden: !!spec.hidden, description: spec.description }))
+        .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+}
+
+/**
+ * The messages of `errors` (as from `extractFieldErrors`) that no field of a
+ * form shows, labelled with their field, e.g. a global setting a step's
+ * change conflicts with: `nextflow_version: …`.
+ */
+export function unshownErrors(errors: Record<string, string[]>, shown: Iterable<string>): string[] {
+    const fields = new Set(shown)
+    return Object.entries(errors)
+        .filter(([field]) => !fields.has(field) && field !== 'params')
+        .flatMap(([field, messages]) => messages.map(m => (field ? `${field}: ${m}` : m)))
+}
+
+const STEP_REF_GLOBAL = /(?<!\\)\$\{[^}:]+:(?:params|outputs):[^}]+\}/g
+
+/**
+ * Params in a step's params YAML whose value contains more than one step
+ * reference (a value can contain one, with text around it), as the backend
+ * reports them. Positions are offsets into `text`; nothing if `text` isn't
+ * valid YAML.
+ */
+export function lintReferenceCount(text: string): TextProblem[] {
+    const doc = YAML.parseDocument(text)
+    if (doc.errors.length || !isMap(doc.contents)) return []
+    const problems: TextProblem[] = []
+    for (const pair of doc.contents.items) {
+        const value = pair.value
+        if (!isScalar(value) || typeof value.value !== 'string' || !value.range) continue
+        const count = [...value.value.matchAll(STEP_REF_GLOBAL)].length
+        if (count > 1) {
+            const param = isScalar(pair.key) ? String(pair.key.value) : ''
+            problems.push({
+                from: value.range[0], to: value.range[1],
+                message: `'${param}' contains ${count} references; a param value can contain one reference to another step's param, with text around it`,
+            })
+        }
+    }
+    return problems
 }

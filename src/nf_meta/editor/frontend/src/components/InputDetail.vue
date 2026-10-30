@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { INPUT_COLOR, useApiStore, useEditorStore, useGraphStore } from '../store'
 import type { APIInput, APIInputDefinition, StepSchema, Scalar } from '../types'
-import { cleanInputDefinition, extractInputFieldErrors } from '../utils'
+import { cleanInputDefinition, extractInputFieldErrors, inputDeleteProblem } from '../utils'
 
 const props = defineProps<{
   // The input shown; none for an input being added
@@ -205,8 +205,22 @@ async function save() {
   }
 }
 
+const deleteProblem = ref<string>()
+
+let deleteProblemTimer: ReturnType<typeof setTimeout> | undefined
+
 async function remove() {
-  if (props.input) await graphStore.removeInput(props.input.name)
+  if (!props.input) return
+  deleteProblem.value = undefined
+  const result = await graphStore.removeInput(props.input.name)
+  if (!result.ok) {
+    deleteProblem.value = result.fieldErrors?.length
+      ? inputDeleteProblem(props.input.name, result.fieldErrors, graphStore.nodeData)
+      : result.graphErrors?.[0] ?? result.message
+    // shown for a while, then gone on its own
+    clearTimeout(deleteProblemTimer)
+    deleteProblemTimer = setTimeout(() => { deleteProblem.value = undefined }, 8000)
+  }
 }
 
 function openStep(stepId: string) {
@@ -229,7 +243,7 @@ watch(isFlashing, async (flashing) => {
 <template>
   <v-card
     ref="card"
-    class="mt-2 input-card"
+    class="input-card"
     :class="{ 'input-card-hovered': !!input && (editorStore.hoveredInputName === input.name || isFlashing) }"
     @mouseenter="hover(input?.name)"
     @mouseleave="hover(undefined)">
@@ -272,6 +286,11 @@ watch(isFlashing, async (flashing) => {
         </v-chip>
       </div>
 
+      <div v-if="deleteProblem" class="delete-problem d-flex align-center ga-2 mt-2 text-body-2">
+        <v-icon icon="mdi-alert-circle" color="error" size="18" />
+        <span class="flex-grow-1">{{ deleteProblem }}</span>
+      </div>
+
       <div v-for="d in [...errors, ...warnings]" :key="d.yaml_path + d.message" class="d-flex align-center ga-1 text-caption mt-1">
         <v-icon
           :icon="d.severity === 'error' ? 'mdi-alert-circle' : 'mdi-alert'"
@@ -287,7 +306,7 @@ watch(isFlashing, async (flashing) => {
         <v-text-field
           v-model="form.name"
           label="Name"
-          hint="Referenced as ${inputs:<name>}"
+          placeholder="Referenced as ${inputs:<name>}" persistent-placeholder
           variant="outlined" density="compact" hide-details="auto" :autofocus="isNew"
           :error-messages="fieldErrors.name" />
 
@@ -329,7 +348,7 @@ watch(isFlashing, async (flashing) => {
           v-model="form.default"
           :type="effectiveType === 'integer' || effectiveType === 'number' ? 'number' : 'text'"
           :prepend-inner-icon="isPath ? 'mdi-file-outline' : undefined"
-          :hint="isPath ? 'Relative paths are relative to the config file' : undefined"
+          :placeholder="isPath ? 'Path, relative to the config file' : undefined" :persistent-placeholder="isPath"
           label="Default"
           clearable
           variant="outlined" density="compact" hide-details="auto"
@@ -410,7 +429,7 @@ watch(isFlashing, async (flashing) => {
   transition: box-shadow 0.2s;
 }
 .input-card-hovered {
-  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.4) !important;
+  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), var(--highlight-alpha)) !important;
 }
 .style-choice :deep(.v-label) {
   opacity: 1;
@@ -425,6 +444,11 @@ watch(isFlashing, async (flashing) => {
 }
 .binding-chip:hover .binding-step {
   text-decoration: underline;
+}
+.delete-problem {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(var(--v-theme-error), 0.12);
 }
 .compact-form {
   display: flex;

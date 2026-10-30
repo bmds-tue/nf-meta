@@ -464,8 +464,10 @@ class MetaworkflowGraph:
         points at a real, already-resolvable predecessor param.
 
         Raises `ConfigValidationError` (carrying one `Diagnostic` per bad
-        reference) if any reference targets an unknown workflow, a workflow
-        that isn't actually a predecessor of `wf`, or a param with no value.
+        reference) if a param value contains more than one step reference, or
+        a reference targets an unknown workflow, a workflow that isn't
+        actually a predecessor of `wf`, or a param with no value (a param
+        filled by a `bind:` input counts as having one).
         """
 
         def diagnostic(ref, message: str) -> Diagnostic:
@@ -480,6 +482,20 @@ class MetaworkflowGraph:
 
         diagnostics: list[Diagnostic] = []
         for key, value in (wf.params or {}).items():
+            step_refs = STEP_REF_PATTERN.findall(value) if isinstance(value, str) else []
+            if len(step_refs) > 1:
+                diagnostics.append(
+                    Diagnostic(
+                        workflow_id=wf.id,
+                        field=f"params.{key}",
+                        yaml_path=f"workflows.{wf.id}.params.{key}",
+                        message=(
+                            f"'{key}' contains {len(step_refs)} references; a param value can contain one "
+                            "reference to another step's param, with text around it"
+                        ),
+                        severity=Severity.ERROR,
+                    )
+                )
             for token in ANY_BRACE_PATTERN.findall(str(value)):
                 if STEP_REF_PATTERN.fullmatch(token) or INPUT_REF_PATTERN.fullmatch(token):
                     continue
@@ -515,11 +531,13 @@ class MetaworkflowGraph:
                 )
                 continue
 
-            if not referenced_wf.params or not ref.target_key:
+            # A param filled by a `bind:` input has a value at run time too
+            referenced_params = self.with_input_placeholders(referenced_wf).params
+            if not referenced_params or not ref.target_key:
                 diagnostics.append(diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}"))
                 continue
 
-            if not referenced_wf.params.get(ref.target_key):
+            if not referenced_params.get(ref.target_key):
                 diagnostics.append(diagnostic(ref, f"Reference to unresolvable param: {ref.target_key}"))
 
         if diagnostics:
@@ -577,9 +595,10 @@ class MetaworkflowGraph:
         dynamic (network-backed) validation pass scoped to just those
         workflows -- this is what `deferred_validation()` uses on exit, rather
         than dynamic-validating the whole graph on every batch. Raises
-        `GraphValidationError`/`ConfigValidationError` on the first failure
-        found; does not collect all errors across the whole graph in one
-        call.
+        `GraphValidationError` for the first structural problem (cycle,
+        dangling edge, bad id) or bad reference; the Nextflow-version, input
+        and param checks after that are raised together as one
+        `ConfigValidationError`.
         """
         self.validate_graph_topology()
 
@@ -596,8 +615,12 @@ class MetaworkflowGraph:
             wf = self.get_workflow_by_id(n)
             self.validate_param_references(wf)  # type: ignore
 
-        self.validate_module_nextflow_version(self.global_options, self.get_workflows())
-        self.validate_inputs(dynamic=bool(touched) or self._inputs_touched)
+        # The remaining checks report together, so one save shows every problem
+        diagnostics = list(self.module_nextflow_version_diagnostics(self.global_options, self.get_workflows()))
+        try:
+            self.validate_inputs(dynamic=bool(touched) or self._inputs_touched)
+        except ConfigValidationError as e:
+            diagnostics += e.errors
         self._inputs_touched = False
 
         if touched:
@@ -607,10 +630,10 @@ class MetaworkflowGraph:
             # check).
             raw = [self.get_workflow_by_id(n) for n in touched if n in self.G.nodes]
             workflows = [self.with_input_placeholders(wf) for wf in raw if wf is not None]
-            diagnostics = check_all(workflows)
-            if any(d.severity == Severity.ERROR for d in diagnostics):
-                raise ConfigValidationError(diagnostics)
-            log_warnings(diagnostics)
+            diagnostics += check_all(workflows)
+        if any(d.severity == Severity.ERROR for d in diagnostics):
+            raise ConfigValidationError([d for d in diagnostics if d.severity == Severity.ERROR])
+        log_warnings([d for d in diagnostics if d.severity == Severity.WARNING])
 
     # ===========================
     #        UTILITIES
@@ -684,7 +707,14 @@ class MetaworkflowGraph:
         validation plus a single batched, concurrent dynamic-check pass
         scoped to the workflows touched while suspended (not the whole
         graph).
+
+        Can be nested (a `Transaction` containing an edit that applies its
+        own): only the outermost batch validates, once, at its end.
         """
+        if self._validation_suspended is not None:
+            # Already deferred: the outer batch records the changes and validates
+            yield self
+            return
         self._validation_suspended = set()
         try:
             yield self

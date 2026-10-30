@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { usePipelineStore, useGraphStore } from '../store';
-import { extractFieldErrors, inputFor, inputsOfStep, shortVersion } from '../utils';
+import { extractFieldErrors, inputFor, inputsOfStep, paramFieldErrors, shortVersion, unshownErrors, withoutEmptyValues } from '../utils';
 import type { APINfPipelineNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
-import YamlEditor from './YamlEditor.vue';
 import YAML from 'yaml';
 import NodeInputs from './NodeInputs.vue';
-import ParamAssist from './ParamAssist.vue';
+import ParamsForm from './ParamsForm.vue';
 import { useStepSchema } from '../step_schema';
 
 const props = defineProps<{
@@ -63,10 +62,11 @@ async function submitForm(e: SubmitEventPromise) {
   const { valid } = await e
   if (!valid) return
   errors.value = {}
+  paramErrors.value = { byParam: {}, general: [] }
   saving.value = true
   try {
     const previousIds = new Set(graphStore.nodeData.map(n => n.id))
-    const result = await graphStore.saveNode({ ...form.value })
+    const result = await graphStore.saveNode({ ...form.value, params: withoutEmptyValues(form.value.params) })
     if (result.ok) {
       isEditing.value = false
       if (props.isNew) {
@@ -78,6 +78,7 @@ async function submitForm(e: SubmitEventPromise) {
     } else if (result.fieldErrors) {
       // A new node's id is assigned by the backend, so its errors can't be matched by id
       errors.value = extractFieldErrors(result.fieldErrors, props.isNew ? null : form.value.id ?? '')
+      paramErrors.value = paramFieldErrors(result.fieldErrors, props.isNew ? null : form.value.id ?? '')
       if (MORE_FIELDS.some(f => errors.value[f]?.length)) showMore.value = true
     }
   } finally {
@@ -115,24 +116,25 @@ async function copyPath(text: string, field: string) {
   }
 }
 
-// Param pills: unset params from the step's schema, added to the params editor
-const yamlEditor = ref<InstanceType<typeof YamlEditor>>()
+// The params form: the step's schema, the params inputs fill with bind:, and what can be referenced
 const { schema, loading: schemaLoading, error: schemaError } = useStepSchema(() => ({
   kind: 'pipeline',
   url: form.value.url || (form.value.is_nfcore && form.value.name ? `https://github.com/${form.value.name}` : undefined),
   version: form.value.version,
 }))
-const setParams = computed(() => [
-  ...Object.keys(form.value.params ?? {}),
-  ...(form.value.id ? inputsOfStep(graphStore.inputs, form.value.id).filter(e => e.input.bound_by === 'bind').map(e => e.param) : []),
-])
+const boundParams = computed(() => Object.fromEntries(
+  form.value.id
+    ? inputsOfStep(graphStore.inputs, form.value.id).filter(e => e.input.bound_by === 'bind').map(e => [e.param, e.input.name])
+    : [],
+))
+const references = computed(() => graphStore.getReferenceTargets(form.value.id))
+// Errors no field of this form shows (e.g. a global setting the step conflicts with)
+const FORM_FIELDS = ['name', 'url', 'version', 'description', 'params_file', 'nf_config', 'nf_profile', 'main_script', 'is_nfcore']
+const otherErrors = computed(() => unshownErrors(errors.value, FORM_FIELDS))
+const paramErrors = ref<{ byParam: Record<string, string[]>, general: string[] }>({ byParam: {}, general: [] })
 
 function inputForParam(param: string) {
   return inputFor(param, form.value.name, graphStore.inputs, schema.value?.[param])
-}
-
-function addParam(param: string, asInput: boolean) {
-  yamlEditor.value?.addParam(param, asInput ? `\${inputs:${inputForParam(param).name}}` : '')
 }
 
 const hasParams = computed(() => !!form.value.params && Object.keys(form.value.params).length > 0)
@@ -237,17 +239,12 @@ const pathRows = computed(() => [
       variant="outlined" density="compact" hide-details="auto"
       :error-messages="errors.version" />
 
-    <NodeInputs :node-id="form.id" readonly />
-
-    <div class="text-caption mt-1">Params</div>
-    <ParamAssist
+    <ParamsForm
+      v-model="form.params"
       :schema="schema" :loading="schemaLoading" :error="schemaError"
-      :set-params="setParams" :input-for="inputForParam"
-      @add="addParam" />
-    <p v-if="errors['params']?.length" class="field-error mb-1">{{ errors['params']!.join(' ') }}</p>
-    <div class="params-editor">
-      <YamlEditor ref="yamlEditor" v-model="form.params" :node-id="form.id" />
-    </div>
+      :input-for="inputForParam" :references="references" :bound="boundParams"
+      :errors="paramErrors.byParam" :general-errors="paramErrors.general"
+      :node-id="form.id" />
 
     <v-btn
       size="small" variant="text" class="px-1 align-self-start"
@@ -264,32 +261,37 @@ const pathRows = computed(() => [
       <v-text-field
         v-model="form.params_file"
         label="Params file"
-        hint="YAML/JSON file with params; relative to the config file"
+        placeholder="YAML/JSON file, relative to the config file" persistent-placeholder
         prepend-inner-icon="mdi-file-document-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.params_file" />
       <v-text-field
         v-model="form.nf_config"
         label="Nextflow config"
-        hint="Relative to the config file"
+        placeholder="Path, relative to the config file" persistent-placeholder
         prepend-inner-icon="mdi-cog-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.nf_config" />
       <v-text-field
         v-model="form.nf_profile"
         label="Nextflow profile(s)"
-        hint="Comma-separated, e.g. docker,test"
+        placeholder="e.g. docker,test" persistent-placeholder
         prepend-inner-icon="mdi-account-cog-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.nf_profile" />
       <v-text-field
         v-model="form.main_script"
         label="Main script"
-        hint="Entry script in the repository, if not main.nf"
+        placeholder="Entry script, if not main.nf" persistent-placeholder
         prepend-inner-icon="mdi-script-text-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.main_script" />
     </template>
+
+    <div v-for="message in otherErrors" :key="message" class="other-error d-flex align-center ga-2 text-body-2">
+      <v-icon icon="mdi-alert-circle" color="error" size="16" />
+      <span>{{ message }}</span>
+    </div>
 
     <div class="d-flex justify-end ga-1 pt-1">
       <v-btn size="small" variant="flat" color="primary" type="submit" :loading="saving" prepend-icon="mdi-check">Save</v-btn>
@@ -306,6 +308,9 @@ const pathRows = computed(() => [
 }
 .params-editor {
   height: 200px;
+}
+.other-error {
+  color: rgb(var(--v-theme-error));
 }
 .field-error {
   color: rgb(var(--v-theme-error));

@@ -9,12 +9,15 @@ import type {
 import { useLayout } from '../layout_graph'
 import { useMessageStore, useActivityStore } from './ui_store'
 import { useApiStore } from './api_store'
+import { referencableParams, referenceTargets } from '../utils'
 
 export const INPUTS_NODE_ID = '__inputs__'
 // Inputs in the graph and the params editor (oneDark's purple)
 export const INPUT_COLOR = '#c678dd'
-// Edges between steps: solid, in the theme's surface grey (input edges are dashed)
-const EDGE_COLOR = '#2d3748'
+// References to other steps' params (oneDark's blue, as in the params editor)
+export const REF_COLOR = '#61afef'
+// Edges between steps: solid, in the theme's edge color (input edges are dashed purple)
+const EDGE_COLOR = 'rgb(var(--v-theme-edge))'
 
 export const useGraphStore = defineStore('graph', () => {
     const { layoutOptions } = useLayout()
@@ -30,7 +33,7 @@ export const useGraphStore = defineStore('graph', () => {
     const _nodes = ref<Node<APINodeData>[]>([])
 
     // A node standing for the config's inputs, with an edge to every step they fill.
-    // Only in the view: it isn't part of the graph and can't be selected or connected.
+    // Only in the view: it isn't part of the graph; it can be selected, not connected or deleted.
     const _showInputsNode = ref(localStorage.getItem('showInputsNode') !== 'false')
     const showInputsNode = computed(() => _showInputsNode.value)
 
@@ -46,7 +49,7 @@ export const useGraphStore = defineStore('graph', () => {
             type: 'inputs-node',
             position: { x: 0, y: 0 },
             data: { inputs: _inputs.value },
-            selectable: false,
+            selectable: true,
             connectable: false,
             deletable: false,
         }]
@@ -154,9 +157,10 @@ export const useGraphStore = defineStore('graph', () => {
         }
     }
 
-    async function applyMutation(result: ApiResult<APICommandResponse>, successMessage?: string) {
+    // With `quiet`, a refused change shows no message: the caller explains it where it happened
+    async function applyMutation(result: ApiResult<APICommandResponse>, successMessage?: string, quiet = false) {
         if (!result.ok) {
-            handleErrors(result)
+            if (!quiet || result.status !== 422) handleErrors(result)
         } else {
             activityStore.pushEvents(result.data.events ?? [])
             await getAndUpdateGraph()
@@ -193,7 +197,7 @@ export const useGraphStore = defineStore('graph', () => {
     }
 
     async function removeInput(name: string) {
-        return applyMutation(await apiStore.deleteInput(name))
+        return applyMutation(await apiStore.deleteInput(name), undefined, true)
     }
 
     async function removeSelectionById(selection: Selection) {
@@ -275,6 +279,17 @@ export const useGraphStore = defineStore('graph', () => {
 
     const nodeData = computed(() => _nodeData.value)
 
+    // The steps step `nodeId` can reference (see `referenceTargets`); every step for an unsaved one
+    function getReferenceTargets(nodeId: string | undefined | null) {
+        return referenceTargets(_nodeData.value, _edgeData.value, nodeId ?? undefined, _inputs.value)
+    }
+
+    // The params of step `nodeId` another step can reference: set ones and ones an input fills
+    function getReferencableParams(nodeId: string | undefined | null): string[] {
+        const node = _nodeData.value.find(n => n.id === nodeId)
+        return node ? referencableParams(node, _inputs.value).map(p => p.key) : []
+    }
+
     return {
         nodes, nodeData, edges, globalOptions, inputs, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
@@ -284,6 +299,6 @@ export const useGraphStore = defineStore('graph', () => {
         showInputsNode, toggleInputsNode,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,
-        getPredecessors, getParams,
+        getPredecessors, getParams, getReferenceTargets, getReferencableParams,
     }
 })

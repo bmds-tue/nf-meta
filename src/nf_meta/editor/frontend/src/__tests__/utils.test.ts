@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    canShareInput, inputFillsStep, inputFor, inputsOfStep, lintInputReferences, paramSuggestions, shortVersion,
+    addableParams, canShareInput, lintReferenceCount, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -137,5 +137,130 @@ describe('paramSuggestions', () => {
         }
         expect(paramSuggestions(schema, ['outdir', 'aligner'])).toEqual({ required: ['input'], optional: ['genome'] })
         expect(paramSuggestions(null, [])).toEqual({ required: [], optional: [] })
+    })
+})
+
+describe('referenceTargets', () => {
+    const node = (id: string, params: object) => ({ type: 'nf-pipeline' as const, id, name: `step ${id}`, params })
+    const nodes = [
+        node('n01', { outdir: 'out', input: '${inputs:ids}', empty: '' }),
+        node('n02', { outdir: 'out2' }),
+        node('n03', { outdir: 'out3' }),
+        node('n04', {}),
+        node('n05', { outdir: 'out5' }),
+    ]
+    // n01 -> n03 -> n05, n02 and n04 unconnected
+    const edges = [{ source: 'n01', target: 'n03' }, { source: 'n03', target: 'n05' }]
+    const genome = input('genome', { bound_by: 'bind', bindings: ['n02.genome'], definition: { bind: ['n02.genome'] } })
+
+    it('lists predecessors first, then unconnected steps; not itself or later steps', () => {
+        const targets = referenceTargets(nodes, edges, 'n03')
+        expect(targets.map(t => [t.stepId, t.connected])).toEqual([['n01', true], ['n02', false], ['n04', false]])
+        expect(targets[0]!.params).toEqual([{ key: 'input', value: 'ids', input: 'ids' }, { key: 'outdir', value: 'out' }])
+    })
+
+    it('includes params filled by a bind: input', () => {
+        const n02 = referenceTargets(nodes, edges, 'n03', [genome]).find(t => t.stepId === 'n02')!
+        expect(n02.params).toEqual([{ key: 'genome', value: 'genome', input: 'genome' }, { key: 'outdir', value: 'out2' }])
+    })
+
+    it('offers every step to a step that is not saved yet', () => {
+        expect(referenceTargets(nodes, edges).map(t => t.stepId)).toEqual(['n01', 'n02', 'n03', 'n04', 'n05'])
+    })
+})
+
+
+
+describe('inputDeleteProblem', () => {
+    const nodes = [{ type: 'nf-pipeline' as const, id: 'n01', name: 'nf-core/fetchngs' }]
+
+    it('names the required params the input fills', () => {
+        const message = inputDeleteProblem('ids', [
+            { workflow_id: 'n01', field: 'params.input', message: "Required parameter 'input' is not set. Provide it…" },
+        ], nodes)
+        expect(message).toBe("Can't delete 'ids': it fills 'input' of nf-core/fetchngs (n01), which is required. Give the param a value in the step first.")
+    })
+
+    it('passes other errors on', () => {
+        expect(inputDeleteProblem('ids', [{ workflow_id: null, field: 'inputs.ids', message: 'boom' }], nodes))
+            .toBe("Can't delete 'ids': boom")
+    })
+})
+
+describe('paramRows', () => {
+    const schema = { input: { required: true }, outdir: { required: true }, genome: {}, aligner: {} }
+
+    it('orders required, bound, set optional, then unknown params', () => {
+        const rows = paramRows(schema, { aligner: 'star', input: 'a.csv', custom: 1 }, { genome: 'genome' })
+        expect(rows.map(r => [r.name, r.required, r.value, r.boundBy])).toEqual([
+            ['input', true, 'a.csv', undefined],
+            ['outdir', true, undefined, undefined],
+            ['genome', false, undefined, 'genome'],
+            ['aligner', false, 'star', undefined],
+            ['custom', false, 1, undefined],
+        ])
+    })
+})
+
+describe('paramFieldErrors', () => {
+    it('groups errors by param and keeps general ones apart', () => {
+        expect(paramFieldErrors([
+            { workflow_id: 'n01', field: 'nf-pipeline.params.input', message: 'not set' },
+            { workflow_id: 'n01', field: 'params', message: 'bad yaml' },
+            { workflow_id: 'n02', field: 'params.input', message: 'other step' },
+            { workflow_id: 'n01', field: 'url', message: 'not a param' },
+        ], 'n01')).toEqual({ byParam: { input: ['not set'] }, general: ['bad yaml'] })
+    })
+})
+
+describe('toParamValue', () => {
+    it('converts numbers for numeric params and empty text to unset', () => {
+        expect(toParamValue('4', { type: 'integer' })).toBe(4)
+        expect(toParamValue('4', { type: 'string' })).toBe('4')
+        expect(toParamValue('', { type: 'integer' })).toBeUndefined()
+        expect(toParamValue(true, { type: 'boolean' })).toBe(true)
+    })
+})
+
+describe('splitLeadingReference', () => {
+    it('splits a leading reference from the text after it', () => {
+        expect(splitLeadingReference('${n01:params:outdir}/x.csv')).toEqual({ stepId: 'n01', key: 'outdir', rest: '/x.csv' })
+        expect(splitLeadingReference('${n01:params:outdir}')).toEqual({ stepId: 'n01', key: 'outdir', rest: '' })
+    })
+
+    it('leaves other values alone', () => {
+        expect(splitLeadingReference('a/${n01:params:outdir}')).toBeUndefined()
+        expect(splitLeadingReference('${inputs:ids}')).toBeUndefined()
+        expect(splitLeadingReference(4)).toBeUndefined()
+    })
+})
+
+describe('addableParams', () => {
+    it('lists unset params, required first and hidden last', () => {
+        const schema = { outdir: { required: true }, input: { required: true }, aligner: {}, genome: {}, debug: { hidden: true } }
+        expect(addableParams(schema, ['input', 'genome']).map(p => [p.name, p.required, p.hidden])).toEqual([
+            ['outdir', true, false], ['aligner', false, false], ['debug', false, true],
+        ])
+    })
+})
+
+describe('unshownErrors', () => {
+    it('lists errors of fields the form does not show, labelled', () => {
+        expect(unshownErrors({ name: ['bad'], params: ['p'], nextflow_version: ['too old'], '': ['general'] }, ['name']))
+            .toEqual(['nextflow_version: too old', 'general'])
+    })
+})
+
+describe('lintReferenceCount', () => {
+    it('marks a value with two step references', () => {
+        const text = 'outdir: ${n01:params:outdir}/x\ninput: ${n01:params:outdir}/${n02:params:outdir}\n'
+        const problems = lintReferenceCount(text)
+        expect(problems.map(p => text.slice(p.from, p.to))).toEqual(['${n01:params:outdir}/${n02:params:outdir}'])
+        expect(problems[0]!.message).toContain("'input' contains 2 references")
+    })
+
+    it('accepts one reference and ignores invalid YAML', () => {
+        expect(lintReferenceCount('outdir: a/${n01:params:outdir}/b\n')).toEqual([])
+        expect(lintReferenceCount('outdir: [unclosed')).toEqual([])
     })
 })

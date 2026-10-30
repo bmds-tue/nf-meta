@@ -8,15 +8,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
 from nf_meta.core.dynamic_validation import get_step_schema, run_dynamic_checks
-from nf_meta.core.edits import DeclareStepInputs, DeleteInput, EditInput, SetInputsStyle
+from nf_meta.core.edits import DeclareStepInputs, DeleteInput, DeleteSteps, EditInput, SaveWorkflow, SetInputsStyle
 from nf_meta.core.errors import SessionCommandError, Severity, diagnostics_from_pydantic_error
 from nf_meta.core.events import (
     AddTransition,
-    AddWorkflow,
     Command,
-    EditWorkflow,
     RemoveTransition,
-    RemoveWorkflow,
     Transaction,
     UpdateGlobalOptions,
 )
@@ -141,27 +138,21 @@ def validate_globals(global_options: GlobalOptions):
 
 @api_router.post("/node/add/")
 def add_node(wf: Workflow):
-    events = SESSION.handle_command(AddWorkflow(workflow=wf))
+    events = SESSION.handle_command(SaveWorkflow(wf, create=True))
     return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.post("/node/update/")
 def update_node(wf: Workflow):
-    events = SESSION.handle_command(EditWorkflow(workflow=wf))
+    events = SESSION.handle_command(SaveWorkflow(wf, create=False))
     return JSONResponse({"events": serialize_events(events)})
 
 
 @api_router.delete("/delete/")
 def remove(selection: Selection):
-    cmds: list[Command] = []
-    for edge_id in selection.edges:
-        src, tgt = edge_id.split("->")
-        cmds.append(RemoveTransition(src, tgt))
-
-    for node_id in selection.nodes:
-        cmds.append(RemoveWorkflow(node_id))
-
-    events = SESSION.handle_command(Transaction(tuple(cmds)))
+    commands: list[Command] = [RemoveTransition(*edge_id.split("->", 1)) for edge_id in selection.edges]
+    commands.append(DeleteSteps(tuple(selection.nodes)))
+    events = SESSION.handle_command(Transaction(tuple(commands)))
     return JSONResponse({"events": serialize_events(events)})
 
 

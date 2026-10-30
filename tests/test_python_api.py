@@ -6,7 +6,6 @@ import yaml
 from nf_meta import (
     ConfigValidationError,
     GlobalOptions,
-    GraphValidationError,
     InputDefinition,
     Metapipeline,
     NfMetaRunnerError,
@@ -100,7 +99,7 @@ class TestBuild:
 
     def test_reference_to_unknown_step_raises_and_changes_nothing(self, tmp_path):
         mp = Metapipeline(project_dir=tmp_path)
-        with pytest.raises(GraphValidationError):
+        with pytest.raises(ConfigValidationError, match="unknown workflow: nmissing"):
             mp.add(rnaseq(input=Ref("nmissing", "outdir")))
         assert mp.steps == []
 
@@ -111,6 +110,14 @@ class TestBuild:
         with pytest.raises(ConfigValidationError):
             mp.update(broken)
         assert mp[rna.id].params["input"] == f"${{{fetch.id}:params:outdir}}/samplesheet/samplesheet.csv"
+
+    def test_ref_assigned_after_creation_is_stored(self, two_steps):
+        mp, fetch, rna = two_steps
+        step = mp[rna.id]
+        step.params["outdir"] = Ref(fetch, "outdir") / "rnaseq"
+        mp.update(step)
+        assert mp[rna.id].params["outdir"] == f"${{{fetch.id}:params:outdir}}/rnaseq"
+        assert type(mp[rna.id].params["outdir"]) is str
 
     def test_remove(self, tmp_path):
         mp = Metapipeline(project_dir=tmp_path)

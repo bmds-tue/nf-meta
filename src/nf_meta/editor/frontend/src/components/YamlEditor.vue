@@ -14,7 +14,7 @@ import {
   type CompletionResult,
 } from "@codemirror/autocomplete"
 import { useGraphStore, useEditorStore } from "../store"
-import { lintInputReferences } from "../utils"
+import { lintInputReferences, lintReferenceCount } from "../utils"
 
 const props = defineProps<{
   modelValue?: object
@@ -355,6 +355,9 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
   }
 
   for (const problem of lintInputReferences(text, graphStore.inputs)) {
+    diagnostics.push({ ...problem, severity: "error" })
+  }
+  for (const problem of lintReferenceCount(text)) {
     diagnostics.push({ ...problem, severity: "error" })
   }
 

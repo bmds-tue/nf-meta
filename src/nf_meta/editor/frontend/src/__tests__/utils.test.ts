@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    addableParams, canShareInput, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    addableParams, canShareInput, lintReferenceCount, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -248,5 +248,19 @@ describe('unshownErrors', () => {
     it('lists errors of fields the form does not show, labelled', () => {
         expect(unshownErrors({ name: ['bad'], params: ['p'], nextflow_version: ['too old'], '': ['general'] }, ['name']))
             .toEqual(['nextflow_version: too old', 'general'])
+    })
+})
+
+describe('lintReferenceCount', () => {
+    it('marks a value with two step references', () => {
+        const text = 'outdir: ${n01:params:outdir}/x\ninput: ${n01:params:outdir}/${n02:params:outdir}\n'
+        const problems = lintReferenceCount(text)
+        expect(problems.map(p => text.slice(p.from, p.to))).toEqual(['${n01:params:outdir}/${n02:params:outdir}'])
+        expect(problems[0]!.message).toContain("'input' contains 2 references")
+    })
+
+    it('accepts one reference and ignores invalid YAML', () => {
+        expect(lintReferenceCount('outdir: a/${n01:params:outdir}/b\n')).toEqual([])
+        expect(lintReferenceCount('outdir: [unclosed')).toEqual([])
     })
 })

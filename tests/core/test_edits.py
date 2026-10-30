@@ -2,6 +2,7 @@
 
 import pytest
 
+from nf_meta.core.config import validated_graph
 from nf_meta.core.edits import (
     DeleteInput,
     DeleteSteps,
@@ -354,3 +355,43 @@ class TestNestedBatches:
             run(g, Transaction((EditWorkflow(bad), DeleteSteps(("n03",)))))
         assert g.get_workflow_by_id("n01").params == {"input": "a.csv"}
         assert {wf.id for wf in g.get_workflows()} == {"n01", "n03"}
+
+
+class TestOneReferencePerValue:
+    @pytest.mark.parametrize(
+        "value",
+        ["${n01:params:outdir}/${n02:params:outdir}", "${n01:params:outdir}/${n01:params:input}"],
+    )
+    def test_two_references_in_one_value(self, value):
+        g = graph(pipeline("n01", input="a.csv", outdir="o1"), pipeline("n02", input="b.csv", outdir="o2"))
+        with pytest.raises(ConfigValidationError, match="contains 2 references") as exc:
+            run(g, SaveWorkflow(pipeline("n03", input="c.csv", outdir=value), create=True))
+        assert [(d.workflow_id, d.field) for d in exc.value.errors if "references" in d.message] == [
+            ("n03", "params.outdir")
+        ]
+        assert [wf.id for wf in g.get_workflows()] == ["n01", "n02"]
+
+    def test_one_reference_with_text_around_it(self):
+        g = graph(pipeline("n01", input="a.csv", outdir="o1"))
+        run(g, SaveWorkflow(pipeline("n02", input="c.csv", outdir="results/${n01:params:outdir}/n02"), create=True))
+        assert g.get_workflow_by_id("n02").params["outdir"] == "results/${n01:params:outdir}/n02"
+
+    @pytest.mark.parametrize("collect_errors", [False, True])
+    def test_loading_a_config(self, collect_errors):
+        data = {
+            "config_version": "0.4.0",
+            "workflows": {
+                "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "a.csv", "outdir": "o"}},
+                "n02": {
+                    "name": "nf-core/fetchngs",
+                    "version": "1.12.0",
+                    "from": ["n01"],
+                    "params": {"input": "${n01:params:outdir}/${n01:params:input}"},
+                },
+            },
+        }
+        with pytest.raises(ConfigValidationError) as exc:
+            validated_graph(data, collect_errors=collect_errors)
+        assert any(
+            d.yaml_path == "workflows.n02.params.input" and "2 references" in d.message for d in exc.value.errors
+        )

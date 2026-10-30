@@ -464,9 +464,10 @@ class MetaworkflowGraph:
         points at a real, already-resolvable predecessor param.
 
         Raises `ConfigValidationError` (carrying one `Diagnostic` per bad
-        reference) if any reference targets an unknown workflow, a workflow
-        that isn't actually a predecessor of `wf`, or a param with no value
-        (a param filled by a `bind:` input counts as having one).
+        reference) if a param value contains more than one step reference, or
+        a reference targets an unknown workflow, a workflow that isn't
+        actually a predecessor of `wf`, or a param with no value (a param
+        filled by a `bind:` input counts as having one).
         """
 
         def diagnostic(ref, message: str) -> Diagnostic:
@@ -481,6 +482,20 @@ class MetaworkflowGraph:
 
         diagnostics: list[Diagnostic] = []
         for key, value in (wf.params or {}).items():
+            step_refs = STEP_REF_PATTERN.findall(value) if isinstance(value, str) else []
+            if len(step_refs) > 1:
+                diagnostics.append(
+                    Diagnostic(
+                        workflow_id=wf.id,
+                        field=f"params.{key}",
+                        yaml_path=f"workflows.{wf.id}.params.{key}",
+                        message=(
+                            f"'{key}' contains {len(step_refs)} references; a param value can contain one "
+                            "reference to another step's param, with text around it"
+                        ),
+                        severity=Severity.ERROR,
+                    )
+                )
             for token in ANY_BRACE_PATTERN.findall(str(value)):
                 if STEP_REF_PATTERN.fullmatch(token) or INPUT_REF_PATTERN.fullmatch(token):
                     continue

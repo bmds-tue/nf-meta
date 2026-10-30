@@ -401,3 +401,30 @@ export function unshownErrors(errors: Record<string, string[]>, shown: Iterable<
         .filter(([field]) => !fields.has(field) && field !== 'params')
         .flatMap(([field, messages]) => messages.map(m => (field ? `${field}: ${m}` : m)))
 }
+
+const STEP_REF_GLOBAL = /(?<!\\)\$\{[^}:]+:(?:params|outputs):[^}]+\}/g
+
+/**
+ * Params in a step's params YAML whose value contains more than one step
+ * reference (a value can contain one, with text around it), as the backend
+ * reports them. Positions are offsets into `text`; nothing if `text` isn't
+ * valid YAML.
+ */
+export function lintReferenceCount(text: string): TextProblem[] {
+    const doc = YAML.parseDocument(text)
+    if (doc.errors.length || !isMap(doc.contents)) return []
+    const problems: TextProblem[] = []
+    for (const pair of doc.contents.items) {
+        const value = pair.value
+        if (!isScalar(value) || typeof value.value !== 'string' || !value.range) continue
+        const count = [...value.value.matchAll(STEP_REF_GLOBAL)].length
+        if (count > 1) {
+            const param = isScalar(pair.key) ? String(pair.key.value) : ''
+            problems.push({
+                from: value.range[0], to: value.range[1],
+                message: `'${param}' contains ${count} references; a param value can contain one reference to another step's param, with text around it`,
+            })
+        }
+    }
+    return problems
+}

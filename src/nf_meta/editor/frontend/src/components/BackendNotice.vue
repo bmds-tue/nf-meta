@@ -14,10 +14,10 @@ const shown = computed(() => editorStore.backendState !== 'ok')
         On each restart, link and token changes.
       </v-card-text>
     </v-card>
-    <v-card v-else prepend-icon="mdi-power" title="The editor is not running">
+    <v-card v-else prepend-icon="mdi-power" title="The editor backend is not running">
       <v-card-text>
         It was stopped, or the connection to it is lost. Run <code class="text-no-wrap">nf-meta editor</code> again
-        and open the link it prints.
+        and open the link printed in your terminal.
       </v-card-text>
     </v-card>
   </v-dialog>

@@ -30,6 +30,14 @@ describe('backend state', () => {
         expect(useEditorStore().backendState).toBe('unreachable')
     })
 
+    it('is unreachable when the check gets no answer in time', async () => {
+        vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+            options.signal?.addEventListener('abort', () => reject(options.signal?.reason))
+        })))
+        await checkBackend(1)
+        expect(useEditorStore().backendState).toBe('unreachable')
+    })
+
     it('is ok again once the check gets the editor\'s answer', async () => {
         useEditorStore().setBackendState('unreachable')
         vi.stubGlobal('fetch', answer(200, { ok: true }))

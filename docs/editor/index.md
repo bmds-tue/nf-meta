@@ -26,7 +26,10 @@ nf-meta editor [path/to/metapipeline.yaml]
 This serves the editor's frontend and automaatically opens it in a browser tab, backed by a local session and state.
 (`nf_meta.core.session`)
 The session tracks graph mutations by updating the internal history, fetches data while keeping a local cache, and responds to validation requests.
-Passing no path starts a new, empty metapipeline.
+Passing no path shows a start screen: open a config (browsing the folders of the machine running
+the editor), pick one of the configs you recently opened or saved there, or start a new, empty
+metapipeline. Closing the start screen starts a new one too. The list of recent configs is kept per
+user on that machine (`~/.local/state/nf-meta/recent-configs.json`).
 
 !!! tip "Configs on a cluster?"
     Run the editor on the cluster and use it in your own browser through an SSH tunnel:

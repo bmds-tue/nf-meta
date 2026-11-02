@@ -28,7 +28,8 @@ This serves the editor's frontend and automaatically opens it in a browser tab, 
 The session tracks graph mutations by updating the internal history, fetches data while keeping a local cache, and responds to validation requests.
 Passing no path shows a start screen: open a config (browsing the folders of the machine running
 the editor), pick one of the configs you recently opened or saved there, or start a new, empty
-metapipeline. Closing the start screen starts a new one too. The list of recent configs is kept per
+metapipeline. Closing the start screen starts a new one too. It is shown once per run of
+`nf-meta editor`, not again when you reload the page. The list of recent configs is kept per
 user on that machine (`~/.local/state/nf-meta/recent-configs.json`).
 
 !!! tip "Configs on a cluster?"

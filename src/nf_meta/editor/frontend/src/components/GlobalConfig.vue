@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import YAML from 'yaml'
 import YamlEditor from './YamlEditor.vue'
+import PathPicker from './PathPicker.vue'
 import { useGraphStore } from '../store'
 import type { APIGlobalOptions } from '../types'
 import { extractFieldErrors } from '../utils'
@@ -106,10 +107,14 @@ async function save() {
         <v-text-field
           v-model="form.nf_config"
           label="Nextflow config"
-          placeholder="Path, relative to the config file" persistent-placeholder
+          placeholder="A Nextflow config file" persistent-placeholder
           prepend-inner-icon="mdi-cog-outline"
           variant="outlined" density="compact" hide-details="auto" clearable
-          :error-messages="errors.nf_config" />
+          :error-messages="errors.nf_config">
+          <template #append-inner>
+            <PathPicker pick="file" :value="form.nf_config" @pick="(p) => form.nf_config = p" />
+          </template>
+        </v-text-field>
         <div class="text-caption">Params</div>
         <p v-if="errors['params']?.length" class="field-error mb-0">{{ errors['params']!.join(' ') }}</p>
         <div class="params-editor">

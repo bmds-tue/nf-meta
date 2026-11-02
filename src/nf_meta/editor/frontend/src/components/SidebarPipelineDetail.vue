@@ -7,6 +7,7 @@ import type { SubmitEventPromise } from 'vuetify';
 import YAML from 'yaml';
 import NodeInputs from './NodeInputs.vue';
 import ParamsForm from './ParamsForm.vue';
+import PathPicker from './PathPicker.vue';
 import { useStepSchema } from '../step_schema';
 
 const props = defineProps<{
@@ -261,17 +262,25 @@ const pathRows = computed(() => [
       <v-text-field
         v-model="form.params_file"
         label="Params file"
-        placeholder="YAML/JSON file, relative to the config file" persistent-placeholder
+        placeholder="A YAML file" persistent-placeholder
         prepend-inner-icon="mdi-file-document-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
-        :error-messages="errors.params_file" />
+        :error-messages="errors.params_file">
+        <template #append-inner>
+          <PathPicker pick="config" :value="form.params_file" @pick="(p) => form.params_file = p" />
+        </template>
+      </v-text-field>
       <v-text-field
         v-model="form.nf_config"
         label="Nextflow config"
-        placeholder="Path, relative to the config file" persistent-placeholder
+        placeholder="A Nextflow config file" persistent-placeholder
         prepend-inner-icon="mdi-cog-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
-        :error-messages="errors.nf_config" />
+        :error-messages="errors.nf_config">
+        <template #append-inner>
+          <PathPicker pick="file" :value="form.nf_config" @pick="(p) => form.nf_config = p" />
+        </template>
+      </v-text-field>
       <v-text-field
         v-model="form.nf_profile"
         label="Nextflow profile(s)"

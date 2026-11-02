@@ -1,5 +1,3 @@
-import itertools
-
 import pytest
 import yaml
 from fastapi.testclient import TestClient
@@ -33,7 +31,7 @@ def client(monkeypatch, config, access):
     session = EditorSession()
     session.start(config)
     monkeypatch.setattr(api, "SESSION", session)
-    monkeypatch.setattr(api, "_first_graph_request", itertools.chain([True], itertools.repeat(False)))
+    monkeypatch.setattr(api, "_first_graph_request", api._startup_flags())
     return TestClient(api.app, base_url="http://127.0.0.1", headers={TOKEN_HEADER: TOKEN})
 
 

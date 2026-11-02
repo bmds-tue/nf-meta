@@ -1,4 +1,3 @@
-import itertools
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -116,11 +115,17 @@ def shutdown(request: Request):
     return {"ok": True}
 
 
-_first_graph_request = itertools.chain([True], itertools.repeat(False))
+def _startup_flags():
+    yield True
+    while True:
+        yield False
+
+
+_first_graph_request = _startup_flags()
 
 
 def initial_startup() -> bool:
-    """True for the first graph request of this editor run, false afterwards."""
+    """Returns True for the first graph request after editor start and false afterwards."""
     return next(_first_graph_request)
 
 

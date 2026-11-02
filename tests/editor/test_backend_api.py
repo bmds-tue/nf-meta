@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 import yaml
 from fastapi.testclient import TestClient
@@ -31,6 +33,7 @@ def client(monkeypatch, config, access):
     session = EditorSession()
     session.start(config)
     monkeypatch.setattr(api, "SESSION", session)
+    monkeypatch.setattr(api, "_first_graph_request", itertools.chain([True], itertools.repeat(False)))
     return TestClient(api.app, base_url="http://127.0.0.1", headers={TOKEN_HEADER: TOKEN})
 
 
@@ -335,3 +338,17 @@ class TestRecentConfigs:
         client.post("/api/graph/load/", json={"config": str(config)})
         assert client.post("/api/recent/forget/", json={"path": str(config)}).json() == {"ok": True}
         assert client.get("/api/recent/").json() == []
+
+
+class TestStartScreen:
+    @pytest.fixture
+    def empty_client(self, client, monkeypatch):
+        monkeypatch.setattr(api, "SESSION", EditorSession())
+        return client
+
+    def test_offered_on_the_first_request_only(self, empty_client):
+        assert empty_client.get("/api/graph/").json()["start_screen"] is True
+        assert empty_client.get("/api/graph/").json()["start_screen"] is False
+
+    def test_not_offered_with_a_config(self, client):
+        assert client.get("/api/graph/").json()["start_screen"] is False

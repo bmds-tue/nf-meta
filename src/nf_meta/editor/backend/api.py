@@ -1,3 +1,4 @@
+import itertools
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -115,9 +116,21 @@ def shutdown(request: Request):
     return {"ok": True}
 
 
+_first_graph_request = itertools.chain([True], itertools.repeat(False))
+
+
+def initial_startup() -> bool:
+    """True for the first graph request of this editor run, false afterwards."""
+    return next(_first_graph_request)
+
+
 @api_router.get("/graph/")
 def get_graph():
-    return serialize_state(SESSION)
+    """The session's state, and `start_screen`: whether the page should offer
+    the start screen (only on the first request of a run without a config)."""
+    first = initial_startup()
+    start_screen = first and not SESSION.config_file and not SESSION.graph.get_workflows()
+    return {**serialize_state(SESSION), "start_screen": start_screen}
 
 
 @api_router.get("/files/")

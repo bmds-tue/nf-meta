@@ -1,3 +1,4 @@
+import itertools
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -115,13 +116,7 @@ def shutdown(request: Request):
     return {"ok": True}
 
 
-def _startup_flags():
-    yield True
-    while True:
-        yield False
-
-
-_first_graph_request = _startup_flags()
+_first_graph_request = itertools.chain([True], itertools.repeat(False))
 
 
 def initial_startup() -> bool:

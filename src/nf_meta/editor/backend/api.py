@@ -41,6 +41,7 @@ from nf_meta.core.registry import (
 )
 from nf_meta.core.session import SESSION
 
+from . import recent
 from .files import list_folder
 from .guard import guard
 from .serializers import Selection, serialize_events, serialize_state
@@ -142,6 +143,7 @@ def save_graph(config: Path = Body(embed=True)):
         SESSION.save_to_config(config)
     except OSError as exc:
         return JSONResponse(status_code=400, content={"detail": f"Can't write {config}: {exc.strerror or exc}"})
+    recent.remember(config)
     return JSONResponse({})
 
 
@@ -158,7 +160,21 @@ def load_graph(config: Path = Body(embed=True)):
         problems = [f"{d.yaml_path}: {d.message}" for d in getattr(exc, "errors", [])] or [str(exc)]
         more = f" (and {len(problems) - 3} more)" if len(problems) > 3 else ""
         return JSONResponse(status_code=422, content={"detail": f"Invalid config: {'; '.join(problems[:3])}{more}"})
+    recent.remember(config)
     return JSONResponse({})
+
+
+@api_router.get("/recent/")
+def list_recent():
+    """The recently opened or saved configs, most recent first, each with
+    whether the file still exists."""
+    return [{"path": p, "exists": Path(p).is_file()} for p in recent.recent_configs()]
+
+
+@api_router.post("/recent/forget/")
+def forget_recent(path: str = Body(embed=True)):
+    recent.forget(path)
+    return {"ok": True}
 
 
 @api_router.get("/graph/undo/")

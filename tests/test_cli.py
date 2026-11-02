@@ -440,3 +440,26 @@ class TestRunNfConfig:
 
     def test_old_profile_option_removed(self, tmp_path, monkeypatch):
         assert self._invoke(tmp_path, monkeypatch, "--profile", "docker").exit_code == 2
+
+
+class TestEditorCommand:
+    def test_starting_with_a_config_remembers_it(self, tmp_path, monkeypatch):
+        import nf_meta.editor
+        from nf_meta.editor.backend import recent
+
+        started = []
+        monkeypatch.setattr(nf_meta.editor, "run_editor", started.append)
+        config = tmp_path / "mp.yaml"
+        config.write_text("config_version: 0.4.0\nworkflows: {}\n")
+        result = CliRunner().invoke(cli, ["editor", "--no-browser", str(config)])
+        assert result.exit_code == 0, result.output
+        assert started[0].open_browser is False
+        assert recent.recent_configs() == [str(config)]
+
+    def test_starting_without_a_config_remembers_nothing(self, monkeypatch):
+        import nf_meta.editor
+        from nf_meta.editor.backend import recent
+
+        monkeypatch.setattr(nf_meta.editor, "run_editor", lambda options: None)
+        assert CliRunner().invoke(cli, ["editor"]).exit_code == 0
+        assert recent.recent_configs() == []

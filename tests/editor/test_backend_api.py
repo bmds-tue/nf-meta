@@ -306,3 +306,32 @@ class TestShutdown:
     def test_ping(self, client):
         assert client.get("/api/ping/").json() == {"ok": True}
         assert client.get("/api/ping/", headers={TOKEN_HEADER: ""}).status_code == 401
+
+
+class TestRecentConfigs:
+    def test_loading_and_saving_remember_the_config(self, client, tmp_path):
+        other = tmp_path / "other.yaml"
+        other.write_text("config_version: 0.4.0\nworkflows: {}\n")
+        assert client.post("/api/graph/load/", json={"config": str(other)}).status_code == 200
+        saved = tmp_path / "saved.yaml"
+        assert client.post("/api/graph/save/", json={"config": str(saved)}).status_code == 200
+        assert client.get("/api/recent/").json() == [
+            {"path": str(saved), "exists": True},
+            {"path": str(other), "exists": True},
+        ]
+
+    def test_a_failed_load_is_not_remembered(self, client, tmp_path):
+        client.post("/api/graph/load/", json={"config": str(tmp_path / "missing.yaml")})
+        assert client.get("/api/recent/").json() == []
+
+    def test_missing_files_are_marked(self, client, tmp_path):
+        gone = tmp_path / "gone.yaml"
+        gone.write_text("config_version: 0.4.0\nworkflows: {}\n")
+        client.post("/api/graph/load/", json={"config": str(gone)})
+        gone.unlink()
+        assert client.get("/api/recent/").json() == [{"path": str(gone), "exists": False}]
+
+    def test_forget(self, client, config):
+        client.post("/api/graph/load/", json={"config": str(config)})
+        assert client.post("/api/recent/forget/", json={"path": str(config)}).json() == {"ok": True}
+        assert client.get("/api/recent/").json() == []

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    addableParams, baseName, folderOf, shortPath, canShareInput, joinPath, lintReferenceCount, pathCrumbs, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    addableParams, baseName, folderOf, shortPath, canShareInput, joinPath, lintReferenceCount, pathCrumbs, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion, pathPick, isUrl,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -306,5 +306,33 @@ describe('shortPath', () => {
 
     it('keeps at least the last folder', () => {
         expect(shortPath('/a/an-extremely-long-folder-name', 10)).toBe('…/an-extremely-long-folder-name')
+    })
+})
+
+describe('pathPick', () => {
+    it('picks by JSON-Schema format', () => {
+        expect(pathPick('file-path')).toBe('file')
+        expect(pathPick('file-path-pattern')).toBe('file')
+        expect(pathPick('directory-path')).toBe('folder')
+        expect(pathPick('path')).toBe('path')
+    })
+    it('picks by nf-core module type', () => {
+        expect(pathPick(undefined, 'file')).toBe('file')
+        expect(pathPick(undefined, 'directory')).toBe('folder')
+    })
+    it('is none for other values', () => {
+        expect(pathPick('email')).toBeUndefined()
+        expect(pathPick(undefined, 'string')).toBeUndefined()
+        expect(pathPick()).toBeUndefined()
+    })
+})
+
+describe('isUrl', () => {
+    it('tells URLs from paths', () => {
+        expect(isUrl('https://example.org/a.csv')).toBe(true)
+        expect(isUrl('s3://bucket/a.csv')).toBe(true)
+        expect(isUrl('/data/a.csv')).toBe(false)
+        expect(isUrl('data/a.csv')).toBe(false)
+        expect(isUrl(undefined)).toBe(false)
     })
 })

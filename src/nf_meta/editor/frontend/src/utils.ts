@@ -479,3 +479,29 @@ export function pathCrumbs(path: string): { label: string, path: string }[] {
     }
     return crumbs
 }
+
+/** What a path picker chooses: `config` (a .yaml/.yml file), any `file`, a `folder`, or either (`path`). */
+export type PathPick = 'config' | 'file' | 'folder' | 'path'
+
+/**
+ * The picker for a value of JSON-Schema `format` (or nf-core module `type`), or none when the
+ * value isn't a path.
+ */
+export function pathPick(format?: string, type?: string): PathPick | undefined {
+    switch (format ?? '') {
+        case 'file-path':
+        case 'file-path-pattern':
+            return 'file'
+        case 'directory-path':
+            return 'folder'
+        case 'path':
+            return 'path'
+    }
+    if (type && type in MODULE_TYPES) return pathPick(MODULE_TYPES[type]!.format)
+    return undefined
+}
+
+/** Whether `value` is an `http(s)://` (or other `scheme://`) location rather than a local path. */
+export function isUrl(value?: string | null): boolean {
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(value ?? '')
+}

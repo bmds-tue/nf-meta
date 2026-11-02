@@ -1,4 +1,5 @@
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import APIRouter, Body, FastAPI, Request
@@ -90,6 +91,27 @@ def serve_ui(request: Request):
         query = f"?{request.url.query}" if request.url.query else ""
         return RedirectResponse(f"http://localhost:{DEV_VITE_PORT}/{query}")
     return FileResponse(DIST_DIR / "index.html")
+
+
+@api_router.get("/ping/")
+def ping():
+    return {"ok": True}
+
+
+def configure_shutdown(app: FastAPI, stop: Callable[[], None] | None) -> None:
+    """Let the page stop the editor: `POST /api/shutdown/` calls `stop`."""
+    app.state.stop_server = stop
+
+
+@api_router.post("/shutdown/")
+def shutdown(request: Request):
+    # set by the editor that runs the server; missing when something else serves the app
+    stop = getattr(request.app.state, "stop_server", None)
+    if stop is None:
+        return JSONResponse(status_code=503, content={"detail": "This editor can't be stopped from the page"})
+    # the server finishes this response before it stops
+    stop()
+    return {"ok": True}
 
 
 @api_router.get("/graph/")

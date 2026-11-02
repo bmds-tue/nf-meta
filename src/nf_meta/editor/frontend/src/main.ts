@@ -6,7 +6,7 @@ import App from './App.vue'
 import { THEMES, storedTheme } from './themes'
 import { initAccessToken } from './access'
 
-import { usePipelineStore, useModuleStore } from './store'
+import { usePipelineStore, useModuleStore, watchBackend } from './store'
 import { useEditorHotkeys } from './hotkeys'
 
 import '@vue-flow/core/dist/style.css'
@@ -55,3 +55,5 @@ moduleStore.initialize()
 
 // Initialize hotkey listeners
 useEditorHotkeys()
+
+watchBackend()

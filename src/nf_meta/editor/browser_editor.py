@@ -12,7 +12,7 @@ from pathlib import Path
 import click
 import uvicorn
 
-from .backend import DEV_HOST, DEV_MODE, DEV_PORT, DEV_VITE_PORT, app, configure_access, new_token
+from .backend import DEV_HOST, DEV_MODE, DEV_PORT, DEV_VITE_PORT, app, configure_access, configure_shutdown, new_token
 from .backend.guard import WILDCARD_HOSTS
 from .base_editor import BaseEditor
 
@@ -114,6 +114,16 @@ class BrowserEditor(BaseEditor):
 
     EDITOR_NAME = "browser"
 
+    _server: uvicorn.Server | None = None
+
+    def stop(self) -> None:
+        """Stop the running editor; it answers the requests in progress first.
+        Does nothing when it isn't running."""
+        if self._server is None:
+            return
+        click.echo("Stopping the editor backend")
+        self._server.should_exit = True
+
     def start(self) -> None:
         host = self.options.host
         port = self.options.port
@@ -170,8 +180,10 @@ class BrowserEditor(BaseEditor):
         for name in ("SIGTERM", "SIGHUP"):
             if hasattr(signal, name):  # no SIGHUP on Windows
                 signal.signal(getattr(signal, name), _exit_on_signal)
+        self._server = uvicorn.Server(config)
+        configure_shutdown(app, self.stop)
         try:
-            uvicorn.Server(config).run()
+            self._server.run()
         finally:
             if page:
                 page.unlink(missing_ok=True)

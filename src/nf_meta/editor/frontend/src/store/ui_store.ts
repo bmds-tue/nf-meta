@@ -41,12 +41,13 @@ export const useEditorStore = defineStore('editor', () => {
     const _loadDialogOpen = ref<boolean>(false)
     const loadDialogOpen = computed(() => _loadDialogOpen.value)
 
-    // The backend refused the page's session token (none, or one of an earlier run)
-    const _accessDenied = ref(false)
-    const accessDenied = computed(() => _accessDenied.value)
+    // 'refused': the backend refused the page's session token (none, or one of an earlier run);
+    // 'unreachable': no answer (the editor was stopped, or the connection is gone)
+    const _backendState = ref<'ok' | 'refused' | 'unreachable'>('ok')
+    const backendState = computed(() => _backendState.value)
 
-    function denyAccess() {
-        _accessDenied.value = true
+    function setBackendState(state: 'ok' | 'refused' | 'unreachable') {
+        _backendState.value = state
     }
 
     function openLoadDialog() {
@@ -178,7 +179,7 @@ export const useEditorStore = defineStore('editor', () => {
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
-        accessDenied, denyAccess,
+        backendState, setBackendState,
     }
 })
 

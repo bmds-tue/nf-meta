@@ -8,14 +8,42 @@ import type {
 import { accessHeaders } from '../access'
 import { useEditorStore } from './ui_store'
 
-// fetch for the editor's API: sends the session token; a 401 means the page lacks it
+// fetch for the editor's API: sends the session token; a 401 means the page lacks it,
+// a failed connection that the editor isn't running
 async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    const response = await fetch(endpoint, {
-        ...options,
-        headers: { 'Content-Type': 'application/json', ...accessHeaders(), ...options.headers },
-    })
-    if (response.status === 401) useEditorStore().denyAccess()
+    const editorStore = useEditorStore()
+    let response: Response
+    try {
+        response = await fetch(endpoint, {
+            ...options,
+            headers: { 'Content-Type': 'application/json', ...accessHeaders(), ...options.headers },
+        })
+    } catch (e) {
+        editorStore.setBackendState('unreachable')
+        throw e
+    }
+    if (response.status === 401) editorStore.setBackendState('refused')
     return response
+}
+
+// Ask whether the editor answers and set the backend state; anything but its own answer
+// (e.g. a dev proxy's error page) counts as not running
+export async function checkBackend() {
+    try {
+        const response = await apiFetch('/api/ping/')
+        if (response.status === 401) return
+        const data = response.ok ? await response.json() : undefined
+        useEditorStore().setBackendState(data?.ok ? 'ok' : 'unreachable')
+    } catch {
+        useEditorStore().setBackendState('unreachable')
+    }
+}
+
+// Check now and then (and when the tab is shown again), so a stopped editor is noticed
+// without waiting for the next action
+export function watchBackend(interval = 10_000) {
+    setInterval(() => { if (!document.hidden) checkBackend() }, interval)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkBackend() })
 }
 
 export const useApiStore = defineStore('api', () => {
@@ -42,6 +70,10 @@ export const useApiStore = defineStore('api', () => {
             console.error(e)
             return { ok: false, status: 0, message: 'Error while making request' }
         }
+    }
+
+    function shutdown() {
+        return request<{ ok: boolean }>('/api/shutdown/', { method: 'POST' })
     }
 
     function getGraph() {
@@ -135,7 +167,7 @@ export const useApiStore = defineStore('api', () => {
     }
 
     return {
-        getGraph, saveGraph, loadGraph,
+        shutdown, getGraph, saveGraph, loadGraph,
         undoGraph, redoGraph,
         addNode, updateNode, deleteSelection, addEdge, updateGlobalOptions,
         saveInput, deleteInput, declareStepInputs, setInputsStyle,

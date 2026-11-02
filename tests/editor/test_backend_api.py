@@ -283,3 +283,26 @@ class TestAccess:
         configure_access(api.app, TOKEN, bind_host="0.0.0.0")
         assert client.get("/api/graph/", headers={"host": "other:8080"}).status_code == 200
         assert client.get("/api/graph/", headers={"host": "other:8080", TOKEN_HEADER: ""}).status_code == 401
+
+
+class TestShutdown:
+    def test_shutdown_stops_the_server(self, client):
+        stopped = []
+        api.configure_shutdown(api.app, lambda: stopped.append(True))
+        assert client.post("/api/shutdown/").json() == {"ok": True}
+        assert stopped == [True]
+
+    def test_shutdown_needs_the_token(self, client):
+        stopped = []
+        api.configure_shutdown(api.app, lambda: stopped.append(True))
+        assert client.post("/api/shutdown/", headers={TOKEN_HEADER: ""}).status_code == 401
+        assert stopped == []
+
+    def test_shutdown_without_a_server(self, client):
+        response = client.post("/api/shutdown/")
+        assert response.status_code == 503
+        assert "can't be stopped" in response.json()["detail"]
+
+    def test_ping(self, client):
+        assert client.get("/api/ping/").json() == {"ok": True}
+        assert client.get("/api/ping/", headers={TOKEN_HEADER: ""}).status_code == 401

@@ -26,11 +26,12 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Re
     return response
 }
 
-// Ask whether the editor answers and set the backend state; anything but its own answer
-// (e.g. a dev proxy's error page) counts as not running
-export async function checkBackend() {
+// Ask whether the editor answers and set the backend state; anything but its own answer in time
+// (e.g. a dev proxy's error page) counts as not running. The timeout matters: a port forward or
+// tunnel can keep the connection open after the editor is gone, and the request would never end
+export async function checkBackend(timeout = 5_000) {
     try {
-        const response = await apiFetch('/api/ping/')
+        const response = await apiFetch('/api/ping/', { signal: AbortSignal.timeout(timeout) })
         if (response.status === 401) return
         const data = response.ok ? await response.json() : undefined
         useEditorStore().setBackendState(data?.ok ? 'ok' : 'unreachable')

@@ -28,6 +28,10 @@ This serves the editor's frontend and automaatically opens it in a browser tab, 
 The session tracks graph mutations by updating the internal history, fetches data while keeping a local cache, and responds to validation requests.
 Passing no path starts a new, empty metapipeline.
 
+!!! tip "Configs on a cluster?"
+    Run the editor on the cluster and use it in your own browser through an SSH tunnel:
+    see [Running the editor on a remote machine](#running-the-editor-on-a-remote-machine).
+
 ### The editor link
 
 On start, the editor prints its address with an access token, for example
@@ -53,3 +57,35 @@ The editor is extensible via plugins in the same way runners are: `--editor <nam
 The one described above is the only one shipped with nf-meta right now and opens by default.
 See [Writing an editor plugin](../guides/writing-an-editor-plugin.md)
 to add another.
+
+## Running the editor on a remote machine
+
+Data and pipelines usually live on a cluster with no access to a display server or a browser.
+In order to still use the nf-meta editor in such a setting, you can connect to a editor backend via an **SSH tunnel**.
+
+On the cluster start the editor backend:
+
+```bash
+$ nf-meta editor --port 8080
+Editor running at: http://127.0.0.1:8080/?token=Xq3…
+Started over SSH: to use the editor from your own computer, forward its port there
+    ssh -N -L 8080:localhost:8080 alice@login01
+(with the host name you log in with), then open the link above in your browser.
+```
+
+On the computer with a browser, run the following command with the host name of your remote machine to start the tunnel:
+
+```bash
+$ ssh -N -L 8080:localhost:8080 alice@hpc.example.org
+```
+
+You will now be able to visit the printed link in your local browser.
+
+### VS Code Remote-SSH
+
+In the terminal of a VS Code Remote-SSH window, the port is forwarded automatically.
+Start the editor with `--no-redirect-file`, so the link can be opened on your computer's browser:
+
+```bash
+nf-meta editor --port 8080 --no-redirect-file
+```

@@ -34,8 +34,9 @@ user on that machine (`~/.local/state/nf-meta/recent-configs.json`).
 
 Fields that take a path (a step's params file and Nextflow config, the global Nextflow config,
 params and input defaults with a path format) have a folder button that browses the same machine
-and fills in the absolute path of the file or folder you pick. You can still type into the field,
-for example a URL.
+and fills in the absolute path of the file or folder you pick. You can also type the path, or a URL
+for params and input defaults. `outdir` has no button: a relative
+`outdir` is placed in the run's output folder.
 
 !!! tip "Configs on a cluster?"
     Run the editor on the cluster and use it in your own browser through an SSH tunnel:

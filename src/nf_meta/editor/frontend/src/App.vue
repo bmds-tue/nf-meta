@@ -162,11 +162,8 @@ watch(
 
 onMounted(async () => {
   console.log("[INFO] Updating graph")
-  await graphStore.getAndUpdateGraph()
-  // Started without a config: offer to open one
-  if (editorStore.backendState === 'ok' && !graphStore.filename && !graphStore.nodeData.length) {
-    editorStore.openStartScreen()
-  }
+  // Started without a config: offer to open one (once per editor run)
+  if (await graphStore.getAndUpdateGraph()) editorStore.openStartScreen()
 })
 
 </script>

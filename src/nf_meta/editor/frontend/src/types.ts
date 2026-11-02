@@ -138,6 +138,7 @@ export type APIGraph = {
   nodes: APINodeData[],
   transitions: APIEdgeData[],
   globals: APIGlobalOptions,
+  start_screen?: boolean,
   inputs: APIInput[],
 }
 

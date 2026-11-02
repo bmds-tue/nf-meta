@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
     ApiResult, APIGraph, APICommandResponse,
-    APINodeData, APIEdgeData, APIGlobalOptions, APIInputSave, Selection, StepSchema, FolderListing,
+    APINodeData, APIEdgeData, APIGlobalOptions, APIInputSave, Selection, StepSchema, FolderListing, RecentConfig,
     NfCorePipelineInfo, NfCoreModuleInfo, NfCoreModuleVersionInfo,
 } from '../types'
 import { accessHeaders } from '../access'
@@ -134,6 +134,14 @@ export const useApiStore = defineStore('api', () => {
     }
 
     // A folder of the machine running the editor; without `path`, where the dialogs start
+    function getRecentConfigs() {
+        return request<RecentConfig[]>('/api/recent/', { method: 'GET' })
+    }
+
+    function forgetRecentConfig(path: string) {
+        return request<{ ok: boolean }>('/api/recent/forget/', { method: 'POST', body: JSON.stringify({ path }) })
+    }
+
     function listFolder(path?: string, allFiles = false) {
         const query = new URLSearchParams()
         if (path) query.set('path', path)
@@ -173,6 +181,7 @@ export const useApiStore = defineStore('api', () => {
         addNode, updateNode, deleteSelection, addEdge, updateGlobalOptions,
         saveInput, deleteInput, declareStepInputs, setInputsStyle,
         getNodeSchema, getPipelineSchema, getModuleSchema, listFolder,
+        getRecentConfigs, forgetRecentConfig,
     }
 })
 

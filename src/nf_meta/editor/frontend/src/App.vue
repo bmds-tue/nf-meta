@@ -14,6 +14,7 @@ import type { APINodeData } from './types'
 import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 import BackendNotice from './components/BackendNotice.vue'
+import StartScreen from './components/StartScreen.vue'
 import { useLayout } from './layout_graph'
 import { useTheme } from 'vuetify'
 import { DARK_THEME, LIGHT_THEME, storeTheme, type ThemeName } from './themes'
@@ -161,7 +162,11 @@ watch(
 
 onMounted(async () => {
   console.log("[INFO] Updating graph")
-  graphStore.getAndUpdateGraph()
+  await graphStore.getAndUpdateGraph()
+  // Started without a config: offer to open one
+  if (editorStore.backendState === 'ok' && !graphStore.filename && !graphStore.nodeData.length) {
+    editorStore.openStartScreen()
+  }
 })
 
 </script>
@@ -251,6 +256,7 @@ onMounted(async () => {
     </div>
     <LoadDialog></LoadDialog>
     <SaveDialog></SaveDialog>
+    <StartScreen></StartScreen>
     <BackendNotice></BackendNotice>
     <AppSnackbar></AppSnackbar>
     <AppFooter></AppFooter>

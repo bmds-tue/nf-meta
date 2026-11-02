@@ -175,5 +175,8 @@ export type APICommandResponse = {
   events: APIEvent[]
 }
 // A folder of the machine running the editor (GET /api/files/)
+// A config opened or saved before on the editor's machine
+export type RecentConfig = { path: string, exists: boolean }
+
 export type FolderEntry = { name: string, path: string, kind: 'folder' | 'file' }
 export type FolderListing = { path: string, parent: string | null, entries: FolderEntry[] }

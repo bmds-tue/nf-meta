@@ -122,6 +122,12 @@ function dropReference(row: ParamRow) {
   setValue(row.name, leadingReference(row)?.rest ?? '')
 }
 
+// The folder button of a path param; none for `outdir`, which is relative to the run's out dir
+function rowPick(row: ParamRow) {
+  if (row.name === 'outdir' || leadingReference(row)) return undefined
+  return pathPick(row.spec?.format, row.spec?.type)
+}
+
 function fieldKind(spec?: ParamSpec): 'enum' | 'boolean' | 'number' | 'text' {
   if (spec?.enum?.length) return 'enum'
   if (spec?.type === 'boolean') return 'boolean'
@@ -248,8 +254,7 @@ function inputTitle(name: string) {
           </template>
           <template #append-inner>
             <PathPicker
-              v-if="pathPick(row.spec?.format, row.spec?.type) && !leadingReference(row)"
-              :pick="pathPick(row.spec?.format, row.spec?.type)!" :value="fieldText(row)"
+              v-if="rowPick(row)" :pick="rowPick(row)!" :value="fieldText(row)"
               @pick="(p) => setText(row, p)" />
             <ParamRowActions
               :param="row.name" :references="references" :input-title="inputTitle(row.name)"

@@ -99,7 +99,7 @@ class TestBuild:
 
     def test_reference_to_unknown_step_raises_and_changes_nothing(self, tmp_path):
         mp = Metapipeline(project_dir=tmp_path)
-        with pytest.raises(ConfigValidationError, match="unknown workflow: nmissing"):
+        with pytest.raises(ConfigValidationError, match="unknown step: nmissing"):
             mp.add(rnaseq(input=Ref("nmissing", "outdir")))
         assert mp.steps == []
 
@@ -172,7 +172,7 @@ class TestLoadSave:
         mp.save(path)
 
         data = yaml.safe_load(path.read_text())
-        assert data["workflows"][rna.id]["from"] == [fetch.id]
+        assert data["steps"][rna.id]["from"] == [fetch.id]
 
         loaded = Metapipeline.load(path)
         assert [wf.id for wf in loaded.steps] == [fetch.id, rna.id]

@@ -14,7 +14,7 @@ from ..conftest import FAKE_PIPELINE_SCHEMA
 @pytest.fixture
 def config(tmp_path):
     path = tmp_path / "mp.yaml"
-    path.write_text("config_version: 0.4.0\nworkflows: {}\n")
+    path.write_text("config_version: 0.4.0\nsteps: {}\n")
     return path
 
 
@@ -221,7 +221,7 @@ class TestLoadAndSave:
     def test_invalid_config_keeps_the_current_one(self, client, config, tmp_path):
         add_step(client)
         bad = tmp_path / "bad.yaml"
-        bad.write_text("config_version: 0.4.0\nworkflows:\n  n01: {name: nf-core/nope, version: '1'}\n")
+        bad.write_text("config_version: 0.4.0\nsteps:\n  n01: {name: nf-core/nope, version: '1'}\n")
         response = client.post("/api/graph/load/", json={"config": str(bad)})
         assert response.status_code == 422
         assert response.json()["detail"].startswith("Invalid config: ")
@@ -314,7 +314,7 @@ class TestShutdown:
 class TestRecentConfigs:
     def test_loading_and_saving_remember_the_config(self, client, tmp_path):
         other = tmp_path / "other.yaml"
-        other.write_text("config_version: 0.4.0\nworkflows: {}\n")
+        other.write_text("config_version: 0.4.0\nsteps: {}\n")
         assert client.post("/api/graph/load/", json={"config": str(other)}).status_code == 200
         saved = tmp_path / "saved.yaml"
         assert client.post("/api/graph/save/", json={"config": str(saved)}).status_code == 200
@@ -329,7 +329,7 @@ class TestRecentConfigs:
 
     def test_missing_files_are_marked(self, client, tmp_path):
         gone = tmp_path / "gone.yaml"
-        gone.write_text("config_version: 0.4.0\nworkflows: {}\n")
+        gone.write_text("config_version: 0.4.0\nsteps: {}\n")
         client.post("/api/graph/load/", json={"config": str(gone)})
         gone.unlink()
         assert client.get("/api/recent/").json() == [{"path": str(gone), "exists": False}]
@@ -378,7 +378,7 @@ class TestConfigFilePaths:
         (config.parent / "params.yaml").write_text("count: 1\n")
         response = self.add(client, params_file="params.yaml")
         assert response.status_code == 200, response.json()
-        step = next(iter(yaml.safe_load(config.read_text())["workflows"].values()))
+        step = next(iter(yaml.safe_load(config.read_text())["steps"].values()))
         assert step["params_file"] == "params.yaml"
 
     def test_a_missing_params_file_is_a_field_error(self, client, config, elsewhere):

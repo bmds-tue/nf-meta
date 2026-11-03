@@ -168,8 +168,8 @@ class SimplePythonRunner(BaseRunner):
                 tail.append(raw_line.strip())
                 live.update(
                     Group(
-                        Panel("\n".join(tail), title="Workflow Output"),
-                        Spinner("dots", text="Running Workflow ..."),
+                        Panel("\n".join(tail), title="Step output"),
+                        Spinner("dots", text="Running step ..."),
                     )
                 )
 
@@ -181,7 +181,7 @@ class SimplePythonRunner(BaseRunner):
             if process.returncode > 0 and stderr:
                 live.update(Panel(stderr, title="Errors"))
             else:
-                live.update(Text("Running Workflow ... Done"))
+                live.update(Text("Running step ... Done"))
 
         return (process.returncode, stdout, stderr)
 
@@ -200,7 +200,7 @@ class SimplePythonRunner(BaseRunner):
             f.write(out)
 
         if exit_code != 0:
-            logger.error(f"Command exited with code {exit_code}. Workflow dir: {spec.state_dir}")
+            logger.error(f"Command exited with code {exit_code}. Step dir: {spec.state_dir}")
             with (spec.state_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
         else:
@@ -211,11 +211,9 @@ class SimplePythonRunner(BaseRunner):
     def _selected_workflows(self, graph: MetaworkflowGraph) -> list[Workflow]:
         workflows = graph.get_workflows_sorted()
         if self.run_options.start or self.run_options.target:
-            logger.info(
-                f"Calculating subset of graph from workflow {self.run_options.start} to {self.run_options.target}"
-            )
+            logger.info(f"Calculating subset of graph from step {self.run_options.start} to {self.run_options.target}")
             workflows = graph.subset_workflows(self.run_options.start, self.run_options.target, workflows)
-            logger.info(f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
+            logger.info(f"Steps to run: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
         return workflows
 
     def plan(self, graph: MetaworkflowGraph, resume: bool = False, dry_run: bool = False) -> RunPlan:
@@ -436,16 +434,15 @@ class SimplePythonRunner(BaseRunner):
 
             console.print(f"[bold blue]▶[/bold blue] {step_label}")
             if not self._execute(step.spec, step.command):
-                console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")
+                console.print(f"[bold red]✗[/bold red] {step_label}: Step failed")
                 raise NfMetaRunnerError(
-                    f"Workflow '{step.workflow.id}' ({step.workflow.name}) failed. "
-                    f"Output and errors: {step.spec.state_dir}"
+                    f"Step '{step.workflow.id}' ({step.workflow.name}) failed. Output and errors: {step.spec.state_dir}"
                 )
 
             console.print(f"[green]✓[/green] {step_label}: Done")
 
-        console.print("[bold green]All workflows completed successfully[/bold green]")
-        logger.info("All workflows completed")
+        console.print("[bold green]All steps completed successfully[/bold green]")
+        logger.info("All steps completed")
         assert self.out_dir is not None  # set by plan()
         return RunResults([StepResult.from_planned(step) for step in steps], out_dir=self.out_dir)
 

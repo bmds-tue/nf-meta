@@ -1,5 +1,5 @@
 config_version: 0.3.0
-workflows:
+steps:
   wf_a:
     name: nf-core/fetchngs
     version: 1.12.0

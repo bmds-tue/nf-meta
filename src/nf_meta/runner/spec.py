@@ -83,7 +83,7 @@ def resolve_references(
         wf_ref = graph.get_workflow_by_id(ref.target_wf_id)
         if not wf_ref:
             raise ValueError(
-                f"Resolving reference {ref.name} failed: referenced workflow '{ref.target_wf_id}' does not exist"
+                f"Resolving reference {ref.name} failed: referenced step '{ref.target_wf_id}' does not exist"
             )
 
         values_source: dict = (resolved or {}).get(ref.target_wf_id) or (wf_ref.params or {})
@@ -91,12 +91,12 @@ def resolve_references(
         if not values_source:
             raise ValueError(
                 f"Resolving reference {ref.name} failed: "
-                f"source workflow '{wf_ref.id}' has no resolved values for namespace '{ref.namespace}'"
+                f"source step '{wf_ref.id}' has no resolved values for namespace '{ref.namespace}'"
             )
         if not wf_resolved.params:
             raise ValueError(
                 f"Resolving reference {ref.name} failed: "
-                f"referencing workflow '{wf_resolved.id}' has no params to substitute into"
+                f"referencing step '{wf_resolved.id}' has no params to substitute into"
             )
 
         ref_value = values_source.get(ref.target_key)
@@ -105,12 +105,12 @@ def resolve_references(
         if ref_value is None:
             raise ValueError(
                 f"Resolving reference {ref.name} failed: "
-                f"key '{ref.target_key}' not found in workflow '{ref.target_wf_id}' {ref.namespace}"
+                f"key '{ref.target_key}' not found in step '{ref.target_wf_id}' {ref.namespace}"
             )
         if source_value is None:
             raise ValueError(
                 f"Resolving reference {ref.name} failed: "
-                f"source key '{ref.source_key}' not found in workflow '{ref.source_wf_id}' params"
+                f"source key '{ref.source_key}' not found in step '{ref.source_wf_id}' params"
             )
 
         wf_resolved.params[ref.source_key] = source_value.replace(ref.name, str(ref_value))

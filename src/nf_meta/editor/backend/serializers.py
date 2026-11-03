@@ -67,7 +67,7 @@ def _is_about(d: Diagnostic, name: str, bindings) -> bool:
     path = d.yaml_path or ""
     if path == f"inputs.{name}" or path.startswith(f"inputs.{name}."):
         return True
-    return path in {f"workflows.{b.step_id}.params.{b.param}" for b in bindings}
+    return path in {f"steps.{b.step_id}.params.{b.param}" for b in bindings}
 
 
 def _serialize_event(event) -> dict:

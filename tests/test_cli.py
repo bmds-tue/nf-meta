@@ -12,22 +12,22 @@ def _write(tmp_path, text):
 
 class TestValidateCommand:
     def test_reports_line_number_for_pydantic_error(self, tmp_path):
-        text = "config_version: 0.3.0\nworkflows:\n  wf_a:\n    version: 2.0.0\n"
+        text = "config_version: 0.3.0\nsteps:\n  wf_a:\n    version: 2.0.0\n"
         path = _write(tmp_path, text)
-        expected = locate_field(text, "workflows.wf_a.name")
+        expected = locate_field(text, "steps.wf_a.name")
         assert expected is not None
 
         result = CliRunner().invoke(cli, ["validate", str(path)])
 
         assert result.exit_code == 1
         assert f"Validation failed in {path}" in result.output
-        assert f"{expected.line}:{expected.column}  workflows.wf_a.name  Field required" in result.output
-        assert "workflows.wf_a.url" in result.output
+        assert f"{expected.line}:{expected.column}  steps.wf_a.name  Field required" in result.output
+        assert "steps.wf_a.url" in result.output
 
     def test_reports_line_number_for_dynamic_error(self, tmp_path):
         text = (
             "config_version: 0.3.0\n"
-            "workflows:\n"
+            "steps:\n"
             "  wf_a:\n"
             "    name: nf-core/rnaseq\n"
             "    version: 3.14.0\n"
@@ -35,18 +35,18 @@ class TestValidateCommand:
             "      foobar: true\n"
         )
         path = _write(tmp_path, text)
-        expected = locate_field(text, "workflows.wf_a.params.foobar")
+        expected = locate_field(text, "steps.wf_a.params.foobar")
         assert expected is not None
 
         result = CliRunner().invoke(cli, ["validate", str(path)])
 
         assert result.exit_code == 1
-        assert f"{expected.line}:{expected.column}  workflows.wf_a.params.foobar  Unknown parameter" in result.output
+        assert f"{expected.line}:{expected.column}  steps.wf_a.params.foobar  Unknown parameter" in result.output
 
     def test_valid_config_reports_success(self, tmp_path):
         text = (
             "config_version: 0.3.0\n"
-            "workflows:\n"
+            "steps:\n"
             "  wf_a:\n"
             "    name: nf-core/rnaseq\n"
             "    version: 3.14.0\n"
@@ -63,7 +63,7 @@ class TestValidateCommand:
     def test_legacy_top_level_transitions_still_accepted(self, tmp_path):
         text = (
             "config_version: 0.3.0\n"
-            "workflows:\n"
+            "steps:\n"
             "  wf_a:\n"
             "    name: nf-core/fetchngs\n"
             "    version: 1.12.0\n"
@@ -85,10 +85,10 @@ class TestValidateCommand:
         text = "name: nf-core/rnaseq\nversion: 3.14.0\nparams:\n  input: samplesheet.csv\n  outdir: results\n"
         path = _write(tmp_path, text)
 
-        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        result = CliRunner().invoke(cli, ["validate", "--scope", "step", str(path)])
 
         assert result.exit_code == 0
-        assert "Workflow is valid" in result.output
+        assert "Step is valid" in result.output
 
     def test_scope_workflow_reports_line_number_against_snippet_root(self, tmp_path):
         text = "name: nf-core/rnaseq\nversion: main\n"
@@ -96,7 +96,7 @@ class TestValidateCommand:
         expected = locate_field(text, "version")
         assert expected is not None
 
-        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        result = CliRunner().invoke(cli, ["validate", "--scope", "step", str(path)])
 
         assert result.exit_code == 1
         assert f"{expected.line}:{expected.column}  version  " in result.output
@@ -105,7 +105,7 @@ class TestValidateCommand:
         text = "version: 3.14.0\n"
         path = _write(tmp_path, text)
 
-        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        result = CliRunner().invoke(cli, ["validate", "--scope", "step", str(path)])
 
         assert result.exit_code == 1
         assert "name" in result.output
@@ -116,7 +116,7 @@ class TestValidateCommand:
         text = "name: nf-core/rnaseq\nversion: 3.14.0\n"
         path = _write(tmp_path, text)
 
-        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        result = CliRunner().invoke(cli, ["validate", "--scope", "step", str(path)])
 
         assert result.exit_code == 0
 
@@ -143,7 +143,7 @@ class TestValidateCommand:
     def test_multiple_errors_reported_together(self, tmp_path):
         text = (
             "config_version: 0.3.0\n"
-            "workflows:\n"
+            "steps:\n"
             "  wf_a:\n"
             "    version: 2.0.0\n"  # missing name -> construction error
             "  wf_b:\n"
@@ -163,14 +163,14 @@ class TestValidateCommand:
         result = CliRunner().invoke(cli, ["validate", str(path)])
 
         assert result.exit_code == 1
-        assert "workflows.wf_a.name" in result.output
+        assert "steps.wf_a.name" in result.output
         assert "nonexistent" in result.output
         assert "cycle" in result.output
 
     def test_mixing_from_and_top_level_transitions_rejected(self, tmp_path):
         text = (
             "config_version: 0.3.0\n"
-            "workflows:\n"
+            "steps:\n"
             "  wf_a:\n"
             "    name: nf-core/fetchngs\n"
             "    version: 1.12.0\n"
@@ -194,7 +194,7 @@ class TestRunDryRun:
     def test_prints_commands_without_running(self, tmp_path, monkeypatch):
         text = (
             "config_version: 0.3.0\n"
-            "workflows:\n"
+            "steps:\n"
             "  n01:\n"
             "    name: nf-core/fetchngs\n"
             "    version: 1.12.0\n"
@@ -223,7 +223,7 @@ class TestRunDryRun:
     def test_out_option_sets_launch_dir(self, tmp_path, monkeypatch):
         path = _write(
             tmp_path,
-            "config_version: 0.3.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n",
+            "config_version: 0.3.0\nsteps:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n",
         )
         out = tmp_path / "results"
         result = CliRunner().invoke(cli, ["run", "-r", "python", "--dry-run", "--out", str(out), str(path)])
@@ -237,7 +237,7 @@ class TestValidateWarnings:
         "inputs:\n"
         "  spare:\n"
         "    type: string\n"
-        "workflows:\n"
+        "steps:\n"
         "  n01:\n"
         "    name: nf-core/fetchngs\n"
         "    version: 1.12.0\n"
@@ -279,10 +279,10 @@ class TestWarningsInOtherCommands:
         warning = Diagnostic(None, "url", "unreachable", Severity.WARNING)
         monkeypatch.setattr("nf_meta.core.config.run_dynamic_checks", lambda wf, previous=None: [warning])
         path = _write(tmp_path, "name: nf-core/fetchngs\nversion: 1.12.0\n")
-        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        result = CliRunner().invoke(cli, ["validate", "--scope", "step", str(path)])
         assert result.exit_code == 0, result.output
         assert "Warning  url  unreachable" in result.output
-        assert "Workflow is valid with 1 warning" in result.output
+        assert "Step is valid with 1 warning" in result.output
 
 
 class TestRunInputs:
@@ -292,7 +292,7 @@ class TestRunInputs:
         "  genome:\n"
         "    bind: [n01.genome]\n"
         "    enum: [EB1, GRCh38]\n"
-        "workflows:\n"
+        "steps:\n"
         "  n01:\n"
         "    name: nf-core/fetchngs\n"
         "    version: 1.12.0\n"
@@ -349,21 +349,27 @@ class TestRunInputs:
 
 
 class TestScopeHint:
-    def test_whole_config_with_workflow_scope_warns(self, tmp_path):
-        path = _write(tmp_path, "config_version: 0.3.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n")
-        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+    def test_whole_config_with_step_scope_warns(self, tmp_path):
+        path = _write(tmp_path, "config_version: 0.3.0\nsteps:\n  n01:\n    name: nf-core/fetchngs\n")
+        result = CliRunner().invoke(cli, ["validate", "--scope", "step", str(path)])
         assert result.exit_code == 1
         assert "Validation failed in" in result.output
-        assert "Warning  2:1  workflows  This looks like a whole config, not a single workflow snippet" in result.output
+        assert "Warning  2:1  steps  This looks like a whole config, not a single step snippet" in result.output
+
+    def test_workflow_scope_is_still_accepted(self, tmp_path):
+        path = _write(tmp_path, "name: nf-core/rnaseq\nversion: 3.14.0\n")
+        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        assert "--scope workflow is deprecated; use --scope step." in result.output
+        assert "Validation failed in" not in result.output
 
     def test_whole_config_with_globals_scope_warns(self, tmp_path):
-        path = _write(tmp_path, "config_version: 0.3.0\nworkflows: {}\n")
+        path = _write(tmp_path, "config_version: 0.3.0\nsteps: {}\n")
         result = CliRunner().invoke(cli, ["validate", "--scope", "globals", str(path)])
         assert "use --scope config" in result.output
 
     def test_snippet_gets_no_hint(self, tmp_path):
         path = _write(tmp_path, "name: nf-core/rnaseq\nversion: 3.14.0\n")
-        result = CliRunner().invoke(cli, ["validate", "--scope", "workflow", str(path)])
+        result = CliRunner().invoke(cli, ["validate", "--scope", "step", str(path)])
         assert result.exit_code == 0
         assert "whole config" not in result.output
 
@@ -417,7 +423,7 @@ class TestQuestions:
 class TestRunNfConfig:
     def _invoke(self, tmp_path, monkeypatch, *args):
         path = _write(
-            tmp_path, "config_version: 0.4.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n"
+            tmp_path, "config_version: 0.4.0\nsteps:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n"
         )
         monkeypatch.chdir(tmp_path)
         return CliRunner().invoke(cli, ["run", "--dry-run", *args, str(path)])
@@ -450,7 +456,7 @@ class TestEditorCommand:
         started = []
         monkeypatch.setattr(nf_meta.editor, "run_editor", started.append)
         config = tmp_path / "mp.yaml"
-        config.write_text("config_version: 0.4.0\nworkflows: {}\n")
+        config.write_text("config_version: 0.4.0\nsteps: {}\n")
         result = CliRunner().invoke(cli, ["editor", "--no-browser", str(config)])
         assert result.exit_code == 0, result.output
         assert started[0].open_browser is False

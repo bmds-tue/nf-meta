@@ -129,7 +129,7 @@ class MetaworkflowGraph:
         """
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
         if wf.id not in self.G.nodes:
-            raise ValueError("Workflow has invalid id. Update unsuccessful!")
+            raise ValueError("Step has invalid id. Update unsuccessful!")
 
         old_wf = self.get_workflow_by_id(wf.id)
 
@@ -367,7 +367,7 @@ class MetaworkflowGraph:
             return d
         b = bindings[parts[1]][0]
         return dataclasses.replace(
-            d, workflow_id=b.step_id, field=f"params.{b.param}", yaml_path=f"workflows.{b.step_id}.params.{b.param}"
+            d, workflow_id=b.step_id, field=f"params.{b.param}", yaml_path=f"steps.{b.step_id}.params.{b.param}"
         )
 
     def input_diagnostics(self) -> list[Diagnostic]:
@@ -380,7 +380,7 @@ class MetaworkflowGraph:
 
         def add(message, *, name=None, wf_id=None, param=None, severity=Severity.ERROR):
             if wf_id is not None:
-                field, yaml_path = f"params.{param}", f"workflows.{wf_id}.params.{param}"
+                field, yaml_path = f"params.{param}", f"steps.{wf_id}.params.{param}"
             else:
                 field = "bind" if param else ""
                 yaml_path = f"inputs.{name}.bind" if param else f"inputs.{name}"
@@ -482,7 +482,7 @@ class MetaworkflowGraph:
             return Diagnostic(
                 workflow_id=ref.source_wf_id,
                 field=field,
-                yaml_path=f"workflows.{ref.source_wf_id}.{field}",
+                yaml_path=f"steps.{ref.source_wf_id}.{field}",
                 message=message,
                 severity=Severity.ERROR,
             )
@@ -495,7 +495,7 @@ class MetaworkflowGraph:
                     Diagnostic(
                         workflow_id=wf.id,
                         field=f"params.{key}",
-                        yaml_path=f"workflows.{wf.id}.params.{key}",
+                        yaml_path=f"steps.{wf.id}.params.{key}",
                         message=(
                             f"'{key}' contains {len(step_refs)} references; a param value can contain one "
                             "reference to another step's param, with text around it"
@@ -513,10 +513,10 @@ class MetaworkflowGraph:
                     Diagnostic(
                         workflow_id=wf.id,
                         field=f"params.{key}",
-                        yaml_path=f"workflows.{wf.id}.params.{key}",
+                        yaml_path=f"steps.{wf.id}.params.{key}",
                         message=(
                             f"Invalid reference '{token}': expected "
-                            "${<workflow_id>:params:<key>} or ${inputs:<name>}." + hint
+                            "${<step_id>:params:<key>} or ${inputs:<name>}." + hint
                         ),
                         severity=Severity.ERROR,
                     )
@@ -526,14 +526,14 @@ class MetaworkflowGraph:
                 continue  # output references not yet validated
             referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
             if not referenced_wf:
-                diagnostics.append(diagnostic(ref, f"Reference to unknown workflow: {ref.target_wf_id}"))
+                diagnostics.append(diagnostic(ref, f"Reference to unknown step: {ref.target_wf_id}"))
                 continue
 
             if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
                 diagnostics.append(
                     diagnostic(
                         ref,
-                        f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}",
+                        f"Reference to step {ref.target_wf_id} that is not a predecessor of {wf.id}",
                     )
                 )
                 continue
@@ -541,7 +541,7 @@ class MetaworkflowGraph:
             # A param filled by a `bind:` input has a value at run time too
             referenced_params = self.with_input_placeholders(referenced_wf).params
             if not referenced_params or not ref.target_key:
-                diagnostics.append(diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}"))
+                diagnostics.append(diagnostic(ref, f"No referencable params in step {referenced_wf.id}"))
                 continue
 
             if not referenced_params.get(ref.target_key):
@@ -587,7 +587,7 @@ class MetaworkflowGraph:
         # Detect cycles
         if not nx.is_directed_acyclic_graph(self.G):
             cycle = nx.find_cycle(self.G)
-            raise GraphValidationError(f"Workflow graph contains a cycle: {cycle}")
+            raise GraphValidationError(f"The steps contain a cycle: {cycle}")
 
     def validate_edge(self, src, tgt):
         """Raise `GraphValidationError` if `src` or `tgt` isn't a node in the graph."""
@@ -616,7 +616,7 @@ class MetaworkflowGraph:
         # Ensure workflow IDs are valid (non-empty)
         for n in self.G.nodes:
             if not isinstance(n, str) or not n:
-                raise GraphValidationError("Workflow id must be a non-empty string.")
+                raise GraphValidationError("Step id must be a non-empty string.")
 
         for n in self.G.nodes:
             wf = self.get_workflow_by_id(n)

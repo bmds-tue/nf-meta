@@ -93,7 +93,7 @@ def engine_for(workflow_type: WorkflowType) -> Engine:
     engine = _REGISTRY.get(WorkflowType(workflow_type))
     if engine is None:
         raise NfMetaRunnerError(
-            f"No engine registered for workflow type '{workflow_type}'. Known types: {[str(t) for t in _REGISTRY]}"
+            f"No engine registered for step type '{workflow_type}'. Known types: {[str(t) for t in _REGISTRY]}"
         )
     return engine
 
@@ -117,7 +117,7 @@ class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
         if wf.main_script:
             argv += ["-main-script", wf.main_script]
         if not wf.url:
-            raise NfMetaRunnerError(f"Workflow '{wf.id}' has no URL to run.")
+            raise NfMetaRunnerError(f"Step '{wf.id}' has no URL to run.")
         # No -latest: versions are pinned tags/commits, which Nextflow fetches
         # when missing; -latest's pull fails for commits checked out detached.
         argv += [wf.url, "-r", wf.version]

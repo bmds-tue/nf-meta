@@ -380,7 +380,7 @@ class TestOneReferencePerValue:
     def test_loading_a_config(self, collect_errors):
         data = {
             "config_version": "0.4.0",
-            "workflows": {
+            "steps": {
                 "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "a.csv", "outdir": "o"}},
                 "n02": {
                     "name": "nf-core/fetchngs",
@@ -392,6 +392,4 @@ class TestOneReferencePerValue:
         }
         with pytest.raises(ConfigValidationError) as exc:
             validated_graph(data, collect_errors=collect_errors)
-        assert any(
-            d.yaml_path == "workflows.n02.params.input" and "2 references" in d.message for d in exc.value.errors
-        )
+        assert any(d.yaml_path == "steps.n02.params.input" and "2 references" in d.message for d in exc.value.errors)

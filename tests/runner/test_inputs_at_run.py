@@ -48,7 +48,7 @@ def config(project, inputs, params, extra_steps=None):
         **(extra_steps or {}),
     }
     path = project / "metaconfig.yaml"
-    path.write_text(yaml.safe_dump({"config_version": "0.4.0", "inputs": inputs, "workflows": workflows}))
+    path.write_text(yaml.safe_dump({"config_version": "0.4.0", "inputs": inputs, "steps": workflows}))
     return path
 
 

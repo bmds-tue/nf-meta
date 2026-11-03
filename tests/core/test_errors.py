@@ -35,12 +35,12 @@ class TestDiagnosticYamlPath:
         d = Diagnostic(
             workflow_id="wf_a",
             field="params.outdir",
-            yaml_path="workflows.wf_a.params.outdir",
+            yaml_path="steps.wf_a.params.outdir",
             message="bad param",
             severity=Severity.ERROR,
         )
         assert d.field == "params.outdir"
-        assert d.yaml_path == "workflows.wf_a.params.outdir"
+        assert d.yaml_path == "steps.wf_a.params.outdir"
 
 
 # ---------------------------------------------------------------------------
@@ -186,10 +186,10 @@ class TestDiagnosticsFromPydanticError:
         with pytest.raises(ValidationError) as exc_info:
             NfPipeline(name="my-org/custom", version="not-a-version", url="https://github.com/my-org/custom")
         diagnostics = diagnostics_from_pydantic_error(
-            exc_info.value, workflow_id="wf_1", yaml_path_prefix="workflows.wf_1."
+            exc_info.value, workflow_id="wf_1", yaml_path_prefix="steps.wf_1."
         )
         assert diagnostics[0].field == "version"
-        assert diagnostics[0].yaml_path == "workflows.wf_1.version"
+        assert diagnostics[0].yaml_path == "steps.wf_1.version"
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +255,7 @@ class TestFormatErrorsForCliPositions:
     def test_resolves_real_position_when_source_given(self):
         source = (
             "config_version: 0.0.2\n"
-            "workflows:\n"
+            "steps:\n"
             "  wf_a:\n"
             "    name: nf-core/rnaseq\n"
             "    version: 3.14.0\n"
@@ -263,7 +263,7 @@ class TestFormatErrorsForCliPositions:
             "      outdir: foo\n"
             "transitions: []\n"
         )
-        expected = locate_field(source, "workflows.wf_a.params.outdir")
+        expected = locate_field(source, "steps.wf_a.params.outdir")
         assert expected is not None
 
         exc = ConfigValidationError(
@@ -271,14 +271,14 @@ class TestFormatErrorsForCliPositions:
                 Diagnostic(
                     workflow_id="wf_a",
                     field="params.outdir",
-                    yaml_path="workflows.wf_a.params.outdir",
+                    yaml_path="steps.wf_a.params.outdir",
                     message="bad param",
                     severity=Severity.ERROR,
                 )
             ]
         )
         output = click.unstyle(format_errors_for_cli(exc, source_text=source, filename="test.yaml"))
-        assert f" Error    {expected.line}:{expected.column}  workflows.wf_a.params.outdir  bad param" in output
+        assert f" Error    {expected.line}:{expected.column}  steps.wf_a.params.outdir  bad param" in output
 
     def test_no_position_falls_back_to_bare_filename(self):
         exc = ConfigValidationError(
@@ -303,7 +303,7 @@ class TestFormatErrorsForCliPositions:
         error) still resolves a real position: yaml_path defaults to field,
         and "config_version" is a real root-level key here -- no workflow_id
         special-casing is needed for this to work."""
-        source = "config_version: 0.0.2\nworkflows: {}\ntransitions: []\n"
+        source = "config_version: 0.0.2\nsteps: {}\ntransitions: []\n"
         expected = locate_field(source, "config_version")
         assert expected is not None
 
@@ -338,13 +338,13 @@ class TestFormatErrorsForCliPositions:
         assert "Warning  url  could not reach url" in output
 
     def test_column_alignment_across_mixed_positions(self):
-        source = "workflows:\n  wf_a:\n    name: nf-core/rnaseq\n"
+        source = "steps:\n  wf_a:\n    name: nf-core/rnaseq\n"
         exc = ConfigValidationError(
             errors=[
                 Diagnostic(
                     workflow_id="wf_a",
                     field="name",
-                    yaml_path="workflows.wf_a.name",
+                    yaml_path="steps.wf_a.name",
                     message="has a position",
                     severity=Severity.ERROR,
                 ),
@@ -361,6 +361,6 @@ class TestFormatErrorsForCliPositions:
         assert lines[0] == "Validation failed in x.yaml (2 errors):"
         assert len(lines) == 3
         # The config path starts in the same column whether or not a position is known
-        with_position = next(line for line in lines if "workflows.wf_a.name" in line)
+        with_position = next(line for line in lines if "steps.wf_a.name" in line)
         without_position = next(line for line in lines if "config_version" in line)
-        assert with_position.index("workflows.wf_a.name") == without_position.index("config_version")
+        assert with_position.index("steps.wf_a.name") == without_position.index("config_version")

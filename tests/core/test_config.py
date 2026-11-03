@@ -1,4 +1,5 @@
 import pytest
+import yaml
 
 from nf_meta.core.config import (  # type: ignore[import]
     construct_workflow,
@@ -13,6 +14,7 @@ from nf_meta.core.errors import (  # type: ignore[import]
     ConfigValidationError,
     GraphValidationError,
     Severity,
+    collect_positioned_diagnostics,
 )
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.models import NfModule, WorkflowType  # type: ignore[import]
@@ -46,7 +48,7 @@ class TestFileIO:
 
 class TestValidatedGraphFastPath:
     def _make_config(self, workflows):
-        return {"config_version": "0.3.0", "workflows": workflows}
+        return {"config_version": "0.3.0", "steps": workflows}
 
     def test_list_format_workflows_accepted_with_deprecation_warning(self, wf_rnaseq, caplog):
         g = validated_graph(
@@ -324,7 +326,7 @@ class TestValidatedGraphFastPath:
         g1 = validated_graph(data)
         dumped = dump_config(g1)
         assert "transitions" not in dumped
-        assert dumped["workflows"][wf_rnaseq.id]["from"] == [wf_fetchngs.id]
+        assert dumped["steps"][wf_rnaseq.id]["from"] == [wf_fetchngs.id]
         g2 = validated_graph(dumped)
         assert {w.id for w in g1.get_workflows()} == {w.id for w in g2.get_workflows()}
         assert len(g1.get_transitions()) == len(g2.get_transitions())
@@ -437,7 +439,7 @@ class TestValidatedGlobals:
 
 class TestValidatedGraphCollectErrors:
     def _make_config(self, workflows):
-        return {"config_version": "0.3.0", "workflows": workflows}
+        return {"config_version": "0.3.0", "steps": workflows}
 
     def test_valid_config_returns_graph(self, wf_rnaseq, wf_fetchngs):
         data = self._make_config(
@@ -549,7 +551,7 @@ class TestDynamicValidationOnLoad:
         module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
         data = {
             "config_version": "0.3.0",
-            "workflows": {
+            "steps": {
                 module.id: {
                     "type": "nf-module",
                     "name": module.name,
@@ -570,7 +572,7 @@ class TestDynamicValidationOnLoad:
         module = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
         data = {
             "config_version": "0.3.0",
-            "workflows": {
+            "steps": {
                 module.id: {
                     "type": "nf-module",
                     "name": module.name,
@@ -592,7 +594,7 @@ def test_module_with_old_nextflow_version_rejected(collect_errors):
     data = {
         "config_version": "0.3.0",
         "globals": {"nextflow_version": "25.10"},
-        "workflows": {"m1": {"type": "nf-module", "name": "nf-core/fastqc", "version": "0.0.0-6c4ed3a"}},
+        "steps": {"m1": {"type": "nf-module", "name": "nf-core/fastqc", "version": "0.0.0-6c4ed3a"}},
     }
     with pytest.raises(ConfigValidationError) as exc:
         validated_graph(data, collect_errors=collect_errors)
@@ -607,7 +609,7 @@ def test_module_with_old_nextflow_version_rejected(collect_errors):
 def _config(**extra):
     data = {
         "config_version": "0.4.0",
-        "workflows": {
+        "steps": {
             "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "ids.csv", "outdir": "o"}},
         },
     }
@@ -626,22 +628,22 @@ def test_unknown_top_level_key_rejected_with_suggestion(collect_errors):
 @pytest.mark.parametrize("collect_errors", [False, True])
 def test_unknown_keys_in_globals_and_workflows_rejected(collect_errors):
     data = _config(globals={"profle": "docker"})
-    data["workflows"]["n01"]["parms"] = {}
+    data["steps"]["n01"]["parms"] = {}
     with pytest.raises(ConfigValidationError) as exc:
         validated_graph(data, collect_errors=collect_errors)
     paths = {d.yaml_path for d in exc.value.errors}
-    assert "globals.profle" in paths or "workflows.n01.parms" in paths
+    assert "globals.profle" in paths or "steps.n01.parms" in paths
     if collect_errors:
-        assert paths == {"globals.profle", "workflows.n01.parms"}
+        assert paths == {"globals.profle", "steps.n01.parms"}
 
 
 @pytest.mark.parametrize("collect_errors", [False, True])
 def test_malformed_reference_is_an_error(collect_errors):
     data = _config()
-    data["workflows"]["n01"]["params"]["input"] = "${input:ids}"
+    data["steps"]["n01"]["params"]["input"] = "${input:ids}"
     with pytest.raises(ConfigValidationError) as exc:
         validated_graph(data, collect_errors=collect_errors)
-    assert exc.value.errors[0].yaml_path == "workflows.n01.params.input"
+    assert exc.value.errors[0].yaml_path == "steps.n01.params.input"
     assert "Did you mean '${inputs:ids}'?" in exc.value.errors[0].message
 
 
@@ -653,7 +655,7 @@ def test_collect_errors_returns_warnings_on_the_graph():
 
 def test_legacy_transitions_reported_as_warning():
     data = _config()
-    data["workflows"]["n02"] = {
+    data["steps"]["n02"] = {
         "name": "nf-core/rnaseq",
         "version": "3.14.0",
         "params": {"input": "s.csv", "outdir": "o2"},
@@ -679,7 +681,7 @@ def _with_nf_keys(tmp_path, globals_, step):
     cfg = tmp_path / "any_name.txt"  # no .config suffix required
     cfg.write_text("")
     data = _config(globals={k: (str(cfg) if v == "CFG" else v) for k, v in globals_.items()})
-    data["workflows"]["n01"].update({k: (str(cfg) if v == "CFG" else v) for k, v in step.items()})
+    data["steps"]["n01"].update({k: (str(cfg) if v == "CFG" else v) for k, v in step.items()})
     return data, cfg
 
 
@@ -690,7 +692,7 @@ def test_new_keys_load_and_dump(tmp_path):
     assert g.warnings == []
     dumped = dump_config(g)
     assert dumped["globals"] == {"nf_profile": "docker", "nf_config": str(cfg)}
-    assert dumped["workflows"]["n01"]["nf_profile"] == "test"
+    assert dumped["steps"]["n01"]["nf_profile"] == "test"
 
 
 def test_legacy_keys_still_load_with_a_warning_and_save_as_new(tmp_path):
@@ -700,11 +702,11 @@ def test_legacy_keys_still_load_with_a_warning_and_save_as_new(tmp_path):
     assert sorted(d.yaml_path for d in g.warnings) == [
         "globals.config_file",
         "globals.profile",
-        "workflows.n01.profile",
+        "steps.n01.profile",
     ]
     assert all("Deprecated key; use 'nf_" in d.message for d in g.warnings)
     dumped = dump_config(g)
-    assert "config_file" not in dumped["globals"] and "profile" not in dumped["workflows"]["n01"]
+    assert "config_file" not in dumped["globals"] and "profile" not in dumped["steps"]["n01"]
 
 
 def test_missing_nf_config_is_an_error(tmp_path):
@@ -717,6 +719,51 @@ def test_missing_nf_config_is_an_error(tmp_path):
 @pytest.mark.parametrize(("version", "warned"), [("0ae5518", True), ("0ae5518" + "0" * 33, False), ("1.12.0", False)])
 def test_abbreviated_commit_hash_warns(version, warned):
     data = _config()
-    data["workflows"]["n01"]["version"] = version
+    data["steps"]["n01"]["version"] = version
     g = validated_graph(data, collect_errors=True)
-    assert [d.yaml_path for d in g.warnings] == (["workflows.n01.version"] if warned else [])
+    assert [d.yaml_path for d in g.warnings] == (["steps.n01.version"] if warned else [])
+
+
+# ---------------------------------------------------------------------------
+# `steps:` and its old name `workflows:`
+# ---------------------------------------------------------------------------
+
+
+def _legacy(data: dict) -> dict:
+    return {("workflows" if key == "steps" else key): value for key, value in data.items()}
+
+
+@pytest.mark.parametrize("collect_errors", [False, True])
+def test_workflows_key_still_loads(collect_errors):
+    g = validated_graph(_legacy(_config()), collect_errors=collect_errors)
+    assert [wf.id for wf in g.get_workflows()] == ["n01"]
+
+
+def test_workflows_key_warns():
+    g = validated_graph(_legacy(_config()), collect_errors=True)
+    assert [(d.yaml_path, d.message) for d in g.warnings] == [
+        ("workflows", "Deprecated key; use 'steps:'. Saving from the editor updates it.")
+    ]
+
+
+@pytest.mark.parametrize("collect_errors", [False, True])
+def test_steps_and_workflows_together_rejected(collect_errors):
+    data = {**_config(), "workflows": {}}
+    with pytest.raises(GraphValidationError, match="not both"):
+        validated_graph(data, collect_errors=collect_errors)
+
+
+def test_dump_writes_steps_and_a_version_allowing_it():
+    dumped = dump_config(validated_graph(_legacy(_config()), collect_errors=True))
+    assert "workflows" not in dumped
+    assert list(dumped["steps"]) == ["n01"]
+    assert dumped["config_version"] == "0.5.0"
+
+
+def test_legacy_config_keeps_its_line_numbers():
+    text = "config_version: 0.4.0\nworkflows:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n    bogus: 1\n"
+    with pytest.raises(ConfigValidationError) as exc:
+        validated_graph(yaml.safe_load(text), collect_errors=True)
+    positioned, _ = collect_positioned_diagnostics(exc.value, text)
+    bogus = next(p for p in positioned if p.diagnostic.yaml_path == "steps.n01.bogus")
+    assert (bogus.position.line, bogus.position.column) == (6, 5)

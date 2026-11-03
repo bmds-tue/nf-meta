@@ -29,9 +29,14 @@ from nf_meta.core.registry import PipelineInfo, RegistryUnavailableError, get_nf
 NFCORE_PREFIX = "nf-core/"
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.4.0"
+CONFIG_VERSION_MAX = "0.5.0"
 # First config version that may declare `inputs:`
 INPUTS_MIN_CONFIG_VERSION = "0.4.0"
+# The config's steps; `workflows:` is the deprecated name, still read
+STEPS_KEY = "steps"
+LEGACY_STEPS_KEY = "workflows"
+# First config version that names them `steps:`
+STEPS_MIN_CONFIG_VERSION = "0.5.0"
 
 
 class WorkflowType(StrEnum):
@@ -190,7 +195,7 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
     @classmethod
     def validate_id_not_reserved(cls, value: str) -> str:
         if value in RESERVED_STEP_IDS:
-            raise ValueError(f"'{value}' is reserved and can't be used as a workflow id")
+            raise ValueError(f"'{value}' is reserved and can't be used as a step id")
         return value
 
     @field_validator("version", mode="after")
@@ -295,7 +300,7 @@ class NfPipeline(BaseWorkflow):
 
         name = info.data.get("name")
         if name and name.startswith(NFCORE_PREFIX):
-            raise ValueError("main_script cannot be set for nf-core workflows")
+            raise ValueError("main_script cannot be set for nf-core pipelines")
 
         return value
 

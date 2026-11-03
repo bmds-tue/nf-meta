@@ -51,11 +51,11 @@ def check_config_files(
     """An error for each `params_file`/`nf_config` of `item` (a workflow or the
     globals) that isn't an existing file; relative ones are looked up in
     `project_dir` (see `config_path`). `yaml_path_prefix` defaults to the
-    item's place in a whole config (`globals.`, `workflows.<id>.`)."""
+    item's place in a whole config (`globals.`, `steps.<id>.`)."""
     workflow_id = None if isinstance(item, GlobalOptions) else item.id
     prefix = yaml_path_prefix
     if prefix is None:
-        prefix = "globals." if workflow_id is None else f"workflows.{workflow_id}."
+        prefix = "globals." if workflow_id is None else f"steps.{workflow_id}."
     diagnostics = []
     for field in CONFIG_PATH_FIELDS:
         value = getattr(item, field, None)
@@ -400,7 +400,7 @@ def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
 
     Always called against a whole config (never an isolated snippet — see
     its two call sites in graph.py), so each diagnostic's yaml_path is
-    unconditionally re-stamped with its own workflow's `workflows.<id>.`
+    unconditionally re-stamped with its own workflow's `steps.<id>.`
     prefix here, right where results are collected.
     """
     workflows = list(workflows)
@@ -413,9 +413,7 @@ def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
     with ThreadPoolExecutor(max_workers=len(workflows)) as executor:
         futures = [(wf, executor.submit(run_dynamic_checks, wf)) for wf in workflows]
         for wf, future in futures:
-            diagnostics.extend(
-                dataclasses.replace(d, yaml_path=f"workflows.{wf.id}.{d.field}") for d in future.result()
-            )
+            diagnostics.extend(dataclasses.replace(d, yaml_path=f"steps.{wf.id}.{d.field}") for d in future.result())
     return diagnostics
 
 

@@ -141,12 +141,14 @@ def export_schema(output):
 @click.option("--verbose", "-v", is_flag=True, help="Enables verbose mode")
 @click.option(
     "--scope",
-    type=click.Choice(["config", "workflow", "globals"]),
+    # `workflow` is the old name of `step`, still accepted
+    type=click.Choice(["config", "step", "globals", "workflow"]),
+    metavar="[config|step|globals]",
     default="config",
     help=(
-        "Validate a whole config (default), or an isolated workflow/globals "
+        "Validate a whole config (default), or an isolated step/globals "
         "YAML snippet -- a flat mapping (e.g. `name:`/`version:`/`params:` at "
-        "the root for a workflow), not a `workflows: {<id>: {...}}` excerpt."
+        "the root for a step), not a `steps: {<id>: {...}}` excerpt."
     ),
 )
 @handle_validation_errors
@@ -154,13 +156,15 @@ def validate_config(config, verbose, scope):
     if scope == "config":
         g = from_file(config, collect_errors=True)
         _echo_valid("Config", _echo_warnings(g.warnings, config))
-    elif scope == "workflow":
+    elif scope in ("step", "workflow"):
         from nf_meta.core.config import validated_workflow_from_file
 
-        warnings = _whole_config_warning(config, scope)
+        if scope == "workflow":
+            click.secho("--scope workflow is deprecated; use --scope step.", fg="yellow", err=True)
+        warnings = _whole_config_warning(config, "step")
         with _with_warnings(warnings):
             validated_workflow_from_file(config, warnings)
-        _echo_valid("Workflow", _echo_warnings(warnings, config))
+        _echo_valid("Step", _echo_warnings(warnings, config))
     else:
         from nf_meta.core.config import validated_globals_from_file
 
@@ -171,7 +175,7 @@ def validate_config(config, verbose, scope):
 
 
 def _whole_config_warning(config, scope: str) -> list:
-    """A warning when a snippet passed with --scope workflow/globals is
+    """A warning when a snippet passed with --scope step/globals is
     actually a whole config."""
     import yaml
 
@@ -181,9 +185,10 @@ def _whole_config_warning(config, scope: str) -> list:
         data = yaml.safe_load(Path(config).read_text())
     except (OSError, yaml.YAMLError):
         return []
-    if not isinstance(data, dict) or not {"workflows", "config_version"} & set(data):
+    keys = [key for key in ("steps", "workflows", "config_version") if isinstance(data, dict) and key in data]
+    if not keys:
         return []
-    key = "workflows" if "workflows" in data else "config_version"
+    key = keys[0]
     return [
         Diagnostic(
             workflow_id=None,
@@ -225,10 +230,10 @@ def _with_warnings(warnings: list):
     "-l",
     default="25",
     type=int,
-    help="Number of lines of workflow output to stream to output window (Only for Python Runner!)",
+    help="Number of lines of step output to stream to output window (Only for Python Runner!)",
 )
-@click.option("--start", "-s", type=str, help="ID of workflow to start from")
-@click.option("--target", "-t", type=str, help="ID of workflow to run until")
+@click.option("--start", "-s", type=str, help="ID of the step to start from")
+@click.option("--target", "-t", type=str, help="ID of the step to run until")
 @click.option(
     "--nf-profile",
     "-p",
@@ -246,7 +251,7 @@ def _with_warnings(warnings: list):
 @click.option(
     "--stub",
     is_flag=True,
-    help="Run all workflows as stub runs (passes -stub to Nextflow)",
+    help="Run all steps as stub runs (passes -stub to Nextflow)",
 )
 @click.option(
     "--out",

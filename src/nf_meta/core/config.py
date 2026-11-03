@@ -34,6 +34,9 @@ from .models import (
     CONFIG_VERSION_MAX,
     INPUTS_MIN_CONFIG_VERSION,
     LEGACY_KEYS,
+    LEGACY_STEPS_KEY,
+    STEPS_KEY,
+    STEPS_MIN_CONFIG_VERSION,
     GlobalOptions,
     NfModule,
     NfPipeline,
@@ -55,7 +58,7 @@ def _module_executor_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
         Diagnostic(
             workflow_id=wf.id,
             field="container_engine",
-            yaml_path=f"workflows.{wf.id}",
+            yaml_path=f"steps.{wf.id}",
             message=(
                 "Module runs without a container_engine or a global Nextflow config "
                 "rely on the local environment: missing dependencies cause errors, "
@@ -78,7 +81,7 @@ def _abbreviated_sha_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
         Diagnostic(
             workflow_id=wf.id,
             field="version",
-            yaml_path=f"workflows.{wf.id}.version",
+            yaml_path=f"steps.{wf.id}.version",
             message="Abbreviated commit hash; Nextflow 26+ can't fetch these. Use the full 40-character hash.",
             severity=Severity.WARNING,
         )
@@ -92,7 +95,26 @@ def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
     log_warnings(_abbreviated_sha_warnings(g))
 
 
-TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", "workflows", "transitions")
+TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", STEPS_KEY, LEGACY_STEPS_KEY, "transitions")
+
+
+def _with_steps_key(data: dict) -> tuple[dict, list[Diagnostic]]:
+    """`data` with its steps under `steps:`, and a deprecation warning if they
+    were under the old name `workflows:`. Raises `GraphValidationError` if both
+    keys are given."""
+    if LEGACY_STEPS_KEY not in data:
+        return data, []
+    if STEPS_KEY in data:
+        raise GraphValidationError("Use one of 'steps:' and 'workflows:', not both")
+    data = {(STEPS_KEY if key == LEGACY_STEPS_KEY else key): value for key, value in data.items()}
+    warning = Diagnostic(
+        workflow_id=None,
+        field=LEGACY_STEPS_KEY,
+        yaml_path=LEGACY_STEPS_KEY,
+        message="Deprecated key; use 'steps:'. Saving from the editor updates it.",
+        severity=Severity.WARNING,
+    )
+    return data, [warning]
 
 
 def legacy_key_warnings(data: dict) -> list[Diagnostic]:
@@ -101,7 +123,7 @@ def legacy_key_warnings(data: dict) -> list[Diagnostic]:
     sections: list[tuple[str, dict]] = []
     if isinstance(data.get("globals"), dict):
         sections.append(("globals.", data["globals"]))
-    sections += [(f"workflows.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
+    sections += [(f"steps.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
     return [w for prefix, section in sections for w in _legacy_section_warnings(section, prefix)]
 
 
@@ -147,9 +169,7 @@ def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
     for wf_id, item in _workflow_items(data):
         model = NfModule if item.get("type") == WorkflowType.NF_MODULE else NfPipeline
         allowed = [*model.model_fields, *_EXTRA_WORKFLOW_KEYS, *LEGACY_KEYS]
-        diagnostics += [
-            _unknown_key(key, allowed, f"workflows.{wf_id}.{key}", wf_id) for key in item if key not in allowed
-        ]
+        diagnostics += [_unknown_key(key, allowed, f"steps.{wf_id}.{key}", wf_id) for key in item if key not in allowed]
     return diagnostics
 
 
@@ -187,25 +207,25 @@ def _extract_items_and_transitions(
         warn(
             "transitions",
             "Legacy top-level 'transitions:' key is deprecated -- declare each "
-            "workflow's predecessors via its own 'from:' key instead. Update by "
+            "step's predecessors via its own 'from:' key instead. Update by "
             "opening and saving the config in the editor.",
         )
 
-    raw_workflows = data.get("workflows") or {}
+    raw_workflows = data.get(STEPS_KEY) or {}
     if isinstance(raw_workflows, dict):
         raw_items: list[tuple[str | None, object]] = list(raw_workflows.items())
     elif isinstance(raw_workflows, list):
         warn(
-            "workflows",
-            "Legacy list-format for 'workflows' is deprecated -- use the dict-"
-            "format keyed by workflow id instead. Update by opening and saving the "
+            STEPS_KEY,
+            "Legacy list-format for 'steps' is deprecated -- use the dict-"
+            "format keyed by step id instead. Update by opening and saving the "
             "config in the editor.",
         )
         raw_items = [(item.get("id") if isinstance(item, dict) else None, item) for item in raw_workflows]
     else:
         raise GraphValidationError(
-            f"'workflows:' must be a mapping keyed by workflow id or a list "
-            f"of workflow definitions, got {type(raw_workflows).__name__!r}"
+            f"'steps:' must be a mapping keyed by step id or a list "
+            f"of step definitions, got {type(raw_workflows).__name__!r}"
         )
 
     items: list[dict] = []
@@ -214,7 +234,7 @@ def _extract_items_and_transitions(
     for key, item in raw_items:
         if not isinstance(item, dict):
             raise GraphValidationError(
-                f"Invalid definition of workflow {key}: Must be a key-value mapping, got '{item}' instead"
+                f"Invalid definition of step {key}: Must be a key-value mapping, got '{item}' instead"
             )
         item = {**item}
         item.setdefault("type", WorkflowType.NF_PIPELINE)
@@ -226,8 +246,8 @@ def _extract_items_and_transitions(
             from_ids = [from_ids]  # a single predecessor id, not wrapped in a list
         if not isinstance(from_ids, list) or not all(isinstance(f, str) for f in from_ids):
             raise GraphValidationError(
-                f"Invalid 'from' value for workflow {item.get('id', '<unknown>')}: "
-                f"expected a workflow id or a list of workflow ids, got "
+                f"Invalid 'from' value for step {item.get('id', '<unknown>')}: "
+                f"expected a step id or a list of step ids, got "
                 f"'{from_ids}' instead"
             )
         target_id = item.get("id", "<unknown>")
@@ -237,7 +257,7 @@ def _extract_items_and_transitions(
     if has_top_level_transitions and any_from_key_present:
         raise GraphValidationError(
             "Cannot mix the legacy top-level 'transitions:' key with "
-            "per-workflow 'from:' declarations in the same file — use one "
+            "per-step 'from:' declarations in the same file — use one "
             "style consistently."
         )
 
@@ -265,7 +285,7 @@ def construct_workflow(
     `(None, diagnostics)` on failure -- a reusable building block for
     validating one workflow at a time, whether inside a full-graph build or a
     standalone snippet. yaml_path_prefix is forwarded to
-    diagnostics_from_pydantic_error -- pass e.g. "workflows.<id>." when this
+    diagnostics_from_pydantic_error -- pass e.g. "steps.<id>." when this
     workflow is embedded in a whole config; leave it empty (the default) for
     an isolated snippet.
     """
@@ -363,7 +383,7 @@ def parse_inputs(data: dict, config_version: str) -> tuple[dict[str, InputDefini
 def _input_refs_before_inputs(data: dict, config_version: str) -> list[Diagnostic]:
     if Version(config_version) >= Version(INPUTS_MIN_CONFIG_VERSION):
         return []
-    workflows = data.get("workflows")
+    workflows = data.get(STEPS_KEY)
     if isinstance(workflows, dict):
         items = [(str(k), v) for k, v in workflows.items()]
     elif isinstance(workflows, list):
@@ -379,7 +399,7 @@ def _input_refs_before_inputs(data: dict, config_version: str) -> list[Diagnosti
                     Diagnostic(
                         workflow_id=wf_id,
                         field=f"params.{key}",
-                        yaml_path=f"workflows.{wf_id}.params.{key}",
+                        yaml_path=f"steps.{wf_id}.params.{key}",
                         message=f"'${{inputs:...}}' needs config_version {INPUTS_MIN_CONFIG_VERSION} or later",
                         severity=Severity.ERROR,
                     )
@@ -449,7 +469,8 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     except ValueError as e:
         raise GraphValidationError(str(e)) from e
 
-    log_warnings(legacy_key_warnings(data))
+    data, steps_warnings = _with_steps_key(data)
+    log_warnings(steps_warnings + legacy_key_warnings(data))
     unknown = unknown_key_diagnostics(data)
     if unknown:
         raise ConfigValidationError(unknown)
@@ -463,7 +484,7 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     with g.deferred_validation():
         for item in items:
             wf_id = item.get("id", "<unknown>")
-            wf, diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"workflows.{wf_id}.")
+            wf, diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"steps.{wf_id}.")
             if wf is None:
                 raise ConfigValidationError(diagnostics)
             g.add_workflow(wf)
@@ -520,7 +541,8 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
         graph_messages.append(str(e))
         config_version = CONFIG_VERSION_MAX
 
-    warnings = legacy_key_warnings(data)
+    data, warnings = _with_steps_key(data)
+    warnings += legacy_key_warnings(data)
     items, pending_transitions = _extract_items_and_transitions(data, warnings)
 
     g = MetaworkflowGraph()
@@ -532,7 +554,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     constructed: list[Workflow] = []
     for item in items:
         wf_id = item.get("id", "<unknown>")
-        wf, item_diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"workflows.{wf_id}.")
+        wf, item_diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"steps.{wf_id}.")
         if wf is None:
             diagnostics.extend(item_diagnostics)
             continue
@@ -602,7 +624,7 @@ _PATH_KEYS = ("nf_config", "config_file", "params_file")
 
 
 def _workflow_items(data: dict) -> list[tuple[str, dict]]:
-    workflows = data.get("workflows")
+    workflows = data.get(STEPS_KEY, data.get(LEGACY_STEPS_KEY))
     if isinstance(workflows, dict):
         return [(str(k), v) for k, v in workflows.items() if isinstance(v, dict)]
     if isinstance(workflows, list):
@@ -616,7 +638,7 @@ def _reject_relative_config_paths(data: dict) -> None:
     sections: list[tuple[str, dict]] = []
     if isinstance(data.get("globals"), dict):
         sections.append(("globals.", data["globals"]))
-    sections += [(f"workflows.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
+    sections += [(f"steps.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
 
     diagnostics = []
     for prefix, section in sections:
@@ -704,11 +726,11 @@ def from_file(cfg_file: str | Path, *, collect_errors: bool = False) -> "Metawor
 def dump_config(g: "MetaworkflowGraph") -> dict:
     """Project a `MetaworkflowGraph` back to the config's dict shape (the
     inverse of `validated_graph`): `config_version`, `globals` and `inputs`
-    (each omitted if empty), and `workflows` keyed by id with each workflow's own `from:` list
+    (each omitted if empty), and `steps` keyed by id with each step's own `from:` list
     reconstructed from the graph's edges. Always writes the current
-    dict-keyed `workflows:` + per-workflow `from:` form, never the legacy
-    list/top-level-`transitions:` shapes, even if the graph was loaded from
-    one of those."""
+    dict-keyed `steps:` + per-step `from:` form (and a config_version that
+    allows it), never the legacy `workflows:`, list or top-level-`transitions:`
+    shapes, even if the graph was loaded from one of those."""
     from_by_target: dict[str, list[str]] = {}
     for tr in g.get_transitions():
         from_by_target.setdefault(tr.target, []).append(tr.source)
@@ -721,10 +743,10 @@ def dump_config(g: "MetaworkflowGraph") -> dict:
         workflows_dict[w.id] = wf_dict
 
     config_dict = {
-        "config_version": g.config_version,
+        "config_version": max(g.config_version, STEPS_MIN_CONFIG_VERSION, key=Version),
         "globals": g.global_options.model_dump(exclude_none=True) if g.global_options else None,
         "inputs": {name: _flow_bind(d.model_dump_config()) for name, d in g.inputs.items()},
-        "workflows": workflows_dict,
+        STEPS_KEY: workflows_dict,
     }
 
     if not config_dict["globals"]:

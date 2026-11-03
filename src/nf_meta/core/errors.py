@@ -14,6 +14,10 @@ class GraphValidationError(Exception):
     `Diagnostic`s about individual workflow/globals content."""
 
 
+class RemoteConfigWriteError(Exception):
+    """A config loaded from a URL can't be written to; save it to a local file first."""
+
+
 class Severity(StrEnum):
     """A `Diagnostic`'s severity: `ERROR` blocks (raises
     `ConfigValidationError`); `WARNING` is logged but doesn't stop

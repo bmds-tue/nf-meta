@@ -14,6 +14,7 @@ from nf_meta.core.edits import DeclareStepInputs, DeleteInput, DeleteSteps, Edit
 from nf_meta.core.errors import (
     ConfigValidationError,
     GraphValidationError,
+    RemoteConfigWriteError,
     SessionCommandError,
     Severity,
     diagnostics_from_pydantic_error,
@@ -64,6 +65,11 @@ app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 @app.exception_handler(SessionCommandError)
 def handle_session_error(request: Request, exc: SessionCommandError):
     return JSONResponse(status_code=422, content=exc.to_dict())
+
+
+@app.exception_handler(RemoteConfigWriteError)
+def handle_remote_config_write(request: Request, exc: RemoteConfigWriteError):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.exception_handler(RegistryUnavailableError)

@@ -1,6 +1,6 @@
 import pytest
 
-from nf_meta.core.errors import ConfigValidationError, SessionCommandError  # type: ignore[import]
+from nf_meta.core.errors import ConfigValidationError, RemoteConfigWriteError, SessionCommandError  # type: ignore[import]
 from nf_meta.core.events import RemoveWorkflow  # type: ignore[import]
 from nf_meta.core.session import EditorSession  # type: ignore[import]
 
@@ -142,3 +142,38 @@ class TestSaveToConfig:
     def test_save_to_config_uses_existing_config_file_when_none_passed(self, loaded_session, config_yaml):
         loaded_session.save_to_config(None)
         assert config_yaml.exists()
+
+
+class TestRemoteConfig:
+    """A config loaded from a URL (here: a loaded session pointed at one) is never written to."""
+
+    URL = "https://example.org/metapipeline.yaml"
+
+    @pytest.fixture
+    def remote_session(self, loaded_session):
+        loaded_session.config_file = self.URL
+        return loaded_session
+
+    def test_a_change_is_refused_and_the_graph_unchanged(self, remote_session):
+        before = len(remote_session.graph.get_workflows())
+        with pytest.raises(RemoteConfigWriteError):
+            remote_session.handle_command(RemoveWorkflow(remote_session.graph.get_workflows()[0].id))
+        assert len(remote_session.graph.get_workflows()) == before
+        assert not remote_session.history.undoable()
+
+    def test_saving_to_the_url_is_refused(self, remote_session):
+        with pytest.raises(RemoteConfigWriteError):
+            remote_session.save_to_config(None)
+
+    def test_after_saving_locally_changes_work(self, remote_session, tmp_path):
+        local = tmp_path / "copy.yaml"
+        remote_session.save_to_config(local)
+        remote_session.handle_command(RemoveWorkflow(remote_session.graph.get_workflows()[0].id))
+        assert remote_session.config_file == local
+        assert remote_session.history.undoable()
+
+    def test_without_write_on_change_changes_work(self, config_yaml):
+        session = EditorSession(write_on_change=False)
+        session.start(config_yaml)
+        session.config_file = self.URL
+        session.handle_command(RemoveWorkflow(session.graph.get_workflows()[0].id))

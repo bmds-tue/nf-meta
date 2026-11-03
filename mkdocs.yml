@@ -103,6 +103,7 @@ nav:
   - API reference:
       - api/index.md
       - api/core.md
+      - api/python-api.md
       - api/runners.md
       - api/editor.md
   - Contributing: contributing.md

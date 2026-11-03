@@ -1,7 +1,8 @@
 # API reference
 
-This covers `nf_meta.core` (the config representation, validation, and graph), the runner
-plugin surface (`nf_meta.runner`), and the editor plugin surface (`nf_meta.editor`). Anything
+This covers the [Python API](python-api.md) (`Metapipeline` and friends), `nf_meta.core` (the
+config representation, validation, and graph), the runner plugin surface (`nf_meta.runner`), and
+the editor plugin surface (`nf_meta.editor`). Anything
 not listed here or in the [config reference](../representation/reference.md) is internal:
 not part of the supported API, and may change without notice.
 

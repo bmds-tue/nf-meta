@@ -5,6 +5,14 @@ Key-by-key reference for the metapipeline `.yaml` format. See
 [Cross-workflow references](interpolation.md) for the `${...}` syntax usable in `params`
 values.
 
+## Paths
+
+A relative path in a config (`params_file`, `config_file`/`nf_config`, path params and input
+defaults) is relative to the folder the config file is in, wherever you run `nf-meta` from. The
+exception is a step's `outdir`: a relative one is placed in the run's output folder (`--out`).
+Paths are kept as written when the editor saves the config. A config loaded from a URL has no
+folder, so relative `params_file`/`config_file` paths in it are an error.
+
 ## Top level
 
 | Key | Type | Required | Default | Notes |

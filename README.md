@@ -22,15 +22,15 @@ use it from your own browser through an SSH tunnel:
 A metapipeline is a `.yaml` file. The most important keys are:
 
 * `config_version` — allows the representation to change over time without breaking
-* `workflows` — the nextflow / nf-core pipeline _runs_. The flow from workflow to workflow is
-  described by each workflow's own `from:` key
-* `globals` — settings that apply to all workflows
+* `steps` — the nextflow / nf-core pipeline and module _runs_. The flow from step to step is
+  described by each step's own `from:` key
+* `globals` — settings that apply to all steps
 
 ```yaml
-config_version: 0.3.0
+config_version: 0.5.0
 globals:
   nextflow_version: "25.10"
-workflows:
+steps:
   n01:
     name: nf-core/fetchngs
     version: 1.12.0

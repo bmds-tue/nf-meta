@@ -14,8 +14,8 @@ The resulting metapipeline is validated and executed via the CLI.
 Create `metapipeline.yaml`:
 
 ```yaml
-config_version: 0.3.0
-workflows:
+config_version: 0.5.0
+steps:
   fetch:
     name: nf-core/fetchngs
     version: 1.12.0

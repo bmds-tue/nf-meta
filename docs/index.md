@@ -45,8 +45,8 @@ Validate and run the representation format with the integrated CLI tooling.
 ## At a glance
 
 ```yaml
-config_version: 0.3.0
-workflows:
+config_version: 0.5.0
+steps:
   n01:
     name: nf-core/fetchngs
     version: 1.12.0

@@ -7,22 +7,23 @@ The four top-level keys are:
 - **`config_version`** pins the schema this document follows, so the representation can
   evolve without breaking older configs. See [Config reference](reference.md) for the
   supported range.
-- **`workflows`** is a mapping of workflow id to workflow definition. Each entry is one
-  Nextflow pipeline or module run. The flow between workflows is declared per-workflow via
-  `from:`, not as a separate edge list.
-- **`globals`** holds settings applied to every workflow (Nextflow version, profile, shared
+- **`steps`** is a mapping of step id to step definition. Each step is one
+  Nextflow pipeline or module run. The flow between steps is declared per step via
+  `from:`, not as a separate edge list. Configs from before 0.5.0 call this key `workflows`;
+  it is still read, with a deprecation warning, and saving from the editor renames it.
+- **`globals`** holds settings applied to every step (Nextflow version, profile, shared
   params, ...).
 - **`transitions`** *(deprecated)* is an older, separate edge-list format, superseded by each
-  workflow's own `from:` key. It's still readable, but nf-meta logs a deprecation warning and
+  step's own `from:` key. It's still readable, but nf-meta logs a deprecation warning and
   rewrites it to `from:` the next time the config is saved via the editor.
 
 ## Example
 
 ```yaml
-config_version: 0.3.0
+config_version: 0.5.0
 globals:
   nextflow_version: "25.10"
-workflows:
+steps:
   n01:
     name: nf-core/fetchngs
     version: 1.12.0
@@ -85,7 +86,7 @@ but you cannot currently use this in your text editor.
 Any config saved through the editor has this line added, which enables the static validation in VSCode with the YAML extension (`redhat.vscdoe-yaml`) by pointing to the JSON-schema:
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/schemas/metapipeline.schema.json
-workflows:
+steps:
   ...
 ```
 

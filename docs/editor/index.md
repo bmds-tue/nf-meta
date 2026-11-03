@@ -20,7 +20,9 @@ nf-meta editor [path/to/metapipeline.yaml]
     The `editor` starts and continues to run a session which essential for the browser page to work.
     It keeps the terminal busy until you stop it: **Quit editor** in the page's file menu, or
     `Ctrl` + `C` in the terminal. Every change is saved as you make it, so nothing is lost either
-    way. A page whose editor has stopped says so; run `nf-meta editor` again and open the new link.
+    way. **Quit editor** also closes the tab if the browser lets it; most only let a page close tabs
+    it opened itself, so the tab usually stays open and says you can close it. A page whose editor
+    has stopped says so; run `nf-meta editor` again and open the new link.
 
 
 This serves the editor's frontend and automaatically opens it in a browser tab, backed by a local session and state.

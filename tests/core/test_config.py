@@ -704,7 +704,7 @@ def test_legacy_keys_still_load_with_a_warning_and_save_as_new(tmp_path):
         "globals.profile",
         "steps.n01.profile",
     ]
-    assert all("Deprecated key; use 'nf_" in d.message for d in g.warnings)
+    assert all("Deprecated key, use 'nf_" in d.message for d in g.warnings)
     dumped = dump_config(g)
     assert "config_file" not in dumped["globals"] and "profile" not in dumped["steps"]["n01"]
 
@@ -742,7 +742,7 @@ def test_workflows_key_still_loads(collect_errors):
 def test_workflows_key_warns():
     g = validated_graph(_legacy(_config()), collect_errors=True)
     assert [(d.yaml_path, d.message) for d in g.warnings] == [
-        ("workflows", "Deprecated key; use 'steps:'. Saving from the editor updates it.")
+        ("workflows", "Deprecated in favor of 'steps:'. Saving from the editor updates it.")
     ]
 
 

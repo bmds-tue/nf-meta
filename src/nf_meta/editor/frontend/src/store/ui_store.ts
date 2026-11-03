@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { APINodeData, APIEvent, SideBarDetail, NewNodeData } from '../types'
+import type { APINodeData, APIEvent, SideBarDetail, NewNodeData, SaveReason } from '../types'
 
 export const useMessageStore = defineStore('message', () => {
     interface Message {
@@ -37,6 +37,10 @@ export const useEditorStore = defineStore('editor', () => {
 
     const _saveDialogOpen = ref<boolean>(false)
     const saveDialogOpen = computed(() => _saveDialogOpen.value)
+    // Why saving is needed before a change: a new config, or one loaded from a URL
+    const _saveDialogReason = ref<SaveReason>()
+    const saveDialogReason = computed(() => _saveDialogReason.value)
+    let _saveDialogWaiters: ((saved: boolean) => void)[] = []
 
     const _loadDialogOpen = ref<boolean>(false)
     const loadDialogOpen = computed(() => _loadDialogOpen.value)
@@ -74,11 +78,24 @@ export const useEditorStore = defineStore('editor', () => {
 
     function openSaveDialog() {
         closeLoadDialog()
+        _saveDialogReason.value = undefined
         _saveDialogOpen.value = true
     }
 
-    function closeSaveDialog() {
+    // Opens the save dialog before a change; resolves with whether the config was saved
+    function requireSave(reason: SaveReason): Promise<boolean> {
+        closeLoadDialog()
+        _saveDialogReason.value = reason
+        _saveDialogOpen.value = true
+        return new Promise(resolve => _saveDialogWaiters.push(resolve))
+    }
+
+    function closeSaveDialog(saved = false) {
         _saveDialogOpen.value = false
+        _saveDialogReason.value = undefined
+        const waiters = _saveDialogWaiters
+        _saveDialogWaiters = []
+        waiters.forEach(resolve => resolve(saved))
     }
 
     function toggleSidebar() {
@@ -190,7 +207,7 @@ export const useEditorStore = defineStore('editor', () => {
         hoveredInputName, setHoveredInputName,
         flashingInputNames, showInputs, showNode,
         flashingNodeId, flashNode,
-        saveDialogOpen, openSaveDialog, closeSaveDialog,
+        saveDialogOpen, saveDialogReason, openSaveDialog, requireSave, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
         startScreenOpen, openStartScreen, closeStartScreen,
         backendState, setBackendState,

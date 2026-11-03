@@ -7,9 +7,9 @@ import type {
     APIGlobalOptions, APIInput, APIInputSave, Selection,
 } from '../types'
 import { useLayout } from '../layout_graph'
-import { useMessageStore, useActivityStore } from './ui_store'
+import { useMessageStore, useActivityStore, useEditorStore } from './ui_store'
 import { useApiStore } from './api_store'
-import { referencableParams, referenceTargets } from '../utils'
+import { isUrl, referencableParams, referenceTargets } from '../utils'
 
 export const INPUTS_NODE_ID = '__inputs__'
 // Inputs in the graph and the params editor (oneDark's purple)
@@ -24,6 +24,7 @@ export const useGraphStore = defineStore('graph', () => {
     const messageStore = useMessageStore()
     const activityStore = useActivityStore()
     const apiStore = useApiStore()
+    const editorStore = useEditorStore()
 
     const _inputs = ref<APIInput[]>([])
     const inputs = computed(() => _inputs.value)
@@ -172,40 +173,51 @@ export const useGraphStore = defineStore('graph', () => {
         return result
     }
 
+    // Changes are saved to the config file as they're made: a new config, or one loaded from a
+    // URL, is saved to a local file first. Resolves with whether there is one now.
+    async function ensureConfigFile(): Promise<boolean> {
+        if (filename.value && !isUrl(filename.value)) return true
+        return editorStore.requireSave(filename.value ? 'url' : 'new')
+    }
+
+    // Not saved first (the save dialog was cancelled): the change isn't sent, and says nothing
+    const NOT_SAVED: ApiResult<APICommandResponse> = { ok: false, status: 0, message: '' }
+
+    async function mutate(call: () => Promise<ApiResult<APICommandResponse>>, successMessage?: string, quiet = false) {
+        if (!await ensureConfigFile()) return NOT_SAVED
+        return applyMutation(await call(), successMessage, quiet)
+    }
+
     async function saveNode(nodeData: APINodeData) {
-        const result = await (nodeData?.id ? apiStore.updateNode(nodeData) : apiStore.addNode(nodeData))
-        return applyMutation(result, 'Saved')
+        return mutate(() => nodeData?.id ? apiStore.updateNode(nodeData) : apiStore.addNode(nodeData), 'Saved')
     }
 
     async function saveEdge(edgeData: APIEdgeData) {
-        const result = await apiStore.addEdge(edgeData)
-        return applyMutation(result, 'Saved')
+        return mutate(() => apiStore.addEdge(edgeData), 'Saved')
     }
 
     async function updateGlobalOptions(globals: APIGlobalOptions) {
-        const result = await apiStore.updateGlobalOptions(globals)
-        return applyMutation(result, 'Saved')
+        return mutate(() => apiStore.updateGlobalOptions(globals), 'Saved')
     }
 
     async function saveInput(input: APIInputSave) {
-        return applyMutation(await apiStore.saveInput(input), 'Saved')
+        return mutate(() => apiStore.saveInput(input), 'Saved')
     }
 
     async function setInputsStyle(inParams: boolean) {
-        return applyMutation(await apiStore.setInputsStyle(inParams), 'Saved')
+        return mutate(() => apiStore.setInputsStyle(inParams), 'Saved')
     }
 
     async function declareStepInputs(nodeId: string) {
-        return applyMutation(await apiStore.declareStepInputs(nodeId), 'Inputs moved to the inputs: section')
+        return mutate(() => apiStore.declareStepInputs(nodeId), 'Inputs moved to the inputs: section')
     }
 
     async function removeInput(name: string) {
-        return applyMutation(await apiStore.deleteInput(name), undefined, true)
+        return mutate(() => apiStore.deleteInput(name), undefined, true)
     }
 
     async function removeSelectionById(selection: Selection) {
-        const result = await apiStore.deleteSelection(selection)
-        return applyMutation(result)
+        return mutate(() => apiStore.deleteSelection(selection))
     }
 
     async function removeNodeById(nodeId: string) {
@@ -307,7 +319,7 @@ export const useGraphStore = defineStore('graph', () => {
         nodes, nodeData, edges, globalOptions, inputs, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
         undoable, redoable,
-        getAndUpdateGraph,
+        getAndUpdateGraph, ensureConfigFile,
         saveNode, saveEdge, updateGlobalOptions, saveInput, removeInput, declareStepInputs, setInputsStyle,
         showInputsNode, toggleInputsNode,
         removeSelectionById, removeNodeById, removeEdgeById,

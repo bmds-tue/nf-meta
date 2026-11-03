@@ -51,7 +51,7 @@ function removeDetail() {
 
 const displayName = computed(() => {
   if ('name' in props.detailData && props.detailData.name) return props.detailData.name
-  return 'Add Workflow'
+  return 'Add step'
 })
 
 const displayVersion = computed(() => {

@@ -125,7 +125,7 @@ export const useEditorStore = defineStore('editor', () => {
         hoveredInputName.value = name
     }
 
-    // Open a step in the Workflows tab (expanded, scrolled to and flashed)
+    // Open a step in the Steps tab (expanded, scrolled to and flashed)
     function showNode(node: APINodeData) {
         if (!_sideBarOpen.value) toggleSidebar()
         sideBarTab.value = 'nodes'

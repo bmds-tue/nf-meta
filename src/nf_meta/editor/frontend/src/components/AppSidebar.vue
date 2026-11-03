@@ -77,7 +77,7 @@ onBeforeUnmount(stopDrag)
 <template>
   <aside class="split-pane" :class="{'dragging': isDragging}" :style="{ width: width + 'px' }">
     <v-tabs v-model="sideBarTab" density="compact" grow class="pane-tabs">
-      <v-tab value="nodes">Workflows</v-tab>
+      <v-tab value="nodes">Steps</v-tab>
       <v-tab value="inputs">
         Inputs
         <v-badge
@@ -93,7 +93,7 @@ onBeforeUnmount(stopDrag)
       <v-tabs-window-item value="nodes">
         <div class="pane-content">
           <div class="pane-actions">
-            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="editorStore.addNodeToSideBar({})">Add workflow</v-btn>
+            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="editorStore.addNodeToSideBar({})">Add step</v-btn>
           </div>
           <TransitionGroup name="detail-fade">
             <NodeDetail
@@ -103,7 +103,7 @@ onBeforeUnmount(stopDrag)
               :detail-data="sbDetail.detailData">
             </NodeDetail>
           </TransitionGroup>
-          <v-card v-if="editorStore.sideBarNodes.length == 0" text="No workflows yet."></v-card>
+          <v-card v-if="editorStore.sideBarNodes.length == 0" text="No steps yet."></v-card>
         </div>
       </v-tabs-window-item>
 

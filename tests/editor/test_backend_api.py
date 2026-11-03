@@ -424,3 +424,8 @@ class TestLocalPipeline:
             "/api/node/add/", json={"type": "nf-pipeline", "name": "connector", "path": "connector"}
         ).json()["events"][0]["workflow"]["id"]
         assert list(client.get(f"/api/node/{step_id}/schema/").json()) == ["outdir"]
+
+    def test_the_local_schema_endpoint_reads_the_folder(self, client, pipeline, tmp_path_factory, monkeypatch):
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+        assert list(client.get("/api/pipelines/local/schema/", params={"path": "connector"}).json()) == ["outdir"]
+        assert client.get("/api/pipelines/local/schema/", params={"path": "missing"}).status_code == 422

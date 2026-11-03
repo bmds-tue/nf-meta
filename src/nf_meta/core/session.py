@@ -1,10 +1,11 @@
 from pathlib import Path
 
-from .config import from_file, to_file
+from .config import from_file, is_remote_config, to_file
 from .errors import (
     ConfigValidationError,
     Diagnostic,
     GraphValidationError,
+    RemoteConfigWriteError,
     SessionCommandError,
 )
 from .events import Command
@@ -48,7 +49,9 @@ class EditorSession:
         """Apply `c` to the graph and record it for undo. Returns the events
         it emitted. On failure the graph is unchanged and the graph's own
         error (`ConfigValidationError`, `GraphValidationError`, `ValueError`)
-        is raised."""
+        is raised. With `write_on_change` and a config loaded from a URL,
+        raises `RemoteConfigWriteError` before changing anything."""
+        self._check_writable()
         events = self.history.execute(c, self.graph)
         self._write_if_enabled()
         return events
@@ -65,6 +68,7 @@ class EditorSession:
         `ValueError` if there is nothing to undo."""
         if not self.history.undoable():
             raise ValueError("Nothing to undo")
+        self._check_writable()
         events = self.history.undo(self.graph)
         self._write_if_enabled()
         return events
@@ -74,6 +78,7 @@ class EditorSession:
         Raises `ValueError` if there is nothing to redo."""
         if not self.history.redoable():
             raise ValueError("Nothing to redo")
+        self._check_writable()
         events = self.history.redo(self.graph)
         self._write_if_enabled()
         return events
@@ -92,6 +97,10 @@ class EditorSession:
         except ValueError as e:
             raise SessionCommandError.from_exception(e) from e
 
+    def _check_writable(self):
+        if self.write_on_change and self.config_file and is_remote_config(self.config_file):
+            raise RemoteConfigWriteError(f"{self.config_file} was loaded from a URL; save it to a local file first")
+
     def _write_if_enabled(self):
         if self.write_on_change and self.config_file:
             self.save_to_config(self.config_file)
@@ -100,6 +109,8 @@ class EditorSession:
         target = config or self.config_file
         if not target:
             raise ValueError("No config file to write to specified")
+        if is_remote_config(target):
+            raise RemoteConfigWriteError(f"Can't write to a URL ({target}); save to a local file")
 
         self.config_file = target
         to_file(self.graph, target)

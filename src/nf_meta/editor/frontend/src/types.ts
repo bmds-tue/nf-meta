@@ -15,6 +15,9 @@ export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; status: number; message: string; fieldErrors?: FieldError[]; graphErrors?: string[] }
 
+// Why a config must be saved before a change: it is new (no file yet), or was loaded from a URL
+export type SaveReason = 'new' | 'url'
+
 export type SideBarDetail<T> = {
   id: number,
   detailData: T

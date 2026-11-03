@@ -352,3 +352,12 @@ class TestStartScreen:
 
     def test_not_offered_with_a_config(self, client):
         assert client.get("/api/graph/").json()["start_screen"] is False
+
+
+class TestRemoteConfig:
+    def test_a_change_to_a_url_config_is_a_409(self, client, monkeypatch):
+        monkeypatch.setattr(api.SESSION, "config_file", "https://example.org/mp.yaml")
+        response = client.post("/api/globals/update/", json={"nf_profile": "docker"})
+        assert response.status_code == 409
+        assert "local file" in response.json()["detail"]
+        assert client.get("/api/graph/").json()["globals"].get("nf_profile") is None

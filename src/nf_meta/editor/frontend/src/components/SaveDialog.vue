@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useEditorStore, useGraphStore } from '../store'
-import { baseName, joinPath } from '../utils'
+import { baseName, isUrl, joinPath } from '../utils'
 import FileBrowser from './FileBrowser.vue'
 
 const editorStore = useEditorStore()
@@ -13,10 +13,14 @@ const saving = ref(false)
 // a new key re-creates the browser, so it starts afresh each time the dialog opens
 const browserKey = ref(0)
 
+// A config loaded from a URL: saved as a local copy, browsing starts where the editor runs
+const fromUrl = computed(() => isUrl(graphStore.filename))
+const start = computed(() => (fromUrl.value ? undefined : graphStore.filename))
+
 // Each time the dialog opens: start from the config being edited
 watch(() => editorStore.saveDialogOpen, (open) => {
   if (!open) return
-  path.value = graphStore.filename ?? ''
+  path.value = fromUrl.value ? baseName(graphStore.filename ?? '') : graphStore.filename ?? ''
   problem.value = undefined
   browserKey.value++
 })
@@ -39,7 +43,7 @@ async function save() {
   saving.value = true
   try {
     problem.value = await graphStore.saveAs(target)
-    if (!problem.value) editorStore.closeSaveDialog()
+    if (!problem.value) editorStore.closeSaveDialog(true)
   } finally {
     saving.value = false
   }
@@ -49,11 +53,17 @@ async function save() {
 <template>
   <v-dialog v-model="editorStore.saveDialogOpen" width="640" persistent>
     <v-card>
-      <v-card-title>Save config as</v-card-title>
+      <v-card-title>{{ editorStore.saveDialogReason ? 'Save the config first' : 'Save config as' }}</v-card-title>
+      <v-card-subtitle v-if="editorStore.saveDialogReason === 'new'" class="reason">
+        Changes are saved to a file as you edit. Choose where this config goes.
+      </v-card-subtitle>
+      <v-card-subtitle v-else-if="editorStore.saveDialogReason === 'url'" class="reason">
+        This config was loaded from {{ graphStore.filename }}. Choose where to save your copy.
+      </v-card-subtitle>
       <v-form @submit.prevent="save">
         <v-card-text class="d-flex flex-column ga-3">
           <FileBrowser
-            :key="browserKey" :start="graphStore.filename" :selected="path"
+            :key="browserKey" :start="start" :selected="path"
             @select="(file) => path = file" @open="(file) => { path = file; save() }" @folder="inFolder" />
           <v-text-field
             v-model="path"
@@ -75,3 +85,9 @@ async function save() {
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.reason {
+  white-space: normal;
+}
+</style>

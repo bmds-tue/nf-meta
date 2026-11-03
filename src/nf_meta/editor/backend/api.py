@@ -27,7 +27,7 @@ from nf_meta.core.events import (
     UpdateGlobalOptions,
 )
 from nf_meta.core.inputs import Binding, InputDefinition
-from nf_meta.core.models import GlobalOptions, Transition, Workflow
+from nf_meta.core.models import GlobalOptions, Transition, Workflow, with_absolute_config_paths
 from nf_meta.core.registry import (
     ModuleSchemaError,
     NotInRegistryError,
@@ -323,7 +323,7 @@ def get_node_schema(wf_id: str):
     if step is None:
         return JSONResponse(status_code=404, content={"detail": f"No step '{wf_id}'"})
     try:
-        return get_step_schema(step)
+        return get_step_schema(with_absolute_config_paths(step, SESSION.graph.project_dir))
     except SchemaUnavailableError as exc:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 

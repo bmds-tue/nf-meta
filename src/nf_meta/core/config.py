@@ -83,7 +83,7 @@ def _abbreviated_sha_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
             severity=Severity.WARNING,
         )
         for wf in g.get_workflows()
-        if wf.type == WorkflowType.NF_PIPELINE and _ABBREVIATED_SHA.match(wf.version)
+        if wf.type == WorkflowType.NF_PIPELINE and wf.version and _ABBREVIATED_SHA.match(wf.version)
     ]
 
 

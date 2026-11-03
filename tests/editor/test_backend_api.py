@@ -1,3 +1,4 @@
+import json
 import itertools
 
 import pytest
@@ -396,3 +397,30 @@ class TestConfigFilePaths:
         response = client.post("/api/globals/update/", json={"nf_config": "nextflow.config"})
         assert response.status_code == 422
         assert [e["field"] for e in response.json()["field_errors"]] == ["nf_config"]
+
+
+class TestLocalPipeline:
+    @pytest.fixture
+    def pipeline(self, config):
+        folder = config.parent / "connector"
+        folder.mkdir()
+        (folder / "main.nf").write_text("workflow { }\n")
+        schema = {"$defs": {"main": {"properties": {"outdir": {"type": "string", "format": "directory-path"}}}}}
+        (folder / "nextflow_schema.json").write_text(json.dumps(schema))
+        return folder
+
+    def test_a_step_with_a_local_path_is_saved_as_written(
+        self, client, config, pipeline, tmp_path_factory, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+        response = client.post("/api/node/add/", json={"type": "nf-pipeline", "name": "connector", "path": "connector"})
+        assert response.status_code == 200, response.json()
+        step = next(iter(yaml.safe_load(config.read_text())["steps"].values()))
+        assert step == {"name": "connector", "path": "connector"}
+
+    def test_the_schema_comes_from_the_folder(self, client, pipeline, tmp_path_factory, monkeypatch):
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+        step_id = client.post(
+            "/api/node/add/", json={"type": "nf-pipeline", "name": "connector", "path": "connector"}
+        ).json()["events"][0]["workflow"]["id"]
+        assert list(client.get(f"/api/node/{step_id}/schema/").json()) == ["outdir"]

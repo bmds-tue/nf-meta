@@ -33,7 +33,7 @@ const errors = ref<Record<string, string[]>>({})
 const MORE_FIELDS = ['description', 'path', 'params_file', 'nf_config', 'nf_profile', 'main_script'] as const
 
 // A local pipeline folder (`path`) is for development; the backend warns about it too
-const LOCAL_HINT = 'Runs the local folder (More options); clear it to use the repository'
+const LOCAL_HINT = 'Step runs from a local folder. URL deactivated'
 const hasMore = () => MORE_FIELDS.some(f => !!form.value[f] && !(f === 'description' && form.value.is_nfcore))
 const showMore = ref(hasMore())
 

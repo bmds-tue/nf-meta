@@ -6,7 +6,7 @@ from pathlib import Path
 import networkx as nx
 from packaging.version import Version
 
-from .dynamic_validation import check_all, check_inputs, log_warnings, run_dynamic_checks
+from .dynamic_validation import check_all, check_config_files, check_inputs, log_warnings, run_dynamic_checks
 from .errors import (
     ConfigValidationError,
     Diagnostic,
@@ -34,6 +34,7 @@ from .models import (
     Transition,
     Workflow,
     WorkflowReference,
+    with_absolute_config_paths,
 )
 from .refs import ANY_BRACE_PATTERN, INPUT_NAME_PATTERN, INPUT_REF_PATTERN, STEP_REF_PATTERN
 
@@ -101,7 +102,7 @@ class MetaworkflowGraph:
             self._validation_suspended.add(wf.id)
         else:
             self.validate_module_nextflow_version(self.global_options, [wf])
-            diagnostics = run_dynamic_checks(self.with_input_placeholders(wf), previous=None)
+            diagnostics = run_dynamic_checks(self.for_checks(wf), previous=None)
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
             log_warnings(diagnostics)
@@ -137,8 +138,8 @@ class MetaworkflowGraph:
         else:
             self.validate_module_nextflow_version(self.global_options, [wf])
             diagnostics = run_dynamic_checks(
-                self.with_input_placeholders(wf),
-                previous=self.with_input_placeholders(old_wf),  # type: ignore[arg-type]
+                self.for_checks(wf),
+                previous=self.for_checks(old_wf),  # type: ignore[arg-type]
             )
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
@@ -215,9 +216,12 @@ class MetaworkflowGraph:
     def update_global_options(self, glob: GlobalOptions):
         """Replace the graph's `GlobalOptions` wholesale. Raises
         `ConfigValidationError` if `nextflow_version` is too old for the
-        graph's `nf-module` steps; otherwise not validated against individual
-        workflows."""
+        graph's `nf-module` steps or `nf_config` is no file (relative to the
+        project dir); otherwise not validated against individual workflows."""
         self.validate_module_nextflow_version(glob, self.get_workflows())
+        missing = check_config_files(glob, self.project_dir)
+        if missing:
+            raise ConfigValidationError(missing)
         old_globals = self.global_options
         self.global_options = glob
         self._emit(GlobalOptionsUpdated(new_globals=glob, old_globals=old_globals))
@@ -278,9 +282,7 @@ class MetaworkflowGraph:
             return
         self.validate_inputs(dynamic=True)
         workflows = [
-            self.with_input_placeholders(wf)
-            for wf in (self.get_workflow_by_id(i) for i in set(affected_step_ids))
-            if wf is not None
+            self.for_checks(wf) for wf in (self.get_workflow_by_id(i) for i in set(affected_step_ids)) if wf is not None
         ]
         diagnostics = check_all(workflows)
         if any(d.severity == Severity.ERROR for d in diagnostics):
@@ -316,6 +318,11 @@ class MetaworkflowGraph:
         """Params of step `wf_id` filled via an input's `bind:`, as
         param → input name."""
         return {b.param: name for name, d in self.inputs.items() for b in d.bindings if b.step_id == wf_id}
+
+    def for_checks(self, wf: Workflow) -> Workflow:
+        """`wf` as the dynamic checks see it: with input placeholders (see
+        `with_input_placeholders`) and its config files' absolute paths."""
+        return with_absolute_config_paths(self.with_input_placeholders(wf), self.project_dir)
 
     def with_input_placeholders(self, wf: Workflow) -> Workflow:
         """`wf` with a `${inputs:<name>}` placeholder for every param filled via
@@ -629,7 +636,7 @@ class MetaworkflowGraph:
             # later in the same suspended block is filtered out (nothing to
             # check).
             raw = [self.get_workflow_by_id(n) for n in touched if n in self.G.nodes]
-            workflows = [self.with_input_placeholders(wf) for wf in raw if wf is not None]
+            workflows = [self.for_checks(wf) for wf in raw if wf is not None]
             diagnostics += check_all(workflows)
         if any(d.severity == Severity.ERROR for d in diagnostics):
             raise ConfigValidationError([d for d in diagnostics if d.severity == Severity.ERROR])

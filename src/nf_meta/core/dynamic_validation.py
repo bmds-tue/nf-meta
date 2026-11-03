@@ -21,7 +21,7 @@ import yaml
 
 from .errors import Diagnostic, Severity
 from .inputs import Binding, Input, InputDefinition, effective_input
-from .models import NfModule, NfPipeline, Workflow
+from .models import CONFIG_PATH_FIELDS, GlobalOptions, NfModule, NfPipeline, Workflow, config_path
 from .nf_param_validation import validate_params
 from .registry import (
     ParamSpec,
@@ -43,6 +43,33 @@ logger = logging.getLogger()
 # ---------------------------------------------------------------------------
 # Individual checks
 # ---------------------------------------------------------------------------
+
+
+def check_config_files(
+    item: Workflow | GlobalOptions, project_dir: Path | None = None, yaml_path_prefix: str | None = None
+) -> list[Diagnostic]:
+    """An error for each `params_file`/`nf_config` of `item` (a workflow or the
+    globals) that isn't an existing file; relative ones are looked up in
+    `project_dir` (see `config_path`). `yaml_path_prefix` defaults to the
+    item's place in a whole config (`globals.`, `workflows.<id>.`)."""
+    workflow_id = None if isinstance(item, GlobalOptions) else item.id
+    prefix = yaml_path_prefix
+    if prefix is None:
+        prefix = "globals." if workflow_id is None else f"workflows.{workflow_id}."
+    diagnostics = []
+    for field in CONFIG_PATH_FIELDS:
+        value = getattr(item, field, None)
+        if value and not config_path(value, project_dir).is_file():
+            diagnostics.append(
+                Diagnostic(
+                    workflow_id=workflow_id,
+                    field=field,
+                    yaml_path=f"{prefix}{field}",
+                    message=f"No such file: {value}",
+                    severity=Severity.ERROR,
+                )
+            )
+    return diagnostics
 
 
 def check_pipeline_url_reachable(wf: NfPipeline) -> list[Diagnostic]:
@@ -258,6 +285,7 @@ def check_module_params_schema(wf: NfModule) -> list[Diagnostic]:
 _CheckEntry = tuple[str, Callable[..., list[Diagnostic]], tuple[str, ...]]
 
 _PIPELINE_CHECKS: list[_CheckEntry] = [
+    ("config_files", check_config_files, ("params_file", "nf_config")),
     ("url_reachable", check_pipeline_url_reachable, ("url",)),
     (
         "main_script_exists",
@@ -272,6 +300,7 @@ _PIPELINE_CHECKS: list[_CheckEntry] = [
 ]
 
 _MODULE_CHECKS: list[_CheckEntry] = [
+    ("config_files", check_config_files, ("nf_config",)),
     ("version_in_registry", check_module_version_in_registry, ("name", "version")),
     ("params_schema", check_module_params_schema, ("name", "version", "params")),
 ]

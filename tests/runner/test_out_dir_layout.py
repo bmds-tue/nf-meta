@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 
-from nf_meta.core.config import from_file, validated_graph
+from nf_meta.core.config import dump_config, from_file, validated_graph
 from nf_meta.core.errors import ConfigValidationError
 from nf_meta.runner.errors import NfMetaRunnerError
 from nf_meta.runner.python_runner import SimplePythonRunner
@@ -158,15 +158,41 @@ class TestInputPaths:
 
 
 class TestConfigPaths:
-    def test_relative_config_file_resolves_against_config_folder(self, project, tmp_path, monkeypatch):
+    def test_relative_config_file_is_kept_and_found_in_config_folder(self, project, tmp_path, monkeypatch):
         (project / "step.config").write_text("")
         cfg = two_steps()
         cfg["n01"]["nf_config"] = "step.config"
         path = write_config(project, cfg)
         monkeypatch.chdir(tmp_path)
         g = from_file(path)
-        assert g.get_workflow_by_id("n01").nf_config == project / "step.config"
+        assert g.get_workflow_by_id("n01").nf_config == "step.config"
         assert g.project_dir == project
+        assert dump_config(g)["workflows"]["n01"]["nf_config"] == "step.config"
+
+    def test_relative_config_files_are_read_from_config_folder(self, project, tmp_path, monkeypatch):
+        (project / "step.config").write_text("")
+        (project / "params.yaml").write_text("contrasts: c.csv\n")
+        cfg = two_steps()
+        cfg["n01"]["nf_config"] = "step.config"
+        cfg["n01"]["params_file"] = "params.yaml"
+        path = write_config(project, cfg)
+        monkeypatch.chdir(tmp_path)
+        n01, _ = plan(path)
+        argv = n01.command.argv
+        assert argv[argv.index("-c") + 1] == str(project / "step.config")
+        assert n01.command.params["contrasts"] == "c.csv"  # read from the params file
+
+    def test_relative_config_file_missing_from_config_folder_is_an_error(self, project, tmp_path, monkeypatch):
+        (tmp_path / "step.config").write_text("")  # in the current folder only
+        cfg = two_steps()
+        cfg["n01"]["nf_config"] = "step.config"
+        path = write_config(project, cfg)
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ConfigValidationError) as exc:
+            from_file(path)
+        assert [(d.field, d.message) for d in exc.value.errors] == [
+            ("nf_config", f"No such file: {project / 'step.config'}")
+        ]
 
     def test_validated_graph_does_not_modify_input(self, project, monkeypatch):
         (project / "step.config").write_text("")

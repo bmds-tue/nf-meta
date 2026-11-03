@@ -361,3 +361,38 @@ class TestRemoteConfig:
         assert response.status_code == 409
         assert "local file" in response.json()["detail"]
         assert client.get("/api/graph/").json()["globals"].get("nf_profile") is None
+
+
+class TestConfigFilePaths:
+    """`params_file`/`nf_config` are saved as typed; relative ones are relative to the config's folder."""
+
+    @pytest.fixture
+    def elsewhere(self, tmp_path_factory, monkeypatch):
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+
+    def add(self, client, **fields):
+        body = {"type": "nf-pipeline", "name": "nf-core/fetchngs", "version": "1.12.0", **fields}
+        return client.post("/api/node/add/", json=body)
+
+    def test_a_relative_params_file_next_to_the_config_is_kept(self, client, config, elsewhere):
+        (config.parent / "params.yaml").write_text("count: 1\n")
+        response = self.add(client, params_file="params.yaml")
+        assert response.status_code == 200, response.json()
+        step = next(iter(yaml.safe_load(config.read_text())["workflows"].values()))
+        assert step["params_file"] == "params.yaml"
+
+    def test_a_missing_params_file_is_a_field_error(self, client, config, elsewhere):
+        response = self.add(client, params_file="params.yaml")
+        assert response.status_code == 422
+        assert [e["field"] for e in response.json()["field_errors"]] == ["params_file"]
+
+    def test_a_relative_global_nf_config_next_to_the_config_is_kept(self, client, config, elsewhere):
+        (config.parent / "nextflow.config").write_text("")
+        response = client.post("/api/globals/update/", json={"nf_config": "nextflow.config"})
+        assert response.status_code == 200, response.json()
+        assert yaml.safe_load(config.read_text())["globals"]["nf_config"] == "nextflow.config"
+
+    def test_a_missing_global_nf_config_is_a_field_error(self, client, elsewhere):
+        response = client.post("/api/globals/update/", json={"nf_config": "nextflow.config"})
+        assert response.status_code == 422
+        assert [e["field"] for e in response.json()["field_errors"]] == ["nf_config"]

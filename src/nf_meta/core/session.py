@@ -113,6 +113,8 @@ class EditorSession:
             raise RemoteConfigWriteError(f"Can't write to a URL ({target}); save to a local file")
 
         self.config_file = target
+        # relative paths in the config are relative to its folder
+        self.graph.project_dir = Path(target).expanduser().resolve().parent
         to_file(self.graph, target)
 
 

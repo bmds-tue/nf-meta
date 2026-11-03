@@ -262,7 +262,7 @@ const pathRows = computed(() => [
       <v-text-field
         v-model="form.params_file"
         label="Params file"
-        placeholder="A YAML file" persistent-placeholder
+        placeholder="YAML file, relative to the config file" persistent-placeholder
         prepend-inner-icon="mdi-file-document-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.params_file">
@@ -273,7 +273,7 @@ const pathRows = computed(() => [
       <v-text-field
         v-model="form.nf_config"
         label="Nextflow config"
-        placeholder="A Nextflow config file" persistent-placeholder
+        placeholder="Path, relative to the config file" persistent-placeholder
         prepend-inner-icon="mdi-cog-outline"
         variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.nf_config">

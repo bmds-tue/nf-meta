@@ -16,7 +16,7 @@ from rich.text import Text
 
 from nf_meta.core.graph import MetaworkflowGraph
 from nf_meta.core.inputs import Binding, InputDefinition, effective_input, input_refs, substitute_inputs
-from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType
+from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType, with_absolute_config_paths
 from nf_meta.core.registry import Schema
 
 from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
@@ -232,8 +232,9 @@ class SimplePythonRunner(BaseRunner):
         """
         self.out_dir = self._resolve_out_dir(graph)
         project_dir = graph.project_dir
-        global_options = graph.global_options
-        workflows = self._selected_workflows(graph)
+        # params_file/nf_config are read from here on: as absolute paths
+        global_options = graph.global_options and with_absolute_config_paths(graph.global_options, project_dir)
+        workflows = [with_absolute_config_paths(wf, project_dir) for wf in self._selected_workflows(graph)]
         subset_ids = {wf.id for wf in workflows}
 
         # Resolved params and step keys per workflow id, seeded from cached runs
@@ -242,6 +243,7 @@ class SimplePythonRunner(BaseRunner):
         keys: dict[str, str] = {}
         for wf in graph.get_workflows():
             if wf.id not in subset_ids:
+                wf = with_absolute_config_paths(wf, project_dir)
                 keys[wf.id] = wf.hash()
                 cached = self._load_resolved_params(wf)
                 if cached is not None:
@@ -301,7 +303,8 @@ class SimplePythonRunner(BaseRunner):
             )
             planned.append(
                 PlannedStep(
-                    workflow=graph.get_workflow_by_id(wf.id) or wf,
+                    # as configured, with the config files' absolute paths (as its resolved params' cache key)
+                    workflow=with_absolute_config_paths(graph.get_workflow_by_id(wf.id) or wf, project_dir),
                     resolved_params=wf_resolved.params or {},
                     spec=spec,
                     command=engine_for(spec.workflow_type).build(spec),

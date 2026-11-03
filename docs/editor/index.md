@@ -39,8 +39,9 @@ unsaved and your form open.
 
 Fields that take a path (a step's params file and Nextflow config, the global Nextflow config,
 params and input defaults with a path format) have a folder button that browses the same machine
-and fills in the absolute path of the file or folder you pick. You can also type the path, or a URL
-for params and input defaults. `outdir` has no button: a relative
+and fills in the absolute path of the file or folder you pick. You can also type the path, relative
+to the config's folder, or a URL for params and input defaults. Whatever is in the field is saved
+as it is. `outdir` has no button: a relative
 `outdir` is placed in the run's output folder.
 
 !!! tip "Configs on a cluster?"

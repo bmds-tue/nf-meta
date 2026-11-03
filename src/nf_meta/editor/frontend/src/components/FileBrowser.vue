@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useApiStore } from '../store'
 import type { FolderEntry, FolderListing } from '../types'
-import { pathCrumbs } from '../utils'
+import { pathCrumbs, type PathPick } from '../utils'
 
 // Browses the folders of the machine running the editor (which may be remote)
 const props = defineProps<{
@@ -10,6 +10,9 @@ const props = defineProps<{
   start?: string
   // The file currently chosen, highlighted in the list
   selected?: string
+  // What is being chosen: config files (the default; other files on request), any file, a
+  // folder (files are shown but can't be picked), or either
+  pick?: PathPick
 }>()
 
 const emit = defineEmits<{
@@ -26,7 +29,8 @@ const apiStore = useApiStore()
 const listing = ref<FolderListing>()
 const problem = ref<string>()
 const loading = ref(false)
-const allFiles = ref(false)
+const pick = props.pick ?? 'config'
+const allFiles = ref(pick !== 'config')
 
 async function show(path?: string) {
   loading.value = true
@@ -75,6 +79,7 @@ onMounted(async () => {
       </div>
       <v-spacer />
       <v-btn
+        v-if="pick === 'config'"
         size="x-small" variant="text" :active="allFiles" title="Show every file, not only .yaml/.yml"
         @click="toggleAllFiles">
         All files
@@ -88,10 +93,11 @@ onMounted(async () => {
         :prepend-icon="entry.kind === 'folder' ? 'mdi-folder-outline' : 'mdi-file-document-outline'"
         :title="entry.name"
         :active="entry.kind === 'file' && entry.path === selected"
+        :disabled="entry.kind === 'file' && pick === 'folder'"
         color="primary"
         @click="enter(entry)"
         @dblclick="entry.kind === 'file' && emit('open', entry.path)" />
-      <v-list-item v-if="listing && !listing.entries.length" disabled title="No folders or config files here" />
+      <v-list-item v-if="listing && !listing.entries.length" disabled :title="allFiles ? 'Nothing here' : 'No folders or config files here'" />
     </v-list>
   </div>
 </template>

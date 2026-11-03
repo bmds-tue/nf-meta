@@ -2,7 +2,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { INPUT_COLOR, useApiStore, useEditorStore, useGraphStore } from '../store'
 import type { APIInput, APIInputDefinition, StepSchema, Scalar } from '../types'
-import { cleanInputDefinition, extractInputFieldErrors, inputDeleteProblem } from '../utils'
+import { cleanInputDefinition, extractInputFieldErrors, inputDeleteProblem, pathPick } from '../utils'
+import PathPicker from './PathPicker.vue'
 
 const props = defineProps<{
   // The input shown; none for an input being added
@@ -19,7 +20,6 @@ const apiStore = useApiStore()
 
 const TYPES = ['string', 'integer', 'number', 'boolean']
 const FORMATS = ['file-path', 'directory-path', 'path', 'file-path-pattern']
-const PATH_FORMATS = new Set(FORMATS)
 const BOOLEANS: Scalar[] = [true, false]
 const STYLES = [
   { value: true, title: 'written in the step params', icon: 'mdi-code-braces' },
@@ -88,7 +88,7 @@ const errors = computed(() => props.input?.diagnostics.filter(d => d.severity ==
 const effectiveType = computed(() => form.value.type ?? props.input?.schema.type)
 const effectiveFormat = computed(() => form.value.format ?? props.input?.schema.format)
 const effectiveEnum = computed(() => form.value.enum.length ? form.value.enum : props.input?.schema.enum)
-const isPath = computed(() => PATH_FORMATS.has(effectiveFormat.value ?? ''))
+const picker = computed(() => pathPick(effectiveFormat.value))
 
 const nodeNames = computed(() => Object.fromEntries(graphStore.nodeData.map(n => [n.id, n.name])))
 
@@ -347,12 +347,16 @@ watch(isFlashing, async (flashing) => {
           v-else
           v-model="form.default"
           :type="effectiveType === 'integer' || effectiveType === 'number' ? 'number' : 'text'"
-          :prepend-inner-icon="isPath ? 'mdi-file-outline' : undefined"
-          :placeholder="isPath ? 'Path, relative to the config file' : undefined" :persistent-placeholder="isPath"
+          :prepend-inner-icon="picker ? 'mdi-file-outline' : undefined"
+          :placeholder="picker ? 'A path or URL' : undefined" :persistent-placeholder="!!picker"
           label="Default"
           clearable
           variant="outlined" density="compact" hide-details="auto"
-          :error-messages="fieldErrors.default" />
+          :error-messages="fieldErrors.default">
+          <template v-if="picker" #append-inner>
+            <PathPicker :pick="picker" :value="String(form.default ?? '')" @pick="(p) => form.default = p" />
+          </template>
+        </v-text-field>
 
         <v-radio-group v-model="form.inParams" density="compact" hide-details class="style-choice">
           <template #label><span class="text-body-2">Where the input is declared in the config:</span></template>

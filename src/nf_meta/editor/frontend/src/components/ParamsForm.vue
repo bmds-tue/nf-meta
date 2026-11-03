@@ -2,8 +2,9 @@
 import { computed, ref } from 'vue'
 import { INPUT_COLOR, REF_COLOR } from '../store'
 import type { ParamSpec, StepSchema } from '../types'
-import { addableParams, paramRows, splitLeadingReference, toParamValue, withoutEmptyValues, type ParamRow, type ReferenceTarget } from '../utils'
+import { addableParams, paramRows, pathPick, splitLeadingReference, toParamValue, withoutEmptyValues, type ParamRow, type ReferenceTarget } from '../utils'
 import ParamRowActions from './ParamRowActions.vue'
+import PathPicker from './PathPicker.vue'
 import ReferenceMenu from './ReferenceMenu.vue'
 import YamlEditor from './YamlEditor.vue'
 
@@ -28,8 +29,6 @@ const emit = defineEmits<{
   'update:modelValue': [value: object | undefined],
 }>()
 
-const PATH_FORMATS = new Set(['file-path', 'directory-path', 'path', 'file-path-pattern'])
-const MODULE_PATH_TYPES = new Set(['file', 'directory', 'path'])
 const BOOLEANS: unknown[] = [true, false]
 const WHOLE_INPUT = /^\$\{inputs:([^}:]+)\}$/
 
@@ -123,15 +122,17 @@ function dropReference(row: ParamRow) {
   setValue(row.name, leadingReference(row)?.rest ?? '')
 }
 
+// The folder button of a path param; none for `outdir`, which is relative to the run's out dir
+function rowPick(row: ParamRow) {
+  if (row.name === 'outdir' || leadingReference(row)) return undefined
+  return pathPick(row.spec?.format, row.spec?.type)
+}
+
 function fieldKind(spec?: ParamSpec): 'enum' | 'boolean' | 'number' | 'text' {
   if (spec?.enum?.length) return 'enum'
   if (spec?.type === 'boolean') return 'boolean'
   if (spec?.type === 'integer' || spec?.type === 'number') return 'number'
   return 'text'
-}
-
-function isPath(spec?: ParamSpec) {
-  return PATH_FORMATS.has(spec?.format ?? '') || MODULE_PATH_TYPES.has(spec?.type ?? '')
 }
 
 function missing(row: ParamRow) {
@@ -239,7 +240,7 @@ function inputTitle(name: string) {
           :type="fieldKind(row.spec) === 'number' && !leadingReference(row) ? 'number' : 'text'"
           :label="label(row)"
           :placeholder="leadingReference(row) ? 'more text, e.g. /samplesheet.csv' : undefined"
-          :prepend-inner-icon="isPath(row.spec) && !leadingReference(row) ? 'mdi-file-outline' : undefined"
+          :prepend-inner-icon="pathPick(row.spec?.format, row.spec?.type) && !leadingReference(row) ? 'mdi-file-outline' : undefined"
           :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
           variant="outlined" density="compact" hide-details="auto" class="value-text"
           :error-messages="errors[row.name]"
@@ -252,6 +253,9 @@ function inputTitle(name: string) {
             </v-chip>
           </template>
           <template #append-inner>
+            <PathPicker
+              v-if="rowPick(row)" :pick="rowPick(row)!" :value="fieldText(row)"
+              @pick="(p) => setText(row, p)" />
             <ParamRowActions
               :param="row.name" :references="references" :input-title="inputTitle(row.name)"
               @reference="(stepId, key) => setValue(row.name, referenceValue(stepId, key) + (leadingReference(row)?.rest ?? ''))"

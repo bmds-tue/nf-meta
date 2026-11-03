@@ -33,7 +33,6 @@ const errors = ref<Record<string, string[]>>({})
 const MORE_FIELDS = ['description', 'path', 'params_file', 'nf_config', 'nf_profile', 'main_script'] as const
 
 // A local pipeline folder (`path`) is for development; the backend warns about it too
-const LOCAL_WARNING = 'Runs a local pipeline folder: this config can\'t be reproduced elsewhere until the pipeline is published and used with a URL and version.'
 const LOCAL_HINT = 'Runs the local folder (More options); clear it to use the repository'
 const hasMore = () => MORE_FIELDS.some(f => !!form.value[f] && !(f === 'description' && form.value.is_nfcore))
 const showMore = ref(hasMore())
@@ -167,7 +166,6 @@ const pathRows = computed(() => [
         {{ shortVersion(form.version) }}
       </v-chip>
       <v-chip v-if="form.is_nfcore" size="small" prepend-icon="$nfcore">nf-core</v-chip>
-      <v-chip v-if="form.path" size="small" color="warning" prepend-icon="mdi-folder-alert-outline" :title="LOCAL_WARNING">local</v-chip>
       <v-chip v-if="form.nf_profile" size="small" prepend-icon="mdi-account-cog-outline" title="Nextflow profile">
         {{ form.nf_profile }}
       </v-chip>

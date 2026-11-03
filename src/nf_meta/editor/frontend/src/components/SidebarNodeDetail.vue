@@ -58,6 +58,8 @@ const displayVersion = computed(() => {
   return 'version' in props.detailData ? props.detailData.version : undefined
 })
 
+const localPath = computed(() => 'path' in props.detailData ? props.detailData.path : undefined)
+
 const nodeId = computed(() => 'id' in props.detailData ? props.detailData.id : undefined)
 const isMouseOver = ref(false)
 const isHovered = computed(() => !!nodeId.value && editorStore.hoveredNodeId === nodeId.value && !isMouseOver.value)
@@ -98,8 +100,14 @@ function onSaved(newNodeData?: APINodeData) {
     <div class="d-flex align-center flex-grow-1 flex-shrink-1" style="min-width: 0;">
       <strong class="text-truncate mr-2" :class="isNew ? 'font-italic' : ''">{{ displayName }}</strong>
       <small v-if="nodeId" class="muted mr-2">{{ nodeId }}</small>
-      <v-chip v-if="displayVersion" size="small" :title="displayVersion">{{ shortVersion(displayVersion) }}</v-chip>
-      <v-chip v-if="confirmedType === WorkflowType.NF_MODULE" size="small" color="success" class="ml-1">module</v-chip>
+      <v-chip v-if="displayVersion" size="small" class="flex-shrink-0" :title="displayVersion">{{ shortVersion(displayVersion) }}</v-chip>
+      <!-- a local pipeline has no version: marked local instead, its folder in the tooltip -->
+      <v-chip
+        v-else-if="localPath" size="small" color="warning" prepend-icon="mdi-folder-alert-outline" class="flex-shrink-0"
+        :title="`Local pipeline: ${localPath}. This config can't be reproduced elsewhere until the pipeline is published and used with a URL and version.`">
+        local
+      </v-chip>
+      <v-chip v-if="confirmedType === WorkflowType.NF_MODULE" size="small" color="success" class="ml-1 flex-shrink-0">module</v-chip>
     </div>
     <div class="d-flex align-center">
       <v-icon :icon="isActive ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="20" class="ml-1" />

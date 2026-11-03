@@ -88,6 +88,7 @@ nav:
   - Overview: index.md
   - Installation: getting-started/installation.md
   - Quickstart: getting-started/quickstart.md
+  - Command line: getting-started/command-line.md
   - YAML representation:
       - representation/overview.md
       - representation/reference.md

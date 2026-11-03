@@ -182,7 +182,7 @@ const pathRows = computed(() => [
       <code class="path-text flex-grow-1">{{ row.value }}</code>
       <v-btn
         :icon="copiedField === row.field ? 'mdi-check' : 'mdi-content-copy'"
-        size="x-small" variant="text" density="compact" :ripple="false" flat class="flex-shrink-0"
+        size="24" variant="text" :ripple="false" flat class="flex-shrink-0 copy-btn"
         @click.stop="copyPath(row.value!, row.field)" />
     </div>
 
@@ -365,6 +365,9 @@ const pathRows = computed(() => [
 }
 .detail-row-link:hover span {
   text-decoration: underline;
+}
+.copy-btn :deep(.v-icon) {
+  font-size: 14px;
 }
 .path-text {
   word-break: break-all;

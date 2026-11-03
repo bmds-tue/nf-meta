@@ -168,7 +168,7 @@ async function copyPath(text: string, field: string) {
       <code class="path-text flex-grow-1">{{ form.nf_config }}</code>
       <v-btn
         :icon="copiedField === 'nf_config' ? 'mdi-check' : 'mdi-content-copy'"
-        size="x-small" variant="text" density="compact" :ripple="false" flat class="flex-shrink-0"
+        size="24" variant="text" :ripple="false" flat class="flex-shrink-0 copy-btn"
         @click.stop="copyPath(form.nf_config!, 'nf_config')" />
     </div>
 
@@ -268,6 +268,9 @@ async function copyPath(text: string, field: string) {
 }
 .detail-row .v-icon {
   color: rgba(var(--v-theme-onSurface), 0.45) !important;
+}
+.copy-btn :deep(.v-icon) {
+  font-size: 14px;
 }
 .path-text {
   word-break: break-all;

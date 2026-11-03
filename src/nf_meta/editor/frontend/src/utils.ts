@@ -439,6 +439,27 @@ export function baseName(path: string): string {
     return path.split(/[\\/]/).filter(Boolean).pop() ?? ''
 }
 
+/** The folder a path is in: everything before its last part. */
+export function folderOf(path: string): string {
+    const sep = pathSeparator(path)
+    const trimmed = path.endsWith(sep) && path.length > 1 ? path.slice(0, -1) : path
+    const cut = trimmed.lastIndexOf(sep)
+    if (cut < 0) return ''
+    return cut === 0 ? sep : trimmed.slice(0, cut)
+}
+
+/** `path` cut from the front to at most `max` characters, keeping its last folders whole: `…/a/b`. */
+export function shortPath(path: string, max = 40): string {
+    if (path.length <= max) return path
+    const sep = pathSeparator(path)
+    const parts = path.split(sep).filter(Boolean)
+    let kept = parts.pop() ?? ''
+    while (parts.length && kept.length + parts[parts.length - 1].length + 3 <= max) {
+        kept = parts.pop() + sep + kept
+    }
+    return `…${sep}${kept}`
+}
+
 /** `name` in the folder `folder`. */
 export function joinPath(folder: string, name: string): string {
     const sep = pathSeparator(folder)

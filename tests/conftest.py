@@ -90,6 +90,12 @@ FAKE_MODULE_SCHEMA: dict[str, dict] = {
 
 
 @pytest.fixture(autouse=True)
+def private_state_dir(monkeypatch, tmp_path_factory):
+    """Keep what nf-meta remembers per user (e.g. the editor's recent configs) out of the real home."""
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
+
+
+@pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
     monkeypatch.setattr("nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES)

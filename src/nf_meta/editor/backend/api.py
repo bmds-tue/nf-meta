@@ -1,3 +1,4 @@
+import itertools
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -41,6 +42,7 @@ from nf_meta.core.registry import (
 )
 from nf_meta.core.session import SESSION
 
+from . import recent
 from .files import list_folder
 from .guard import guard
 from .serializers import Selection, serialize_events, serialize_state
@@ -114,9 +116,21 @@ def shutdown(request: Request):
     return {"ok": True}
 
 
+_first_graph_request = itertools.chain([True], itertools.repeat(False))
+
+
+def initial_startup() -> bool:
+    """Returns True for the first graph request after editor start and false afterwards."""
+    return next(_first_graph_request)
+
+
 @api_router.get("/graph/")
 def get_graph():
-    return serialize_state(SESSION)
+    """The session's state, and `start_screen`: whether the page should offer
+    the start screen (only on the first request of a run without a config)."""
+    first = initial_startup()
+    start_screen = first and not SESSION.config_file and not SESSION.graph.get_workflows()
+    return {**serialize_state(SESSION), "start_screen": start_screen}
 
 
 @api_router.get("/files/")
@@ -142,6 +156,7 @@ def save_graph(config: Path = Body(embed=True)):
         SESSION.save_to_config(config)
     except OSError as exc:
         return JSONResponse(status_code=400, content={"detail": f"Can't write {config}: {exc.strerror or exc}"})
+    recent.remember(config)
     return JSONResponse({})
 
 
@@ -158,7 +173,21 @@ def load_graph(config: Path = Body(embed=True)):
         problems = [f"{d.yaml_path}: {d.message}" for d in getattr(exc, "errors", [])] or [str(exc)]
         more = f" (and {len(problems) - 3} more)" if len(problems) > 3 else ""
         return JSONResponse(status_code=422, content={"detail": f"Invalid config: {'; '.join(problems[:3])}{more}"})
+    recent.remember(config)
     return JSONResponse({})
+
+
+@api_router.get("/recent/")
+def list_recent():
+    """The recently opened or saved configs, most recent first, each with
+    whether the file still exists."""
+    return [{"path": p, "exists": Path(p).is_file()} for p in recent.recent_configs()]
+
+
+@api_router.post("/recent/forget/")
+def forget_recent(path: str = Body(embed=True)):
+    recent.forget(path)
+    return {"ok": True}
 
 
 @api_router.get("/graph/undo/")

@@ -164,12 +164,11 @@ class BrowserEditor(BaseEditor):
         token = new_token()
 
         if DEV_MODE:
-            logger.debug(
-                "DEV_MODE is set: ignoring host/port preferences and running on %s:%s (api) and %s:%s (vite)",
-                DEV_HOST,
-                DEV_PORT,
-                DEV_HOST,
-                DEV_VITE_PORT,
+            click.echo(
+                click.style(
+                    f"running in DEVMODE: ignoring host/port preferences and running on {DEV_HOST}:{DEV_PORT} (api) and {DEV_HOST}:{DEV_VITE_PORT} (vite)",
+                    fg="yellow",
+                )
             )
             if not _is_http_server_reachable(DEV_HOST, DEV_VITE_PORT):
                 click.echo(

@@ -135,7 +135,8 @@ export const useGraphStore = defineStore('graph', () => {
         return result
     }
 
-    async function getAndUpdateGraph() {
+    // Returns whether the backend offers the start screen (first request of a run, no config)
+    async function getAndUpdateGraph(): Promise<boolean> {
         const response = await apiStore.getGraph()
         if (!response.ok) {
             messageStore.add('Unable to fetch Graph Data', 'error')
@@ -144,6 +145,7 @@ export const useGraphStore = defineStore('graph', () => {
             _edgeData.value = []
             _nodeData.value = []
             _inputs.value = []
+            return false
         } else {
             _edgeData.value = response.data.transitions
             _nodeData.value = response.data.nodes
@@ -154,6 +156,7 @@ export const useGraphStore = defineStore('graph', () => {
             _filename.value = response.data.filename
             globalOptions.value = response.data.globals ?? { params: null, nf_config: null, nf_profile: null }
             _inputs.value = response.data.inputs ?? []
+            return response.data.start_screen ?? false
         }
     }
 

@@ -100,9 +100,12 @@ def cli() -> None:
 def edit_browser(config, verbose, editor, host, port, no_browser, no_redirect_file):
     from nf_meta.core.session import start_session
     from nf_meta.editor import EditorOptions, run_editor
+    from nf_meta.editor.backend import recent
 
     session = start_session(config)
     _echo_warnings(session.warnings, config)
+    if config:
+        recent.remember(config)
     opts = EditorOptions(editor_name=editor, open_browser=not no_browser, use_redirect_file=not no_redirect_file)
     if host is not None:
         opts.host = host

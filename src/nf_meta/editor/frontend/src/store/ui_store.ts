@@ -50,8 +50,21 @@ export const useEditorStore = defineStore('editor', () => {
         _backendState.value = state
     }
 
+    // Shown when the editor starts without a config; closing it starts a new one
+    const _startScreenOpen = ref(false)
+    const startScreenOpen = computed(() => _startScreenOpen.value)
+
+    function openStartScreen() {
+        _startScreenOpen.value = true
+    }
+
+    function closeStartScreen() {
+        _startScreenOpen.value = false
+    }
+
     function openLoadDialog() {
         closeSaveDialog()
+        closeStartScreen()
         _loadDialogOpen.value = true
     }
 
@@ -179,6 +192,7 @@ export const useEditorStore = defineStore('editor', () => {
         flashingNodeId, flashNode,
         saveDialogOpen, openSaveDialog, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
+        startScreenOpen, openStartScreen, closeStartScreen,
         backendState, setBackendState,
     }
 })

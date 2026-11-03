@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    addableParams, baseName, canShareInput, joinPath, lintReferenceCount, pathCrumbs, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
+    addableParams, baseName, folderOf, shortPath, canShareInput, joinPath, lintReferenceCount, pathCrumbs, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -280,5 +280,31 @@ describe('paths of the editor machine', () => {
         expect(joinPath('C:\\Users\\me', 'mp.yaml')).toBe('C:\\Users\\me\\mp.yaml')
         expect(baseName('C:\\Users\\me\\mp.yaml')).toBe('mp.yaml')
         expect(pathCrumbs('C:\\Users\\me').map(c => c.path)).toEqual(['C:\\', 'C:\\Users', 'C:\\Users\\me'])
+    })
+})
+
+describe('folderOf', () => {
+    it('is the folder of a file', () => {
+        expect(folderOf('/home/alice/project/mp.yaml')).toBe('/home/alice/project')
+        expect(folderOf('C:\\Users\\alice\\mp.yaml')).toBe('C:\\Users\\alice')
+    })
+
+    it('is the root for a file there, and empty for a bare name', () => {
+        expect(folderOf('/mp.yaml')).toBe('/')
+        expect(folderOf('mp.yaml')).toBe('')
+    })
+})
+
+describe('shortPath', () => {
+    it('keeps a short path', () => {
+        expect(shortPath('/home/alice/project', 40)).toBe('/home/alice/project')
+    })
+
+    it('keeps the last folders of a long path', () => {
+        expect(shortPath('/tmp/very/long/scratch/area/start/configs', 20)).toBe('…/area/start/configs')
+    })
+
+    it('keeps at least the last folder', () => {
+        expect(shortPath('/a/an-extremely-long-folder-name', 10)).toBe('…/an-extremely-long-folder-name')
     })
 })

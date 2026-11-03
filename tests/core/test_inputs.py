@@ -321,7 +321,7 @@ class TestGraph:
         g = graph(pipeline("n01", input="${inputs:ids}", outdir="o"))
         monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", unavailable)
         _, diagnostics = g.effective_inputs()
-        assert {d.yaml_path for d in diagnostics} == {"workflows.n01.params.input"}
+        assert {d.yaml_path for d in diagnostics} == {"steps.n01.params.input"}
 
     def test_partial_reference_declares_no_input(self):
         g = MetaworkflowGraph()
@@ -374,9 +374,7 @@ class TestGraph:
     def test_input_reference_needs_config_version_0_4(self):
         data = {
             "config_version": "0.3.0",
-            "workflows": {
-                "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "${inputs:ids}"}}
-            },
+            "steps": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "${inputs:ids}"}}},
         }
         with pytest.raises(ConfigValidationError, match="needs config_version 0.4.0"):
             validated_graph(data)
@@ -419,7 +417,7 @@ CONFIG = {
         "ids": {"bind": ["n01.input"], "default": "ids.csv"},
         "genome": {"enum": ["EB1", "GRCh38"], "default": "EB1"},
     },
-    "workflows": {
+    "steps": {
         "n01": {
             "name": "nf-core/fetchngs",
             "version": "1.12.0",
@@ -433,7 +431,7 @@ class TestConfig:
     def test_round_trip(self):
         dumped = dump_config(validated_graph(CONFIG))
         assert dumped["inputs"] == CONFIG["inputs"]
-        assert dumped["workflows"]["n01"]["params"] == CONFIG["workflows"]["n01"]["params"]
+        assert dumped["steps"]["n01"]["params"] == CONFIG["steps"]["n01"]["params"]
 
     def test_dump_matches_json_schema(self):
         jsonschema.validate(dump_config(validated_graph(CONFIG)), generate_schema())
@@ -490,7 +488,7 @@ def test_bind_and_from_are_written_in_flow_style(tmp_path):
     assert "from: [n01]" in text
     data = yaml.safe_load(text)
     assert data["inputs"]["ids"] == {"bind": ["n01.input", "n02.input"], "description": "Run ids"}
-    assert data["workflows"]["n02"]["from"] == ["n01"]
+    assert data["steps"]["n02"]["from"] == ["n01"]
 
 
 @pytest.mark.parametrize("collect_errors", [False, True])
@@ -498,7 +496,7 @@ def test_load_reference_to_a_param_filled_by_a_bind_input(collect_errors):
     data = {
         "config_version": "0.4.0",
         "inputs": {"genome": {"bind": ["n01.genome"]}},
-        "workflows": {
+        "steps": {
             "n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "params": {"input": "a.csv"}},
             "n02": {
                 "name": "nf-core/fetchngs",

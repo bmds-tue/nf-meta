@@ -156,6 +156,11 @@ export const useApiStore = defineStore('api', () => {
     // Param schemas of pipelines and modules that may not be in the graph yet, cached per version
     const schemaCache = new Map<string, Promise<ApiResult<StepSchema>>>()
 
+    // Read again each time: a local pipeline's schema changes while it is developed
+    function getLocalPipelineSchema(path: string) {
+        return request<StepSchema>(`/api/pipelines/local/schema/?${new URLSearchParams({ path })}`, { method: 'GET' })
+    }
+
     function getPipelineSchema(url: string, version: string) {
         const key = `pipeline ${url} ${version}`
         if (!schemaCache.has(key)) {
@@ -180,7 +185,7 @@ export const useApiStore = defineStore('api', () => {
         undoGraph, redoGraph,
         addNode, updateNode, deleteSelection, addEdge, updateGlobalOptions,
         saveInput, deleteInput, declareStepInputs, setInputsStyle,
-        getNodeSchema, getPipelineSchema, getModuleSchema, listFolder,
+        getNodeSchema, getPipelineSchema, getLocalPipelineSchema, getModuleSchema, listFolder,
         getRecentConfigs, forgetRecentConfig,
     }
 })

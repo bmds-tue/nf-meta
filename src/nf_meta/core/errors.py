@@ -40,7 +40,7 @@ class Diagnostic:
     message: str
     severity: Severity
     # Document-relative path of keys. Callers that know their diagnostics sit
-    # inside a whole config (e.g. under `workflows.<id>.`/`globals.`) pass the
+    # inside a whole config (e.g. under `steps.<id>.`/`globals.`) pass the
     # fully-qualified path
     yaml_path: str | None = None
 
@@ -72,7 +72,7 @@ def diagnostics_from_pydantic_error(
     to the (failed-to-construct) instance — the caller (e.g. graph.py's
     construct_workflow, constructing one workflow at a time) already knows which
     workflow this is. yaml_path_prefix is prepended to each field to produce
-    the document-relative yaml_path -- pass e.g. "workflows.<id>." when this
+    the document-relative yaml_path -- pass e.g. "steps.<id>." when this
     error belongs to a workflow embedded in a whole config; leave it empty
     (the default) for an isolated snippet, where the field is already
     document-relative.
@@ -170,6 +170,9 @@ def collect_positioned_diagnostics(
         if source_text is not None:
             assert d.yaml_path is not None  # always set by __post_init__
             position = locate_field(source_text, d.yaml_path)
+            if position is None and d.yaml_path.startswith("steps."):
+                # a config still using the old name of `steps:`
+                position = locate_field(source_text, "workflows." + d.yaml_path.removeprefix("steps."))
         positioned.append(PositionedDiagnostic(d, position))
     return positioned, graph_messages
 

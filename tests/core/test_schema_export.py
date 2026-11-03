@@ -12,7 +12,7 @@ class TestGenerateSchema:
         schema = generate_schema()
         assert "NfPipeline" in schema["$defs"]
         assert "NfModule" in schema["$defs"]
-        assert "$defs" not in schema["properties"]["workflows"]["additionalProperties"]
+        assert "$defs" not in schema["properties"]["steps"]["additionalProperties"]
 
     def test_from_field_present_and_id_absent(self):
         schema = generate_schema()
@@ -25,7 +25,7 @@ class TestGenerateSchema:
     def test_rejects_missing_config_version(self):
         schema = generate_schema()
         with pytest.raises(jsonschema.ValidationError):
-            jsonschema.validate({"workflows": {}}, schema)
+            jsonschema.validate({"steps": {}}, schema)
 
     def test_round_trip_sanity_against_real_output(self, monkeypatch):
         """Construct a graph covering both workflow types, from: (both bare
@@ -41,7 +41,7 @@ class TestGenerateSchema:
         data = {
             "config_version": "0.3.0",
             "globals": {"profile": "docker", "nextflow_version": "26.04.0"},
-            "workflows": {
+            "steps": {
                 "wf_a": {
                     "name": "nf-core/fetchngs",
                     "version": "1.12.0",

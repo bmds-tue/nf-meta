@@ -193,7 +193,7 @@ def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
     """Write a minimal config YAML to a temp file and return its path."""
     data = {
         "config_version": "0.3.0",
-        "workflows": {
+        "steps": {
             wf_fetchngs.id: {
                 "name": wf_fetchngs.name,
                 "version": wf_fetchngs.version,

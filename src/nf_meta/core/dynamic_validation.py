@@ -21,7 +21,15 @@ import yaml
 
 from .errors import Diagnostic, Severity
 from .inputs import Binding, Input, InputDefinition, effective_input
-from .models import CONFIG_PATH_FIELDS, GlobalOptions, NfModule, NfPipeline, Workflow, config_path
+from .models import (
+    CONFIG_PATH_FIELDS,
+    GlobalOptions,
+    NfModule,
+    NfPipeline,
+    Workflow,
+    config_path,
+    with_absolute_config_paths,
+)
 from .nf_param_validation import validate_params
 from .registry import (
     ParamSpec,
@@ -30,6 +38,7 @@ from .registry import (
     RegistryUnavailableError,
     Schema,
     SchemaUnavailableError,
+    get_local_pipeline_schema,
     get_module_schema,
     get_nfcore_module_releases,
     get_pipeline_schema,
@@ -51,11 +60,11 @@ def check_config_files(
     """An error for each `params_file`/`nf_config` of `item` (a workflow or the
     globals) that isn't an existing file; relative ones are looked up in
     `project_dir` (see `config_path`). `yaml_path_prefix` defaults to the
-    item's place in a whole config (`globals.`, `workflows.<id>.`)."""
+    item's place in a whole config (`globals.`, `steps.<id>.`)."""
     workflow_id = None if isinstance(item, GlobalOptions) else item.id
     prefix = yaml_path_prefix
     if prefix is None:
-        prefix = "globals." if workflow_id is None else f"workflows.{workflow_id}."
+        prefix = "globals." if workflow_id is None else f"steps.{workflow_id}."
     diagnostics = []
     for field in CONFIG_PATH_FIELDS:
         value = getattr(item, field, None)
@@ -92,9 +101,39 @@ def check_pipeline_url_reachable(wf: NfPipeline) -> list[Diagnostic]:
     return []
 
 
+def check_pipeline_folder(wf: NfPipeline) -> list[Diagnostic]:
+    """For a local pipeline (`path`): an error if the folder or its main
+    script (`main_script`, default `main.nf`) is missing, else a warning that
+    the config can't be reproduced elsewhere."""
+    if not wf.path:
+        return []
+    folder = Path(wf.path)
+    main = wf.main_script or "main.nf"
+    if not folder.is_dir():
+        problem = f"No such folder: {wf.path}"
+    elif not (folder / main).is_file():
+        problem = f"No {main} in {wf.path}"
+    else:
+        problem = None
+    if problem:
+        return [Diagnostic(workflow_id=wf.id, field="path", message=problem, severity=Severity.ERROR)]
+    return [
+        Diagnostic(
+            workflow_id=wf.id,
+            field="path",
+            message=(
+                f"Step {wf.id} runs a local pipeline ({wf.path}). This config can't be reproduced "
+                "elsewhere: others need that exact folder, and its code may change. Publish the "
+                "pipeline and use url with a version (tag or commit) to share it."
+            ),
+            severity=Severity.WARNING,
+        )
+    ]
+
+
 def check_pipeline_main_script_exists(wf: NfPipeline) -> list[Diagnostic]:
     """From NfPipeline.validate_main_script's github_file_exists block."""
-    if wf.main_script is None:
+    if wf.main_script is None or wf.path:  # a local one: see check_pipeline_folder
         return []
 
     if wf.url and "github.com" in wf.url and wf.version:
@@ -141,11 +180,11 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
     name = wf.name
     value = wf.params
 
-    if not url or not name or not version:
+    if not wf.path and (not url or not name or not version):
         return []
 
     try:
-        schema = get_pipeline_schema(url, version)
+        schema = get_local_pipeline_schema(wf.path) if wf.path else get_pipeline_schema(url, version)  # type: ignore[arg-type]
     except PipelineSchemaError as e:
         return [
             Diagnostic(
@@ -285,6 +324,7 @@ def check_module_params_schema(wf: NfModule) -> list[Diagnostic]:
 _CheckEntry = tuple[str, Callable[..., list[Diagnostic]], tuple[str, ...]]
 
 _PIPELINE_CHECKS: list[_CheckEntry] = [
+    ("local_folder", check_pipeline_folder, ("path", "main_script")),
     ("config_files", check_config_files, ("params_file", "nf_config")),
     ("url_reachable", check_pipeline_url_reachable, ("url",)),
     (
@@ -295,7 +335,7 @@ _PIPELINE_CHECKS: list[_CheckEntry] = [
     (
         "params_schema",
         check_pipeline_params_schema,
-        ("url", "version", "params", "params_file"),
+        ("url", "version", "path", "params", "params_file"),
     ),
 ]
 
@@ -400,7 +440,7 @@ def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
 
     Always called against a whole config (never an isolated snippet — see
     its two call sites in graph.py), so each diagnostic's yaml_path is
-    unconditionally re-stamped with its own workflow's `workflows.<id>.`
+    unconditionally re-stamped with its own workflow's `steps.<id>.`
     prefix here, right where results are collected.
     """
     workflows = list(workflows)
@@ -413,9 +453,7 @@ def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
     with ThreadPoolExecutor(max_workers=len(workflows)) as executor:
         futures = [(wf, executor.submit(run_dynamic_checks, wf)) for wf in workflows]
         for wf, future in futures:
-            diagnostics.extend(
-                dataclasses.replace(d, yaml_path=f"workflows.{wf.id}.{d.field}") for d in future.result()
-            )
+            diagnostics.extend(dataclasses.replace(d, yaml_path=f"steps.{wf.id}.{d.field}") for d in future.result())
     return diagnostics
 
 
@@ -435,7 +473,9 @@ def get_step_schema(step: Workflow) -> Schema:
     `get_pipeline_schema` / `get_module_schema`). Raises
     `SchemaUnavailableError` if it can't be fetched or parsed."""
     if isinstance(step, NfPipeline):
-        return get_pipeline_schema(step.url, step.version)
+        if step.path:
+            return get_local_pipeline_schema(step.path)
+        return get_pipeline_schema(step.url, step.version)  # type: ignore[arg-type]
     return get_module_schema(step.name, step.version)
 
 
@@ -468,7 +508,7 @@ def check_inputs(
         workflows: The graph's workflows by id.
         project_dir: Where relative default paths are looked up.
     """
-    schemas = {wf_id: workflow_schema(wf) for wf_id, wf in workflows.items()}
+    schemas = {wf_id: workflow_schema(with_absolute_config_paths(wf, project_dir)) for wf_id, wf in workflows.items()}
     inputs: dict[str, Input] = {}
     diagnostics: list[Diagnostic] = []
     for name, definition in definitions.items():

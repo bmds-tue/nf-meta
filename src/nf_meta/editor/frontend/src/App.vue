@@ -198,7 +198,7 @@ onMounted(async () => {
       <v-divider vertical inset class="mx-1" />
       <!-- graph -->
       <div class="bar-group" aria-label="Graph">
-        <v-btn title="Add a workflow" icon="mdi-plus" variant="text" @click="onAddNodeClick" />
+        <v-btn title="Add a step" icon="mdi-plus" variant="text" @click="onAddNodeClick" />
         <v-btn title="Undo" icon="mdi-undo" variant="text" :disabled="!graphStore.undoable" :loading="undoing" @click="onUndo" />
         <v-btn title="Redo" icon="mdi-redo" variant="text" :disabled="!graphStore.redoable" :loading="redoing" @click="onRedo" />
         <v-btn

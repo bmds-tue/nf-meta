@@ -30,7 +30,10 @@ const errors = ref<Record<string, string[]>>({})
 
 // Fields of the "More options" section; it starts open if any of them is set
 // (an nf-core pipeline's description comes from the catalog)
-const MORE_FIELDS = ['description', 'params_file', 'nf_config', 'nf_profile', 'main_script'] as const
+const MORE_FIELDS = ['description', 'path', 'params_file', 'nf_config', 'nf_profile', 'main_script'] as const
+
+// A local pipeline folder (`path`) is for development; the backend warns about it too
+const LOCAL_HINT = 'Step runs from a local folder. URL deactivated'
 const hasMore = () => MORE_FIELDS.some(f => !!form.value[f] && !(f === 'description' && form.value.is_nfcore))
 const showMore = ref(hasMore())
 
@@ -67,7 +70,9 @@ async function submitForm(e: SubmitEventPromise) {
   saving.value = true
   try {
     const previousIds = new Set(graphStore.nodeData.map(n => n.id))
-    const result = await graphStore.saveNode({ ...form.value, params: withoutEmptyValues(form.value.params) })
+    // a local pipeline runs its folder: no repository url or version
+    const local = form.value.path ? { url: undefined, version: undefined } : { path: undefined }
+    const result = await graphStore.saveNode({ ...form.value, ...local, params: withoutEmptyValues(form.value.params) })
     if (result.ok) {
       isEditing.value = false
       if (props.isNew) {
@@ -122,6 +127,7 @@ const { schema, loading: schemaLoading, error: schemaError } = useStepSchema(() 
   kind: 'pipeline',
   url: form.value.url || (form.value.is_nfcore && form.value.name ? `https://github.com/${form.value.name}` : undefined),
   version: form.value.version,
+  path: form.value.path || undefined,
 }))
 const boundParams = computed(() => Object.fromEntries(
   form.value.id
@@ -130,7 +136,7 @@ const boundParams = computed(() => Object.fromEntries(
 ))
 const references = computed(() => graphStore.getReferenceTargets(form.value.id))
 // Errors no field of this form shows (e.g. a global setting the step conflicts with)
-const FORM_FIELDS = ['name', 'url', 'version', 'description', 'params_file', 'nf_config', 'nf_profile', 'main_script', 'is_nfcore']
+const FORM_FIELDS = ['name', 'url', 'version', 'path', 'description', 'params_file', 'nf_config', 'nf_profile', 'main_script', 'is_nfcore']
 const otherErrors = computed(() => unshownErrors(errors.value, FORM_FIELDS))
 const paramErrors = ref<{ byParam: Record<string, string[]>, general: string[] }>({ byParam: {}, general: [] })
 
@@ -143,6 +149,7 @@ const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.
 
 // File rows of the read-only view
 const pathRows = computed(() => [
+  { field: 'path', icon: 'mdi-folder-outline', label: 'Local pipeline folder', value: form.value.path },
   { field: 'params_file', icon: 'mdi-file-document-outline', label: 'Params file', value: form.value.params_file },
   { field: 'nf_config', icon: 'mdi-cog-outline', label: 'Nextflow config', value: form.value.nf_config },
   { field: 'main_script', icon: 'mdi-script-text-outline', label: 'Main script', value: form.value.main_script },
@@ -173,7 +180,7 @@ const pathRows = computed(() => [
       <code class="path-text flex-grow-1">{{ row.value }}</code>
       <v-btn
         :icon="copiedField === row.field ? 'mdi-check' : 'mdi-content-copy'"
-        size="x-small" variant="text" density="compact" :ripple="false" flat class="flex-shrink-0"
+        size="24" variant="text" :ripple="false" flat class="flex-shrink-0 copy-btn"
         @click.stop="copyPath(row.value!, row.field)" />
     </div>
 
@@ -221,6 +228,7 @@ const pathRows = computed(() => [
       v-model="form.url"
       label="Repository URL"
       prepend-inner-icon="mdi-link-variant"
+      :disabled="!!form.path" :hint="form.path ? LOCAL_HINT : undefined" :persistent-hint="!!form.path"
       variant="outlined" density="compact" hide-details="auto"
       :error-messages="errors.url" />
 
@@ -237,6 +245,7 @@ const pathRows = computed(() => [
       label="Version (tag, branch or commit)"
       v-model="form.version"
       prepend-inner-icon="mdi-tag-outline"
+      :disabled="!!form.path"
       variant="outlined" density="compact" hide-details="auto"
       :error-messages="errors.version" />
 
@@ -259,6 +268,18 @@ const pathRows = computed(() => [
         v-model="form.description"
         label="Description"
         variant="outlined" density="compact" rows="1" auto-grow hide-details="auto" />
+      <v-text-field
+        v-if="!form.is_nfcore"
+        v-model="form.path"
+        label="Local folder (development)"
+        placeholder="Instead of URL and version, relative to the config file" persistent-placeholder
+        prepend-inner-icon="mdi-folder-outline"
+        variant="outlined" density="compact" hide-details="auto" clearable
+        :error-messages="errors.path">
+        <template #append-inner>
+          <PathPicker pick="folder" :value="form.path" @pick="(p) => form.path = p" />
+        </template>
+      </v-text-field>
       <v-text-field
         v-model="form.params_file"
         label="Params file"
@@ -342,6 +363,9 @@ const pathRows = computed(() => [
 }
 .detail-row-link:hover span {
   text-decoration: underline;
+}
+.copy-btn :deep(.v-icon) {
+  font-size: 14px;
 }
 .path-text {
   word-break: break-all;

@@ -2,10 +2,12 @@
 repositories: pipeline and module lists, module releases, param schemas."""
 
 import functools
+import json
 import logging
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any, Required, TypedDict, cast
 from urllib.parse import quote
 
@@ -592,6 +594,20 @@ def get_pipeline_schema(url: str, version: str) -> Schema:
     schema = _parse_nextflow_schema(data)
     write_schema_cache(url, version, schema)
     return schema
+
+
+def get_local_pipeline_schema(folder: str | Path) -> Schema:
+    """Parse ``nextflow_schema.json`` in the local pipeline ``folder`` (read on
+    every call, so edits show at once). Raises ``PipelineSchemaError`` if it is
+    missing or can't be parsed."""
+    schema_file = Path(folder) / "nextflow_schema.json"
+    try:
+        data = json.loads(schema_file.read_text())
+    except FileNotFoundError as e:
+        raise PipelineSchemaError(f"No nextflow_schema.json in {folder}") from e
+    except (OSError, ValueError) as e:
+        raise PipelineSchemaError(f"Failed to read {schema_file}: {e}") from e
+    return _parse_nextflow_schema(data)
 
 
 @functools.cache

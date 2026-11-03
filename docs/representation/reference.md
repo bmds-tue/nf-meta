@@ -17,8 +17,9 @@ folder, so relative `params_file`/`config_file` paths in it are an error.
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `config_version` | string | yes | — | Must be between `0.0.1` and the current maximum (`0.3.0`). Rejected outside that range. |
-| `workflows` | mapping (id → workflow) | yes | — | See [Workflow (common fields)](#workflow-common-fields) below. A list form exists for backward compatibility but is deprecated. |
+| `config_version` | string | yes | — | Must be between `0.0.1` and the current maximum (`0.5.0`). Rejected outside that range. |
+| `steps` | mapping (id → step) | yes | — | See [Workflow (common fields)](#workflow-common-fields) below. A list form exists for backward compatibility but is deprecated. |
+| `workflows` | — | — | — | Deprecated name of `steps` (before config_version 0.5.0). Still read, with a warning; saving from the editor renames it. |
 | `globals` | mapping | no | none | See [`globals`](#globals) below. |
 | `transitions` | list | no | none | Legacy edge list (`{source, target}` pairs). Deprecated in favor of each workflow's own `from:`; still readable but triggers a warning. |
 
@@ -33,13 +34,13 @@ folder, so relative `params_file`/`config_file` paths in it are an error.
 
 ## Workflow (common fields)
 
-Every entry under `workflows:` is one of two types, selected by `type:` (default
+Every entry under `steps:` is one of two types, selected by `type:` (default
 `nf-pipeline` when omitted). These fields apply to both:
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
 | `type` | `nf-pipeline` \| `nf-module` | no | `nf-pipeline` | Selects [`NfPipeline`](#nf-pipeline-additional-fields) vs. [`NfModule`](#nf-module-additional-fields) below. |
-| *(id)* | — | yes | — | Not a field inside the entry; it's the entry's own key under `workflows:`, e.g. `n01:`. Referenced by `from:`, `${id:params:key}`, and the CLI's `--start`/`--target`. |
+| *(id)* | — | yes | — | Not a field inside the entry; it's the entry's own key under `steps:`, e.g. `n01:`. Referenced by `from:`, `${id:params:key}`, and the CLI's `--start`/`--target`. |
 | `name` | string, non-empty | yes | — | Pipeline/module name, e.g. `nf-core/rnaseq`. For nf-core pipelines, also used to auto-resolve `url`/`description`. |
 | `version` | string, non-empty | yes | — | A release tag (`1.12.0`, `v1.12.0`) or a full/short commit SHA (7-40 hex chars). A branch name (e.g. `dev`, `master`) is rejected, since reproducibility requires a pinned revision. |
 | `from` | string or list of strings | no | none | Id(s) of the workflow(s) that must complete before this one runs. Determines execution (DAG) order. |

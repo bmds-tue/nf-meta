@@ -29,9 +29,14 @@ from nf_meta.core.registry import PipelineInfo, RegistryUnavailableError, get_nf
 NFCORE_PREFIX = "nf-core/"
 
 CONFIG_VERSION_MIN = "0.0.1"
-CONFIG_VERSION_MAX = "0.4.0"
+CONFIG_VERSION_MAX = "0.5.0"
 # First config version that may declare `inputs:`
 INPUTS_MIN_CONFIG_VERSION = "0.4.0"
+# The config's steps; `workflows:` is the deprecated name, still read
+STEPS_KEY = "steps"
+LEGACY_STEPS_KEY = "workflows"
+# First config version that names them `steps:`
+STEPS_MIN_CONFIG_VERSION = "0.5.0"
 
 
 class WorkflowType(StrEnum):
@@ -70,13 +75,15 @@ def config_path(value: str, project_dir: Path | None) -> Path:
     """`value` (a `params_file`/`nf_config`) as an absolute path: a relative
     one is relative to `project_dir`, or to the current folder without one."""
     path = Path(value).expanduser()
-    return path if path.is_absolute() else (project_dir or Path.cwd()) / path
+    return (path if path.is_absolute() else (project_dir or Path.cwd()) / path).resolve()
 
 
 def with_absolute_config_paths[M: BaseModel](item: M, project_dir: Path | None) -> M:
     """`item` (a workflow or `GlobalOptions`) with its `params_file`/`nf_config`
-    made absolute with `config_path`, for reading the files."""
-    update = {f: str(config_path(v, project_dir)) for f in CONFIG_PATH_FIELDS if (v := getattr(item, f, None))}
+    (and a local pipeline's `path`) made absolute with `config_path`, for
+    reading them."""
+    fields = (*CONFIG_PATH_FIELDS, "path")  # `path`: a local pipeline's folder
+    update = {f: str(config_path(v, project_dir)) for f in fields if (v := getattr(item, f, None))}
     return item.model_copy(update=update) if update else item
 
 
@@ -190,12 +197,16 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
     @classmethod
     def validate_id_not_reserved(cls, value: str) -> str:
         if value in RESERVED_STEP_IDS:
-            raise ValueError(f"'{value}' is reserved and can't be used as a workflow id")
+            raise ValueError(f"'{value}' is reserved and can't be used as a step id")
         return value
 
     @field_validator("version", mode="after")
     @classmethod
-    def validate_version_ref(cls, value: str) -> str:
+    def validate_version_ref(cls, value: str | None) -> str | None:
+        if value is None:  # a local pipeline (`path`) has none
+            return value
+        if not value:
+            raise ValueError("A version is needed: a release tag or commit (or, while developing it, a local `path`).")
         if re.match(r"^v?\d", value) or re.match(r"^[0-9a-fA-F]{7,40}$", value):
             return value
         raise ValueError(
@@ -228,6 +239,10 @@ class NfPipeline(BaseWorkflow):
     """A Nextflow pipeline step executed with 'nextflow run'."""
 
     type: Literal[WorkflowType.NF_PIPELINE] = WorkflowType.NF_PIPELINE
+    # None only for a local pipeline (`path`)
+    version: str | None = None  # type: ignore[assignment]
+    # A local pipeline folder, for development: used instead of `url` and `version`
+    path: FilePath = None
     url: str
     description: str | None = None
     params_file: YamlFilePath = None
@@ -267,9 +282,25 @@ class NfPipeline(BaseWorkflow):
             raise ValueError(f"'{value}' is not an nf-core pipeline.{hint}")
         return value
 
+    @field_validator("path", mode="after")
+    @classmethod
+    def validate_path(cls, value: str | None, info: ValidationInfo) -> str | None:
+        if value is None:
+            return None
+        name = info.data.get("name")
+        if name and name.startswith(NFCORE_PREFIX):
+            raise ValueError("nf-core pipelines run from their repository; leave out path.")
+        if info.data.get("version") is not None:
+            raise ValueError("A local pipeline has no version; leave out version (or path).")
+        return value
+
     @field_validator("url", mode="after")
     @classmethod
     def validate_url(cls, value: str, info: ValidationInfo):
+        if info.data.get("path") or "path" not in info.data:  # local, or path failed (its error says why)
+            if value and info.data.get("path"):
+                raise ValueError("Use either url (with version) or a local path, not both.")
+            return value
         name = info.data.get("name")
         if name and name.startswith(NFCORE_PREFIX):
             nfcore_wf_info = cls.get_nfcore_info(name)
@@ -295,16 +326,20 @@ class NfPipeline(BaseWorkflow):
 
         name = info.data.get("name")
         if name and name.startswith(NFCORE_PREFIX):
-            raise ValueError("main_script cannot be set for nf-core workflows")
+            raise ValueError("main_script cannot be set for nf-core pipelines")
 
         return value
 
     @model_validator(mode="before")
     @classmethod
     def populate_nfcore_fields(cls, data: dict) -> dict:
-        # "" instead of a missing url, so validate_url reports it with a clear message
+        # "" instead of a missing url or version, so their validators report it with a clear message
         if data.get("url") is None:
             data["url"] = ""
+        if data.get("path"):
+            return data
+        if data.get("version") is None:
+            data["version"] = ""
 
         name = data.get("name")
         if not isinstance(name, str) or not name:
@@ -329,7 +364,7 @@ class NfPipeline(BaseWorkflow):
         return data
 
     def hash(self) -> str:
-        data = f"{self.url}{self.version}"
+        data = f"{self.url}{self.version}" if not self.path else self.path
         data += self.nf_config or ""
         data += self.params_file or ""
         data += json.dumps(self.params, sort_keys=True, default=str)
@@ -340,6 +375,7 @@ class NfPipeline(BaseWorkflow):
         fields = {
             "name",
             "version",
+            "path",
             "url",
             "params_file",
             "nf_config",
@@ -348,7 +384,7 @@ class NfPipeline(BaseWorkflow):
             "main_script",
         }
         result = _params_last(self.model_dump(include=fields, exclude_none=True))
-        if self.is_nfcore:
+        if self.is_nfcore or not self.url:
             result.pop("url", None)
         # type omitted for pipelines — loader defaults to WorkflowType.NF_PIPELINE
         return result
@@ -359,6 +395,7 @@ class NfPipeline(BaseWorkflow):
             "name",
             "type",
             "version",
+            "path",
             "url",
             "params_file",
             "params",

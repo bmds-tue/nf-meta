@@ -61,6 +61,15 @@ async function copyToClipboard() {
                 {{ shortVersion(data.version) }}
             </v-chip>
             <v-chip
+                v-if="'path' in data && data.path"
+                color="warning"
+                size="small"
+                class="ml-1"
+                prepend-icon="mdi-folder-alert-outline"
+                :title="`Local pipeline: ${data.path}. This config can't be reproduced elsewhere until the pipeline is published and used with a URL and version.`">
+                local
+            </v-chip>
+            <v-chip
                 v-if="isModule"
                 color="success"
                 size="small"

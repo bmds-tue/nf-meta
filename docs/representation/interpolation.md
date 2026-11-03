@@ -3,13 +3,13 @@
 A param value can reference another workflow's own param via:
 
 ```
-${<workflow-id>:<namespace>:<key>}
+${<step-id>:<namespace>:<key>}
 ```
 
 For example, `input: ${n01:params:outdir}/samplesheet/samplesheet.csv` takes `n01`'s `outdir`
 param and substrings it into `n02`'s `input` param at run time.
 
-- **`<workflow-id>`** must be an id defined under `workflows:` elsewhere in the same config.
+- **`<step-id>`** must be an id defined under `steps:` elsewhere in the same config.
 - **`<namespace>`**: only `params` is currently supported. `outputs` is reserved syntax for a
   future capability (referencing a pipeline's declared outputs rather than its input params)
   and is not yet resolved.

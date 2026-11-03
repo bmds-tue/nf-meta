@@ -397,12 +397,12 @@ if (props.nodeId !== "") {
     completionTriggerKeymap,
     smartBackspaceKeymap,
     autocompletion({ override: [referenceCompletionSource] }),
-    placeholder("Define Workflow Params here as yaml. \n\nThey overwrite global params \nand complement a params-file. \n\nUse '${}' to reference \npredecessor nodes' params, \ne.g. ${n01:params:outdir}, \nor a run input with ${inputs:<name>}")
+    placeholder("Define the step's params here as yaml. \n\nThey overwrite global params \nand complement a params-file. \n\nUse '${}' to reference \npredecessor nodes' params, \ne.g. ${n01:params:outdir}, \nor a run input with ${inputs:<name>}")
   ]
   extensions.push(nodeRefExtensions)
 } else {
   extensions.push(
-    placeholder("Define global params here as yaml. \n\nThey are applied to all workflows.")
+    placeholder("Define global params here as yaml. \n\nThey are applied to all steps.")
   )
 }
 

@@ -47,7 +47,7 @@ def project(tmp_path):
 
 
 def write_config(project, workflows: dict, global_options: dict | None = None):
-    data = {"config_version": "0.3.0", "workflows": workflows}
+    data = {"config_version": "0.3.0", "steps": workflows}
     if global_options:
         data["globals"] = global_options
     path = project / "metaconfig.yaml"
@@ -167,7 +167,7 @@ class TestConfigPaths:
         g = from_file(path)
         assert g.get_workflow_by_id("n01").nf_config == "step.config"
         assert g.project_dir == project
-        assert dump_config(g)["workflows"]["n01"]["nf_config"] == "step.config"
+        assert dump_config(g)["steps"]["n01"]["nf_config"] == "step.config"
 
     def test_relative_config_files_are_read_from_config_folder(self, project, tmp_path, monkeypatch):
         (project / "step.config").write_text("")
@@ -199,10 +199,10 @@ class TestConfigPaths:
         monkeypatch.chdir(project)
         data = {
             "config_version": "0.3.0",
-            "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "nf_config": "step.config"}},
+            "steps": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "nf_config": "step.config"}},
         }
         validated_graph(data)
-        assert data["workflows"]["n01"]["nf_config"] == "step.config"
+        assert data["steps"]["n01"]["nf_config"] == "step.config"
 
 
 class TestStepKey:
@@ -313,14 +313,14 @@ class TestRemoteConfig:
         serve(
             {
                 "config_version": "0.3.0",
-                "workflows": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "nf_config": "step.config"}},
+                "steps": {"n01": {"name": "nf-core/fetchngs", "version": "1.12.0", "nf_config": "step.config"}},
             }
         )
         with pytest.raises(ConfigValidationError, match="URL"):
             from_file("https://example.org/metaconfig.yaml")
 
     def test_out_dir_required(self, serve):
-        serve({"config_version": "0.3.0", "workflows": two_steps()})
+        serve({"config_version": "0.3.0", "steps": two_steps()})
         g = from_file("https://example.org/metaconfig.yaml")
         assert g.project_dir is None
         with pytest.raises(NfMetaRunnerError, match="--out"):
@@ -328,7 +328,7 @@ class TestRemoteConfig:
 
     def test_relative_declared_path_param_is_an_error(self, serve, monkeypatch, tmp_path):
         with_path_format(monkeypatch, "input")
-        serve({"config_version": "0.3.0", "workflows": two_steps()})
+        serve({"config_version": "0.3.0", "steps": two_steps()})
         g = from_file("https://example.org/metaconfig.yaml")
         with pytest.raises(NfMetaRunnerError, match="n01.input"):
             SimplePythonRunner(RunOptions(out_dir=tmp_path)).plan(g)

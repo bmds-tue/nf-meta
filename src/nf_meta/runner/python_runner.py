@@ -6,6 +6,7 @@ import subprocess
 import threading
 from collections import deque
 from pathlib import Path
+from typing import Any
 
 import yaml
 from rich.console import Console, Group
@@ -23,7 +24,7 @@ from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResul
 from .collect import InputMode, Request, collect
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
-from .paths import absolutize_input_paths, declared_path, input_fingerprints, is_url, param_schema
+from .paths import absolutize_input_paths, declared_path, folder_fingerprint, input_fingerprints, is_url, param_schema
 from .spec import StepSpec, build_step_spec, resolve_references
 from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
 
@@ -100,10 +101,10 @@ class SimplePythonRunner(BaseRunner):
     ) -> str:
         """Hash of everything that defines a step's result: the resolved step,
         the content of its config and params files, the local input files its
-        params name (see `input_fingerprints`), the globals, run-level
-        profile, Nextflow config and stub flag, and the keys of all upstream
-        steps."""
-        data = {
+        params name (see `input_fingerprints`), a local pipeline's files (see
+        `folder_fingerprint`), the globals, run-level profile, Nextflow config
+        and stub flag, and the keys of all upstream steps."""
+        data: dict[str, Any] = {
             "workflow": wf.hash(),
             "input_files": input_files or {},
             "nf_config": _file_digest(wf.nf_config),
@@ -115,6 +116,9 @@ class SimplePythonRunner(BaseRunner):
             "stub": self.run_options.stub,
             "upstream": sorted(upstream_keys),
         }
+        local = getattr(wf, "path", None)
+        if local:  # only then, so other steps keep their keys
+            data["pipeline_files"] = folder_fingerprint(local, skip=[self.out_dir] if self.out_dir else [])
         blob = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(blob.encode()).hexdigest()[:8]
 
@@ -168,8 +172,8 @@ class SimplePythonRunner(BaseRunner):
                 tail.append(raw_line.strip())
                 live.update(
                     Group(
-                        Panel("\n".join(tail), title="Workflow Output"),
-                        Spinner("dots", text="Running Workflow ..."),
+                        Panel("\n".join(tail), title="Step output"),
+                        Spinner("dots", text="Running step ..."),
                     )
                 )
 
@@ -181,7 +185,7 @@ class SimplePythonRunner(BaseRunner):
             if process.returncode > 0 and stderr:
                 live.update(Panel(stderr, title="Errors"))
             else:
-                live.update(Text("Running Workflow ... Done"))
+                live.update(Text("Running step ... Done"))
 
         return (process.returncode, stdout, stderr)
 
@@ -200,7 +204,7 @@ class SimplePythonRunner(BaseRunner):
             f.write(out)
 
         if exit_code != 0:
-            logger.error(f"Command exited with code {exit_code}. Workflow dir: {spec.state_dir}")
+            logger.error(f"Command exited with code {exit_code}. Step dir: {spec.state_dir}")
             with (spec.state_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
         else:
@@ -211,11 +215,9 @@ class SimplePythonRunner(BaseRunner):
     def _selected_workflows(self, graph: MetaworkflowGraph) -> list[Workflow]:
         workflows = graph.get_workflows_sorted()
         if self.run_options.start or self.run_options.target:
-            logger.info(
-                f"Calculating subset of graph from workflow {self.run_options.start} to {self.run_options.target}"
-            )
+            logger.info(f"Calculating subset of graph from step {self.run_options.start} to {self.run_options.target}")
             workflows = graph.subset_workflows(self.run_options.start, self.run_options.target, workflows)
-            logger.info(f"Subset workflow DAG: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
+            logger.info(f"Steps to run: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
         return workflows
 
     def plan(self, graph: MetaworkflowGraph, resume: bool = False, dry_run: bool = False) -> RunPlan:
@@ -436,16 +438,15 @@ class SimplePythonRunner(BaseRunner):
 
             console.print(f"[bold blue]▶[/bold blue] {step_label}")
             if not self._execute(step.spec, step.command):
-                console.print(f"[bold red]✗[/bold red] {step_label}: Workflow failed")
+                console.print(f"[bold red]✗[/bold red] {step_label}: Step failed")
                 raise NfMetaRunnerError(
-                    f"Workflow '{step.workflow.id}' ({step.workflow.name}) failed. "
-                    f"Output and errors: {step.spec.state_dir}"
+                    f"Step '{step.workflow.id}' ({step.workflow.name}) failed. Output and errors: {step.spec.state_dir}"
                 )
 
             console.print(f"[green]✓[/green] {step_label}: Done")
 
-        console.print("[bold green]All workflows completed successfully[/bold green]")
-        logger.info("All workflows completed")
+        console.print("[bold green]All steps completed successfully[/bold green]")
+        logger.info("All steps completed")
         assert self.out_dir is not None  # set by plan()
         return RunResults([StepResult.from_planned(step) for step in steps], out_dir=self.out_dir)
 

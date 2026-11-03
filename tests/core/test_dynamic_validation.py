@@ -339,7 +339,7 @@ class TestCheckAll:
     def test_stamps_yaml_path_with_each_workflows_own_id(self, wf_custom, module_fastqc, monkeypatch):
         """check_all is only ever called for whole-config validation (its two
         call sites in graph.py), so it unconditionally qualifies every
-        diagnostic's yaml_path with its own workflow's `workflows.<id>.`
+        diagnostic's yaml_path with its own workflow's `steps.<id>.`
         prefix -- no ambiguity, since check_all never runs for an isolated
         snippet."""
         monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False)
@@ -358,7 +358,7 @@ class TestCheckAll:
         diagnostics = check_all([wf_custom, module_fastqc])
         assert diagnostics
         for d in diagnostics:
-            assert d.yaml_path == f"workflows.{d.workflow_id}.{d.field}"
+            assert d.yaml_path == f"steps.{d.workflow_id}.{d.field}"
 
 
 # ---------------------------------------------------------------------------

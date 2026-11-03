@@ -44,7 +44,7 @@ class TestSessionStart:
 
     def test_failed_load_leaves_the_session_and_both_files_alone(self, loaded_session, config_yaml, tmp_path):
         bad = tmp_path / "bad.yaml"
-        bad.write_text("config_version: 0.4.0\nworkflows:\n  n01: {name: nf-core/nope, version: '1'}\n")
+        bad.write_text("config_version: 0.4.0\nsteps:\n  n01: {name: nf-core/nope, version: '1'}\n")
         before = loaded_session.graph
         with pytest.raises(ConfigValidationError):
             loaded_session.load_config(bad)

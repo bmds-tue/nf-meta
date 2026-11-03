@@ -14,9 +14,7 @@ _FROM_FIELD_SCHEMA = {
         {"type": "string"},
         {"type": "array", "items": {"type": "string"}},
     ],
-    "description": (
-        "Workflow id(s) this workflow directly depends on (its predecessors) -- a single id, or a list of ids."
-    ),
+    "description": ("Step id(s) this step directly depends on (its predecessors) -- a single id, or a list of ids."),
 }
 
 
@@ -71,12 +69,20 @@ def generate_schema() -> dict:
         "title": "nf-meta metapipeline configuration",
         "$defs": defs,
         "type": "object",
-        "required": ["config_version", "workflows"],
+        "required": ["config_version"],
+        # `workflows:` is the old name of `steps:`, still read
+        "anyOf": [{"required": ["steps"]}, {"required": ["workflows"]}],
         "properties": {
             "config_version": {"type": "string"},
+            "steps": {
+                "type": "object",
+                "additionalProperties": workflow_schema,
+            },
             "workflows": {
                 "type": "object",
                 "additionalProperties": workflow_schema,
+                "deprecated": True,
+                "description": "Deprecated: use 'steps'.",
             },
             "globals": GlobalOptions.model_json_schema(),
             "inputs": {

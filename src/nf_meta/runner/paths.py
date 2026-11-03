@@ -1,3 +1,4 @@
+import os
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -104,3 +105,33 @@ def _fingerprint(path: Path) -> list | None:
             continue
         entries.append([child.name, child_stat.st_size, child_stat.st_mtime_ns])
     return [str(path), entries]
+
+
+# Not part of a local pipeline's code: version control, Nextflow's run state, typical outputs
+PIPELINE_SKIP = frozenset({".git", "work", "results", "nf-meta-out"})
+
+
+def folder_fingerprint(folder: str | Path, skip: Iterable[Path] = ()) -> list[list]:
+    """Path (relative), size and modification time of every file under
+    `folder`, recursively, for a local pipeline's step key. Leaves out
+    `PIPELINE_SKIP` folders, `.nextflow*` entries and the folders in `skip`
+    (e.g. the run's out dir)."""
+    root = Path(folder)
+    skipped = {Path(p).resolve() for p in skip}
+    result = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = sorted(
+            d
+            for d in dirnames
+            if d not in PIPELINE_SKIP and not d.startswith(".nextflow") and (here / d).resolve() not in skipped
+        )
+        for name in sorted(filenames):
+            if name.startswith(".nextflow"):
+                continue
+            try:
+                stat = (here / name).stat()
+            except OSError:
+                continue
+            result.append([str((here / name).relative_to(root)), stat.st_size, stat.st_mtime_ns])
+    return result

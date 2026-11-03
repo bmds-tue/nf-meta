@@ -210,7 +210,7 @@ def declare_step_inputs_commands(graph: GraphEventHandler, wf_id: str) -> Transa
     or one that references no inputs."""
     draft = _Draft(graph)
     if wf_id not in draft.params:
-        raise ValueError(f"Workflow with id '{wf_id}' does not exist")
+        raise ValueError(f"Step with id '{wf_id}' does not exist")
     names = sorted({b_name for b_name in draft.names() if any(b.step_id == wf_id for b in draft.references(b_name))})
     if not names:
         raise ValueError(f"Step '{wf_id}' uses no inputs from its params")

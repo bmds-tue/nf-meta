@@ -46,18 +46,17 @@ def _format_version(version: tuple[int, int]) -> str:
 
 
 class MetaworkflowGraph:
-    """The in-memory representation of a metapipeline: a directed graph of
-    `Workflow` nodes plus shared `GlobalOptions`.
+    """The in-memory representation of a metapipeline as a directed graph of
+    `step` nodes, global options, and inputs.
 
-    Mutating methods (`add_workflow`, `add_transition`, ...) validate the
-    change immediately and raise `GraphValidationError`/`ConfigValidationError`
-    rather than leaving the graph in an invalid state -- a failed mutation
-    has no effect. Wrap a batch of mutations in `deferred_validation()` to
-    validate once at the end instead of after each call.
+    Mutating methods are validated and emit change on success or are rolled back
+    on failure, leaving the graph always in a valid state.
 
-    Construct one via `nf_meta.core.config.from_file`/`validated_graph`
-    rather than composing an empty graph by hand, unless you're building it
-    up programmatically from scratch.
+    Batches of mutations are applied in a context of `deferred_validation()`
+    and validated once at the end instead of after each call.
+
+    The factory methods `nf_meta.core.config.from_file`/`validated_graph` create
+    a validated MetaworkflowGraph from a YAML configuration.
     """
 
     def __init__(self):
@@ -122,14 +121,13 @@ class MetaworkflowGraph:
             raise e
 
     def update_workflow(self, wf: Workflow):
-        """Replace the workflow with `wf.id` with `wf`.
-
-        Same validation behavior as `add_workflow`. Raises `ValueError` if no
-        workflow with that id exists yet -- use `add_workflow` to create one.
+        """Replaces the workflow with `wf.id` with `wf`.
+        Validates in the same way as `add_workflow`.
+        Raises `ValueError` if no workflow with that id exists yet.
         """
         # TODO: Skip update if node unchanged? -> adds junk to history otherwise
         if wf.id not in self.G.nodes:
-            raise ValueError("Workflow has invalid id. Update unsuccessful!")
+            raise ValueError("Step has invalid id. Update unsuccessful!")
 
         old_wf = self.get_workflow_by_id(wf.id)
 
@@ -159,12 +157,11 @@ class MetaworkflowGraph:
         self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))  # type: ignore
 
     def remove_workflow(self, wf_id: str):
-        """Remove the workflow `wf_id` and every transition touching it.
+        """Remove the workflow `wf_id` and every transition from or to it.
 
         Raises `ValueError` if `wf_id` doesn't exist. Does not remove
-        workflows that only reference the removed one via `${wf_id:params:...}`
-        -- those become dangling references, caught on their own next
-        validation.
+        workflows that only reference the removed one via `${wf_id:params:...}`,
+        but would result in dangling references in that case.
         """
         if wf_id not in self.G.nodes:
             raise ValueError("Invalid wf_id")
@@ -182,7 +179,7 @@ class MetaworkflowGraph:
     def add_transition(self, tr: Transition):
         """Add an edge marking `tr.source` as a predecessor of `tr.target`.
 
-        Raises `GraphValidationError` if either endpoint doesn't exist yet,
+        Raises `GraphValidationError` if either endpoint does not exist yet,
         or if adding the edge would introduce a cycle.
         """
         self.validate_edge(tr.source, tr.target)
@@ -198,10 +195,7 @@ class MetaworkflowGraph:
             self.validate_graph_topology()
 
     def remove_transition(self, source: str, target: str):
-        """Remove the edge `source -> target`, if present.
-
-        No-op (returns without raising) if the edge doesn't exist.
-        """
+        """Remove the edge `source -> target`, if present."""
         tr = self.get_transition(source, target)
         if not tr:
             return
@@ -214,10 +208,10 @@ class MetaworkflowGraph:
             self.validate_param_references(source_wf)  # type: ignore
 
     def update_global_options(self, glob: GlobalOptions):
-        """Replace the graph's `GlobalOptions` wholesale. Raises
-        `ConfigValidationError` if `nextflow_version` is too old for the
-        graph's `nf-module` steps or `nf_config` is no file (relative to the
-        project dir); otherwise not validated against individual workflows."""
+        """Replace the graph's `GlobalOptions`.
+        Raises a `ConfigValidationError` if `nextflow_version` is too old for the
+        graph's `nf-module` steps or any referenced config or params files
+        do not exist."""
         self.validate_module_nextflow_version(glob, self.get_workflows())
         missing = check_config_files(glob, self.project_dir)
         if missing:
@@ -367,7 +361,7 @@ class MetaworkflowGraph:
             return d
         b = bindings[parts[1]][0]
         return dataclasses.replace(
-            d, workflow_id=b.step_id, field=f"params.{b.param}", yaml_path=f"workflows.{b.step_id}.params.{b.param}"
+            d, workflow_id=b.step_id, field=f"params.{b.param}", yaml_path=f"steps.{b.step_id}.params.{b.param}"
         )
 
     def input_diagnostics(self) -> list[Diagnostic]:
@@ -380,7 +374,7 @@ class MetaworkflowGraph:
 
         def add(message, *, name=None, wf_id=None, param=None, severity=Severity.ERROR):
             if wf_id is not None:
-                field, yaml_path = f"params.{param}", f"workflows.{wf_id}.params.{param}"
+                field, yaml_path = f"params.{param}", f"steps.{wf_id}.params.{param}"
             else:
                 field = "bind" if param else ""
                 yaml_path = f"inputs.{name}.bind" if param else f"inputs.{name}"
@@ -482,7 +476,7 @@ class MetaworkflowGraph:
             return Diagnostic(
                 workflow_id=ref.source_wf_id,
                 field=field,
-                yaml_path=f"workflows.{ref.source_wf_id}.{field}",
+                yaml_path=f"steps.{ref.source_wf_id}.{field}",
                 message=message,
                 severity=Severity.ERROR,
             )
@@ -495,7 +489,7 @@ class MetaworkflowGraph:
                     Diagnostic(
                         workflow_id=wf.id,
                         field=f"params.{key}",
-                        yaml_path=f"workflows.{wf.id}.params.{key}",
+                        yaml_path=f"steps.{wf.id}.params.{key}",
                         message=(
                             f"'{key}' contains {len(step_refs)} references; a param value can contain one "
                             "reference to another step's param, with text around it"
@@ -513,10 +507,10 @@ class MetaworkflowGraph:
                     Diagnostic(
                         workflow_id=wf.id,
                         field=f"params.{key}",
-                        yaml_path=f"workflows.{wf.id}.params.{key}",
+                        yaml_path=f"steps.{wf.id}.params.{key}",
                         message=(
                             f"Invalid reference '{token}': expected "
-                            "${<workflow_id>:params:<key>} or ${inputs:<name>}." + hint
+                            "${<step_id>:params:<key>} or ${inputs:<name>}." + hint
                         ),
                         severity=Severity.ERROR,
                     )
@@ -526,14 +520,14 @@ class MetaworkflowGraph:
                 continue  # output references not yet validated
             referenced_wf = self.get_workflow_by_id(ref.target_wf_id)
             if not referenced_wf:
-                diagnostics.append(diagnostic(ref, f"Reference to unknown workflow: {ref.target_wf_id}"))
+                diagnostics.append(diagnostic(ref, f"Reference to unknown step: {ref.target_wf_id}"))
                 continue
 
             if ref.target_wf_id not in list(self.G.predecessors(wf.id)):
                 diagnostics.append(
                     diagnostic(
                         ref,
-                        f"Reference to workflow {ref.target_wf_id} that is not a predecessor of {wf.id}",
+                        f"Reference to step {ref.target_wf_id} that is not a predecessor of {wf.id}",
                     )
                 )
                 continue
@@ -541,7 +535,7 @@ class MetaworkflowGraph:
             # A param filled by a `bind:` input has a value at run time too
             referenced_params = self.with_input_placeholders(referenced_wf).params
             if not referenced_params or not ref.target_key:
-                diagnostics.append(diagnostic(ref, f"No referencable params in workflow {referenced_wf.id}"))
+                diagnostics.append(diagnostic(ref, f"No referencable params in step {referenced_wf.id}"))
                 continue
 
             if not referenced_params.get(ref.target_key):
@@ -587,7 +581,7 @@ class MetaworkflowGraph:
         # Detect cycles
         if not nx.is_directed_acyclic_graph(self.G):
             cycle = nx.find_cycle(self.G)
-            raise GraphValidationError(f"Workflow graph contains a cycle: {cycle}")
+            raise GraphValidationError(f"The steps contain a cycle: {cycle}")
 
     def validate_edge(self, src, tgt):
         """Raise `GraphValidationError` if `src` or `tgt` isn't a node in the graph."""
@@ -595,17 +589,15 @@ class MetaworkflowGraph:
             raise GraphValidationError(f"Edge refers to nonexistent node: {src}->{tgt}")
 
     def validate(self, touched: set[str] | None = None):
-        """Fully re-validate the graph: topology, edge endpoints, workflow
+        """Validate the graph topology, edges, workflow
         ids, and every workflow's param references.
 
-        Pass `touched` (a set of workflow ids) to also run a single batched
-        dynamic (network-backed) validation pass scoped to just those
-        workflows -- this is what `deferred_validation()` uses on exit, rather
-        than dynamic-validating the whole graph on every batch. Raises
-        `GraphValidationError` for the first structural problem (cycle,
-        dangling edge, bad id) or bad reference; the Nextflow-version, input
-        and param checks after that are raised together as one
-        `ConfigValidationError`.
+        Pass a set of workflow ids to `touched` to also run a
+        dynamic (network-backed) validation, e.g. for use after a `deferred_validation()`
+        context. Raises `GraphValidationError` for the first structural problem (cycle,
+        dangling edge, bad id) or bad reference.
+        Raise a `ConfigValidationError` for collected errors with the Nextflow version,
+        input and param checks.
         """
         self.validate_graph_topology()
 
@@ -616,7 +608,7 @@ class MetaworkflowGraph:
         # Ensure workflow IDs are valid (non-empty)
         for n in self.G.nodes:
             if not isinstance(n, str) or not n:
-                raise GraphValidationError("Workflow id must be a non-empty string.")
+                raise GraphValidationError("Step id must be a non-empty string.")
 
         for n in self.G.nodes:
             wf = self.get_workflow_by_id(n)
@@ -632,9 +624,8 @@ class MetaworkflowGraph:
 
         if touched:
             # Batched, concurrent dynamic check scoped to only the workflows
-            # touched while suspended — not the whole graph. A node removed
-            # later in the same suspended block is filtered out (nothing to
-            # check).
+            # touched while suspended, instead of the whole graph.
+            # Non-existent workflow-ids are ignored here
             raw = [self.get_workflow_by_id(n) for n in touched if n in self.G.nodes]
             workflows = [self.for_checks(wf) for wf in raw if wf is not None]
             diagnostics += check_all(workflows)

@@ -173,7 +173,7 @@ def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
 def _extract_items_and_transitions(
     data: dict, warnings: list[Diagnostic] | None = None
 ) -> tuple[list[dict], list[tuple[str, str]]]:
-    """Normalize `workflows:`/`transitions:`/`from:` into a flat list of
+    """Normalize `steps:`/`transitions:`/`from:` into a flat list of
     workflow-definition dicts (`type`/`id` defaulted) and a list of pending
     `(source, target)` transitions.
 
@@ -667,11 +667,12 @@ def validated_graph(
     at the first use `collect_errors=True`.
 
     All paths, unless they are absolute, are interpreted relative to the `project_dir`,
-    where the YAML config lives. `project_dir` defaults ot the current workdir.
+    where the YAML config lives. `project_dir` defaults to the current workdir.
 
-    Deprecations: Both the list-format `workflows:` and the top-level `transitions:`
-    key are deprecated and reading either logs a CLI warning. Automatically fix this
-    by opening and saving the config via the editor.
+    Deprecations: the old key names `workflows:` (for `steps:`), `config_file` and
+    `profile`, the list form of `steps:` and the top-level `transitions:` key are
+    still read, with a warning. Automatically fix this by opening and saving the
+    config via the editor.
     """
     project_dir = (project_dir or Path.cwd()).resolve()
     if collect_errors:

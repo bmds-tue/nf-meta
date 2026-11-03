@@ -164,11 +164,9 @@ class BrowserEditor(BaseEditor):
         token = new_token()
 
         if DEV_MODE:
-            click.echo(
-                click.style(
-                    f"running in DEVMODE: ignoring host/port preferences and running on {DEV_HOST}:{DEV_PORT} (api) and {DEV_HOST}:{DEV_VITE_PORT} (vite)",
-                    fg="yellow",
-                )
+            click.echo(click.style("Starting editor in DEV_MODE", fg="yellow"))
+            logger.debug(
+                f"[DEV_MODE] Ignoring host/port preferences and running on {DEV_HOST}:{DEV_PORT} (api) and {DEV_HOST}:{DEV_VITE_PORT} (vite)"
             )
             if not _is_http_server_reachable(DEV_HOST, DEV_VITE_PORT):
                 click.echo(
@@ -211,7 +209,7 @@ class BrowserEditor(BaseEditor):
         config = uvicorn.Config(app, host=host, port=port, log_level="warning")
         click.echo(f"Editor running at: {url}")
         if page:
-            click.echo("If no browser tab opens, open this link, or start with --no-redirect-file.")
+            click.echo("If no browser tab opens, copy this link, or run with --no-redirect-file.")
         if hint:
             click.echo(hint)
         # uvicorn re-sends the SIGTERM it stopped on, and doesn't handle SIGHUP (terminal or SSH

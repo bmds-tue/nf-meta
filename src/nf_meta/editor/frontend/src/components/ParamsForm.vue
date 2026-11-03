@@ -224,7 +224,7 @@ function inputTitle(name: string) {
           v-else-if="fieldKind(row.spec) === 'enum' || fieldKind(row.spec) === 'boolean'"
           :model-value="row.value" :items="fieldKind(row.spec) === 'enum' ? row.spec?.enum ?? [] : BOOLEANS" :label="label(row)"
           :color="missing(row) ? 'warning' : undefined" :base-color="missing(row) ? 'warning' : undefined"
-          clearable variant="outlined" density="compact" hide-details="auto"
+          variant="outlined" density="compact" hide-details="auto"
           :error-messages="errors[row.name]"
           @update:model-value="(v: unknown) => setValue(row.name, v ?? '')">
           <template #append-inner>

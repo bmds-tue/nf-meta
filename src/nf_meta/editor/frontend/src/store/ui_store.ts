@@ -50,8 +50,18 @@ export const useEditorStore = defineStore('editor', () => {
     const _backendState = ref<'ok' | 'refused' | 'unreachable'>('ok')
     const backendState = computed(() => _backendState.value)
 
+    // The editor was stopped from this page (Quit editor)
+    const _quitHere = ref(false)
+    const quitHere = computed(() => _quitHere.value)
+
+    function quitEditor() {
+        _quitHere.value = true
+        _backendState.value = 'unreachable'
+    }
+
     function setBackendState(state: 'ok' | 'refused' | 'unreachable') {
         _backendState.value = state
+        if (state === 'ok') _quitHere.value = false
     }
 
     // Shown when the editor starts without a config; closing it starts a new one
@@ -210,7 +220,7 @@ export const useEditorStore = defineStore('editor', () => {
         saveDialogOpen, saveDialogReason, openSaveDialog, requireSave, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
         startScreenOpen, openStartScreen, closeStartScreen,
-        backendState, setBackendState,
+        backendState, setBackendState, quitHere, quitEditor,
     }
 })
 

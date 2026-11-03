@@ -101,8 +101,13 @@ const onOpen = () => {
 // Every change is already saved, so the editor can stop without asking
 const onQuit = async () => {
   const result = await useApiStore().shutdown()
-  if (result.ok) editorStore.setBackendState('unreachable')
-  else useMessageStore().add(result.message, 'error')
+  if (!result.ok) {
+    useMessageStore().add(result.message, 'error')
+    return
+  }
+  editorStore.quitEditor()
+  // Browsers mostly refuse to close a tab the page didn't open; the notice then says it can be closed
+  window.close()
 }
 
 const onUndo = async () => {

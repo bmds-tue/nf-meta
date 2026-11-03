@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import NodeDetail from "./SidebarNodeDetail.vue"
-import { nextTick, onBeforeUnmount, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { useVueFlow } from '@vue-flow/core'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from "../store"
@@ -18,31 +18,42 @@ const { sideBarTab } = storeToRefs(editorStore)
 
 
 
-const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
-
-const MIN = 0.15*vw
-const MAX = 0.6*vw
+// The pane's width as a share of the window, so it scales with the window; kept per browser
+const DEFAULT_SHARE = 0.4
+const MIN_SHARE = 0.15
+const MAX_SHARE = 0.6
+const STORAGE_KEY = 'pane-width-share'
 
 const isDragging = ref(false)
 
-const width = ref(
-  Number(localStorage.getItem("pane-width")) || MIN
-)
+function storedShare(): number {
+  try {
+    const share = Number(localStorage.getItem(STORAGE_KEY))
+    return share >= MIN_SHARE && share <= MAX_SHARE ? share : DEFAULT_SHARE
+  } catch {
+    return DEFAULT_SHARE
+  }
+}
 
-watch(width, v =>
-  localStorage.setItem("pane-width", String(v))
-)
+const share = ref(storedShare())
+const windowWidth = ref(window.innerWidth)
+const width = computed(() => share.value * windowWidth.value)
+
+watch(share, v => {
+  try { localStorage.setItem(STORAGE_KEY, String(v)) } catch { /* kept for this page only */ }
+})
+
+const onResize = () => { windowWidth.value = window.innerWidth }
+window.addEventListener('resize', onResize)
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 let startX = 0
 let startWidth = 0
 
 const onMove = (e: MouseEvent) => {
   const delta = startX - e.clientX
-  let next = startWidth + delta
-
-  next = Math.max(MIN, Math.min(MAX, next))
-
-  width.value = next
+  const next = (startWidth + delta) / windowWidth.value
+  share.value = Math.max(MIN_SHARE, Math.min(MAX_SHARE, next))
 }
 
 const stopDrag = () => {

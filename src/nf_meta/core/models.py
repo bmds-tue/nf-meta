@@ -22,7 +22,6 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from pydantic.functional_serializers import PlainSerializer
 
 from nf_meta.core.refs import RESERVED_STEP_IDS, STEP_REF_PATTERN
 from nf_meta.core.registry import PipelineInfo, RegistryUnavailableError, get_nfcore_pipelines
@@ -49,34 +48,36 @@ NF_PROFILE_KEYS = AliasChoices("nf_profile", "profile")
 LEGACY_KEYS = {"config_file": "nf_config", "profile": "nf_profile"}
 
 
-def is_existing_file_abs(path: Path | None = None, allowed_extensions: tuple[str] | None = None) -> Path | None:
-    if not path:
-        return None
-
-    path = Path(path).resolve()
-    if not path.exists():
-        raise ValueError("Path does not exist")
-
-    if not path.is_file():
-        raise ValueError("Path must be a file")
-
-    if allowed_extensions is not None and path.suffix not in allowed_extensions:
-        raise ValueError(f"Path must end with {allowed_extensions}")
-
-    return path
+def _as_text(value: Any) -> Any:
+    """A path given as `Path` is kept as text, exactly as written."""
+    return str(value) if isinstance(value, Path) else value or None
 
 
-SerializeToStr = PlainSerializer(lambda v: str(v) if v else None, return_type=str | None)
-ExistingYamlFile = Annotated[
-    Path | None,
-    AfterValidator(lambda v: is_existing_file_abs(v, (".yaml", ".yml"))),
-    SerializeToStr,
-]
-ExistingNfConfigFile = Annotated[
-    Path | None,
-    AfterValidator(lambda v: is_existing_file_abs(v)),
-    SerializeToStr,
-]
+def _yaml_suffix(value: str | None) -> str | None:
+    if value is not None and Path(value).suffix not in (".yaml", ".yml"):
+        raise ValueError("Path must end with .yaml or .yml")
+    return value
+
+
+# `params_file`/`nf_config`: kept as written, relative to the config's folder when relative
+YamlFilePath = Annotated[str | None, BeforeValidator(_as_text), AfterValidator(_yaml_suffix)]
+FilePath = Annotated[str | None, BeforeValidator(_as_text)]
+
+CONFIG_PATH_FIELDS = ("params_file", "nf_config")
+
+
+def config_path(value: str, project_dir: Path | None) -> Path:
+    """`value` (a `params_file`/`nf_config`) as an absolute path: a relative
+    one is relative to `project_dir`, or to the current folder without one."""
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else (project_dir or Path.cwd()) / path
+
+
+def with_absolute_config_paths[M: BaseModel](item: M, project_dir: Path | None) -> M:
+    """`item` (a workflow or `GlobalOptions`) with its `params_file`/`nf_config`
+    made absolute with `config_path`, for reading the files."""
+    update = {f: str(config_path(v, project_dir)) for f in CONFIG_PATH_FIELDS if (v := getattr(item, f, None))}
+    return item.model_copy(update=update) if update else item
 
 
 _SCALAR_TYPES = (str, int, float, bool)
@@ -159,7 +160,7 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
     id: str = Field(default_factory=lambda: "n" + create_id())
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
-    nf_config: ExistingNfConfigFile | None = Field(default=None, validation_alias=NF_CONFIG_KEYS)
+    nf_config: FilePath = Field(default=None, validation_alias=NF_CONFIG_KEYS)
     # validate_default=True ensures the params validator runs even when params
     # is absent from the input (Pydantic skips field validators for defaults otherwise).
     params: CoercedParams | None = Field(default=None, validate_default=True)
@@ -229,7 +230,7 @@ class NfPipeline(BaseWorkflow):
     type: Literal[WorkflowType.NF_PIPELINE] = WorkflowType.NF_PIPELINE
     url: str
     description: str | None = None
-    params_file: ExistingYamlFile | None = None
+    params_file: YamlFilePath = None
     nf_profile: str | None = Field(default=None, validation_alias=NF_PROFILE_KEYS)
     main_script: str | None = None
 
@@ -329,8 +330,8 @@ class NfPipeline(BaseWorkflow):
 
     def hash(self) -> str:
         data = f"{self.url}{self.version}"
-        data += str(self.nf_config.absolute()) if self.nf_config else ""
-        data += str(self.params_file.absolute()) if self.params_file else ""
+        data += self.nf_config or ""
+        data += self.params_file or ""
         data += json.dumps(self.params, sort_keys=True, default=str)
         data += self.main_script or ""
         return hashlib.sha256(data.encode()).hexdigest()[:8]
@@ -386,7 +387,7 @@ class NfModule(BaseWorkflow):
 
     def hash(self) -> str:
         data = f"{self.name}{self.version}"
-        data += str(self.nf_config.absolute()) if self.nf_config else ""
+        data += self.nf_config or ""
         data += json.dumps(self.params, sort_keys=True, default=str)
         data += self.container_engine or ""
         return hashlib.sha256(data.encode()).hexdigest()[:8]
@@ -428,7 +429,7 @@ class GlobalOptions(BaseModel):
     override, not a value forced onto it."""
 
     nf_profile: str | None = Field(default=None, validation_alias=NF_PROFILE_KEYS)
-    nf_config: ExistingNfConfigFile | None = Field(default=None, validation_alias=NF_CONFIG_KEYS)
+    nf_config: FilePath = Field(default=None, validation_alias=NF_CONFIG_KEYS)
     params: CoercedParams | None = None
     nextflow_version: str | int | float | None = None
 

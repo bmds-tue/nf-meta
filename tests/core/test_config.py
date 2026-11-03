@@ -686,7 +686,7 @@ def _with_nf_keys(tmp_path, globals_, step):
 def test_new_keys_load_and_dump(tmp_path):
     data, cfg = _with_nf_keys(tmp_path, {"nf_config": "CFG", "nf_profile": "docker"}, {"nf_profile": "test"})
     g = validated_graph(data, collect_errors=True)
-    assert g.global_options.nf_config == cfg and g.global_options.nf_profile == "docker"
+    assert g.global_options.nf_config == str(cfg) and g.global_options.nf_profile == "docker"
     assert g.warnings == []
     dumped = dump_config(g)
     assert dumped["globals"] == {"nf_profile": "docker", "nf_config": str(cfg)}
@@ -696,7 +696,7 @@ def test_new_keys_load_and_dump(tmp_path):
 def test_legacy_keys_still_load_with_a_warning_and_save_as_new(tmp_path):
     data, cfg = _with_nf_keys(tmp_path, {"config_file": "CFG", "profile": "docker"}, {"profile": "test"})
     g = validated_graph(data, collect_errors=True)
-    assert g.global_options.nf_config == cfg and g.global_options.nf_profile == "docker"
+    assert g.global_options.nf_config == str(cfg) and g.global_options.nf_profile == "docker"
     assert sorted(d.yaml_path for d in g.warnings) == [
         "globals.config_file",
         "globals.profile",

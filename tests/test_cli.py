@@ -130,15 +130,15 @@ class TestValidateCommand:
         assert "Global options are valid" in result.output
 
     def test_scope_globals_reports_line_number_against_snippet_root(self, tmp_path):
-        text = "config_file: /nonexistent/path.config\n"
+        text = "nf_config: /nonexistent/path.config\n"
         path = _write(tmp_path, text)
-        expected = locate_field(text, "config_file")
+        expected = locate_field(text, "nf_config")
         assert expected is not None
 
         result = CliRunner().invoke(cli, ["validate", "--scope", "globals", str(path)])
 
         assert result.exit_code == 1
-        assert f"{expected.line}:{expected.column}  config_file  " in result.output
+        assert f"{expected.line}:{expected.column}  nf_config  " in result.output
 
     def test_multiple_errors_reported_together(self, tmp_path):
         text = (

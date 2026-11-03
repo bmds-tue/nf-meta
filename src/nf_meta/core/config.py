@@ -10,7 +10,6 @@ happens directly, one workflow at a time, so a single broken workflow no
 longer blocks the others from being added.
 """
 
-import copy
 import difflib
 import logging
 import re
@@ -21,7 +20,7 @@ import yaml
 from packaging.version import Version
 from pydantic import ValidationError
 
-from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
+from .dynamic_validation import check_all, check_config_files, log_warnings, run_dynamic_checks
 from .errors import (
     ConfigValidationError,
     Diagnostic,
@@ -42,6 +41,7 @@ from .models import (
     Workflow,
     WorkflowType,
     validate_config_version,
+    with_absolute_config_paths,
 )
 from .refs import INPUT_REF_PATTERN
 
@@ -277,14 +277,18 @@ def construct_workflow(
         return None, diagnostics_from_pydantic_error(e, workflow_id=workflow_id, yaml_path_prefix=yaml_path_prefix)
 
 
-def validated_workflow(data: dict, warnings: list[Diagnostic] | None = None) -> Workflow:
+def validated_workflow(
+    data: dict, warnings: list[Diagnostic] | None = None, project_dir: Path | None = None
+) -> Workflow:
     """Construct and fully validate a single workflow from a flat, raw dict
     (`id` optional -- the model's own `default_factory` generates one if
     omitted). Runs the same tier-0/1 construction plus tier-2 dynamic checks
     a workflow gets as part of a full config build. Returns the validated
     Workflow, or raises `GraphValidationError`/`ConfigValidationError`.
 
-    Warnings are appended to `warnings` when given, else logged.
+    Warnings are appended to `warnings` when given, else logged. Relative
+    `params_file`/`nf_config` are looked up in `project_dir` (default: the
+    current directory).
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -298,7 +302,7 @@ def validated_workflow(data: dict, warnings: list[Diagnostic] | None = None) -> 
     wf, diagnostics = construct_workflow(data, data.get("id", "<unknown>"))
     if wf is None:
         raise ConfigValidationError(diagnostics)
-    dynamic_diagnostics = run_dynamic_checks(wf, previous=None)
+    dynamic_diagnostics = run_dynamic_checks(with_absolute_config_paths(wf, project_dir), previous=None)
     errors = [d for d in dynamic_diagnostics if d.severity == Severity.ERROR]
     found_warnings = [d for d in dynamic_diagnostics if d.severity == Severity.WARNING]
     if errors:
@@ -310,10 +314,11 @@ def validated_workflow(data: dict, warnings: list[Diagnostic] | None = None) -> 
     return wf
 
 
-def validated_globals(data: dict) -> GlobalOptions:
+def validated_globals(data: dict, project_dir: Path | None = None) -> GlobalOptions:
     """Construct and validate a `GlobalOptions` block from a flat, raw dict.
     Returns the validated `GlobalOptions`, or raises
-    `GraphValidationError`/`ConfigValidationError`.
+    `GraphValidationError`/`ConfigValidationError`. A relative `nf_config` is
+    looked up in `project_dir` (default: the current directory).
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -321,9 +326,13 @@ def validated_globals(data: dict) -> GlobalOptions:
         raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
     try:
         log_warnings(_legacy_section_warnings(data))
-        return GlobalOptions(**data)
+        globals_ = GlobalOptions(**data)
     except ValidationError as e:
         raise ConfigValidationError(diagnostics_from_pydantic_error(e, workflow_id=None)) from e
+    missing = check_config_files(globals_, project_dir, yaml_path_prefix="")
+    if missing:
+        raise ConfigValidationError(missing)
+    return globals_
 
 
 def validated_workflow_from_file(cfg_file: Path, warnings: list[Diagnostic] | None = None) -> Workflow:
@@ -331,7 +340,7 @@ def validated_workflow_from_file(cfg_file: Path, warnings: list[Diagnostic] | No
     snippet. See `validated_workflow`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
-    return validated_workflow(data, warnings)
+    return validated_workflow(data, warnings, project_dir=Path(cfg_file).resolve().parent)
 
 
 def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
@@ -339,7 +348,7 @@ def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
     snippet. See `validated_globals`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
-    return validated_globals(data)
+    return validated_globals(data, project_dir=Path(cfg_file).resolve().parent)
 
 
 def parse_inputs(data: dict, config_version: str) -> tuple[dict[str, InputDefinition], list[Diagnostic]]:
@@ -469,6 +478,9 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
                 raise ConfigValidationError(
                     diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals.")
                 ) from e
+            missing = check_config_files(g.global_options, project_dir)
+            if missing:
+                raise ConfigValidationError(missing)
 
         inputs, input_errors = parse_inputs(data, config_version)
         if input_errors:
@@ -562,7 +574,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     input_diagnostics = g.input_diagnostics()
     if inputs:
         input_diagnostics += g.effective_inputs()[1]
-    tier2_diagnostics = check_all([g.with_input_placeholders(wf) for wf in constructed])
+    tier2_diagnostics = check_all([g.for_checks(wf) for wf in constructed])
     for found in (input_diagnostics, tier2_diagnostics):
         diagnostics.extend(d for d in found if d.severity == Severity.ERROR)
         warnings.extend(d for d in found if d.severity == Severity.WARNING)
@@ -570,6 +582,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     if data.get("globals") is not None:
         try:
             g.global_options = GlobalOptions(**data["globals"])
+            diagnostics.extend(check_config_files(g.global_options, project_dir))
         except ValidationError as e:
             diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals."))
 
@@ -597,11 +610,9 @@ def _workflow_items(data: dict) -> list[tuple[str, dict]]:
     return []
 
 
-def _resolve_config_paths(data: dict, project_dir: Path | None) -> dict:
-    """Return `data` with relative `nf_config`/`params_file` values made
-    absolute against `project_dir`. With no project dir (remote config), a
-    relative path is an error."""
-    data = copy.deepcopy(data)
+def _reject_relative_config_paths(data: dict) -> None:
+    """Raise `ConfigValidationError` for each relative `nf_config`/`params_file`
+    in `data`, a config loaded from a URL: it has no folder to be relative to."""
     sections: list[tuple[str, dict]] = []
     if isinstance(data.get("globals"), dict):
         sections.append(("globals.", data["globals"]))
@@ -613,9 +624,6 @@ def _resolve_config_paths(data: dict, project_dir: Path | None) -> dict:
             value = section.get(key)
             if not isinstance(value, str) or not value or Path(value).is_absolute():
                 continue
-            if project_dir is not None:
-                section[key] = str(project_dir / value)
-                continue
             diagnostics.append(
                 Diagnostic(
                     workflow_id=None if prefix == "globals." else prefix.split(".")[1],
@@ -623,14 +631,13 @@ def _resolve_config_paths(data: dict, project_dir: Path | None) -> dict:
                     yaml_path=f"{prefix}{key}",
                     message=(
                         f"Relative path '{value}' in a config loaded from a URL: "
-                        "use an absolute path or declare it as an input"
+                        "use an absolute path, download the file, or declare it as an input"
                     ),
                     severity=Severity.ERROR,
                 )
             )
     if diagnostics:
         raise ConfigValidationError(diagnostics)
-    return data
 
 
 def validated_graph(
@@ -654,11 +661,11 @@ def validated_graph(
     collects every problem instead of stopping at the first -- used by the
     CLI's `validate` command.
 
-    Relative `nf_config`/`params_file` paths resolve against `project_dir`
-    (default: the current directory), which is recorded on the graph.
+    `nf_config`/`params_file` are kept as written; relative ones are relative
+    to `project_dir` (default: the current directory), which is recorded on
+    the graph.
     """
     project_dir = (project_dir or Path.cwd()).resolve()
-    data = _resolve_config_paths(data, project_dir)
     if collect_errors:
         return _full_validated_graph(data, project_dir)
     return _fast_validated_graph(data, project_dir)
@@ -681,7 +688,9 @@ def from_file(cfg_file: str | Path, *, collect_errors: bool = False) -> "Metawor
     if is_remote_config(cfg_file):
         response = requests.get(str(cfg_file), timeout=30)
         response.raise_for_status()
-        data = _resolve_config_paths(yaml.safe_load(response.text), project_dir=None)
+        data = yaml.safe_load(response.text)
+        if isinstance(data, dict):
+            _reject_relative_config_paths(data)
         if collect_errors:
             return _full_validated_graph(data)
         return _fast_validated_graph(data)

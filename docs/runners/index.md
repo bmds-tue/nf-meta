@@ -6,8 +6,9 @@ registered `BaseRunner` subclass.
 
 ## Available today
 
-- **[Python runner](python-runner.md)** (`python`, default): wraps `nextflow run`/`nextflow
-  module run` per workflow from this Python process, in DAG order.
+- **[Python runner](python-runner.md)** (`python`, default): runs `nextflow run`/`nextflow
+  module run` per step from this Python process, in dependency order. Its page describes
+  running in general: the out dir, resume, inputs and the run options.
 
 ## Planned
 

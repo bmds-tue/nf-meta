@@ -1,6 +1,6 @@
 # Quickstart
 
-This small guide will walk you through the smallest possible metapipeline that actually runs: a single workflow step, that executes the `fetchngs` pipeline to fetch some data from a public repository.
+This small guide walks you through the smallest metapipeline that actually runs: a single step that executes the `fetchngs` pipeline to fetch some data from a public repository.
 The resulting metapipeline is validated and executed via the CLI.
 
 ## Prerequisites
@@ -26,8 +26,9 @@ steps:
 
 - `config_version` pins the representation's schema version. See
   [Config reference](../representation/reference.md).
-- `fetch` is the workflow's id, which can be referenced by another workflow step (see
-  [Cross-workflow references](../representation/interpolation.md)) and while running by `--start`/`--target` on the CLI.
+- `fetch` is the step's id. Other steps reference it (see
+  [Cross-step references](../representation/interpolation.md)), and `--start`/`--target` select
+  it on the command line.
 - `name`/`version` uniquely describe an nf-core pipeline. 
 For a non-nf-core pipeline, the `url` field is required as well.
 
@@ -53,9 +54,15 @@ To just see that everything runs as expected, we use Nextflow's stub-run mechani
 This Nextflow run options is resurfaced to the `nf-meta run` cli interface as the `--stub` flag.
 This can be useful to confirm the structure and parameter wiring resolves correctly without waiting on real compute or container pulls.
 
+The results land in `nf-meta-out/results/` next to the config: every step runs in the out dir
+(`--out` sets another one).
+
 ## Next steps
 
-- A metapipeline with more than one steps, chained via references: see
+- A metapipeline with more than one step, chained via references: see
   [YAML representation overview](../representation/overview.md).
 - Editing configs visually instead of by hand: see [Editor](../editor/index.md).
-- `nf-meta run --resume` and per-workflow caching: see [Python runner](../runners/python-runner.md).
+- Leaving values such as the sample sheet to the person running it: see
+  [Inputs](../representation/inputs.md).
+- Where results go and how `nf-meta run --resume` decides what to re-run: see
+  [Running a metapipeline](../runners/python-runner.md).

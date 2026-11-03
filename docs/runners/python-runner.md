@@ -1,40 +1,99 @@
-# Python runner
+# Running a metapipeline
 
-`RUNNER_NAME = "python"` (the default). Executes a metapipeline directly from this Python
-process: for each workflow in dependency (DAG) order, it builds and runs the corresponding
-`nextflow run` or `nextflow module run` command as a subprocess, streaming its output.
+`nf-meta run` uses the Python runner (`--runner python`, the default). It runs the steps in
+dependency order from this Python process, each as a `nextflow run` (pipelines) or
+`nextflow module run` (modules) subprocess, and streams their output.
 
-## Caching and `--resume`
+```bash
+nf-meta run metapipeline.yaml                 # run everything
+nf-meta run metapipeline.yaml --resume        # skip what already succeeded, resume the rest
+nf-meta run metapipeline.yaml --dry-run       # print each step's command and params, run nothing
+```
 
-Each workflow's *resolved* params (after substituting any `${...}` references) are cached
-under `--cachedir` (default `.nf-meta-cache/`), keyed by the workflow and a content hash of
-its definition. `nf-meta run --resume`:
+## Where results go
 
-- skips a workflow entirely if its working directory already recorded a successful prior run
-- still passes `-resume` through to Nextflow for workflows that do run, so a partially-completed
-  step doesn't restart from scratch either
+Every step runs in one **out dir**: `nf-meta-out/` next to the config, or the folder given with
+`--out`. A relative `outdir` param therefore lands inside it, and references to an upstream
+step's `outdir` find its results there.
 
-This means a failure partway through a long chain doesn't require re-running everything that
-already succeeded; only the failing step onward, once fixed.
+```
+nf-meta-out/                       every step's Nextflow launch folder
+  out_fetchngs/  out_rnaseq/  ...  relative step outdirs
+  work/                            Nextflow's work dir (-w), shared by all steps
+  .nf-meta/
+    steps/<id>_<step key>/         params.yaml, nextflow.log, OUT.txt, ERROR.txt
+    nextflow/<id>/                 the step's own Nextflow history and task cache
+    inputs.yaml                    the input values of the last run (for --input-mode reproduce)
+```
 
-## Subsetting with `--start`/`--target`
+Relative input paths in params are made absolute against the config's folder before a step
+runs, so they work from the out dir: a param counts as an input path when its schema declares a
+path, or when its value names a file or folder that exists in the config's folder. `outdir`,
+URLs and references are left alone. See
+[Paths](../representation/reference.md#paths).
 
-`--start <id>` / `--target <id>` run only the sub-DAG between two workflow ids (inclusive).
-Cross-boundary references (a workflow inside the subset referencing one excluded from it) are
-validated before anything runs: if the excluded workflow has no successful cached run to read a
-resolved value from, the runner refuses to start rather than fail partway through.
+A step that fails stops the run: later steps don't start, and the message names the step's
+folder under `.nf-meta/steps/` with its Nextflow log.
 
-## `--stub`
+## Resume
 
-Passes `-stub` to Nextflow, replacing each process's script with a no-op stub, which is useful
-for validating a metapipeline's structure and parameter wiring without real compute. Note:
-nf-meta places `-stub` after the pipeline's URL/revision in the generated Nextflow command
-deliberately, working around a Nextflow CLI argument-order bug (reported upstream) where
-`-stub` placed immediately before another option can cause Nextflow to resolve the wrong
-pipeline.
+`nf-meta run --resume` works on two levels.
 
-## Global params merging
+**1. Steps (nf-meta).** A step is **skipped** when it already finished successfully with the
+same **step key**. The step key covers everything that defines the step's result:
 
-`globals.params` is merged into each workflow's own `params` before the run (the workflow's
-own values win on key collision). This happens after caching, so the cache only ever holds
-workflow-specific resolved values.
+- the step as configured, after its references are resolved (name, version, params, …);
+- the **content** of its `nf_config` and `params_file`, and of the global and `--nf-config`
+  configs;
+- the `globals`, the `--nf-profile` and `--stub` options;
+- the **local input files** its params name: path, size and modification time (for a folder,
+  those of its entries);
+- for a [local pipeline](../representation/overview.md#developing-a-pipeline-locally), its files;
+- the step keys of its upstream steps.
+
+So a change to a step re-runs that step **and every step downstream of it**; steps before it
+stay skipped.
+
+**2. Tasks (Nextflow).** A step that does run is started with Nextflow's `-resume`, against that
+step's own Nextflow cache (`.nf-meta/nextflow/<id>/`). Nextflow then reuses every task whose
+script and inputs are unchanged. A step that failed at task 10 of 15, run again after a fix,
+only redoes the tasks the fix affects.
+
+What resume can't see:
+
+- files named **inside** an input file (e.g. the FASTQ files listed in a sample sheet) and files
+  named in a `params_file`; only the sample sheet or params file itself counts;
+- remote inputs (`https://`, `s3://`);
+- tasks **across** steps: each pipeline is one unit for nf-meta. After an upstream step re-ran,
+  Nextflow can only reuse a downstream task when its input files are unchanged, which is rare.
+
+## Inputs
+
+Values for the config's [inputs](../representation/inputs.md) come from `--input name=value`
+(once per value), `--inputs-file values.yaml`, an input's default, or a prompt. All of them are
+collected and checked **before the first step runs**. `--input-mode` decides what happens with
+missing ones: `prompt` (ask; the default in a terminal), `fail` (stop with a list; the default
+otherwise), or `reproduce` (use exactly the values of the last run).
+
+A changed input value changes the step key, so the steps it reaches re-run.
+
+## Running part of a metapipeline
+
+`--start <id>` and `--target <id>` run only the steps between two steps (inclusive). A step
+inside the selection that references a step outside it takes that value from the other step's
+last run. If it never ran, the value is asked for like an input, or given as
+`--input <step-id>.<param>=<value>`. With `--input-mode reproduce`, the steps outside must have
+run before.
+
+## Other options
+
+| Option | Effect |
+|---|---|
+| `--out DIR` | The out dir (required for a config from a URL). |
+| `--dry-run` | Print each step's command and params file without running anything. In `prompt` mode it asks for missing values, so the commands are the real ones; otherwise missing values show as placeholders. |
+| `--stub` | Pass `-stub` to Nextflow: each process runs its stub instead of its script, to check the wiring without real compute. |
+| `--nf-profile`, `-p` | A Nextflow profile for every step, after the configured ones. |
+| `--nf-config`, `-c` | A Nextflow config for every step, taking precedence over the global and step configs. |
+| `--output-lines`, `-l` | How many lines of each step's output to show while it runs. |
+
+`globals.params` are merged under each step's own `params` (the step's values win).

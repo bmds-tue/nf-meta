@@ -32,6 +32,11 @@ metapipeline. Closing the start screen starts a new one too. It is shown once pe
 `nf-meta editor`, not again when you reload the page. The list of recent configs is kept per
 user on that machine (`~/.local/state/nf-meta/recent-configs.json`).
 
+Every change is saved to the config file right away. A new config, or one opened from a URL
+(`nf-meta editor https://…`), therefore asks where to save it before your first change; for a URL,
+that is your local copy, and the published file stays as it is. Cancelling leaves the change
+unsaved and your form open.
+
 Fields that take a path (a step's params file and Nextflow config, the global Nextflow config,
 params and input defaults with a path format) have a folder button that browses the same machine
 and fills in the absolute path of the file or folder you pick. You can also type the path, or a URL

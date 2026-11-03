@@ -3,13 +3,14 @@ import { useApiStore } from './store'
 import type { StepSchema } from './types'
 
 export type StepSchemaSource =
-  | { kind: 'pipeline', url?: string, version?: string }
+  | { kind: 'pipeline', url?: string, version?: string, path?: string }
   | { kind: 'module', name?: string, version?: string }
 
 /**
  * The param schema of the pipeline or module described by `source`, fetched
  * again whenever it changes (cached per version). `schema` is null until both
- * the pipeline's url (or module's name) and the version are set.
+ * the pipeline's url (or module's name) and the version are set, or a local
+ * pipeline's path.
  */
 export function useStepSchema(source: () => StepSchemaSource): {
     schema: Ref<StepSchema | null>, loading: Ref<boolean>, error: Ref<string | undefined>,
@@ -25,12 +26,15 @@ export function useStepSchema(source: () => StepSchemaSource): {
         schema.value = null
         error.value = undefined
         const id = s.kind === 'pipeline' ? s.url : s.name
-        if (!id || !s.version) return
+        const local = s.kind === 'pipeline' ? s.path : undefined
+        if (!local && (!id || !s.version)) return
         loading.value = true
         try {
-            const result = s.kind === 'pipeline'
-                ? await apiStore.getPipelineSchema(id, s.version)
-                : await apiStore.getModuleSchema(id, s.version)
+            const result = local
+                ? await apiStore.getLocalPipelineSchema(local)
+                : s.kind === 'pipeline'
+                    ? await apiStore.getPipelineSchema(id!, s.version!)
+                    : await apiStore.getModuleSchema(id!, s.version!)
             if (request !== latest) return
             if (result.ok) schema.value = result.data
             else error.value = result.message

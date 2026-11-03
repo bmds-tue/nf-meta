@@ -50,6 +50,8 @@ export type APINfPipelineNodeData = APINodeBase & {
     type: typeof WorkflowType.NF_PIPELINE,
     description?: string,
     url?: string,
+    // a local pipeline folder, for development (instead of url and version)
+    path?: string,
     is_nfcore?: boolean,
     params_file?: string,
     nf_profile?: string,

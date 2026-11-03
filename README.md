@@ -13,6 +13,14 @@ Find a growing collection of examples in the dedicated
 
 ![nf-meta editor](assets/nf-meta-screenshot.png)
 
+* **One file for the whole chain:** steps, the flow between them, shared settings, and the
+  values supplied at run time (inputs), validated against each pipeline's own schema.
+* **Run it:** `nf-meta run` runs the steps in order from one output folder; `--resume` skips what
+  already succeeded and resumes Nextflow's tasks for the rest.
+* **Edit it visually:** a browser-based editor with schema-based forms, references and inputs
+  picked from menus, and undo/redo. It also runs on a cluster, used through an SSH tunnel.
+* **Share it:** run or open a published config straight from its URL.
+
 Start the editor with `nf-meta editor [metapipeline.yaml]`. Configs on a cluster? Run it there and
 use it from your own browser through an SSH tunnel:
 [Running the editor on a remote machine](https://bmds-tue.github.io/nf-meta/latest/editor/#running-the-editor-on-a-remote-machine).
@@ -25,6 +33,7 @@ A metapipeline is a `.yaml` file. The most important keys are:
 * `steps` — the nextflow / nf-core pipeline and module _runs_. The flow from step to step is
   described by each step's own `from:` key
 * `globals` — settings that apply to all steps
+* `inputs` — values supplied when the metapipeline runs (optional)
 
 ```yaml
 config_version: 0.5.0
@@ -35,7 +44,7 @@ steps:
     name: nf-core/fetchngs
     version: 1.12.0
     params:
-      input: fetchngs-ids.csv
+      input: ${inputs:ids}
       outdir: out_fetchngs
       nf_core_pipeline: rnaseq
       nf_core_rnaseq_strandedness: auto
@@ -49,18 +58,20 @@ steps:
       outdir: out_rnaseq
 ```
 
-Fields can reference another workflow's own params, so you write
+Params can reference another step's params, so you write
 `input: ${n01:params:outdir}/samplesheet/samplesheet.csv` instead of hardcoding
-`input: fetchngs_out/samplesheet/samplesheet.csv`.
+`input: out_fetchngs/samplesheet/samplesheet.csv`. `${inputs:ids}` leaves the value to the person
+running it: `nf-meta run metapipeline.yaml --input ids=fetchngs-ids.csv`, or a prompt.
 
-See the [config reference](https://bmds-tue.github.io/nf-meta/latest/representation/reference/)
-for every key, and [cross-workflow references](https://bmds-tue.github.io/nf-meta/latest/representation/interpolation/)
-for the full `${...}` syntax.
+See the [config reference](https://bmds-tue.github.io/nf-meta/latest/representation/reference/) for every key,
+[cross-step references](https://bmds-tue.github.io/nf-meta/latest/representation/interpolation/) for the `${...}` syntax,
+[inputs](https://bmds-tue.github.io/nf-meta/latest/representation/inputs/), and [running a metapipeline](https://bmds-tue.github.io/nf-meta/latest/runners/python-runner/)
+for output folders and `--resume`.
 
 ## Runners
 
 Currently:
-* **Python runner** — wraps `nextflow` commands, executes in DAG order.
+* **Python runner** — wraps `nextflow` commands, runs the steps in dependency order.
 
 Planned:
 1. [nf-cascade](https://github.com/mahesh-panchal/nf-cascade/) runner — convert the config into
@@ -80,9 +91,12 @@ to write your own.
 # with pip
 pip install nf-meta
 
-# with uv
-uv add nf-meta
+# as a command-line tool with uv
+uv tool install nf-meta
 ```
+
+Running needs [Nextflow](https://nextflow.io) on `PATH` (26.04 or later for module steps);
+validating and editing don't.
 
 ## Development setup
 

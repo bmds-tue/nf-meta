@@ -2,20 +2,19 @@
 
 The nf-meta tooling allows representing a metapipeline, a chain of Nextflow pipeline/module runs, as a single
 `.yaml` file.
-The four top-level keys are:
+The top-level keys are:
 
-- **`config_version`** pins the schema this document follows, so the representation can
+- **`config_version`** pins the format this document follows, so the representation can
   evolve without breaking older configs. See [Config reference](reference.md) for the
   supported range.
-- **`steps`** is a mapping of step id to step definition. Each step is one
-  Nextflow pipeline or module run. The flow between steps is declared per step via
-  `from:`, not as a separate edge list. Configs from before 0.5.0 call this key `workflows`;
-  it is still read, with a deprecation warning, and saving from the editor renames it.
+- **`steps`** is a mapping of step id to step definition. Each step is one Nextflow pipeline
+  or module run. The flow between steps is declared per step via `from:`. (Configs from before
+  0.5.0 call this key `workflows`; it is still read, see
+  [Old key names](reference.md#old-key-names).)
 - **`globals`** holds settings applied to every step (Nextflow version, profile, shared
   params, ...).
-- **`transitions`** *(deprecated)* is an older, separate edge-list format, superseded by each
-  step's own `from:` key. It's still readable, but nf-meta logs a deprecation warning and
-  rewrites it to `from:` the next time the config is saved via the editor.
+- **`inputs`** declares values supplied when the metapipeline runs, such as the sample sheet.
+  See [Inputs](inputs.md).
 
 ## Example
 
@@ -44,9 +43,50 @@ steps:
 
 The step `n02` runs after `n01` (`from: n01`) and reads its input from `n01`'s own `outdir` param via
 the reference `${n01:params:outdir}`. 
-See [Cross-workflow references](interpolation.md) for the full syntax.
-A workflow reference is validated in statically by checking if the connection is possible topologically.
-An attempt is made to check the workflow references also against each pipeline's own `nextflow_schema.json` to validate the parameter correctness and types.
+See [Cross-step references](interpolation.md) for the full syntax.
+A reference is checked statically (the referenced step must be upstream), and against the
+pipeline's own `nextflow_schema.json` where it can be fetched (the param must exist).
+To leave a value to the person running the metapipeline, such as the `fetchngs-ids.csv` above,
+make it an [input](inputs.md).
+
+## Configs from a URL
+
+`nf-meta run` and `nf-meta editor` also take a config's URL, so a published metapipeline runs
+without downloading it first:
+
+```bash
+nf-meta run https://raw.githubusercontent.com/<org>/<repo>/<commit>/metapipeline.yaml --out results
+```
+
+A config from a URL has no folder of its own, so:
+
+- `--out` is required for `run`;
+- relative `params_file`/`nf_config` paths in it are an error (use absolute paths, download the
+  files, or make them [inputs](inputs.md));
+- the editor never writes back to the URL: before your first change it asks where to save your
+  local copy.
+
+## Developing a pipeline locally
+
+While you write a pipeline of your own (for example a small connector between two nf-core
+pipelines), a step can run it from a local folder with `path:` instead of `url:` and `version:`:
+
+```yaml
+steps:
+  n02:
+    name: fetchngs2rnaseq
+    path: ../pipelines/fetchngs2rnaseq   # relative to this config's folder
+    from: n01
+```
+
+nf-meta runs `nextflow run <folder>` and reads the param schema from the folder's
+`nextflow_schema.json`. The folder must hold `main.nf` (or the step's `main_script`). With
+`--resume`, a change to the pipeline's files re-runs the step.
+
+!!! warning "Not reproducible"
+    A config with a local pipeline only runs where that folder exists, and its code can change
+    between runs. `validate`, `run` and the editor always warn about it. To share the
+    metapipeline, publish the pipeline and use `url:` with a `version:` (a tag or commit).
 
 ## Validating and running
 

@@ -92,6 +92,7 @@ nav:
       - representation/overview.md
       - representation/reference.md
       - representation/interpolation.md
+      - representation/inputs.md
   - Editor: editor/index.md
   - Runners:
       - runners/index.md

@@ -21,6 +21,22 @@ from .refs import INPUT_REF_PATTERN
 from .registry import ParamSpec
 
 PATH_FORMATS = frozenset({"file-path", "directory-path", "path", "file-path-pattern"})
+# nf-schema's `path` is a file or a folder, so `file-path` and `directory-path` narrow it
+_NARROWS_PATH = frozenset({"file-path", "directory-path"})
+
+
+def narrower_format(a: str, b: str) -> str | None:
+    """The format a value must have to satisfy both formats `a` and `b`, or
+    `None` if no value can (e.g. `file-path` and `directory-path`)."""
+    if a == b:
+        return a
+    if a in _NARROWS_PATH and b == "path":
+        return a
+    if b in _NARROWS_PATH and a == "path":
+        return b
+    return None
+
+
 SCHEMA_KEYWORDS = (
     "type",
     "format",
@@ -250,6 +266,10 @@ def effective_input(
         keywords = param_spec_keywords(spec)
         for key in ("type", "format"):
             if key in keywords and key in inherited and keywords[key] != inherited[key]:
+                narrower = narrower_format(inherited[key], keywords[key]) if key == "format" else None
+                if narrower:
+                    inherited[key] = narrower
+                    continue
                 problem(
                     "bind",
                     f"bound params have conflicting {key}s: '{inherited[key]}' and '{keywords[key]}' ({binding})",
@@ -262,6 +282,11 @@ def effective_input(
     own = definition.keywords()
     for key in ("type", "format"):
         if key in own and key in inherited and own[key] != inherited[key]:
+            if key == "format" and narrower_format(own[key], inherited[key]) == own[key]:
+                continue  # e.g. `file-path` for a `path` param: narrows it
+            if key == "format" and narrower_format(own[key], inherited[key]) == inherited[key]:
+                problem(key, f"declared format '{own[key]}' is broader than the bound param's '{inherited[key]}'")
+                continue
             problem(
                 key,
                 f"declared {key} '{own[key]}', but the bound param's schema says '{inherited[key]}'",

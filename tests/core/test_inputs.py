@@ -155,6 +155,40 @@ class TestEffectiveInput:
         )
         assert diags == []
 
+    def test_bound_path_and_file_path_give_file_path(self):
+        inp, diags = effective_input(
+            "x",
+            InputDefinition(),
+            (self.b1, self.b2),
+            {self.b1: spec("string", format="path"), self.b2: spec("string", format="file-path")},
+        )
+        assert inp.schema["format"] == "file-path"
+        assert diags == []
+
+    def test_bound_file_path_and_directory_path_conflict(self):
+        _, diags = effective_input(
+            "x",
+            InputDefinition(),
+            (self.b1, self.b2),
+            {self.b1: spec("string", format="file-path"), self.b2: spec("string", format="directory-path")},
+        )
+        assert any("conflicting formats" in d.message for d in diags)
+
+    def test_own_directory_path_narrows_a_path_param(self):
+        inp, diags = effective_input(
+            "x", InputDefinition(format="directory-path"), (self.b1,), {self.b1: spec("string", format="path")}
+        )
+        assert inp.schema["format"] == "directory-path"
+        assert diags == []
+
+    def test_own_path_is_broader_than_a_file_path_param(self):
+        _, diags = effective_input(
+            "x", InputDefinition(format="path"), (self.b1,), {self.b1: spec("string", format="file-path")}
+        )
+        assert [(d.yaml_path, d.message) for d in diags] == [
+            ("inputs.x.format", "declared format 'path' is broader than the bound param's 'file-path'")
+        ]
+
     def test_type_contradiction_error(self):
         _, diags = effective_input("x", InputDefinition(type="integer"), (self.b1,), {self.b1: spec("string")})
         assert [d.yaml_path for d in diags] == ["inputs.x.type"]

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { INPUT_COLOR, useApiStore, useEditorStore, useGraphStore } from '../store'
-import type { APIInput, APIInputDefinition, StepSchema, Scalar } from '../types'
+import { INPUT_COLOR, useEditorStore, useGraphStore } from '../store'
+import type { APIInput, APIInputDefinition, Scalar } from '../types'
 import { cleanInputDefinition, extractInputFieldErrors, inputDeleteProblem, pathPick } from '../utils'
+import BindingPicker from './BindingPicker.vue'
 import PathPicker from './PathPicker.vue'
 
 const props = defineProps<{
@@ -16,7 +17,6 @@ const emit = defineEmits<{
 
 const graphStore = useGraphStore()
 const editorStore = useEditorStore()
-const apiStore = useApiStore()
 
 const TYPES = ['string', 'integer', 'number', 'boolean']
 const FORMATS = ['file-path', 'directory-path', 'path', 'file-path-pattern']
@@ -110,40 +110,14 @@ const keywords = computed(() => {
     }))
 })
 
-// Bind targets: every param of every step, from the steps' schemas
-const bindTargets = ref<{ title: string, value: string }[]>([])
-const targetsLoading = ref(false)
-
-async function loadBindTargets() {
-  targetsLoading.value = true
-  try {
-    const targets: { title: string, value: string }[] = []
-    for (const node of graphStore.nodeData) {
-      if (!node.id) continue
-      const result = await apiStore.getNodeSchema(node.id)
-      const schema: StepSchema = result.ok ? result.data : {}
-      const params = new Set([...Object.keys(schema), ...Object.keys(node.params ?? {})])
-      for (const param of [...params].sort()) {
-        if (schema[param]?.hidden) continue
-        targets.push({ title: `${node.name ?? node.id} (${node.id}) · ${param}`, value: `${node.id}.${param}` })
-      }
-    }
-    bindTargets.value = targets
-  } finally {
-    targetsLoading.value = false
-  }
-}
-
 function startEditing() {
   form.value = initialForm()
   fieldErrors.value = {}
   otherErrors.value = []
   showKeywords.value = Object.keys(props.input?.definition ?? {}).some(k => !['bind', 'description', 'default'].includes(k))
   isEditing.value = true
-  loadBindTargets()
 }
 
-if (isNew.value) loadBindTargets()
 
 function cancel() {
   isEditing.value = false
@@ -310,15 +284,7 @@ watch(isFlashing, async (flashing) => {
           variant="outlined" density="compact" hide-details="auto" :autofocus="isNew"
           :error-messages="fieldErrors.name" />
 
-        <v-combobox
-          v-model="form.bindings"
-          :items="bindTargets"
-          :loading="targetsLoading"
-          :return-object="false"
-          label="Fills step params"
-          multiple chips closable-chips
-          variant="outlined" density="compact" hide-details="auto"
-          :error-messages="fieldErrors.bind" />
+        <BindingPicker v-model="form.bindings" :error-messages="fieldErrors.bind" />
 
 
         <v-textarea

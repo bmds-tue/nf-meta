@@ -107,7 +107,7 @@ async function save() {
         <v-text-field
           v-model="form.nf_config"
           label="Nextflow config"
-          placeholder="A Nextflow config file" persistent-placeholder
+          placeholder="Path, relative to the config file" persistent-placeholder
           prepend-inner-icon="mdi-cog-outline"
           variant="outlined" density="compact" hide-details="auto" clearable
           :error-messages="errors.nf_config">

@@ -6,6 +6,7 @@ import subprocess
 import threading
 from collections import deque
 from pathlib import Path
+from typing import Any
 
 import yaml
 from rich.console import Console, Group
@@ -23,7 +24,7 @@ from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResul
 from .collect import InputMode, Request, collect
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
-from .paths import absolutize_input_paths, declared_path, input_fingerprints, is_url, param_schema
+from .paths import absolutize_input_paths, declared_path, folder_fingerprint, input_fingerprints, is_url, param_schema
 from .spec import StepSpec, build_step_spec, resolve_references
 from .utils import check_nextflow, check_nextflow_version, get_installed_nextflow_version
 
@@ -100,10 +101,10 @@ class SimplePythonRunner(BaseRunner):
     ) -> str:
         """Hash of everything that defines a step's result: the resolved step,
         the content of its config and params files, the local input files its
-        params name (see `input_fingerprints`), the globals, run-level
-        profile, Nextflow config and stub flag, and the keys of all upstream
-        steps."""
-        data = {
+        params name (see `input_fingerprints`), a local pipeline's files (see
+        `folder_fingerprint`), the globals, run-level profile, Nextflow config
+        and stub flag, and the keys of all upstream steps."""
+        data: dict[str, Any] = {
             "workflow": wf.hash(),
             "input_files": input_files or {},
             "nf_config": _file_digest(wf.nf_config),
@@ -115,6 +116,9 @@ class SimplePythonRunner(BaseRunner):
             "stub": self.run_options.stub,
             "upstream": sorted(upstream_keys),
         }
+        local = getattr(wf, "path", None)
+        if local:  # only then, so other steps keep their keys
+            data["pipeline_files"] = folder_fingerprint(local, skip=[self.out_dir] if self.out_dir else [])
         blob = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(blob.encode()).hexdigest()[:8]
 

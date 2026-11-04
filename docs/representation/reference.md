@@ -8,24 +8,21 @@ Key-by-key reference for the metapipeline `.yaml` format. See
 ## Paths
 
 A relative path in a config (`params_file`, `nf_config`, a local pipeline's `path`, path params
-and input defaults) is relative to the folder the config file is in, wherever you run `nf-meta`
-from. The exception is a step's `outdir`: a relative one is placed in the run's output folder
-(`--out`, see [Running](../runners/python-runner.md)). Paths are kept as written when the editor
-saves the config.
+and input defaults) is always interpreted as relative to the folder containing the metapipeline config file.
+This is regardless of where `nf-meta` is run from with the exception of a step's `outdir` which is relative
+to the run's output folder (`--out`, see [Running](../runners/python-runner.md)).
+Paths are kept as written when saved via the editor.
 
-A config loaded from a URL has no folder, so relative `params_file`/`nf_config` paths in it are an
-error: use absolute paths, download the files, or declare them as [inputs](inputs.md).
-
-## Top level
+## Top level YAML keys
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
 | `config_version` | string | yes | — | The format version the config follows, between `0.0.1` and the current `0.5.0`. Saving from the editor writes `0.5.0`. |
-| `steps` | mapping (id → step) | yes | — | See [Steps](#steps) below. A list form exists for backward compatibility but is deprecated. |
-| `globals` | mapping | no | none | See [`globals`](#globals) below. |
-| `inputs` | mapping (name → input) | no | none | Values supplied when the metapipeline runs. See [Inputs](inputs.md). Needs config_version 0.4.0 or later. |
+| `steps` | mapping (id → step definition) | yes | — | See [Steps](#steps) below. A list form exists for backward compatibility but is deprecated. |
+| `globals` | mapping | no | none | See [Globals](#globals) below. |
+| `inputs` | mapping (name → input) | no | none | Values supplied when the metapipeline runs. See [Inputs](inputs.md). Requires config_version 0.4.0 or later. |
 
-## `globals`
+## Globals
 
 Settings for every step. A step's own settings take precedence over them.
 
@@ -38,12 +35,12 @@ Settings for every step. A step's own settings take precedence over them.
 
 ## Steps
 
-Every entry under `steps:` is one of two types, selected by `type:` (`nf-pipeline` when omitted).
+Every entry under `steps:` is one of two types, selected by `type:`, `nf-pipeline` or `nf-module`.
 These fields apply to both:
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| *(id)* | — | yes | — | Not a field inside the entry; it's the entry's own key under `steps:`, e.g. `n01:`. Referenced by `from:`, `${id:params:key}` and the CLI's `--start`/`--target`. `inputs` is reserved. |
+| *(id)* | — | yes | — | The steps mapping key under the top-level `steps:`, e.g. `n01:`. Referenced by `from:`, `${id:params:key}` and the CLI's `--start`/`--target`. |
 | `type` | `nf-pipeline` \| `nf-module` | no | `nf-pipeline` | Selects the [pipeline](#nf-pipeline-steps) or [module](#nf-module-steps) fields below. |
 | `name` | string, non-empty | yes | — | Pipeline or module name, e.g. `nf-core/rnaseq`. An `nf-core/…` name must be in the nf-core catalog; its `url` and `description` are filled in from it. |
 | `version` | string | yes (except for a local pipeline) | — | A release tag (`1.12.0`, `v1.12.0`) or a commit hash. A branch name (`dev`, `master`) is rejected, since a reproducible run needs a pinned revision. Use the full 40-character hash: Nextflow 26 can't fetch abbreviated ones (a warning says so). |
@@ -51,7 +48,6 @@ These fields apply to both:
 | `params` | mapping (str → scalar) | no | none | Passed to Nextflow in a params file. Values must be `str`/`int`/`float`/`bool` and keep their types. A value may be one [step reference](interpolation.md) (with text after it) or one whole [input reference](inputs.md). |
 | `nf_config` | path to an existing file | no | none | The step's own Nextflow `-c`, after `globals.nf_config`. |
 
-Unknown keys are an error, with a "did you mean" suggestion where one fits.
 
 ### `nf-pipeline` steps
 
@@ -74,10 +70,14 @@ For a `nextflow module run` step (Nextflow 26.04 or later):
 |---|---|---|---|---|
 | `container_engine` | `docker` \| `singularity` \| `conda` \| `podman` | no | none | Passed as `-with-<engine>`. Without it (and without a global `nf_config`), a warning says the module runs without a container. |
 
-## Old key names
+!!! warning "Not fully supported yet"
+    Modules can only be run as leaf-nodes in the metapipeline graph at this. 
+    No steps can refernce from a step of type `nf-module`, yet.
+
+## Key names from previous versions
 
 Configs written for earlier versions still load. Each old form gives a deprecation warning, and
-saving from the editor writes the current form. They will be removed with nf-meta 1.0.
+saving from the editor writes the current form.
 
 | Old | Current | Since |
 |---|---|---|

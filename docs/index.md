@@ -1,7 +1,7 @@
 # nf-meta
 
 **A reproducible representation, runner, and editor for metapipelines**:
-Create chains of existing [Nextflow](https://nextflow.io) pipelines and modules in an interactive browser-based editor and export into a YAML-based representation format.
+Create chains of existing [Nextflow](https://nextflow.io) pipelines and modules in an interactive editor and export into a YAML-based representation format.
 Validate and run the representation format with the integrated CLI tooling.
 
 <div class="feature-list" markdown>

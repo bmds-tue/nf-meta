@@ -1,6 +1,7 @@
 # Quickstart
 
-This small guide walks you through the smallest metapipeline that actually runs: a single step that executes the `fetchngs` pipeline to fetch some data from a public repository.
+This example shows you the smallest metapipeline possible, consisting of just one step. 
+It only executes the `nf-core/fetchngs` pipeline to fetch some data from a public repository.
 The resulting metapipeline is validated and executed via the CLI.
 
 ## Prerequisites

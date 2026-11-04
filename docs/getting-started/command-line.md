@@ -1,6 +1,6 @@
 # Command line
 
-`nf-meta` has four commands. `nf-meta <command> --help` lists every option.
+`nf-meta` has four subcommand commands. `nf-meta <command> --help` lists every option.
 
 ## `nf-meta validate`
 
@@ -9,12 +9,14 @@ nf-meta validate metapipeline.yaml
 nf-meta validate https://raw.githubusercontent.com/<org>/<repo>/<commit>/metapipeline.yaml
 ```
 
-Checks a config without running it: its shape, references and inputs, and each step against its
-pipeline's or module's schema (this needs the network). Problems are listed with their line,
-their place in the config and a message; the exit code is 1 if there is an error.
+Checks a config without running it, validating its YAML keys, the references between steps,
+global inputs, and also validates each pipeline against a schema if one exists.
+The retrieval of the pipeline schema requires a network connection, but will enable confirming
+urls and verison extist, required params are given, and all params have the correct type.
+Problems are listed by line and key in the YAML along with an error message.
 
-`--scope step` or `--scope globals` checks a snippet instead of a whole config: one step's or the
-`globals` fields at the root of the file.
+By passing `--scope step` or `--scope globals` only a snippet of YAML can be validated,
+instead of a whole config.
 
 ## `nf-meta run`
 
@@ -22,7 +24,7 @@ their place in the config and a message; the exit code is 1 if there is an error
 nf-meta run metapipeline.yaml [--resume] [--out DIR] [--input NAME=VALUE ...]
 ```
 
-Runs the steps in dependency order. The main options:
+Runs the steps in the order declared by the graph. The main options:
 
 | Option | Effect |
 |---|---|
@@ -50,8 +52,8 @@ Starts the [editor](../editor/index.md) and opens it in the browser.
 |---|---|
 | `--port PORT` | The port to listen on (a free one if omitted). |
 | `--host HOST` | The address to listen on (default `127.0.0.1`). |
-| `--no-browser` | Don't open a browser; open the printed link yourself. |
-| `--no-redirect-file` | Open the link directly, for browsers on another machine (VS Code Remote, dev containers). |
+| `--no-browser` | Do not attempt to open in a browser automatically |
+| `--no-redirect-file` | Do not write a redirect file. (e.g. in a remote session) Requires opening the link manually. |
 
 ## `nf-meta export-schema`
 
@@ -59,6 +61,5 @@ Starts the [editor](../editor/index.md) and opens it in the browser.
 nf-meta export-schema [OUTPUT]
 ```
 
-Writes the config format's JSON Schema (default: `schemas/metapipeline.schema.json`), for
-editor completion and checks; see
-[Editor autocompletion](../representation/overview.md#editor-autocompletion-json-schema).
+Exports the config format's JSON Schema (default: `schemas/metapipeline.schema.json`) to a file.
+See [Editor autocompletion](../representation/overview.md#editor-autocompletion-json-schema) for how to use it in VSCode.

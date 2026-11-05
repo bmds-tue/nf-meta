@@ -19,6 +19,10 @@
     // Keeps uv and Claude Code binaries on PATH after postCreate
     "PATH": "${containerEnv:PATH}:/root/.local/bin"
   },
+  // Claude Code's login, settings and session history survive container rebuilds
+  "mounts": [
+    "source=nf-meta-claude,target=/home/vscode/.claude,type=volume"
+  ],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "forwardPorts": [
     5173

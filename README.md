@@ -1,9 +1,11 @@
 # nf-meta: metapipeline representation, editor, and runner
 
-A metapipeline is a directed graph of atomic, individually reproducible Nextflow/nf-core
-pipelines and module steps.
-`nf-meta` offers a reproducible representation for metapipelines in a single artifact
-that ships with an interactive browser-based editor and a CLI validator/runner.
+A metapipeline is a directed acyclic graph of Nextflow
+pipeline or module steps, where later steps can read their inputs
+from the results of earlier ones.
+`nf-meta` describes a whole metapipeline in a single YAML file, that restores the
+reproducibility of multi-step analyses and ships with an
+interactive browser-based editor for these files as well as a CLI validator/runner.
 
 **This is a beta version: things can be unstable and change.**
 

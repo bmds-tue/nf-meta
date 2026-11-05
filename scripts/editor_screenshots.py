@@ -1,10 +1,8 @@
 """Take the editor screenshots used by the docs and the README.
 
 Starts `nf-meta editor` on `assets/metapipeline.yaml` and saves the main view (the rnaseq step
-open for editing) in the dark and the light theme:
-
-    docs/editor/nf-meta-screenshot.png        assets/nf-meta-screenshot.png
-    docs/editor/nf-meta-screenshot-light.png  assets/nf-meta-screenshot-light.png
+open for editing) in the dark and the light theme, as `docs/editor/nf-meta-screenshot.png` and
+`docs/editor/nf-meta-screenshot-light.png`. The README shows them from the published docs.
 
 Run from anywhere (needs the network, for the nf-core catalog and schemas):
 
@@ -27,7 +25,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "assets" / "metapipeline.yaml"
-TARGETS = [ROOT / "docs" / "editor", ROOT / "assets"]
+TARGET = ROOT / "docs" / "editor"
 THEMES = {"graphite": "nf-meta-screenshot.png", "light": "nf-meta-screenshot-light.png"}
 VIEWPORT = {"width": 1500, "height": 860}
 TIMEOUT_MS = 60_000
@@ -98,9 +96,8 @@ def main() -> None:
             except subprocess.TimeoutExpired:
                 proc.kill()
         for name in THEMES.values():
-            for target in TARGETS:
-                shutil.copy(Path(shots) / name, target / name)
-                print(f"wrote {(target / name).relative_to(ROOT)}")
+            shutil.copy(Path(shots) / name, TARGET / name)
+            print(f"wrote {(TARGET / name).relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

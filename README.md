@@ -16,8 +16,8 @@ Find a growing collection of examples in the dedicated
 [showcase repository](https://github.com/bmds-tue/nf-meta-showcases/tree/main).
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/nf-meta-screenshot.png">
-  <img alt="nf-meta editor" src="assets/nf-meta-screenshot-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://bmds-tue.github.io/nf-meta/latest/editor/nf-meta-screenshot.png">
+  <img alt="nf-meta editor" src="https://bmds-tue.github.io/nf-meta/latest/editor/nf-meta-screenshot-light.png">
 </picture>
 
 * **One file for the whole chain:** steps, the flow between them, shared settings, and the

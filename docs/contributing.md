@@ -76,8 +76,9 @@ It must not be edited it by hand.
 
 ### Editor screenshots
 
-The main editor screenshot (dark and light, in `docs/editor/` and `assets/`) is taken from
-`assets/metapipeline.yaml` by a script, which the release workflows also run:
+The main editor screenshot (dark and light, in `docs/editor/`) is taken from
+`assets/metapipeline.yaml` by a script. The docs workflow runs it for every release, and the
+README shows the images from the published docs:
 
 ```bash
 uv run --with playwright playwright install chromium   # once

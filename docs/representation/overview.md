@@ -1,21 +1,20 @@
 # YAML representation overview
 
-The nf-meta tooling allows representing a metapipeline, a chain of Nextflow pipeline/module runs, as a single
+The nf-meta toolkit allows representing a metapipeline of individual Nextflow pipeline or module steps, as a single
 `.yaml` file.
-The four top-level keys are:
+The top-level keys of the YAML are:
 
-- **`config_version`** pins the schema this document follows, so the representation can
+- **`config_version`** pins the format this document follows, so the representation can
   evolve without breaking older configs. See [Config reference](reference.md) for the
   supported range.
-- **`steps`** is a mapping of step id to step definition. Each step is one
-  Nextflow pipeline or module run. The flow between steps is declared per step via
-  `from:`, not as a separate edge list. Configs from before 0.5.0 call this key `workflows`;
-  it is still read, with a deprecation warning, and saving from the editor renames it.
+- **`steps`** is a mapping of step id to step definition. Each step is one Nextflow pipeline
+  or module run. The flow between steps is declared per step via `from:`. (Configs from before
+  0.5.0 call this key `workflows`; it is still read, see
+  [Old key names](reference.md#key-names-from-previous-versions).)
 - **`globals`** holds settings applied to every step (Nextflow version, profile, shared
   params, ...).
-- **`transitions`** *(deprecated)* is an older, separate edge-list format, superseded by each
-  step's own `from:` key. It's still readable, but nf-meta logs a deprecation warning and
-  rewrites it to `from:` the next time the config is saved via the editor.
+- **`inputs`** declares values supplied when the metapipeline runs, such as the sample sheet.
+  See [Inputs](inputs.md).
 
 ## Example
 
@@ -28,7 +27,7 @@ steps:
     name: nf-core/fetchngs
     version: 1.12.0
     params:
-      input: fetchngs-ids.csv
+      input: ${inputs:fetchngs_ids}
       outdir: out_fetchngs
       nf_core_pipeline: rnaseq
       nf_core_rnaseq_strandedness: auto
@@ -42,11 +41,49 @@ steps:
       outdir: out_rnaseq
 ```
 
-The step `n02` runs after `n01` (`from: n01`) and reads its input from `n01`'s own `outdir` param via
-the reference `${n01:params:outdir}`. 
-See [Cross-workflow references](interpolation.md) for the full syntax.
-A workflow reference is validated in statically by checking if the connection is possible topologically.
-An attempt is made to check the workflow references also against each pipeline's own `nextflow_schema.json` to validate the parameter correctness and types.
+Step `n01` runs the nf-core/fetchngs pipeline first, reading its samplesheet via an [input](inputs.md) declaration.
+The step `n02` (nf-core/rnaseq) runs after `n01` (nf-core/fetchngs) as ordered by the `from: n01`.
+It reads reads its input from `n01`'s own `outdir` param via the reference `${n01:params:outdir}`. 
+See [Cross-step references](interpolation.md) for the full syntax.
+A reference is checked topologically, and against both pipeline's metadata, if a `nextflow_schema.json` can be accessed.
+
+## Configs from a URL
+
+`nf-meta run` and `nf-meta editor` also take a config's URL, so a published metapipeline runs
+without downloading it first:
+
+```bash
+nf-meta run https://raw.githubusercontent.com/<org>/<repo>/<commit>/metapipeline.yaml --out results
+```
+
+A config from a URL has no folder of its own, so:
+
+- `--out` is required for `run`;
+- relative `params_file`/`nf_config` paths in it are an error (use absolute paths, download the
+  files, or make them [inputs](inputs.md));
+- the editor never writes back to the URL. Before the first change, the editor asks to save the metapipeline locally.
+
+## Developing a pipeline locally
+
+While you write a pipeline of your own (for example a small connector between two nf-core
+pipelines), a step can run it from a local folder with `path:` instead of `url:` and `version:`:
+
+```yaml
+steps:
+  n02:
+    name: fetchngs2rnaseq
+    path: ../pipelines/fetchngs2rnaseq   # relative to this config's folder
+    from: n01
+```
+
+nf-meta runs `nextflow run <folder>` and reads the param schema from the folder's
+`nextflow_schema.json`. The folder must hold `main.nf` (or the step's `main_script`). With
+`--resume`, a change to the pipeline's files re-runs the step.
+
+!!! warning "Not reproducible"
+    A config referencing a local pipeline only runs where that folder exists and its code can change
+    between runs, so `validate`, `run` and the editor always warn about it. To share the
+    metapipeline, publish the pipeline to a public repository described with `url:` and `version:`.
 
 ## Validating and running
 
@@ -55,56 +92,44 @@ nf-meta validate metapipeline.yaml   # static + schema checks
 nf-meta run metapipeline.yaml        # executes the chain in dependency order, requires Nextflow
 ```
 
-`nf-meta validate` is the authoritative check: it runs the real Pydantic models plus the
-tier-2 pipeline-schema checks described above. The config's static shape is also published as a
-[JSON Schema](#editor-autocompletion-json-schema), so your editor can catch structural problems
-(missing/unknown fields, wrong types) as you type, before you even run `validate`. It won't
-catch the `params:`-level checks though, since those need a network lookup against the
-pipeline's own schema.
+As the name indicates, `nf-meta validate` checks the correctness of a metapipeline config.
+It checks if the YAML shape, i.e. top-level keys described by the [schema](#editor-autocompletion-json-schema)
+and individual steps, represented by Pydantic models, parse correctly.
+It also validates the urls and versions of steps, as well as graph topology, references and input declarations.
+Where available, the pipeline metadata in the form of nextflow schemas is used to further validate
+the individual param declarations.
 
 See the [quickstart](../getting-started/quickstart.md) for a minimal end-to-end walkthrough,
-and [Runners](../runners/index.md) for what "executes" actually means (currently: wraps
-`nextflow run`/`nextflow module run` per workflow, in DAG order).
+and [Runners](../runners/index.md) for more information
 
 ## Editor autocompletion (JSON Schema)
 
-nf-meta publishes a [JSON Schema](https://json-schema.org/) for the config format. It's what
-powers inline validation and autocomplete in editors that support the
+nf-meta publishes a [JSON Schema](https://json-schema.org/) for static checks of the config format. 
+It can be used to drive inline validation and autocomplete in editors that support the
 [`yaml-language-server` schema convention](https://github.com/redhat-developer/yaml-language-server).
-VS Code's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)
-is the common case.
 
 The schema only covers the config's _static_ shape: Top-level keys, per-workflow fields like
 `name`/`version`/`from`, required-ness, types. 
-Since this is a structurally flexible declaration format, the schema has **no way** to know what's valid inside a given
-workflow's `params:`. 
-That's checked against the pipeline's own `nextflow_schema.json` when `nf-meta validate` is called. 
-This _dynamic_ validation via the cli command gives you information about lines and keys where something is wrong,
-but you cannot currently use this in your text editor.
+Since nf-meta describes a structurally flexible declaration format, the schema has **no way** to know
+what's valid inside a given workflow's `params:`.
 
-
-Any config saved through the editor has this line added, which enables the static validation in VSCode with the YAML extension (`redhat.vscdoe-yaml`) by pointing to the JSON-schema:
+Any config saved through the editor has the following line added automatically, which enables these static checks
+in VSCode when using the YAML extension (`redhat.vscdoe-yaml`):
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/schemas/metapipeline.schema.json
 steps:
   ...
 ```
 
-
 To utilize it in VSCode:
 
 1. Install the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)
    (`redhat.vscode-yaml`).
-2. Add the same `# yaml-language-server: $schema=...` line as the first line of your `.yaml`
-   file.
-3. Start typing. Unknown keys, missing required fields, and wrong types are flagged inline,
-   and `Ctrl+Space` completes valid keys/enum values.
+2. Point the extension at the nf-meta schema: `# yaml-language-server: $schema=...`
+3. Start typing, see static validation hints, and use `Ctrl+Space` to auto-complete keys
 
-
-The schema can be re-generated locally with your `nf-meta` installation.
+The schema can be re-generated via an `nf-meta` installation and the extension be pointed at a local path.
 
 ```bash
 nf-meta export-schema schemas/metapipeline.schema.json
 ```
-
-The `$schema=...` can also point at a local path relative to the config file instead of the GitHub URL.

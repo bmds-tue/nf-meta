@@ -88,21 +88,21 @@ nav:
   - Overview: index.md
   - Installation: getting-started/installation.md
   - Quickstart: getting-started/quickstart.md
+  - Editor: editor/index.md
+  - Runners: runners/index.md
   - YAML representation:
       - representation/overview.md
-      - representation/reference.md
       - representation/interpolation.md
-  - Editor: editor/index.md
-  - Runners:
-      - runners/index.md
-      - runners/python-runner.md
-  - Guides:
-      - guides/writing-a-runner.md
-      - guides/writing-an-editor-plugin.md
+      - representation/inputs.md
+      - representation/reference.md
+  - CLI reference: getting-started/command-line.md
   - API reference:
       - api/index.md
       - api/core.md
+      - api/python-api.md
       - api/runners.md
       - api/editor.md
   - Contributing: contributing.md
+  - guides/writing-a-runner.md
+  - guides/writing-an-editor-plugin.md
   - Changelog: changelog.md

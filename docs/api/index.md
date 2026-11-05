@@ -1,7 +1,8 @@
 # API reference
 
-This covers `nf_meta.core` (the config representation, validation, and graph), the runner
-plugin surface (`nf_meta.runner`), and the editor plugin surface (`nf_meta.editor`). Anything
+This covers the [Python API](python-api.md) (`Metapipeline` and friends), `nf_meta.core` (the
+config representation, validation, and graph), the runner plugin surface (`nf_meta.runner`), and
+the editor plugin surface (`nf_meta.editor`). Anything
 not listed here or in the [config reference](../representation/reference.md) is internal:
 not part of the supported API, and may change without notice.
 
@@ -10,7 +11,7 @@ not part of the supported API, and may change without notice.
 nf-meta is beta: **everything here can still change.** Within that:
 
 - **`BaseRunner`/`RunOptions`** and **`BaseEditor`/`EditorOptions`** are the intended plugin
-  extension points. See [Writing a runner](../guides/writing-a-runner.md) and
+  extension points. See [Writing a runner plugin](../guides/writing-a-runner.md) and
   [Writing an editor plugin](../guides/writing-an-editor-plugin.md). These are the most
   deliberately designed part of the surface and change the least often, but are not yet under
   a formal compatibility guarantee.

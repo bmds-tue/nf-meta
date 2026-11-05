@@ -1,0 +1,27 @@
+config_version: 0.5.0
+globals:
+  nextflow_version: "25.10"
+  nf_profile: docker
+inputs:
+  ids:
+    description: SRA run ids to fetch, one per line
+    bind: [n01.input]
+  genome:
+    description: Reference genome for the alignment
+    enum: [GRCh38, GRCm39]
+    bind: [n02.genome]
+steps:
+  n01:
+    name: nf-core/fetchngs
+    version: 1.12.0
+    params:
+      outdir: out_fetchngs
+      nf_core_pipeline: rnaseq
+  n02:
+    name: nf-core/rnaseq
+    version: 3.14.0
+    from: [n01]
+    params:
+      input: ${n01:params:outdir}/samplesheet/samplesheet.csv
+      outdir: out_rnaseq
+      aligner: star_salmon

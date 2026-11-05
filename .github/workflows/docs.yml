@@ -94,6 +94,16 @@ jobs:
       - run: uv sync --group docs
         if: steps.guard.outputs.ok == 'true'
 
+      # The editor screenshots show this release's editor. On failure the committed ones are used.
+      - name: Regenerate the editor screenshots
+        if: >-
+          steps.guard.outputs.ok == 'true' && github.event_name != 'push'
+          && hashFiles('scripts/editor_screenshots.py') != ''
+        continue-on-error: true
+        run: |
+          uv run --with playwright playwright install --with-deps chromium
+          uv run --with playwright python scripts/editor_screenshots.py
+
       # MUST run before any mike command. Without it mike sees no prior state
       # and would publish a tree containing only this version.
       - name: Fetch mike state branch

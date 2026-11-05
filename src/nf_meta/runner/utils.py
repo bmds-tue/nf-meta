@@ -30,28 +30,26 @@ class RunOptions:
             `<project dir>/nf-meta-out`. Created if it does not exist.
         verbose: Enables verbose logging output.
         output_lines: Number of most-recent output lines shown in the live
-            scrolling panel while a workflow step is running. Only has an
-            effect in the Python runner.
-        start: Workflow ID at which execution begins. Workflows topologically
-            upstream of this node are skipped. References to them are taken
-            from their cached runs, or treated as missing values (see
-            `input_mode`). ``None`` means start from all source nodes.
-        target: Workflow ID at which execution ends. Workflows topologically
-            downstream of this node are skipped. ``None`` means run until
-            all sink nodes.
+            scrolling panel while a step is running. Only has an effect in the
+            Python runner.
+        start: Step ID at which execution begins. Steps upstream of it are
+            skipped. References to them are taken from their last runs, or
+            treated as missing values (see `input_mode`). ``None`` means start
+            from all source steps.
+        target: Step ID at which execution ends. Steps downstream of it are
+            skipped. ``None`` means run until all sink steps.
         nf_profile: Nextflow profile name (or comma-separated list of names)
-            appended globally to every workflow invocation, taking precedence
-            over per-workflow profile settings. Whitespace is stripped before
-            passing to Nextflow.
+            appended to every step's profiles, taking precedence over them.
+            Whitespace is stripped before passing to Nextflow.
         nf_config: Nextflow config file passed to every step (``-c``), after
             the global and the step's own configs, so it takes precedence.
         stub: When ``True``, passes ``-stub`` to every Nextflow invocation so
             that only the ``stub`` block of each process is executed. Useful
             for validating pipeline structure without real computation.
-        resume: When ``True``, skips any workflow step whose working directory
-            already contains a successful result (``OUT.txt`` present,
-            ``ERROR.txt`` absent) and passes ``-resume`` to Nextflow for
-            workflow-level checkpoint resumption.
+        resume: When ``True``, skips every step that already succeeded with
+            the same step key (its definition, config and input files,
+            globals and upstream steps), and starts the others with Nextflow's
+            ``-resume`` against the step's own Nextflow cache.
         input_mode: What happens with values the run needs but doesn't have
             (inputs without a value, references to steps outside the run):
             ``prompt``, ``fail`` (default) or ``reproduce``. See `InputMode`.

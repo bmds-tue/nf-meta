@@ -4,27 +4,77 @@ import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import type {
     ApiResult, APINodeData, APIEdgeData, APICommandResponse,
-    APIGlobalOptions, Selection,
+    APIGlobalOptions, APIInput, APIInputSave, Selection,
 } from '../types'
 import { useLayout } from '../layout_graph'
-import { useMessageStore, useActivityStore } from './ui_store'
+import { useMessageStore, useActivityStore, useEditorStore } from './ui_store'
 import { useApiStore } from './api_store'
+import { isUrl, referencableParams, referenceTargets } from '../utils'
+
+export const INPUTS_NODE_ID = '__inputs__'
+// Inputs in the graph and the params editor (oneDark's purple)
+export const INPUT_COLOR = '#c678dd'
+// References to other steps' params (oneDark's blue, as in the params editor)
+export const REF_COLOR = '#61afef'
+// Edges between steps: solid, in the theme's edge color (input edges are dashed purple)
+const EDGE_COLOR = 'rgb(var(--v-theme-edge))'
 
 export const useGraphStore = defineStore('graph', () => {
     const { layoutOptions } = useLayout()
     const messageStore = useMessageStore()
     const activityStore = useActivityStore()
     const apiStore = useApiStore()
+    const editorStore = useEditorStore()
 
+    const _inputs = ref<APIInput[]>([])
+    const inputs = computed(() => _inputs.value)
     const _edgeData = ref<APIEdgeData[]>([])
     const _nodeData = ref<APINodeData[]>([])
     const _edges = ref<Edge<APIEdgeData>[]>([])
     const _nodes = ref<Node<APINodeData>[]>([])
 
-    const edges = computed(() => _edges.value)
-    const nodes = computed(() => _nodes.value)
+    // A node standing for the config's inputs, with an edge to every step they fill.
+    // Only in the view: it isn't part of the graph; it can be selected, not connected or deleted.
+    const _showInputsNode = ref(localStorage.getItem('showInputsNode') !== 'false')
+    const showInputsNode = computed(() => _showInputsNode.value)
 
-    const globalOptions = ref<APIGlobalOptions>({ params: {}, config_file: '', profile: '' })
+    function toggleInputsNode() {
+        _showInputsNode.value = !_showInputsNode.value
+        localStorage.setItem('showInputsNode', String(_showInputsNode.value))
+    }
+
+    const inputsNode = computed<Node[]>(() => {
+        if (!_showInputsNode.value || !_inputs.value.length) return []
+        return [{
+            id: INPUTS_NODE_ID,
+            type: 'inputs-node',
+            position: { x: 0, y: 0 },
+            data: { inputs: _inputs.value },
+            selectable: true,
+            connectable: false,
+            deletable: false,
+        }]
+    })
+
+    const inputsEdges = computed<Edge[]>(() => {
+        if (!inputsNode.value.length) return []
+        const steps = new Set(_inputs.value.flatMap(i => i.bindings.map(b => b.slice(0, b.indexOf('.')))))
+        return [...steps].filter(id => _nodeData.value.some(n => n.id === id)).map(id => ({
+            id: `${INPUTS_NODE_ID}->${id}`,
+            source: INPUTS_NODE_ID,
+            target: id,
+            selectable: false,
+            deletable: false,
+            class: 'inputs-edge',
+            style: { stroke: INPUT_COLOR, strokeDasharray: '6 4', strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: INPUT_COLOR },
+        }))
+    })
+
+    const edges = computed(() => [..._edges.value, ...inputsEdges.value] as Edge<APIEdgeData>[])
+    const nodes = computed(() => [..._nodes.value, ...inputsNode.value] as Node<APINodeData>[])
+
+    const globalOptions = ref<APIGlobalOptions>({ params: {}, nf_config: '', nf_profile: '' })
 
     const _filename = ref<string>()
     const filename = computed(() => _filename.value)
@@ -65,7 +115,8 @@ export const useGraphStore = defineStore('graph', () => {
             target: edgeData.target,
             data: edgeData,
             animated: false,
-            markerEnd: MarkerType.ArrowClosed,
+            style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR },
         }
     }
 
@@ -85,7 +136,8 @@ export const useGraphStore = defineStore('graph', () => {
         return result
     }
 
-    async function getAndUpdateGraph() {
+    // Returns whether the backend offers the start screen (first request of a run, no config)
+    async function getAndUpdateGraph(): Promise<boolean> {
         const response = await apiStore.getGraph()
         if (!response.ok) {
             messageStore.add('Unable to fetch Graph Data', 'error')
@@ -93,6 +145,8 @@ export const useGraphStore = defineStore('graph', () => {
             _nodes.value = []
             _edgeData.value = []
             _nodeData.value = []
+            _inputs.value = []
+            return false
         } else {
             _edgeData.value = response.data.transitions
             _nodeData.value = response.data.nodes
@@ -101,13 +155,16 @@ export const useGraphStore = defineStore('graph', () => {
             _undoable.value = response.data.undoable
             _redoable.value = response.data.redoable
             _filename.value = response.data.filename
-            globalOptions.value = response.data.globals ?? { params: null, config_file: null, profile: null }
+            globalOptions.value = response.data.globals ?? { params: null, nf_config: null, nf_profile: null }
+            _inputs.value = response.data.inputs ?? []
+            return response.data.start_screen ?? false
         }
     }
 
-    async function applyMutation(result: ApiResult<APICommandResponse>, successMessage?: string) {
+    // With `quiet`, a refused change shows no message: the caller explains it where it happened
+    async function applyMutation(result: ApiResult<APICommandResponse>, successMessage?: string, quiet = false) {
         if (!result.ok) {
-            handleErrors(result)
+            if (!quiet || result.status !== 422) handleErrors(result)
         } else {
             activityStore.pushEvents(result.data.events ?? [])
             await getAndUpdateGraph()
@@ -116,24 +173,51 @@ export const useGraphStore = defineStore('graph', () => {
         return result
     }
 
+    // Changes are saved to the config file as they're made: a new config, or one loaded from a
+    // URL, is saved to a local file first. Resolves with whether there is one now.
+    async function ensureConfigFile(): Promise<boolean> {
+        if (filename.value && !isUrl(filename.value)) return true
+        return editorStore.requireSave(filename.value ? 'url' : 'new')
+    }
+
+    // Not saved first (the save dialog was cancelled): the change isn't sent, and says nothing
+    const NOT_SAVED: ApiResult<APICommandResponse> = { ok: false, status: 0, message: '' }
+
+    async function mutate(call: () => Promise<ApiResult<APICommandResponse>>, successMessage?: string, quiet = false) {
+        if (!await ensureConfigFile()) return NOT_SAVED
+        return applyMutation(await call(), successMessage, quiet)
+    }
+
     async function saveNode(nodeData: APINodeData) {
-        const result = await (nodeData?.id ? apiStore.updateNode(nodeData) : apiStore.addNode(nodeData))
-        return applyMutation(result, 'Saved')
+        return mutate(() => nodeData?.id ? apiStore.updateNode(nodeData) : apiStore.addNode(nodeData), 'Saved')
     }
 
     async function saveEdge(edgeData: APIEdgeData) {
-        const result = await apiStore.addEdge(edgeData)
-        return applyMutation(result, 'Saved')
+        return mutate(() => apiStore.addEdge(edgeData), 'Saved')
     }
 
     async function updateGlobalOptions(globals: APIGlobalOptions) {
-        const result = await apiStore.updateGlobalOptions(globals)
-        return applyMutation(result, 'Saved')
+        return mutate(() => apiStore.updateGlobalOptions(globals), 'Saved')
+    }
+
+    async function saveInput(input: APIInputSave) {
+        return mutate(() => apiStore.saveInput(input), 'Saved')
+    }
+
+    async function setInputsStyle(inParams: boolean) {
+        return mutate(() => apiStore.setInputsStyle(inParams), 'Saved')
+    }
+
+    async function declareStepInputs(nodeId: string) {
+        return mutate(() => apiStore.declareStepInputs(nodeId), 'Inputs moved to the inputs: section')
+    }
+
+    async function removeInput(name: string) {
+        return mutate(() => apiStore.deleteInput(name), undefined, true)
     }
 
     async function removeSelectionById(selection: Selection) {
-        const result = await apiStore.deleteSelection(selection)
-        return applyMutation(result)
+        return mutate(() => apiStore.deleteSelection(selection))
     }
 
     async function removeNodeById(nodeId: string) {
@@ -168,32 +252,42 @@ export const useGraphStore = defineStore('graph', () => {
         await getAndUpdateGraph()
     }
 
-    async function save() {
+    // Save to the current file; returns the error message if it failed
+    async function save(): Promise<string | undefined> {
         if (!filename.value) {
             messageStore.add('No save destination specified!', 'error')
-            return
+            return 'No file to save to'
         }
-        const result = await apiStore.saveGraph(filename.value)
+        return saveTo(filename.value)
+    }
+
+    // Save to `target`, which becomes the current file only if saving worked
+    async function saveAs(target: string): Promise<string | undefined> {
+        const problem = await saveTo(target)
+        if (!problem) _filename.value = target
+        return problem
+    }
+
+    async function saveTo(target: string): Promise<string | undefined> {
+        const result = await apiStore.saveGraph(target)
         if (!result.ok) {
             messageStore.add(`Saving failed: ${result.message}`, 'error')
-        } else {
-            messageStore.add('Saved', 'success')
+            return result.message
         }
+        messageStore.add('Saved', 'success')
+        return undefined
     }
 
-    async function saveAs(newFilename: string) {
-        _filename.value = newFilename
-        save()
-    }
-
-    async function loadConfig(newFilename: string) {
-        const result = await apiStore.loadGraph(newFilename)
+    // Load the config at `path`; returns the error message if it failed
+    async function loadConfig(path: string): Promise<string | undefined> {
+        const result = await apiStore.loadGraph(path)
         if (!result.ok) {
             messageStore.add(`Loading config failed: ${result.message}`, 'error')
-            return
+            return result.message
         }
         await getAndUpdateGraph()
-        messageStore.add('Config Loaded', 'success')
+        messageStore.add('Config loaded', 'success')
+        return undefined
     }
 
     function getPredecessors(nodeId: string | undefined | null) {
@@ -210,14 +304,26 @@ export const useGraphStore = defineStore('graph', () => {
 
     const nodeData = computed(() => _nodeData.value)
 
+    // The steps step `nodeId` can reference (see `referenceTargets`); every step for an unsaved one
+    function getReferenceTargets(nodeId: string | undefined | null) {
+        return referenceTargets(_nodeData.value, _edgeData.value, nodeId ?? undefined, _inputs.value)
+    }
+
+    // The params of step `nodeId` another step can reference: set ones and ones an input fills
+    function getReferencableParams(nodeId: string | undefined | null): string[] {
+        const node = _nodeData.value.find(n => n.id === nodeId)
+        return node ? referencableParams(node, _inputs.value).map(p => p.key) : []
+    }
+
     return {
-        nodes, nodeData, edges, globalOptions, filename,
+        nodes, nodeData, edges, globalOptions, inputs, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
         undoable, redoable,
-        getAndUpdateGraph,
-        saveNode, saveEdge, updateGlobalOptions,
+        getAndUpdateGraph, ensureConfigFile,
+        saveNode, saveEdge, updateGlobalOptions, saveInput, removeInput, declareStepInputs, setInputsStyle,
+        showInputsNode, toggleInputsNode,
         removeSelectionById, removeNodeById, removeEdgeById,
         undo, redo, save, saveAs, loadConfig,
-        getPredecessors, getParams,
+        getPredecessors, getParams, getReferenceTargets, getReferencableParams,
     }
 })

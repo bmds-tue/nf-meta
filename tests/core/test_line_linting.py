@@ -7,13 +7,7 @@ class TestLocateField:
         assert locate_field(text, "version") == TextPosition(line=2, column=1)
 
     def test_nested_params_field(self):
-        text = (
-            "name: nf-core/rnaseq\n"
-            "version: 3.14.0\n"
-            "params:\n"
-            "  input: samplesheet.csv\n"
-            "  outdir: results\n"
-        )
+        text = "name: nf-core/rnaseq\nversion: 3.14.0\nparams:\n  input: samplesheet.csv\n  outdir: results\n"
         assert locate_field(text, "params.outdir") == TextPosition(line=5, column=3)
 
     def test_flat_dotted_map_key(self):

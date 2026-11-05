@@ -1,12 +1,10 @@
 import logging
-import re
 
 from .errors import Diagnostic, Severity
+from .refs import contains_reference
+from .registry import Schema
 
 logger = logging.getLogger(__name__)
-
-# Matches ${<wf_id>:<namespace>:<key>} — same pattern as models.py
-_VALID_REF_PATTERN = re.compile(r"\$\{([^}]+):(params|outputs):([^}]+)\}")
 
 
 def _check_type(param_name: str, value: object, expected_type: str) -> str | None:
@@ -18,22 +16,19 @@ def _check_type(param_name: str, value: object, expected_type: str) -> str | Non
     but still rejected by nf-schema.
     """
     # bool is a subtype of int in Python, so it must be checked before int/float.
-    if expected_type == "boolean":
-        if not isinstance(value, bool):
-            return f"Parameter '{param_name}' = {value!r} is not a valid boolean"
-    elif expected_type == "integer":
-        if isinstance(value, bool) or not isinstance(value, int):
-            return f"Parameter '{param_name}' = {value!r} is not a valid integer"
-    elif expected_type in ("number", "float"):
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return f"Parameter '{param_name}' = {value!r} is not a valid number"
+    if expected_type == "boolean" and not isinstance(value, bool):
+        return f"Parameter '{param_name}' = {value!r} is not a valid boolean"
+    if expected_type == "integer" and (isinstance(value, bool) or not isinstance(value, int)):
+        return f"Parameter '{param_name}' = {value!r} is not a valid integer"
+    if expected_type in ("number", "float") and (isinstance(value, bool) or not isinstance(value, (int, float))):
+        return f"Parameter '{param_name}' = {value!r} is not a valid number"
     # string, array, object, path formats — no further check
     return None
 
 
 def validate_params(
     params: dict[str, object],
-    schema: dict[str, dict],
+    schema: Schema,
     *,
     pipeline_id: str,
     skip_required: bool = False,
@@ -43,7 +38,8 @@ def validate_params(
 
     Returns a list of Diagnostic, one per failing param (field=f"params.{param_name}",
     message still names the param explicitly). An empty list means all params are
-    valid. Cross-workflow reference tokens (``${...}``) skip type and enum checks.
+    valid. Values containing a step or input reference (``${...}``) skip type
+    and enum checks.
 
     Args:
         params: Resolved param dict. Values are real scalars (str/int/float/bool)
@@ -75,12 +71,8 @@ def validate_params(
                     f"use dot-notation sub-keys (e.g. '{param_name}.id') instead of a raw value",
                 )
             )
-        elif param_name not in schema and not any(
-            param_name.startswith(f"{k}.") for k in _map_keys
-        ):
-            diagnostics.append(
-                _diagnostic(param_name, f"Unknown parameter '{param_name}'")
-            )
+        elif param_name not in schema and not any(param_name.startswith(f"{k}.") for k in _map_keys):
+            diagnostics.append(_diagnostic(param_name, f"Unknown parameter '{param_name}'"))
 
     # Check required params (only when no params_file is covering them)
     if not skip_required:
@@ -96,9 +88,7 @@ def validate_params(
             # meta.sample), so check for any key with the expected prefix.
             if required_spec.get("type") == "map":
                 prefix = f"{param_name}."
-                present = param_name in params or any(
-                    k.startswith(prefix) for k in params
-                )
+                present = param_name in params or any(k.startswith(prefix) for k in params)
             else:
                 present = param_name in params
             if not present:
@@ -112,12 +102,12 @@ def validate_params(
 
     # Check types and enum values for provided params
     for param_name, value in params.items():
-        spec: dict | None = schema.get(param_name)
+        spec = schema.get(param_name)
         if spec is None:
             continue  # already flagged as unknown above
 
-        # Reference tokens are resolved at runtime — skip checks
-        if isinstance(value, str) and _VALID_REF_PATTERN.search(value):
+        # Step and input references are resolved at runtime — skip checks
+        if contains_reference(value):
             continue
 
         enum_values = spec.get("enum")
@@ -129,8 +119,7 @@ def validate_params(
                 diagnostics.append(
                     _diagnostic(
                         param_name,
-                        f"Parameter '{param_name}' = {value!r} "
-                        f"is not one of the allowed values: {enum_values}",
+                        f"Parameter '{param_name}' = {value!r} is not one of the allowed values: {enum_values}",
                     )
                 )
         elif expected_type is not None:

@@ -1,13 +1,15 @@
 import logging
 from importlib.metadata import entry_points
 
-from .python_runner import SimplePythonRunner
+from .base_runner import _REGISTRY, BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
 from .cascade_runner import NfCascadeRunner
+from .collect import InputMode
+from .engines import Engine, StepCommand, engine_for
 from .errors import NfMetaRunnerError
-from .runner import run_metapipeline
-from .base_runner import BaseRunner, _REGISTRY
+from .python_runner import SimplePythonRunner
+from .runner import plan_metapipeline, run_metapipeline, run_step
+from .spec import StepSpec
 from .utils import RunOptions, check_nextflow, check_nextflow_version
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ def _load_runner_plugins() -> None:
         try:
             ep.load()
             logger.debug("Loaded runner plugin: %s", ep.name)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- a broken third-party plugin must not stop nf-meta from starting
             logger.warning("Failed to load runner plugin '%s': %s", ep.name, exc)
 
 

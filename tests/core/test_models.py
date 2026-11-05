@@ -1,14 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from nf_meta.core.models import (
-    NfPipeline,
-    GlobalOptions,
-    Transition,
-)
 from nf_meta.core.dynamic_validation import check_pipeline_main_script_exists
 from nf_meta.core.errors import Severity
-
+from nf_meta.core.models import (
+    GlobalOptions,
+    NfPipeline,
+    Transition,
+)
 
 # ---------------------------------------------------------------------------
 # Workflow
@@ -52,9 +51,7 @@ class TestParamCoercion:
         assert isinstance(wf.params["count"], int)
 
     def test_float_type_preserved(self):
-        wf = NfPipeline(
-            name="nf-core/rnaseq", version="3.14.0", params={"threshold": 0.5}
-        )
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"threshold": 0.5})
         assert wf.params["threshold"] == 0.5
         assert isinstance(wf.params["threshold"], float)
 
@@ -63,9 +60,7 @@ class TestParamCoercion:
         assert wf.params["flag"] is True
 
     def test_str_type_preserved(self):
-        wf = NfPipeline(
-            name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"}
-        )
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"})
         assert wf.params["input"] == "samples.csv"
         assert isinstance(wf.params["input"], str)
 
@@ -95,9 +90,7 @@ class TestFieldRefs:
         assert ref.source_key == "input"
 
     def test_no_refs_without_brace_pattern(self):
-        wf = NfPipeline(
-            name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"}
-        )
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "samples.csv"})
         assert wf.field_refs == []
 
 
@@ -146,10 +139,7 @@ class TestWorkflowMainScript:
             main_script="workflows/missing.nf",
         )
         diagnostics = check_pipeline_main_script_exists(wf)
-        assert any(
-            d.severity == Severity.ERROR and "not found" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "not found" in d.message for d in diagnostics)
 
     def test_main_script_warns_for_non_github_url(self):
         wf = NfPipeline(
@@ -159,10 +149,7 @@ class TestWorkflowMainScript:
             main_script="workflows/special.nf",
         )
         diagnostics = check_pipeline_main_script_exists(wf)
-        assert any(
-            d.severity == Severity.WARNING and "Cannot validate" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.WARNING and "Cannot validate" in d.message for d in diagnostics)
 
 
 class TestWorkflowDump:
@@ -192,12 +179,12 @@ class TestWorkflowDump:
 
 class TestGlobalOptions:
     def test_profile_whitespace_stripped(self):
-        g = GlobalOptions(profile="docker, singularity")
-        assert g.profile == "docker,singularity"
+        g = GlobalOptions(nf_profile="docker, singularity")
+        assert g.nf_profile == "docker,singularity"
 
     def test_profile_none(self):
         g = GlobalOptions()
-        assert g.profile is None
+        assert g.nf_profile is None
 
     def test_nextflow_version_full_string(self):
         g = GlobalOptions(nextflow_version="25.10.4")

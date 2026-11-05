@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { usePipelineStore, useGraphStore } from '../store';
-import { extractFieldErrors } from '../utils';
+import { extractFieldErrors, inputFor, inputsOfStep, paramFieldErrors, shortVersion, unshownErrors, withoutEmptyValues } from '../utils';
 import type { APINfPipelineNodeData, APINodeData } from '../types';
 import type { SubmitEventPromise } from 'vuetify';
-import CustomFileInput from './CustomFileInput.vue';
-import YamlEditor from './YamlEditor.vue';
 import YAML from 'yaml';
+import NodeInputs from './NodeInputs.vue';
+import ParamsForm from './ParamsForm.vue';
+import PathPicker from './PathPicker.vue';
+import { useStepSchema } from '../step_schema';
 
 const props = defineProps<{
   initialValue: APINfPipelineNodeData,
@@ -26,6 +28,20 @@ const isEditing = ref(props.isNew)
 const saving = ref(false)
 const errors = ref<Record<string, string[]>>({})
 
+// Fields of the "More options" section; it starts open if any of them is set
+// (an nf-core pipeline's description comes from the catalog)
+const MORE_FIELDS = ['description', 'path', 'params_file', 'nf_config', 'nf_profile', 'main_script'] as const
+
+// A local pipeline folder (`path`) is for development; the backend warns about it too
+const LOCAL_HINT = 'Step runs from a local folder. URL deactivated'
+const hasMore = () => MORE_FIELDS.some(f => !!form.value[f] && !(f === 'description' && form.value.is_nfcore))
+const showMore = ref(hasMore())
+
+// The graph changed (save, undo, another edit): show it, unless being edited
+watch(() => props.initialValue, (value) => {
+  if (!isEditing.value) form.value = { ...value }
+})
+
 const nfCorePipelines = computed(() => {
   return pipelineStore.nfCorePipelines?.map(p => p.name)
 })
@@ -42,7 +58,7 @@ const selectedPipelineVersions = computed(() => {
 function handleUpdatePipeline() {
   if (form.value.name && selectedPipeline.value?.description) {
     form.value.description = selectedPipeline.value.description
-    form.value.url = selectedPipeline.value.repository_url
+    form.value.url = selectedPipeline.value.url
   }
 }
 
@@ -50,10 +66,13 @@ async function submitForm(e: SubmitEventPromise) {
   const { valid } = await e
   if (!valid) return
   errors.value = {}
+  paramErrors.value = { byParam: {}, general: [] }
   saving.value = true
   try {
     const previousIds = new Set(graphStore.nodeData.map(n => n.id))
-    const result = await graphStore.saveNode({ ...form.value })
+    // a local pipeline runs its folder: no repository url or version
+    const local = form.value.path ? { url: undefined, version: undefined } : { path: undefined }
+    const result = await graphStore.saveNode({ ...form.value, ...local, params: withoutEmptyValues(form.value.params) })
     if (result.ok) {
       isEditing.value = false
       if (props.isNew) {
@@ -65,6 +84,8 @@ async function submitForm(e: SubmitEventPromise) {
     } else if (result.fieldErrors) {
       // A new node's id is assigned by the backend, so its errors can't be matched by id
       errors.value = extractFieldErrors(result.fieldErrors, props.isNew ? null : form.value.id ?? '')
+      paramErrors.value = paramFieldErrors(result.fieldErrors, props.isNew ? null : form.value.id ?? '')
+      if (MORE_FIELDS.some(f => errors.value[f]?.length)) showMore.value = true
     }
   } finally {
     saving.value = false
@@ -82,9 +103,11 @@ function handleReset() {
   form.value = { ...props.initialValue }
   errors.value = {}
   isEditing.value = false
+  if (props.isNew) emit('deleted')
 }
 
 function editDetail() {
+  showMore.value = hasMore()
   isEditing.value = true
 }
 
@@ -99,164 +122,233 @@ async function copyPath(text: string, field: string) {
   }
 }
 
+// The params form: the step's schema, the params inputs fill with bind:, and what can be referenced
+const { schema, loading: schemaLoading, error: schemaError } = useStepSchema(() => ({
+  kind: 'pipeline',
+  url: form.value.url || (form.value.is_nfcore && form.value.name ? `https://github.com/${form.value.name}` : undefined),
+  version: form.value.version,
+  path: form.value.path || undefined,
+}))
+const boundParams = computed(() => Object.fromEntries(
+  form.value.id
+    ? inputsOfStep(graphStore.inputs, form.value.id).filter(e => e.input.bound_by === 'bind').map(e => [e.param, e.input.name])
+    : [],
+))
+const references = computed(() => graphStore.getReferenceTargets(form.value.id))
+// Errors no field of this form shows (e.g. a global setting the step conflicts with)
+const FORM_FIELDS = ['name', 'url', 'version', 'path', 'description', 'params_file', 'nf_config', 'nf_profile', 'main_script', 'is_nfcore']
+const otherErrors = computed(() => unshownErrors(errors.value, FORM_FIELDS))
+const paramErrors = ref<{ byParam: Record<string, string[]>, general: string[] }>({ byParam: {}, general: [] })
+
+function inputForParam(param: string) {
+  return inputFor(param, form.value.name, graphStore.inputs, schema.value?.[param])
+}
+
 const hasParams = computed(() => !!form.value.params && Object.keys(form.value.params).length > 0)
 const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.params).trim() : '')
+
+// File rows of the read-only view
+const pathRows = computed(() => [
+  { field: 'path', icon: 'mdi-folder-outline', label: 'Local pipeline folder', value: form.value.path },
+  { field: 'params_file', icon: 'mdi-file-document-outline', label: 'Params file', value: form.value.params_file },
+  { field: 'nf_config', icon: 'mdi-cog-outline', label: 'Nextflow config', value: form.value.nf_config },
+  { field: 'main_script', icon: 'mdi-script-text-outline', label: 'Main script', value: form.value.main_script },
+].filter(r => r.value))
 </script>
 
 <template>
-  <v-card-text v-if="!isEditing" class="ma-0 pa-3">
-    <p v-if="form.description" class="text-body-2 mb-3">{{ form.description }}</p>
+  <!-- View -->
+  <div v-if="!isEditing" class="pt-1 pb-2">
+    <p v-if="form.description" class="text-body-2 muted mb-2">{{ form.description }}</p>
 
-    <div class="d-flex flex-column ga-2">
-      <div v-if="form.version" class="detail-row d-flex align-center ga-2 text-body-2">
-        <v-icon icon="mdi-tag-outline" size="16" class="flex-shrink-0" />
-        <span>{{ form.version }}</span>
-      </div>
-      <div v-if="form.is_nfcore" class="detail-row d-flex align-center ga-2 text-body-2">
-        <v-icon icon="$nfcore" size="16" class="flex-shrink-0" />
-        <span>nf-core community pipeline</span>
-      </div>
-      <a v-if="form.url" class="detail-row detail-row-link text-primary d-flex align-center ga-2 text-body-2" :href="form.url" target="_blank">
-        <v-icon icon="mdi-link-variant" size="16" class="flex-shrink-0" />
-        <span class="text-truncate">{{ form.url }}</span>
-        <v-icon icon="mdi-open-in-new" size="12" class="flex-shrink-0" />
-      </a>
-      <div v-if="form.params_file" class="detail-row d-flex align-start ga-2 text-body-2">
-        <v-icon icon="mdi-file-document-outline" size="16" class="flex-shrink-0 mt-1" />
-        <code class="path-text flex-grow-1">{{ form.params_file }}</code>
-        <v-btn
-          :icon="copiedField === 'params_file' ? 'mdi-check' : 'mdi-content-copy'"
-          size="x-small" variant="text" :ripple="false" flat class="flex-shrink-0"
-          @click.stop="copyPath(form.params_file!, 'params_file')" />
-      </div>
-      <div v-if="form.config_file" class="detail-row d-flex align-start ga-2 text-body-2">
-        <v-icon icon="mdi-cog-outline" size="16" class="flex-shrink-0 mt-1" />
-        <code class="path-text flex-grow-1">{{ form.config_file }}</code>
-        <v-btn
-          :icon="copiedField === 'config_file' ? 'mdi-check' : 'mdi-content-copy'"
-          size="x-small" variant="text" :ripple="false" flat class="flex-shrink-0"
-          @click.stop="copyPath(form.config_file!, 'config_file')" />
-      </div>
+    <div class="d-flex flex-wrap align-center ga-1 mb-1">
+      <v-chip v-if="form.version" size="small" prepend-icon="mdi-tag-outline" :title="form.version">
+        {{ shortVersion(form.version) }}
+      </v-chip>
+      <v-chip v-if="form.is_nfcore" size="small" prepend-icon="$nfcore">nf-core</v-chip>
+      <v-chip v-if="form.nf_profile" size="small" prepend-icon="mdi-account-cog-outline" title="Nextflow profile">
+        {{ form.nf_profile }}
+      </v-chip>
+    </div>
+    <a v-if="form.url" class="detail-row detail-row-link text-primary d-flex align-center ga-1 text-body-2" :href="form.url" target="_blank">
+      <v-icon icon="mdi-link-variant" size="14" class="flex-shrink-0" />
+      <span class="text-truncate">{{ form.url }}</span>
+      <v-icon icon="mdi-open-in-new" size="12" class="flex-shrink-0" />
+    </a>
+    <div v-for="row in pathRows" :key="row.field" class="detail-row d-flex align-center ga-1 text-body-2" :title="row.label">
+      <v-icon :icon="row.icon" size="14" class="flex-shrink-0" />
+      <code class="path-text flex-grow-1">{{ row.value }}</code>
+      <v-btn
+        :icon="copiedField === row.field ? 'mdi-check' : 'mdi-content-copy'"
+        size="24" variant="text" :ripple="false" flat class="flex-shrink-0 copy-btn"
+        @click.stop="copyPath(row.value!, row.field)" />
     </div>
 
-    <template v-if="hasParams">
-      <div class="text-caption mt-3 mb-1">Params</div>
-      <pre class="yaml-preview">{{ paramsYaml }}</pre>
-    </template>
+    <NodeInputs :node-id="form.id" />
 
-    <v-card-actions class="justify-end pa-0 pt-3">
-      <v-btn size="small" @click.stop="editDetail">Edit</v-btn>
-      <v-btn size="small" color="error" @click.stop="handleDelete">Delete</v-btn>
-    </v-card-actions>
-  </v-card-text>
+    <div class="text-caption mt-2">Params</div>
+    <pre v-if="hasParams" class="yaml-preview">{{ paramsYaml }}</pre>
+    <p v-else class="text-body-2 muted mb-0">None</p>
 
-  <v-card-text v-else class="content ma-0 pa-0">
-    <v-form @submit.prevent="submitForm">
-      <div class="d-flex align-center ga-2">
-        <v-autocomplete
-          v-if="form.is_nfcore"
-          label="Pipeline name"
-          v-model="form.name"
-          :items="nfCorePipelines"
-          variant="outlined"
-          density="compact"
-          @update:modelValue="handleUpdatePipeline"
-          :error-messages="errors.name ?? (pipelineStore.initError ? [pipelineStore.initError] : [])"
-          class="flex-grow-1">
-        </v-autocomplete>
-        <v-text-field
-          v-if="!form.is_nfcore"
-          v-model="form.name"
-          label="Pipeline name"
-          variant="outlined"
-          density="compact"
-          :error-messages="errors.name"
-          class="flex-grow-1">
-        </v-text-field>
-        <v-switch
-          true-icon="$nfcore"
-          false-icon="mdi-close"
-          density="compact"
-          color="primary"
-          v-model="form.is_nfcore"
-          class="flex-shrink-0 mx-0">
-          <template #label>
-            <span style="color: rgb(var(--v-theme-nodeNfCoreBorder))"> nf-core </span>
-          </template>
-        </v-switch>
-      </div>
+    <div class="d-flex justify-end ga-1 pt-2">
+      <v-btn size="small" variant="tonal" prepend-icon="mdi-pencil" @click.stop="editDetail">Edit</v-btn>
+      <v-btn size="small" variant="text" color="error" prepend-icon="mdi-delete-outline" @click.stop="handleDelete">Delete</v-btn>
+    </div>
+  </div>
 
-      <v-text-field
-        v-if="!form.is_nfcore"
-        v-model="form.url"
-        label="Pipeline URL"
-        variant="outlined"
-        density="compact"
-        :error-messages="errors.url">
-      </v-text-field>
-      <v-text-field
-        v-if="!form.is_nfcore"
-        label="Version"
-        v-model="form.version"
-        variant="outlined"
-        density="compact"
-        :error-messages="errors.version">
-      </v-text-field>
-
+  <!-- Edit -->
+  <v-form v-else class="compact-form pt-1 pb-2" @submit.prevent="submitForm">
+    <div class="d-flex align-center ga-2">
       <v-autocomplete
         v-if="form.is_nfcore"
-        label="Version"
-        v-model="form.version"
-        :items="selectedPipelineVersions"
-        variant="outlined"
-        density="compact"
-        :error-messages="errors.version">
-      </v-autocomplete>
+        label="Pipeline"
+        v-model="form.name"
+        :items="nfCorePipelines"
+        variant="outlined" density="compact" hide-details="auto"
+        @update:modelValue="handleUpdatePipeline"
+        :error-messages="errors.name ?? (pipelineStore.initError ? [pipelineStore.initError] : [])"
+        class="flex-grow-1" />
+      <v-text-field
+        v-else
+        v-model="form.name"
+        label="Pipeline name"
+        variant="outlined" density="compact" hide-details="auto"
+        :error-messages="errors.name"
+        class="flex-grow-1" />
+      <v-switch
+        v-model="form.is_nfcore"
+        true-icon="$nfcore" false-icon="mdi-close"
+        density="compact" color="primary" hide-details inset
+        class="flex-grow-0"
+        title="nf-core pipeline" />
+    </div>
 
+    <v-text-field
+      v-if="!form.is_nfcore"
+      v-model="form.url"
+      label="Repository URL"
+      prepend-inner-icon="mdi-link-variant"
+      :disabled="!!form.path" :hint="form.path ? LOCAL_HINT : undefined" :persistent-hint="!!form.path"
+      variant="outlined" density="compact" hide-details="auto"
+      :error-messages="errors.url" />
+
+    <v-autocomplete
+      v-if="form.is_nfcore"
+      label="Version"
+      v-model="form.version"
+      :items="selectedPipelineVersions"
+      prepend-inner-icon="mdi-tag-outline"
+      variant="outlined" density="compact" hide-details="auto"
+      :error-messages="errors.version" />
+    <v-text-field
+      v-else
+      label="Version (tag, branch or commit)"
+      v-model="form.version"
+      prepend-inner-icon="mdi-tag-outline"
+      :disabled="!!form.path"
+      variant="outlined" density="compact" hide-details="auto"
+      :error-messages="errors.version" />
+
+    <ParamsForm
+      v-model="form.params"
+      :schema="schema" :loading="schemaLoading" :error="schemaError"
+      :input-for="inputForParam" :references="references" :bound="boundParams"
+      :errors="paramErrors.byParam" :general-errors="paramErrors.general"
+      :node-id="form.id" />
+
+    <v-btn
+      size="small" variant="text" class="px-1 align-self-start"
+      :prepend-icon="showMore ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+      @click="showMore = !showMore">
+      More options
+    </v-btn>
+    <template v-if="showMore">
       <v-textarea
         v-if="!form.is_nfcore"
-        label="Pipeline Description"
         v-model="form.description"
-        variant="outlined"
-        density="compact"
-        rows="2"
-        :readonly="form.is_nfcore">
-      </v-textarea>
-
-      <CustomFileInput
+        label="Description"
+        variant="outlined" density="compact" rows="1" auto-grow hide-details="auto" />
+      <v-text-field
+        v-if="!form.is_nfcore"
+        v-model="form.path"
+        label="Local folder (development)"
+        placeholder="Instead of URL and version, relative to the config file" persistent-placeholder
+        prepend-inner-icon="mdi-folder-outline"
+        variant="outlined" density="compact" hide-details="auto" clearable
+        :error-messages="errors.path">
+        <template #append-inner>
+          <PathPicker pick="folder" :value="form.path" @pick="(p) => form.path = p" />
+        </template>
+      </v-text-field>
+      <v-text-field
         v-model="form.params_file"
-        label="Params File"
+        label="Params file"
+        placeholder="YAML file, relative to the config file" persistent-placeholder
+        prepend-inner-icon="mdi-file-document-outline"
+        variant="outlined" density="compact" hide-details="auto" clearable
         :error-messages="errors.params_file">
-      </CustomFileInput>
+        <template #append-inner>
+          <PathPicker pick="config" :value="form.params_file" @pick="(p) => form.params_file = p" />
+        </template>
+      </v-text-field>
+      <v-text-field
+        v-model="form.nf_config"
+        label="Nextflow config"
+        placeholder="Path, relative to the config file" persistent-placeholder
+        prepend-inner-icon="mdi-cog-outline"
+        variant="outlined" density="compact" hide-details="auto" clearable
+        :error-messages="errors.nf_config">
+        <template #append-inner>
+          <PathPicker pick="file" :value="form.nf_config" @pick="(p) => form.nf_config = p" />
+        </template>
+      </v-text-field>
+      <v-text-field
+        v-model="form.nf_profile"
+        label="Nextflow profile(s)"
+        placeholder="e.g. docker,test" persistent-placeholder
+        prepend-inner-icon="mdi-account-cog-outline"
+        variant="outlined" density="compact" hide-details="auto" clearable
+        :error-messages="errors.nf_profile" />
+      <v-text-field
+        v-model="form.main_script"
+        label="Main script"
+        placeholder="Entry script, if not main.nf" persistent-placeholder
+        prepend-inner-icon="mdi-script-text-outline"
+        variant="outlined" density="compact" hide-details="auto" clearable
+        :error-messages="errors.main_script" />
+    </template>
 
-      <CustomFileInput
-        v-model="form.config_file"
-        label="Nextflow Config File"
-        :error-messages="errors.config_file">
-      </CustomFileInput>
+    <div v-for="message in otherErrors" :key="message" class="other-error d-flex align-center ga-2 text-body-2">
+      <v-icon icon="mdi-alert-circle" color="error" size="16" />
+      <span>{{ message }}</span>
+    </div>
 
-      <v-label class="mt-2 mb-1">Params</v-label>
-      <p v-if="errors['params']?.length" style="color: rgb(var(--v-theme-error)); font-size: 0.85em;" class="mb-1">
-        {{ errors['params']!.join(' ') }}
-      </p>
-      <div style="height: 220px;">
-        <YamlEditor
-          v-model="form.params"
-          :node-id="form.id">
-        </YamlEditor>
-      </div>
-
-      <v-card-actions class="justify-end">
-        <v-btn class="me-4" type="submit" :loading="saving">save changes</v-btn>
-        <v-btn @click="handleReset" color="error">cancel edit</v-btn>
-      </v-card-actions>
-    </v-form>
-  </v-card-text>
+    <div class="d-flex justify-end ga-1 pt-1">
+      <v-btn size="small" variant="flat" color="primary" type="submit" :loading="saving" prepend-icon="mdi-check">Save</v-btn>
+      <v-btn size="small" variant="text" color="error" @click="handleReset">Cancel</v-btn>
+    </div>
+  </v-form>
 </template>
 
 <style scoped>
+.compact-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.params-editor {
+  height: 200px;
+}
+.other-error {
+  color: rgb(var(--v-theme-error));
+}
+.field-error {
+  color: rgb(var(--v-theme-error));
+  font-size: 0.8rem;
+}
 .detail-row {
   min-width: 0;
+  line-height: 1.6;
 }
 .detail-row .v-icon {
   color: rgba(var(--v-theme-onSurface), 0.45) !important;
@@ -272,18 +364,21 @@ const paramsYaml = computed(() => form.value.params ? YAML.stringify(form.value.
 .detail-row-link:hover span {
   text-decoration: underline;
 }
+.copy-btn :deep(.v-icon) {
+  font-size: 14px;
+}
 .path-text {
   word-break: break-all;
-  align-self: flex-start;
+  font-size: 0.8rem;
 }
 .yaml-preview {
   font-family: monospace;
-  font-size: 0.78rem;
-  line-height: 1.5;
+  font-size: 0.75rem;
+  line-height: 1.45;
   background: rgba(var(--v-theme-onSurface), 0.05);
   border-radius: 4px;
-  padding: 8px;
-  margin: 0;
+  padding: 6px 8px;
+  margin: 2px 0 0;
   max-height: 110px;
   overflow-y: auto;
   white-space: pre;

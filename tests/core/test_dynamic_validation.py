@@ -11,18 +11,17 @@ override those same targets per-test to exercise specific check branches.
 import pytest
 
 from nf_meta.core.dynamic_validation import (
+    check_all,
     check_module_params_schema,
     check_module_version_in_registry,
     check_pipeline_main_script_exists,
     check_pipeline_params_schema,
     check_pipeline_url_reachable,
-    check_all,
     run_dynamic_checks,
 )
 from nf_meta.core.errors import Severity
 from nf_meta.core.models import NfModule, NfPipeline
-from nf_meta.core.nf_core_utils import PipelineSchemaError
-
+from nf_meta.core.registry import PipelineSchemaError
 
 # ---------------------------------------------------------------------------
 # check_pipeline_url_reachable
@@ -40,15 +39,11 @@ class TestCheckPipelineUrlReachable:
         assert calls == []
 
     def test_reachable_url_no_diagnostic(self, wf_custom, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
         assert check_pipeline_url_reachable(wf_custom) == []
 
     def test_unreachable_url_warns(self, wf_custom, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False)
         diagnostics = check_pipeline_url_reachable(wf_custom)
         assert len(diagnostics) == 1
         assert diagnostics[0].severity == Severity.WARNING
@@ -144,9 +139,7 @@ class TestCheckPipelineParamsSchema:
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
             lambda url, version: self.SCHEMA,
         )
-        wf = NfPipeline(
-            name="nf-core/rnaseq", version="3.14.0", params={"input": "/data/x.csv"}
-        )
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "/data/x.csv"})
         assert check_pipeline_params_schema(wf) == []
 
     def test_required_param_missing_raises_error(self, monkeypatch):
@@ -156,28 +149,18 @@ class TestCheckPipelineParamsSchema:
         )
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
         diagnostics = check_pipeline_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "Required parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "Required parameter" in d.message for d in diagnostics)
 
-    def test_malformed_params_file_warns_and_skips_required(
-        self, monkeypatch, tmp_path
-    ):
+    def test_malformed_params_file_warns_and_skips_required(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
             lambda url, version: self.SCHEMA,
         )
         pf = tmp_path / "params.yaml"
         pf.write_text("- not\n- a\n- mapping\n")
-        wf = NfPipeline(
-            name="nf-core/rnaseq", version="3.14.0", params_file=str(pf)
-        )
+        wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params_file=str(pf))
         diagnostics = check_pipeline_params_schema(wf)
-        assert any(
-            d.severity == Severity.WARNING and "does not contain a mapping" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.WARNING and "does not contain a mapping" in d.message for d in diagnostics)
         # required-param check was skipped, so no ERROR about missing 'input'
         assert not any(d.severity == Severity.ERROR for d in diagnostics)
 
@@ -249,10 +232,7 @@ class TestCheckModuleParamsSchema:
         )
         wf = NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")
         diagnostics = check_module_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "Required parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "Required parameter" in d.message for d in diagnostics)
 
 
 # ---------------------------------------------------------------------------
@@ -262,9 +242,7 @@ class TestCheckModuleParamsSchema:
 
 class TestRunDynamicChecks:
     def test_pipeline_dispatch_runs_pipeline_checks(self, wf_rnaseq, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
         # wf_rnaseq is nf-core, so no checks should fail
         diagnostics = run_dynamic_checks(wf_rnaseq)
         assert not any(d.severity == Severity.ERROR for d in diagnostics)
@@ -340,12 +318,8 @@ class TestCheckAll:
     def test_empty_list_returns_empty(self):
         assert check_all([]) == []
 
-    def test_aggregates_diagnostics_across_workflows(
-        self, wf_custom, module_fastqc, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False
-        )
+    def test_aggregates_diagnostics_across_workflows(self, wf_custom, module_fastqc, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False)
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
             lambda name: [],
@@ -360,22 +334,15 @@ class TestCheckAll:
         )
         diagnostics = check_all([wf_custom, module_fastqc])
         # wf_custom's url is unreachable -> one WARNING diagnostic expected
-        assert any(
-            d.workflow_id == wf_custom.id and d.severity == Severity.WARNING
-            for d in diagnostics
-        )
+        assert any(d.workflow_id == wf_custom.id and d.severity == Severity.WARNING for d in diagnostics)
 
-    def test_stamps_yaml_path_with_each_workflows_own_id(
-        self, wf_custom, module_fastqc, monkeypatch
-    ):
+    def test_stamps_yaml_path_with_each_workflows_own_id(self, wf_custom, module_fastqc, monkeypatch):
         """check_all is only ever called for whole-config validation (its two
         call sites in graph.py), so it unconditionally qualifies every
-        diagnostic's yaml_path with its own workflow's `workflows.<id>.`
+        diagnostic's yaml_path with its own workflow's `steps.<id>.`
         prefix -- no ambiguity, since check_all never runs for an isolated
         snippet."""
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False
-        )
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: False)
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_nfcore_module_releases",
             lambda name: [],
@@ -391,4 +358,86 @@ class TestCheckAll:
         diagnostics = check_all([wf_custom, module_fastqc])
         assert diagnostics
         for d in diagnostics:
-            assert d.yaml_path == f"workflows.{d.workflow_id}.{d.field}"
+            assert d.yaml_path == f"steps.{d.workflow_id}.{d.field}"
+
+
+# ---------------------------------------------------------------------------
+# Schema errors: one contract for pipelines and modules
+# ---------------------------------------------------------------------------
+
+
+class TestModuleSchemaErrors:
+    @pytest.fixture(autouse=True)
+    def real_get_module_schema(self, monkeypatch):
+        from nf_meta.core import registry
+
+        registry.get_module_schema.cache_clear()
+        monkeypatch.setattr("nf_meta.core.cache.read_schema_cache", lambda *a: None)
+        monkeypatch.setattr("nf_meta.core.cache.write_schema_cache", lambda *a: None)
+        yield registry.get_module_schema
+        registry.get_module_schema.cache_clear()
+
+    def _response(self, status=200, text=""):
+        from unittest.mock import MagicMock
+
+        return MagicMock(status_code=status, text=text, headers={})
+
+    def test_version_without_sha_raises(self, real_get_module_schema):
+        from nf_meta.core.registry import ModuleSchemaError
+
+        with pytest.raises(ModuleSchemaError, match="No commit SHA"):
+            real_get_module_schema("nf-core/fastqc", "1.0.0")
+
+    def test_http_error_raises(self, real_get_module_schema, monkeypatch):
+        from nf_meta.core.registry import ModuleSchemaError
+
+        monkeypatch.setattr("nf_meta.core.registry.requests.get", lambda *a, **k: self._response(404))
+        with pytest.raises(ModuleSchemaError, match="HTTP 404"):
+            real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a")
+
+    def test_bad_yaml_raises(self, real_get_module_schema, monkeypatch):
+        from nf_meta.core.registry import ModuleSchemaError, SchemaUnavailableError
+
+        monkeypatch.setattr(
+            "nf_meta.core.registry.requests.get", lambda *a, **k: self._response(200, "input: [unclosed")
+        )
+        with pytest.raises(ModuleSchemaError) as exc:
+            real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a")
+        assert isinstance(exc.value, SchemaUnavailableError)
+
+    def test_module_without_inputs_is_empty_schema(self, real_get_module_schema, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.registry.requests.get", lambda *a, **k: self._response(200, "name: x\n"))
+        assert real_get_module_schema("nf-core/fastqc", "0.0.0-6c4ed3a") == {}
+
+
+def test_module_schema_error_becomes_warning(monkeypatch, module_fastqc):
+    from nf_meta.core.registry import ModuleSchemaError
+
+    def fail(name, version):
+        raise ModuleSchemaError("offline")
+
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_module_schema", fail)
+    diags = check_module_params_schema(module_fastqc)
+    assert [(d.severity, d.field) for d in diags] == [(Severity.WARNING, "params")]
+    assert "offline" in diags[0].message
+
+
+def test_workflow_schema_is_none_when_unavailable(monkeypatch, wf_rnaseq):
+    from nf_meta.core.dynamic_validation import workflow_schema
+
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_pipeline_schema",
+        lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("down")),
+    )
+    assert workflow_schema(wf_rnaseq) is None
+
+
+def test_workflow_schema_lets_bugs_through(monkeypatch, wf_rnaseq):
+    from nf_meta.core.dynamic_validation import workflow_schema
+
+    monkeypatch.setattr(
+        "nf_meta.core.dynamic_validation.get_pipeline_schema",
+        lambda url, version: (_ for _ in ()).throw(TypeError("bug")),
+    )
+    with pytest.raises(TypeError):
+        workflow_schema(wf_rnaseq)

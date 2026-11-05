@@ -4,15 +4,16 @@ import pytest
 import yaml
 
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
-from nf_meta.core.models import Transition, GlobalOptions  # type: ignore[import]
-from nf_meta.runner.python_runner import SimplePythonRunner  # type: ignore[import]
-from nf_meta.runner.utils import RunOptions  # type: ignore[import]
+from nf_meta.core.models import GlobalOptions, Transition  # type: ignore[import]
 from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
+from nf_meta.runner.python_runner import SimplePythonRunner  # type: ignore[import]
+from nf_meta.runner.spec import resolve_references  # type: ignore[import]
+from nf_meta.runner.utils import RunOptions  # type: ignore[import]
 
 
 @pytest.fixture
 def runner(mock_nextflow, tmp_path):
-    return SimplePythonRunner(RunOptions(cachedir=tmp_path))
+    return SimplePythonRunner(RunOptions(out_dir=tmp_path))
 
 
 @pytest.fixture
@@ -32,10 +33,10 @@ def graph_two(wf_rnaseq, wf_fetchngs):
 
 
 class TestHelpers:
-    def test_workflow_dir_contains_name_and_version(self, runner, wf_rnaseq):
-        d = runner._workflow_dir(wf_rnaseq)
-        assert "rnaseq" in str(d)
-        assert wf_rnaseq.version in str(d)
+    def test_state_dir_is_under_out_dir_and_named_by_step_id(self, runner, graph_two, wf_rnaseq, tmp_path):
+        state_dir = runner.plan(graph_two)[1].spec.state_dir
+        assert state_dir.parent == tmp_path / ".nf-meta" / "steps"
+        assert state_dir.name.startswith(f"{wf_rnaseq.id}_")
 
     def test_check_run_success_true(self, runner, tmp_path):
         run_dir = tmp_path / "run"
@@ -58,13 +59,9 @@ class TestHelpers:
 
 class TestResolveParamReferences:
     def test_resolves_reference(self, runner, wf_rnaseq, wf_fetchngs):
-        fetchngs_with_params = wf_fetchngs.model_copy(
-            update={"params": {"outdir": "results"}}
-        )
+        fetchngs_with_params = wf_fetchngs.model_copy(update={"params": {"outdir": "results"}})
         rnaseq_with_ref = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}
-            }
+            update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}}
         )
 
         g = MetaworkflowGraph()
@@ -74,22 +71,18 @@ class TestResolveParamReferences:
             g.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
         g._events = []
 
-        resolved = runner._resolve_field_refs(rnaseq_with_ref, g)
+        resolved = resolve_references(rnaseq_with_ref, g)
         assert resolved.params["input"] == "results/file.csv"
 
     def test_no_refs_returns_copy_unchanged(self, runner, wf_rnaseq, graph_two):
-        resolved = runner._resolve_field_refs(wf_rnaseq, graph_two)
+        resolved = resolve_references(wf_rnaseq, graph_two)
         assert resolved.params == wf_rnaseq.params
 
     def test_resolved_params_preferred_over_raw(self, runner, wf_rnaseq, wf_fetchngs):
         """resolved dict wins over raw workflow params."""
-        fetchngs_with_raw = wf_fetchngs.model_copy(
-            update={"params": {"outdir": "raw_value"}}
-        )
+        fetchngs_with_raw = wf_fetchngs.model_copy(update={"params": {"outdir": "raw_value"}})
         rnaseq_with_ref = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}
-            }
+            update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/file.csv"}}
         )
         g = MetaworkflowGraph()
         with g.deferred_validation():
@@ -98,28 +91,18 @@ class TestResolveParamReferences:
             g.add_transition(Transition(source=wf_fetchngs.id, target=wf_rnaseq.id))
         g.pop_events()
 
-        resolved = runner._resolve_field_refs(
+        resolved = resolve_references(
             rnaseq_with_ref,
             g,
             resolved={wf_fetchngs.id: {"outdir": "resolved_value"}},
         )
         assert resolved.params["input"] == "resolved_value/file.csv"
 
-    def test_chain_resolution_via_resolved_params(
-        self, runner, wf_fetchngs, wf_rnaseq, wf_sarek
-    ):
+    def test_chain_resolution_via_resolved_params(self, runner, wf_fetchngs, wf_rnaseq, wf_sarek):
         """C references B's param; B's param was itself resolved from A — chain works."""
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data/raw"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"outdir": f"${{{wf_fetchngs.id}:params:outdir}}/processed"}
-            }
-        )
-        c = wf_sarek.model_copy(
-            update={
-                "params": {"input": f"${{{wf_rnaseq.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"outdir": f"${{{wf_fetchngs.id}:params:outdir}}/processed"}})
+        c = wf_sarek.model_copy(update={"params": {"input": f"${{{wf_rnaseq.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -131,7 +114,7 @@ class TestResolveParamReferences:
 
         # Simulate B having already been resolved
         b_resolved_params = {b.id: {"outdir": "/data/raw/processed"}}
-        resolved_c = runner._resolve_field_refs(c, g, resolved=b_resolved_params)
+        resolved_c = resolve_references(c, g, resolved=b_resolved_params)
         assert resolved_c.params["input"] == "/data/raw/processed/samples.csv"
 
 
@@ -156,15 +139,11 @@ class TestResolvedParamsCache:
         assert runner._resolved_params_path(wf_a) != runner._resolved_params_path(wf_b)
 
 
-class TestValidateCrossBoundaryRefs:
+class TestReferencesOutsideTheRun:
     def _graph_with_ref(self, wf_fetchngs, wf_rnaseq):
         """fetchngs → rnaseq where rnaseq references fetchngs.outdir."""
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -173,110 +152,113 @@ class TestValidateCrossBoundaryRefs:
         g.pop_events()
         return g, a, b
 
-    def test_raises_when_cross_boundary_cache_missing(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_uncached_reference_is_a_missing_value(self, runner, wf_fetchngs, wf_rnaseq):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
-        subset = [b]
-        subset_ids = {b.id}
-        with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
-            runner._validate_cross_boundary_refs(g, subset, subset_ids)
+        runner.run_options.start = b.id
+        with pytest.raises(NfMetaRunnerError, match=rf"Missing values:\n  {b.id}\.input \(reference"):
+            runner.plan(g)
 
-    def test_passes_when_cross_boundary_cache_exists(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_cached_reference_is_used(self, runner, wf_fetchngs, wf_rnaseq):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
         runner._write_resolved_params(a, {"outdir": "/data"})
-        subset = [b]
-        subset_ids = {b.id}
-        runner._validate_cross_boundary_refs(g, subset, subset_ids)  # no raise
+        runner.run_options.start = b.id
+        assert runner.plan(g)[0].command.params["input"] == "/data/samples.csv"
 
-    def test_no_error_when_all_refs_in_subset(self, runner, wf_fetchngs, wf_rnaseq):
+    def test_given_value_overrides_the_cache(self, runner, wf_fetchngs, wf_rnaseq, tmp_path):
         g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
-        subset_ids = {a.id, b.id}
-        runner._validate_cross_boundary_refs(g, [a, b], subset_ids)  # no raise
+        runner._write_resolved_params(a, {"outdir": "/data"})
+        runner.run_options.start = b.id
+        runner.run_options.inputs = {f"{b.id}.input": "/elsewhere/s.csv"}
+        assert runner.plan(g)[0].command.params["input"] == "/elsewhere/s.csv"
+
+    def test_no_request_when_all_refs_in_subset(self, runner, wf_fetchngs, wf_rnaseq):
+        g, a, b = self._graph_with_ref(wf_fetchngs, wf_rnaseq)
+        plan = runner.plan(g)
+        assert plan.values == {}
+        assert plan[1].command.params["input"] == "/data/samples.csv"
 
 
-class TestRunWorkflow:
-    def _mock_stream(self, runner, returncode=0):
-        runner._stream_proc_out = MagicMock(
-            return_value=(returncode, "stdout output", "")
-        )
+class TestExecute:
+    def _step(self, runner, wf, global_options=None):
+        g = MetaworkflowGraph()
+        g.add_workflow(wf)
+        if global_options is not None:
+            g.global_options = global_options
+        g.pop_events()
+        return runner.plan(g)[0]
 
-    def test_run_workflow_success_writes_out_file(self, runner, wf_rnaseq, tmp_path):
-        self._mock_stream(runner)
-        result = runner._run_workflow(wf_rnaseq)
-        assert result is True
-        wf_dir = runner._workflow_dir(wf_rnaseq)
-        assert (wf_dir / SimplePythonRunner.OUT_FILE).exists()
+    def test_success_writes_out_file(self, runner, wf_rnaseq):
+        runner._stream_proc_out = MagicMock(return_value=(0, "stdout output", ""))
+        step = self._step(runner, wf_rnaseq)
+        assert runner._execute(step.spec, step.command) is True
+        assert (step.spec.state_dir / SimplePythonRunner.OUT_FILE).exists()
 
-    def test_run_workflow_failure_writes_error_file(self, runner, wf_rnaseq):
+    def test_failure_writes_error_file(self, runner, wf_rnaseq):
         runner._stream_proc_out = MagicMock(return_value=(1, "", "error text"))
-        result = runner._run_workflow(wf_rnaseq)
-        assert result is False
-        wf_dir = runner._workflow_dir(wf_rnaseq)
-        assert (wf_dir / SimplePythonRunner.ERROR_FILE).exists()
+        step = self._step(runner, wf_rnaseq)
+        assert runner._execute(step.spec, step.command) is False
+        assert (step.spec.state_dir / SimplePythonRunner.ERROR_FILE).read_text() == "error text"
 
-    def test_run_workflow_cmd_includes_url_and_version(self, runner, wf_rnaseq):
-        captured = {}
-
-        def capture(cmd):
-            captured["cmd"] = cmd
-            return (0, "out", "")
-
-        runner._stream_proc_out = capture
-        runner._run_workflow(wf_rnaseq)
-        assert wf_rnaseq.url in captured["cmd"]
-        assert wf_rnaseq.version in captured["cmd"]
-
-    def test_run_workflow_with_params_adds_params_file_flag(self, runner, wf_rnaseq):
+    def test_writes_params_file_before_running(self, runner, wf_rnaseq):
         wf = wf_rnaseq.model_copy(update={"params": {"input": "samples.csv"}})
-        captured = {}
+        seen = {}
 
-        def capture(cmd):
-            captured["cmd"] = cmd
+        def capture(argv, **kwargs):
+            params_file = argv[argv.index("-params-file") + 1]
+            with open(params_file) as fh:
+                seen["params"] = yaml.safe_load(fh)
             return (0, "out", "")
 
         runner._stream_proc_out = capture
-        runner._run_workflow(wf)
-        assert "-params-file" in captured["cmd"]
+        step = self._step(runner, wf)
+        runner._execute(step.spec, step.command)
+        assert seen["params"] == {"input": "samples.csv"}
 
-    def test_run_workflow_with_main_script_adds_flag(self, runner, wf_rnaseq):
-        wf = wf_rnaseq.model_copy(update={"main_script": "workflows/special.nf"})
-        captured = {}
+    def test_globals_params_reach_params_file(self, runner, wf_rnaseq):
+        wf = wf_rnaseq.model_copy(update={"params": {"input": "samples.csv"}})
+        step = self._step(runner, wf, GlobalOptions(params={"max_cpus": 4}))
+        assert step.command.params == {"max_cpus": 4, "input": "samples.csv"}
 
-        def capture(cmd):
-            captured["cmd"] = cmd
-            return (0, "out", "")
-
-        runner._stream_proc_out = capture
-        runner._run_workflow(wf)
-        assert "-main-script" in captured["cmd"]
-        idx = captured["cmd"].index("-main-script")
-        assert captured["cmd"][idx + 1] == "workflows/special.nf"
-
-    def test_run_workflow_without_main_script_omits_flag(self, runner, wf_rnaseq):
-        captured = {}
-
-        def capture(cmd):
-            captured["cmd"] = cmd
-            return (0, "out", "")
-
-        runner._stream_proc_out = capture
-        runner._run_workflow(wf_rnaseq)
-        assert "-main-script" not in captured["cmd"]
-
-    def test_run_workflow_nonexistent_global_config_raises(
-        self, runner, wf_rnaseq, tmp_path
-    ):
-        runner._stream_proc_out = MagicMock(return_value=(0, "out", ""))
-        globals_with_bad_config = GlobalOptions(profile="docker")
+    def test_nonexistent_global_config_raises(self, runner, wf_rnaseq, tmp_path):
+        bad = GlobalOptions(nf_profile="docker")
         # Bypass the validator to inject a non-existent path
-        globals_with_bad_config.__dict__["config_file"] = (
-            tmp_path / "nonexistent.config"
-        )
+        bad.__dict__["nf_config"] = tmp_path / "nonexistent.config"
         with pytest.raises(NfMetaRunnerError):
-            runner._run_workflow(wf_rnaseq, globals=globals_with_bad_config)
+            self._step(runner, wf_rnaseq, bad)
+
+
+# ---------------------------------------------------------------------------
+# plan()
+# ---------------------------------------------------------------------------
+
+
+class TestPlan:
+    def test_steps_in_dag_order(self, runner, graph_two, wf_fetchngs, wf_rnaseq):
+        ids = [s.workflow.id for s in runner.plan(graph_two)]
+        assert ids == [wf_fetchngs.id, wf_rnaseq.id]
+
+    def test_writes_nothing(self, runner, graph_two, tmp_path):
+        runner.plan(graph_two)
+        assert list(tmp_path.iterdir()) == []
+
+    def test_marks_succeeded_steps_skipped_on_resume(self, runner, graph_two, wf_fetchngs):
+        state_dir = runner.plan(graph_two)[0].spec.state_dir
+        state_dir.mkdir(parents=True)
+        (state_dir / SimplePythonRunner.OUT_FILE).write_text("done")
+        skips = {s.workflow.id: s.skip for s in runner.plan(graph_two, resume=True)}
+        assert skips[wf_fetchngs.id] is True
+        assert not any(s.skip for s in runner.plan(graph_two, resume=False))
+
+    def test_resolves_references(self, runner, wf_fetchngs, wf_rnaseq):
+        a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{a.id}:params:outdir}}/samples.csv"}})
+        g = MetaworkflowGraph()
+        with g.deferred_validation():
+            g.add_workflow(a)
+            g.add_workflow(b)
+            g.add_transition(Transition(source=a.id, target=b.id))
+        g.pop_events()
+        assert runner.plan(g)[1].command.params == {"input": "/data/samples.csv"}
 
 
 # ---------------------------------------------------------------------------
@@ -285,72 +267,49 @@ class TestRunWorkflow:
 
 
 class TestRun:
-    def _mock_run_workflow(self, runner, success=True):
-        runner._run_workflow = MagicMock(return_value=success)
+    def _record(self, runner, success=True):
+        executed = []
 
-    def test_run_calls_workflows_in_dag_order(
-        self, runner, graph_two, wf_rnaseq, wf_fetchngs
-    ):
-        call_order = []
+        def fake_execute(spec, command):
+            executed.append(spec.workflow)
+            return success
 
-        def fake_run(wf, *args, **kwargs):
-            call_order.append(wf.id)
-            return True
+        runner._execute = fake_execute
+        return executed
 
-        runner._run_workflow = fake_run
+    def test_run_calls_workflows_in_dag_order(self, runner, graph_two, wf_rnaseq, wf_fetchngs):
+        executed = self._record(runner)
         runner.run(graph_two)
-        assert call_order.index(wf_fetchngs.id) < call_order.index(wf_rnaseq.id)
+        ids = [wf.id for wf in executed]
+        assert ids.index(wf_fetchngs.id) < ids.index(wf_rnaseq.id)
 
-    def test_run_skips_succeeded_workflow_when_resuming(
-        self, runner, graph_two, wf_fetchngs
-    ):
-        # Pre-create a "success" marker in the cache dir for wf_fetchngs
-        wf_dir = runner._workflow_dir(wf_fetchngs)
+    def test_run_skips_succeeded_workflow_when_resuming(self, runner, graph_two, wf_fetchngs):
+        wf_dir = runner.plan(graph_two)[0].spec.state_dir
         wf_dir.mkdir(parents=True, exist_ok=True)
         (wf_dir / SimplePythonRunner.OUT_FILE).write_text("done")
 
-        call_ids = []
-
-        def fake_run(wf, *args, **kwargs):
-            call_ids.append(wf.id)
-            return True
-
-        runner._run_workflow = fake_run
+        executed = self._record(runner)
         runner.run(graph_two, resume=True)
-        assert wf_fetchngs.id not in call_ids
+        assert wf_fetchngs.id not in [wf.id for wf in executed]
 
-    def test_run_stops_on_first_failure(
-        self, runner, graph_two, wf_fetchngs, wf_rnaseq
-    ):
-        call_ids = []
-
-        def fake_run(wf, *args, **kwargs):
-            call_ids.append(wf.id)
-            return False  # always fail
-
-        runner._run_workflow = fake_run
-        runner.run(graph_two)
-        assert len(call_ids) == 1  # stopped after first failure
+    def test_run_raises_on_first_failure(self, runner, graph_two, wf_fetchngs):
+        executed = self._record(runner, success=False)
+        with pytest.raises(NfMetaRunnerError, match=wf_fetchngs.id):
+            runner.run(graph_two)
+        assert len(executed) == 1
 
     def test_resume_delegates_to_run_with_flag(self, runner, graph_two):
         runner.run = MagicMock()
         runner.resume(graph_two)
         runner.run.assert_called_once_with(graph_two, resume=True)
 
-    def test_run_applies_start_target_subset(
-        self, runner, graph_two, wf_rnaseq, wf_fetchngs
-    ):
+    def test_run_applies_start_target_subset(self, runner, graph_two, wf_rnaseq, wf_fetchngs):
         runner.run_options.start = wf_rnaseq.id
-        call_ids = []
-
-        def fake_run(wf, *args, **kwargs):
-            call_ids.append(wf.id)
-            return True
-
-        runner._run_workflow = fake_run
+        executed = self._record(runner)
         runner.run(graph_two)
-        assert wf_fetchngs.id not in call_ids
-        assert wf_rnaseq.id in call_ids
+        ids = [wf.id for wf in executed]
+        assert wf_fetchngs.id not in ids
+        assert wf_rnaseq.id in ids
 
     def test_run_writes_resolved_params(self, runner, wf_fetchngs, wf_rnaseq):
         """Successful run writes _resolved.yaml for each workflow."""
@@ -363,22 +322,16 @@ class TestRun:
             g.add_transition(Transition(source=a.id, target=b.id))
         g.pop_events()
 
-        runner._run_workflow = MagicMock(return_value=True)
+        self._record(runner)
         runner.run(g)
 
         assert runner._load_resolved_params(a) == {"outdir": "/results"}
         assert runner._load_resolved_params(b) == {"input": "samples.csv"}
 
-    def test_subset_run_resolves_cross_boundary_ref_from_cache(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_subset_run_resolves_cross_boundary_ref_from_cache(self, runner, wf_fetchngs, wf_rnaseq):
         """--start=B resolves B's reference to A using A's cached resolved params."""
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data/results"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -390,27 +343,15 @@ class TestRun:
         runner._write_resolved_params(a, a.params)
 
         runner.run_options.start = b.id
-        resolved_wfs = []
-
-        def fake_run(wf, *args, **kwargs):
-            resolved_wfs.append(wf)
-            return True
-
-        runner._run_workflow = fake_run
+        executed = self._record(runner)
         runner.run(g)
 
-        assert len(resolved_wfs) == 1
-        assert resolved_wfs[0].params["input"] == "/data/results/samples.csv"
+        assert [wf.id for wf in executed] == [b.id]
+        assert executed[0].params["input"] == "/data/results/samples.csv"
 
-    def test_subset_run_fails_when_cross_boundary_cache_missing(
-        self, runner, wf_fetchngs, wf_rnaseq
-    ):
+    def test_subset_run_fails_when_cross_boundary_cache_missing(self, runner, wf_fetchngs, wf_rnaseq):
         a = wf_fetchngs.model_copy(update={"params": {"outdir": "/data"}})
-        b = wf_rnaseq.model_copy(
-            update={
-                "params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}
-            }
-        )
+        b = wf_rnaseq.model_copy(update={"params": {"input": f"${{{wf_fetchngs.id}:params:outdir}}/samples.csv"}})
         g = MetaworkflowGraph()
         with g.deferred_validation():
             g.add_workflow(a)
@@ -419,5 +360,17 @@ class TestRun:
         g.pop_events()
 
         runner.run_options.start = b.id
-        with pytest.raises(NfMetaRunnerError, match="cross-boundary"):
+        with pytest.raises(NfMetaRunnerError, match="Missing values"):
+            runner.run(g)
+
+    def test_module_step_needs_nextflow_26_04(self, runner, module_fastqc, monkeypatch):
+        g = MetaworkflowGraph()
+        g.add_workflow(module_fastqc)
+        g.pop_events()
+        monkeypatch.setattr(
+            "nf_meta.runner.python_runner.get_installed_nextflow_version",
+            lambda: (25, 10, 9, 0),
+        )
+        self._record(runner)
+        with pytest.raises(NfMetaRunnerError, match="26.04"):
             runner.run(g)

@@ -3,8 +3,10 @@ import { createPinia } from 'pinia'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import nfcoreIconUrl from './assets/nfcore.svg'
 import App from './App.vue'
+import { THEMES, storedTheme } from './themes'
+import { initAccessToken } from './access'
 
-import { usePipelineStore, useModuleStore } from './store'
+import { usePipelineStore, useModuleStore, watchBackend } from './store'
 import { useEditorHotkeys } from './hotkeys'
 
 import '@vue-flow/core/dist/style.css'
@@ -25,37 +27,8 @@ const NfCoreIcon = (props: { size?: string | number }) => {
 
 const vuetify = createVuetify({
   theme: {
-    defaultTheme: 'workflowLight',
-    themes: {
-      workflowLight: {
-        dark: false,
-        colors: {
-          // Core surfaces
-          background: '#efefef',
-          surface: '#2d3748cf',
-          surfaceVariant: '#0a7652bf',
-
-          // Brand
-          primary: '#2563eb',
-          primarySoft: '#5e88e3',
-
-          // Semantic
-          success: '#16a34a',
-          warning: '#f59e0b',
-          error: '#dc2626',
-
-          // Graph domain (separate from semantic!)
-          nodeDefaultBorder: '#925819',
-          nodeNfCoreBorder: '#1a9655',
-
-          nfcore: '#1a9655',
-
-          // Text
-          onSurface: '#cbd5e1',
-          onPrimary: '#303030',
-        }
-      }
-    }
+    defaultTheme: storedTheme(),
+    themes: THEMES,
   },
   icons: {
     defaultSet: "mdi",
@@ -65,6 +38,8 @@ const vuetify = createVuetify({
   components,
   directives,
 })
+
+initAccessToken()
 
 const pinia = createPinia()
 const app = createApp(App)
@@ -80,3 +55,5 @@ moduleStore.initialize()
 
 // Initialize hotkey listeners
 useEditorHotkeys()
+
+watchBackend()

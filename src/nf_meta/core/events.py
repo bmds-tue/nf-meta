@@ -1,12 +1,20 @@
-from typing import Protocol
 from dataclasses import dataclass
+from typing import Protocol
 
-from .models import Workflow, Transition, GlobalOptions
+from .inputs import InputDefinition
+from .models import GlobalOptions, Transition, Workflow
 
 
 # Event Handler
 # TODO: Test that Metaworkflow implements GraphEventHandler: isinstance(graph, GraphEventHandler)
 class GraphEventHandler(Protocol):
+    # Read access, for commands that work out their changes from the graph (see `edits`)
+    inputs: dict[str, InputDefinition]
+
+    def get_workflows(self) -> list[Workflow]: ...
+
+    def get_transition(self, source: str, target: str) -> Transition | None: ...
+
     def pop_events(self) -> tuple["Event"]: ...
 
     def add_workflow(self, w: Workflow) -> None: ...
@@ -20,6 +28,12 @@ class GraphEventHandler(Protocol):
     def remove_transition(self, source: str, target: str) -> None: ...
 
     def update_global_options(self, g: GlobalOptions) -> None: ...
+
+    def add_input(self, name: str, definition: InputDefinition) -> None: ...
+
+    def update_input(self, name: str, definition: InputDefinition) -> None: ...
+
+    def remove_input(self, name: str) -> None: ...
 
     def deferred_validation(self): ...
 
@@ -81,6 +95,34 @@ class GlobalOptionsUpdated:
 
     def get_undo_cmd(self):
         return UpdateGlobalOptions(globals=self.old_globals)
+
+
+@dataclass(frozen=True)
+class InputAdded:
+    name: str
+    definition: InputDefinition
+
+    def get_undo_cmd(self):
+        return RemoveInput(self.name)
+
+
+@dataclass(frozen=True)
+class InputRemoved:
+    name: str
+    definition: InputDefinition
+
+    def get_undo_cmd(self):
+        return AddInput(self.name, self.definition)
+
+
+@dataclass(frozen=True)
+class InputUpdated:
+    name: str
+    new_definition: InputDefinition
+    old_definition: InputDefinition
+
+    def get_undo_cmd(self):
+        return UpdateInput(self.name, self.old_definition)
 
 
 # ------------------------------------------
@@ -151,3 +193,29 @@ class UpdateGlobalOptions:
 
     def apply(self, g: GraphEventHandler):
         g.update_global_options(self.globals)
+
+
+@dataclass(frozen=True)
+class AddInput:
+    name: str
+    definition: InputDefinition
+
+    def apply(self, g: GraphEventHandler):
+        g.add_input(self.name, self.definition)
+
+
+@dataclass(frozen=True)
+class UpdateInput:
+    name: str
+    definition: InputDefinition
+
+    def apply(self, g: GraphEventHandler):
+        g.update_input(self.name, self.definition)
+
+
+@dataclass(frozen=True)
+class RemoveInput:
+    name: str
+
+    def apply(self, g: GraphEventHandler):
+        g.remove_input(self.name)

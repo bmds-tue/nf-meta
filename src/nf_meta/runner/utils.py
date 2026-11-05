@@ -3,13 +3,12 @@ import logging
 import re
 import shutil
 import subprocess
-
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
+from .collect import InputMode, Prompter
 from .errors import NfMetaRunnerError
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,42 +24,61 @@ class RunOptions:
     Attributes:
         runner_name: Name of the runner backend to use. Must match a key
             registered in ``base_runner._REGISTRY``.
-        cachedir: Directory used for all per-workflow working directories,
-            resolved-param cache files, and Nextflow work directories.
-            Created automatically if it does not exist.
+        out_dir: Directory every step runs in: step outputs with relative
+            `outdir`s land here, plus Nextflow's work dir (`work/`) and
+            nf-meta's state (`.nf-meta/`). `None` means
+            `<project dir>/nf-meta-out`. Created if it does not exist.
         verbose: Enables verbose logging output.
         output_lines: Number of most-recent output lines shown in the live
-            scrolling panel while a workflow step is running. Only has an
-            effect in the Python runner.
-        start: Workflow ID at which execution begins. Workflows topologically
-            upstream of this node are skipped. Cross-boundary parameter
-            references must be satisfiable from previously cached runs.
-            ``None`` means start from all source nodes.
-        target: Workflow ID at which execution ends. Workflows topologically
-            downstream of this node are skipped. ``None`` means run until
-            all sink nodes.
+            scrolling panel while a step is running. Only has an effect in the
+            Python runner.
+        start: Step ID at which execution begins. Steps upstream of it are
+            skipped. References to them are taken from their last runs, or
+            treated as missing values (see `input_mode`). ``None`` means start
+            from all source steps.
+        target: Step ID at which execution ends. Steps downstream of it are
+            skipped. ``None`` means run until all sink steps.
         nf_profile: Nextflow profile name (or comma-separated list of names)
-            appended globally to every workflow invocation, taking precedence
-            over per-workflow profile settings. Whitespace is stripped before
-            passing to Nextflow.
+            appended to every step's profiles, taking precedence over them.
+            Whitespace is stripped before passing to Nextflow.
+        nf_config: Nextflow config file passed to every step (``-c``), after
+            the global and the step's own configs, so it takes precedence.
         stub: When ``True``, passes ``-stub`` to every Nextflow invocation so
             that only the ``stub`` block of each process is executed. Useful
             for validating pipeline structure without real computation.
-        resume: When ``True``, skips any workflow step whose working directory
-            already contains a successful result (``OUT.txt`` present,
-            ``ERROR.txt`` absent) and passes ``-resume`` to Nextflow for
-            workflow-level checkpoint resumption.
+        resume: When ``True``, skips every step that already succeeded with
+            the same step key (its definition, config and input files,
+            globals and upstream steps), and starts the others with Nextflow's
+            ``-resume`` against the step's own Nextflow cache.
+        input_mode: What happens with values the run needs but doesn't have
+            (inputs without a value, references to steps outside the run):
+            ``prompt``, ``fail`` (default) or ``reproduce``. See `InputMode`.
+        inputs: Values given for this run, by input name, or by
+            ``<step_id>.<param>`` for a reference to a step outside the run.
+        prompter: Asks for a missing value in ``prompt`` mode (default: a
+            plain ``input()`` prompt).
     """
 
     runner_name: str = "python"
-    cachedir: Path = Path(".nf-meta-cache")
+    out_dir: Path | None = None
     verbose: bool = False
     output_lines: int = 20
-    start: Optional[str] = None
-    target: Optional[str] = None
-    nf_profile: Optional[str] = None
+    start: str | None = None
+    target: str | None = None
+    nf_profile: str | None = None
+    nf_config: Path | None = None
     stub: bool = False
     resume: bool = False
+    input_mode: InputMode = InputMode.FAIL
+    inputs: dict[str, Any] = field(default_factory=dict)
+    prompter: Prompter | None = None
+
+    def __post_init__(self) -> None:
+        if self.out_dir is not None:
+            self.out_dir = Path(self.out_dir)
+        if self.nf_config is not None:
+            self.nf_config = Path(self.nf_config)
+        self.input_mode = InputMode(self.input_mode)
 
 
 @functools.cache
@@ -95,29 +113,25 @@ def get_installed_nextflow_version():
             text=True,
             timeout=30,
         )
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         raise NfMetaRunnerError(
             "Nextflow is not installed or not found on PATH. "
             "Please install Nextflow: https://www.nextflow.io/docs/latest/install.html"
-        )
-    except subprocess.TimeoutExpired:
-        raise NfMetaRunnerError("Timed out waiting for `nextflow -version` to respond.")
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise NfMetaRunnerError("Timed out waiting for `nextflow -version` to respond.") from e
     except OSError as e:
-        raise NfMetaRunnerError(f"Failed to invoke Nextflow: {e}")
+        raise NfMetaRunnerError(f"Failed to invoke Nextflow: {e}") from e
 
     output = result.stdout or result.stderr
     if result.returncode != 0:
-        raise NfMetaRunnerError(
-            f"`nextflow -version` exited with code {result.returncode}.\n{output.strip()}"
-        )
+        raise NfMetaRunnerError(f"`nextflow -version` exited with code {result.returncode}.\n{output.strip()}")
 
     # Match e.g. "version 25.10.4 build 11173"
     #         or "version 25.10.4-edge build 11173"
     match = re.search(r"version\s+(\d+)\.(\d+)\.(\d+)(-edge)?", output)
     if not match:
-        raise NfMetaRunnerError(
-            f"Could not parse Nextflow version from output:\n{output.strip()}"
-        )
+        raise NfMetaRunnerError(f"Could not parse Nextflow version from output:\n{output.strip()}")
 
     major, minor, patch, edge_flag = match.groups()
     is_edge = 1 if edge_flag else 0
@@ -140,7 +154,7 @@ def check_nextflow_version(required_version: tuple[int, int, int, int]) -> bool:
     """
     installed_version = get_installed_nextflow_version()
 
-    for i, (inst, req) in enumerate(zip(installed_version, required_version)):
+    for i, (inst, req) in enumerate(zip(installed_version, required_version, strict=True)):
         if inst == req:
             continue
 

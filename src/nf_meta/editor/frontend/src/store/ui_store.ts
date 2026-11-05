@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { APINodeData, APIEvent, SideBarDetail, NewNodeData } from '../types'
+import type { APINodeData, APIEvent, SideBarDetail, NewNodeData, SaveReason } from '../types'
 
 export const useMessageStore = defineStore('message', () => {
     interface Message {
@@ -27,6 +27,8 @@ export const useEditorStore = defineStore('editor', () => {
 
     const sideBarTab = ref('nodes')
     const hoveredNodeId = ref<string>()
+    // Input hovered in the inputs panel; the steps it fills are highlighted
+    const hoveredInputName = ref<string>()
     const flashingNodeId = ref<string>()
     const sideBarActiveDetailId = ref(0)
     const _nextSideBarId = ref(1)
@@ -35,12 +37,48 @@ export const useEditorStore = defineStore('editor', () => {
 
     const _saveDialogOpen = ref<boolean>(false)
     const saveDialogOpen = computed(() => _saveDialogOpen.value)
+    // Why saving is needed before a change: a new config, or one loaded from a URL
+    const _saveDialogReason = ref<SaveReason>()
+    const saveDialogReason = computed(() => _saveDialogReason.value)
+    let _saveDialogWaiters: ((saved: boolean) => void)[] = []
 
     const _loadDialogOpen = ref<boolean>(false)
     const loadDialogOpen = computed(() => _loadDialogOpen.value)
 
+    // 'refused': the backend refused the page's session token (none, or one of an earlier run);
+    // 'unreachable': no answer (the editor was stopped, or the connection is gone)
+    const _backendState = ref<'ok' | 'refused' | 'unreachable'>('ok')
+    const backendState = computed(() => _backendState.value)
+
+    // The editor was stopped from this page (Quit editor)
+    const _quitHere = ref(false)
+    const quitHere = computed(() => _quitHere.value)
+
+    function quitEditor() {
+        _quitHere.value = true
+        _backendState.value = 'unreachable'
+    }
+
+    function setBackendState(state: 'ok' | 'refused' | 'unreachable') {
+        _backendState.value = state
+        if (state === 'ok') _quitHere.value = false
+    }
+
+    // Shown when the editor starts without a config; closing it starts a new one
+    const _startScreenOpen = ref(false)
+    const startScreenOpen = computed(() => _startScreenOpen.value)
+
+    function openStartScreen() {
+        _startScreenOpen.value = true
+    }
+
+    function closeStartScreen() {
+        _startScreenOpen.value = false
+    }
+
     function openLoadDialog() {
         closeSaveDialog()
+        closeStartScreen()
         _loadDialogOpen.value = true
     }
 
@@ -50,11 +88,24 @@ export const useEditorStore = defineStore('editor', () => {
 
     function openSaveDialog() {
         closeLoadDialog()
+        _saveDialogReason.value = undefined
         _saveDialogOpen.value = true
     }
 
-    function closeSaveDialog() {
+    // Opens the save dialog before a change; resolves with whether the config was saved
+    function requireSave(reason: SaveReason): Promise<boolean> {
+        closeLoadDialog()
+        _saveDialogReason.value = reason
+        _saveDialogOpen.value = true
+        return new Promise(resolve => _saveDialogWaiters.push(resolve))
+    }
+
+    function closeSaveDialog(saved = false) {
         _saveDialogOpen.value = false
+        _saveDialogReason.value = undefined
+        const waiters = _saveDialogWaiters
+        _saveDialogWaiters = []
+        waiters.forEach(resolve => resolve(saved))
     }
 
     function toggleSidebar() {
@@ -68,6 +119,28 @@ export const useEditorStore = defineStore('editor', () => {
 
     function setHoveredNodeId(id: string | undefined) {
         hoveredNodeId.value = id
+    }
+
+    function setHoveredInputName(name: string | undefined) {
+        hoveredInputName.value = name
+    }
+
+    // Open a step in the Steps tab (expanded, scrolled to and flashed)
+    function showNode(node: APINodeData) {
+        if (!_sideBarOpen.value) toggleSidebar()
+        sideBarTab.value = 'nodes'
+        addNodeToSideBar(node)
+        if (node.id) flashNode(node.id)
+    }
+
+    // Inputs to point out in the inputs panel (scrolled to and flashed)
+    const flashingInputNames = ref<string[]>([])
+
+    function showInputs(names: string[]) {
+        if (!_sideBarOpen.value) toggleSidebar()
+        sideBarTab.value = 'inputs'
+        flashingInputNames.value = names
+        setTimeout(() => { flashingInputNames.value = [] }, 1200)
     }
 
     function flashNode(nodeId: string) {
@@ -100,6 +173,23 @@ export const useEditorStore = defineStore('editor', () => {
         setActiveSidebarDetailId(newDetail.id)
     }
 
+    // Show every step of the graph (in graph order, after unsaved new ones),
+    // keeping each step's detail (and so whether it is expanded)
+    function syncSidebarNodes(nodes: APINodeData[]) {
+        const existing = new Map<string, SideBarDetail<APINodeData | NewNodeData>>()
+        const drafts: SideBarDetail<APINodeData | NewNodeData>[] = []
+        for (const detail of _sideBarNodes.value) {
+            const id = 'id' in detail.detailData ? detail.detailData.id : undefined
+            if (id) existing.set(id, detail)
+            else drafts.push(detail)
+        }
+        const synced = nodes.map((node) => {
+            const detail = node.id ? existing.get(node.id) : undefined
+            return detail ? { ...detail, detailData: node } : createSideBarDetailWithId<APINodeData | NewNodeData>(node)
+        })
+        _sideBarNodes.value = [...drafts, ...synced]
+    }
+
     function removeSidebarDetail(id: number) {
         _sideBarNodes.value = _sideBarNodes.value.filter((d) => d.id != id)
     }
@@ -121,26 +211,33 @@ export const useEditorStore = defineStore('editor', () => {
     return {
         showSidebar: sideBarOpen, sideBarOpen, toggleSidebar,
         sideBarActiveDetailId, setActiveSidebarDetailId,
-        sideBarTab, sideBarNodes, addNodeToSideBar,
+        sideBarTab, sideBarNodes, addNodeToSideBar, syncSidebarNodes,
         removeSidebarDetail, removeSidebarDetailsForNodeIds, collapseSidebarDetail,
         hoveredNodeId, setHoveredNodeId,
+        hoveredInputName, setHoveredInputName,
+        flashingInputNames, showInputs, showNode,
         flashingNodeId, flashNode,
-        saveDialogOpen, openSaveDialog, closeSaveDialog,
+        saveDialogOpen, saveDialogReason, openSaveDialog, requireSave, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
+        startScreenOpen, openStartScreen, closeStartScreen,
+        backendState, setBackendState, quitHere, quitEditor,
     }
 })
 
 export const useActivityStore = defineStore('activity', () => {
     interface LogEntry {
+        // stable key for the list, while new entries are prepended
+        id: number
         event: APIEvent
         timestamp: Date
     }
 
     const log = ref<LogEntry[]>([])
     const drawerOpen = ref(false)
+    let nextId = 0
 
     function pushEvents(events: APIEvent[]) {
-        const entries = events.map(event => ({ event, timestamp: new Date() }))
+        const entries = events.map(event => ({ id: nextId++, event, timestamp: new Date() }))
         log.value = [...entries, ...log.value]
     }
 

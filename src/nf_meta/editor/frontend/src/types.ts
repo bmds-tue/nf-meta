@@ -15,6 +15,9 @@ export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; status: number; message: string; fieldErrors?: FieldError[]; graphErrors?: string[] }
 
+// Why a config must be saved before a change: it is new (no file yet), or was loaded from a URL
+export type SaveReason = 'new' | 'url'
+
 export type SideBarDetail<T> = {
   id: number,
   detailData: T
@@ -39,7 +42,7 @@ export type APINodeBase = {
     name?: string,
     version?: string,
     position?: XYPosition,
-    config_file?: string,
+    nf_config?: string,
     params?: object
 }
 
@@ -47,14 +50,17 @@ export type APINfPipelineNodeData = APINodeBase & {
     type: typeof WorkflowType.NF_PIPELINE,
     description?: string,
     url?: string,
+    // a local pipeline folder, for development (instead of url and version)
+    path?: string,
     is_nfcore?: boolean,
     params_file?: string,
-    profile?: string,
+    nf_profile?: string,
     main_script?: string,
 }
 
 export type APINfModuleNodeData = APINodeBase & {
     type: typeof WorkflowType.NF_MODULE,
+    container_engine?: 'docker' | 'singularity' | 'conda' | 'podman',
 }
 
 export type APINodeData = APINfPipelineNodeData | APINfModuleNodeData
@@ -64,9 +70,70 @@ export type APINodeData = APINfPipelineNodeData | APINfModuleNodeData
 export type NewNodeData = { type?: WorkflowTypeValue }
 
 export type APIGlobalOptions = {
-  profile?: string,
-  config_file?: string,
+  nf_profile?: string,
+  nf_config?: string,
+  nextflow_version?: string,
   params?: object
+}
+
+export type Scalar = string | number | boolean
+
+// One entry of the config's `inputs:` section, as written
+export type APIInputDefinition = {
+  bind?: string[],
+  default?: Scalar,
+  description?: string,
+  type?: 'string' | 'integer' | 'number' | 'boolean',
+  format?: string,
+  enum?: Scalar[],
+  pattern?: string,
+  minimum?: number,
+  maximum?: number,
+  exists?: boolean,
+  mimetype?: string,
+  schema?: string,
+}
+
+export type APIInputDiagnostic = {
+  severity: 'error' | 'warning',
+  message: string,
+  yaml_path: string,
+}
+
+// An input as the backend reports it: declared in `inputs:` or implicit
+// (only referenced as `${inputs:<name>}`), with its effective schema
+export type APIInput = {
+  name: string,
+  declared: boolean,
+  definition: APIInputDefinition | null,
+  bound_by: 'bind' | 'reference' | null,
+  bindings: string[],
+  schema: Omit<APIInputDefinition, 'bind' | 'default' | 'description'>,
+  default: Scalar | null,
+  description: string,
+  diagnostics: APIInputDiagnostic[],
+}
+
+export type ParamSpec = {
+  type?: string,
+  format?: string,
+  enum?: unknown[] | null,
+  description?: string,
+  required?: boolean,
+  hidden?: boolean,
+  default?: unknown,
+}
+
+export type StepSchema = Record<string, ParamSpec>
+
+// An input as saved from the inputs panel (POST /api/inputs/save/)
+export type APIInputSave = {
+  name: string,
+  new_name?: string,
+  create: boolean,
+  in_params: boolean,
+  bindings: string[],
+  definition: APIInputDefinition,
 }
 
 export type APIGraph = {
@@ -75,7 +142,9 @@ export type APIGraph = {
   filename: string,
   nodes: APINodeData[],
   transitions: APIEdgeData[],
-  globals: APIGlobalOptions
+  globals: APIGlobalOptions,
+  start_screen?: boolean,
+  inputs: APIInput[],
 }
 
 export type NfCorePipelineReleaseInfo = {
@@ -87,7 +156,7 @@ export type NfCorePipelineReleaseInfo = {
 export type NfCorePipelineInfo = {
   name: string
   description: string,
-  repository_url: string,
+  url: string,
   releases: NfCorePipelineReleaseInfo[]
 }
 
@@ -111,3 +180,9 @@ export type APIEvent = {
 export type APICommandResponse = {
   events: APIEvent[]
 }
+// A folder of the machine running the editor (GET /api/files/)
+// A config opened or saved before on the editor's machine
+export type RecentConfig = { path: string, exists: boolean }
+
+export type FolderEntry = { name: string, path: string, kind: 'folder' | 'file' }
+export type FolderListing = { path: string, parent: string | null, entries: FolderEntry[] }

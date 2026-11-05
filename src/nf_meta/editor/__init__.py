@@ -1,11 +1,10 @@
 import logging
 from importlib.metadata import entry_points
 
-from .base_editor import BaseEditor, _REGISTRY
+from .base_editor import _REGISTRY, BaseEditor
 from .browser_editor import BrowserEditor
-from .utils import EditorOptions
 from .editor import run_editor
-
+from .utils import EditorOptions
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ def _load_editor_plugins() -> None:
         try:
             ep.load()
             logger.debug("Loaded editor plugin: %s", ep.name)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- a broken third-party plugin must not stop nf-meta from starting
             logger.warning("Failed to load editor plugin '%s': %s", ep.name, exc)
 
 

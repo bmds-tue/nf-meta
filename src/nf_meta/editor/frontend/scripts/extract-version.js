@@ -4,14 +4,14 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Read pyproject.toml
+// The version of the [project] table in pyproject.toml (not e.g. ruff's target-version)
 const pyprojectPath = path.join(__dirname, '../../../../../', 'pyproject.toml');
 const content = fs.readFileSync(pyprojectPath, 'utf-8');
+const project = content.match(/^\[project\]\s*$([\s\S]*?)(?=^\[)/m);
+const match = project?.[1].match(/^version\s*=\s*"([^"]+)"/m);
+if (!match) {
+    throw new Error(`No version in the [project] table of ${pyprojectPath}`);
+}
 
-// Extract version
-const match = content.match(/version\s*=\s*"([^"]+)"/);
-const version = match ? match[1] : '0.0.0';
-
-// Write to a constant file
 const outputPath = path.join(__dirname, '../src/version.ts');
-fs.writeFileSync(outputPath, `export const APP_VERSION = '${version}';\n`);
+fs.writeFileSync(outputPath, `export const APP_VERSION = '${match[1]}';\n`);

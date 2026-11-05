@@ -11,9 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nf_meta.core.models import NfPipeline, NfModule, Transition  # type: ignore[import]
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
-
+from nf_meta.core.models import NfModule, NfPipeline, Transition  # type: ignore[import]
 
 # ---------------------------------------------------------------------------
 # Static fake nf-core pipeline catalogue used by all tests
@@ -24,17 +23,13 @@ FAKE_NFCORE_PIPELINES = [
         "name": "nf-core/rnaseq",
         "url": "https://github.com/nf-core/rnaseq",
         "description": "RNA sequencing analysis pipeline",
-        "releases": [
-            {"tag_name": "3.14.0", "tag_sha": "abc123", "published_at": "2024-01-01"}
-        ],
+        "releases": [{"tag_name": "3.14.0", "tag_sha": "abc123", "published_at": "2024-01-01"}],
     },
     {
         "name": "nf-core/fetchngs",
         "url": "https://github.com/nf-core/fetchngs",
         "description": "Fetch NGS data from public databases",
-        "releases": [
-            {"tag_name": "1.12.0", "tag_sha": "def456", "published_at": "2024-01-01"}
-        ],
+        "releases": [{"tag_name": "1.12.0", "tag_sha": "def456", "published_at": "2024-01-01"}],
     },
     {
         "name": "nf-core/sarek",
@@ -42,6 +37,15 @@ FAKE_NFCORE_PIPELINES = [
         "description": "Variant calling pipeline",
         "releases": [],
     },
+]
+
+
+# nf-core component catalog entries (components.json), incl. a nested module and
+# one whose subtool name contains an underscore
+FAKE_NFCORE_COMPONENTS = [
+    {"name": "fastqc", "path": "modules/nf-core/fastqc/meta.yml", "meta": {"description": "QC"}},
+    {"name": "samtools_stats", "path": "modules/nf-core/samtools/stats/meta.yml", "meta": {}},
+    {"name": "plastid_make_wiggle", "path": "modules/nf-core/plastid/make_wiggle/meta.yml", "meta": {}},
 ]
 
 
@@ -53,6 +57,7 @@ FAKE_NFCORE_PIPELINES = [
 # ---------------------------------------------------------------------------
 # Fake pipeline schema used by all tests — covers params used in unit tests
 # ---------------------------------------------------------------------------
+
 
 def _make_spec(type_, *, required=False, default=None, enum=None, hidden=False):
     return {
@@ -79,20 +84,23 @@ FAKE_PIPELINE_SCHEMA: dict[str, dict] = {
 # Module schema shaped like fastqc's meta.yml inputs.
 # Matches what _parse_module_schema produces (no format/default/hidden keys).
 FAKE_MODULE_SCHEMA: dict[str, dict] = {
-    "meta":  {"type": "map",  "required": True, "enum": None, "pattern": None},
+    "meta": {"type": "map", "required": True, "enum": None, "pattern": None},
     "reads": {"type": "file", "required": True, "enum": None, "pattern": "*_{1,2}.fastq.gz"},
 }
 
 
 @pytest.fixture(autouse=True)
+def private_state_dir(monkeypatch, tmp_path_factory):
+    """Keep what nf-meta remembers per user (e.g. the editor's recent configs) out of the real home."""
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
+
+
+@pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
-    monkeypatch.setattr(
-        "nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES
-    )
-    monkeypatch.setattr(
-        "nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True
-    )
+    monkeypatch.setattr("nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES)
+    monkeypatch.setattr("nf_meta.core.registry._get_nfcore_components_raw", lambda: FAKE_NFCORE_COMPONENTS)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.github_file_exists",
         lambda url, path, ref: True,
@@ -185,7 +193,7 @@ def config_yaml(tmp_path, wf_fetchngs, wf_rnaseq):
     """Write a minimal config YAML to a temp file and return its path."""
     data = {
         "config_version": "0.3.0",
-        "workflows": {
+        "steps": {
             wf_fetchngs.id: {
                 "name": wf_fetchngs.name,
                 "version": wf_fetchngs.version,
@@ -215,9 +223,5 @@ def mock_nextflow(monkeypatch):
     from nf_meta.runner import utils as runner_utils
 
     runner_utils.check_nextflow.cache_clear()
-    monkeypatch.setattr(
-        "nf_meta.runner.workflow_run.check_nextflow", lambda: "nextflow"
-    )
-    monkeypatch.setattr(
-        "nf_meta.runner.utils.shutil.which", lambda name: "/usr/bin/nextflow"
-    )
+    monkeypatch.setattr("nf_meta.runner.python_runner.check_nextflow", lambda: "nextflow")
+    monkeypatch.setattr("nf_meta.runner.utils.shutil.which", lambda name: "/usr/bin/nextflow")

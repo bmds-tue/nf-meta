@@ -1,34 +1,34 @@
 """
 Tests for pipeline and module parameter validation:
-  - _parse_nextflow_schema   (nf_core_utils)
-  - _parse_module_schema     (nf_core_utils)
+  - _parse_nextflow_schema   (registry)
+  - _parse_module_schema     (registry)
   - validate_params           (nf_param_validation)
-  - get_pipeline_schema       (nf_core_utils — HTTP layer mocked)
+  - get_pipeline_schema       (registry — HTTP layer mocked)
   - NfPipeline model-level validation (integration, autouse mock_nfcore fixture)
   - NfModule  model-level validation  (integration, schema mock per-test)
   - Workflow version validator
 """
 
-import pytest
-from pydantic import ValidationError
 from unittest.mock import MagicMock, patch
 
-from nf_meta.core.nf_core_utils import (
-    _parse_nextflow_schema,
-    _parse_module_schema,
-    _parse_repo_url,
-    _raw_url,
-    get_pipeline_schema,
-    PipelineSchemaError,
-)
-from nf_meta.core.nf_param_validation import validate_params
-from nf_meta.core.models import NfPipeline, NfModule
+import pytest
+from pydantic import ValidationError
+
 from nf_meta.core.dynamic_validation import (
     check_module_params_schema,
     check_pipeline_params_schema,
 )
 from nf_meta.core.errors import Severity
-
+from nf_meta.core.models import NfModule, NfPipeline
+from nf_meta.core.nf_param_validation import validate_params
+from nf_meta.core.registry import (
+    PipelineSchemaError,
+    _parse_module_schema,
+    _parse_nextflow_schema,
+    _parse_repo_url,
+    _raw_url,
+    get_pipeline_schema,
+)
 
 # ---------------------------------------------------------------------------
 # Shared schema fixture
@@ -85,6 +85,7 @@ PARSED_SCHEMA = _parse_nextflow_schema(SAMPLE_SCHEMA_JSON)
 # _parse_nextflow_schema
 # ---------------------------------------------------------------------------
 
+
 class TestParseNextflowSchema:
     def test_known_params_present(self):
         assert "input" in PARSED_SCHEMA
@@ -136,6 +137,7 @@ class TestParseNextflowSchema:
 # _parse_repo_url / _raw_url
 # ---------------------------------------------------------------------------
 
+
 class TestParseRepoUrl:
     def test_github(self):
         host, owner, repo = _parse_repo_url("https://github.com/nf-core/rnaseq")
@@ -186,6 +188,7 @@ class TestRawUrl:
 # validate_params
 # ---------------------------------------------------------------------------
 
+
 class TestValidateParams:
     def test_valid_params_no_errors(self):
         params = {"input": "/data/samplesheet.csv", "aligner": "star"}
@@ -206,10 +209,7 @@ class TestValidateParams:
     def test_required_missing_raises(self):
         # input is required (no default), not in params
         diagnostics = validate_params({}, PARSED_SCHEMA, pipeline_id="p1")
-        assert any(
-            d.field == "params.input" and "Required parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.field == "params.input" and "Required parameter" in d.message for d in diagnostics)
 
     def test_required_with_default_not_flagged(self):
         # outdir is in required=False and has a default — no error
@@ -240,9 +240,7 @@ class TestValidateParams:
     def test_wrong_integer_type(self):
         params = {"input": "/data/sheet.csv", "max_cpus": "not-a-number"}
         diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert any(
-            d.field == "params.max_cpus" and "integer" in d.message for d in diagnostics
-        )
+        assert any(d.field == "params.max_cpus" and "integer" in d.message for d in diagnostics)
 
     def test_valid_integer(self):
         params = {"input": "/data/sheet.csv", "max_cpus": 8}
@@ -260,9 +258,7 @@ class TestValidateParams:
     def test_invalid_enum(self):
         params = {"input": "/data/sheet.csv", "aligner": "bowtie2"}
         diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert any(
-            d.field == "params.aligner" and "allowed" in d.message for d in diagnostics
-        )
+        assert any(d.field == "params.aligner" and "allowed" in d.message for d in diagnostics)
 
     def test_valid_enum(self):
         params = {"input": "/data/sheet.csv", "aligner": "hisat2"}
@@ -272,26 +268,21 @@ class TestValidateParams:
     def test_invalid_boolean(self):
         params = {"input": "/data/sheet.csv", "save_unaligned": "maybe"}
         diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-        assert any(
-            d.field == "params.save_unaligned" and "boolean" in d.message
-            for d in diagnostics
-        )
+        assert any(d.field == "params.save_unaligned" and "boolean" in d.message for d in diagnostics)
 
     def test_valid_booleans(self):
         for val in (True, False):
             params = {"input": "/data/sheet.csv", "save_unaligned": val}
             diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-            assert not any(
-                d.field == "params.save_unaligned" for d in diagnostics
-            ), f"Failed for value {val!r}"
+            assert not any(d.field == "params.save_unaligned" for d in diagnostics), f"Failed for value {val!r}"
 
     def test_stringified_boolean_is_rejected(self):
         for val in ("true", "false", "True", "1", "0"):
             params = {"input": "/data/sheet.csv", "save_unaligned": val}
             diagnostics = validate_params(params, PARSED_SCHEMA, pipeline_id="p1")
-            assert any(
-                d.field == "params.save_unaligned" for d in diagnostics
-            ), f"Should have been rejected for value {val!r}"
+            assert any(d.field == "params.save_unaligned" for d in diagnostics), (
+                f"Should have been rejected for value {val!r}"
+            )
 
     def test_reference_token_skips_type_check(self):
         # A cross-step reference should not be type-checked
@@ -302,37 +293,28 @@ class TestValidateParams:
     def test_empty_schema_flags_all_params_unknown(self):
         params = {"input": "x"}
         diagnostics = validate_params(params, {}, pipeline_id="p1")
-        assert any(
-            d.field == "params.input" and "Unknown parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.field == "params.input" and "Unknown parameter" in d.message for d in diagnostics)
 
     def test_map_subkey_not_flagged_as_unknown(self):
         schema = {"meta": {"type": "map", "required": True}}
-        diagnostics = validate_params(
-            {"meta.id": "s1", "meta.sample": "sA"}, schema, pipeline_id="p1"
-        )
+        diagnostics = validate_params({"meta.id": "s1", "meta.sample": "sA"}, schema, pipeline_id="p1")
         assert not any("Unknown parameter" in d.message for d in diagnostics)
 
     def test_map_raw_value_flagged_as_error(self):
         schema = {"meta": {"type": "map", "required": True}}
         diagnostics = validate_params({"meta": "[id:'s1']"}, schema, pipeline_id="p1")
-        assert any(
-            d.field == "params.meta" and "dot-notation" in d.message for d in diagnostics
-        )
+        assert any(d.field == "params.meta" and "dot-notation" in d.message for d in diagnostics)
 
     def test_non_map_dotkey_flagged_as_unknown(self):
         schema = {"outdir": {"type": "string", "required": False, "default": "results"}}
         diagnostics = validate_params({"outdir.sub": "x"}, schema, pipeline_id="p1")
-        assert any(
-            d.field == "params.outdir.sub" and "Unknown parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.field == "params.outdir.sub" and "Unknown parameter" in d.message for d in diagnostics)
 
 
 # ---------------------------------------------------------------------------
 # get_pipeline_schema — HTTP layer
 # ---------------------------------------------------------------------------
+
 
 class TestGetPipelineSchema:
     def setup_method(self):
@@ -354,45 +336,57 @@ class TestGetPipelineSchema:
 
     def test_successful_fetch_and_parse(self):
         mock_resp = self._mock_response(200, json_data=SAMPLE_SCHEMA_JSON)
-        with patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with patch("nf_meta.core.cache.write_schema_cache") as mock_write:
-                    schema = get_pipeline_schema("https://github.com/my-org/my-pipeline", "1.0.0")
+        with (
+            patch("nf_meta.core.registry.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            patch("nf_meta.core.cache.write_schema_cache") as mock_write,
+        ):
+            schema = get_pipeline_schema("https://github.com/my-org/my-pipeline", "1.0.0")
         assert "input" in schema
         assert mock_write.called
 
     def test_cache_hit_skips_http(self):
-        with patch("nf_meta.core.cache.read_schema_cache", return_value=PARSED_SCHEMA):
-            with patch("nf_meta.core.nf_core_utils.requests.get") as mock_get:
-                schema = get_pipeline_schema("https://github.com/my-org/pipeline", "2.0.0")
+        with (
+            patch("nf_meta.core.cache.read_schema_cache", return_value=PARSED_SCHEMA),
+            patch("nf_meta.core.registry.requests.get") as mock_get,
+        ):
+            schema = get_pipeline_schema("https://github.com/my-org/pipeline", "2.0.0")
         mock_get.assert_not_called()
         assert schema == PARSED_SCHEMA
 
     def test_404_raises_schema_error(self):
         mock_resp = self._mock_response(404)
-        with patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with pytest.raises(PipelineSchemaError, match="not found"):
-                    get_pipeline_schema("https://github.com/my-org/pipeline", "3.0.0")
+        with (
+            patch("nf_meta.core.registry.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            pytest.raises(PipelineSchemaError, match="not found"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/pipeline", "3.0.0")
 
     def test_429_raises_with_token_hint(self):
         mock_resp = self._mock_response(429, headers={"Retry-After": "60"})
-        with patch("nf_meta.core.nf_core_utils.requests.get", return_value=mock_resp):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with pytest.raises(PipelineSchemaError, match="GITHUB_TOKEN"):
-                    get_pipeline_schema("https://github.com/my-org/pipeline", "4.0.0")
+        with (
+            patch("nf_meta.core.registry.requests.get", return_value=mock_resp),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            pytest.raises(PipelineSchemaError, match="GITHUB_TOKEN"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/pipeline", "4.0.0")
 
     def test_network_error_raises(self):
         import requests as req
-        with patch("nf_meta.core.nf_core_utils.requests.get", side_effect=req.exceptions.ConnectionError("down")):
-            with patch("nf_meta.core.cache.read_schema_cache", return_value=None):
-                with pytest.raises(PipelineSchemaError, match="Network error"):
-                    get_pipeline_schema("https://github.com/my-org/pipeline", "5.0.0")
+
+        with (
+            patch("nf_meta.core.registry.requests.get", side_effect=req.exceptions.ConnectionError("down")),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            pytest.raises(PipelineSchemaError, match="Network error"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/pipeline", "5.0.0")
 
 
 # ---------------------------------------------------------------------------
 # NfPipeline model-level integration  (uses autouse mock_nfcore fixture)
 # ---------------------------------------------------------------------------
+
 
 class TestNfPipelineParamValidation:
     """Integration tests for NfPipeline param-schema validation
@@ -425,18 +419,13 @@ class TestNfPipelineParamValidation:
             params={"not_a_real_param": "value"},
         )
         diagnostics = check_pipeline_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "Unknown parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "Unknown parameter" in d.message for d in diagnostics)
 
     def test_required_missing_raises(self, monkeypatch):
         wf = self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA)
         diagnostics = check_pipeline_params_schema(wf)
         assert any(
-            d.severity == Severity.ERROR
-            and "Required parameter" in d.message
-            and "input" in d.message
+            d.severity == Severity.ERROR and "Required parameter" in d.message and "input" in d.message
             for d in diagnostics
         )
 
@@ -459,9 +448,7 @@ class TestNfPipelineParamValidation:
         wf = self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA, params_file=str(pf))
         diagnostics = check_pipeline_params_schema(wf)
         assert any(
-            d.severity == Severity.ERROR
-            and "Required parameter" in d.message
-            and "input" in d.message
+            d.severity == Severity.ERROR and "Required parameter" in d.message and "input" in d.message
             for d in diagnostics
         )
 
@@ -482,27 +469,21 @@ class TestNfPipelineParamValidation:
         wf = self._pipeline_with_schema(monkeypatch, PARSED_SCHEMA, params_file=str(pf))
         diagnostics = check_pipeline_params_schema(wf)
         assert any(
-            d.severity == Severity.ERROR
-            and "Unknown parameter" in d.message
-            and "not_a_real_param" in d.message
+            d.severity == Severity.ERROR and "Unknown parameter" in d.message and "not_a_real_param" in d.message
             for d in diagnostics
         )
 
     def test_schema_error_warns_and_skips_validation(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: (_ for _ in ()).throw(
-                PipelineSchemaError("schema unavailable")
-            ),
+            lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("schema unavailable")),
         )
         # Should not raise — schema unavailability is a warning, not a hard error
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
         assert wf is not None
         diagnostics = check_pipeline_params_schema(wf)
         assert any(
-            d.severity == Severity.WARNING
-            and "cannot validate params" in d.message.lower()
-            for d in diagnostics
+            d.severity == Severity.WARNING and "cannot validate params" in d.message.lower() for d in diagnostics
         )
 
     def test_invalid_enum_raises(self, monkeypatch):
@@ -512,10 +493,7 @@ class TestNfPipelineParamValidation:
             params={"input": "/data/sheet.csv", "aligner": "bowtie2"},
         )
         diagnostics = check_pipeline_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "allowed values" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "allowed values" in d.message for d in diagnostics)
 
     def test_wrong_type_raises(self, monkeypatch):
         wf = self._pipeline_with_schema(
@@ -524,10 +502,7 @@ class TestNfPipelineParamValidation:
             params={"input": "/data/sheet.csv", "max_cpus": "lots"},
         )
         diagnostics = check_pipeline_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "integer" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "integer" in d.message for d in diagnostics)
 
     def test_reference_token_skips_type_check(self, monkeypatch):
         wf = self._pipeline_with_schema(
@@ -546,6 +521,7 @@ class TestNfPipelineParamValidation:
 # ---------------------------------------------------------------------------
 # Workflow version validator
 # ---------------------------------------------------------------------------
+
 
 class TestVersionValidator:
     def _make_pipeline(self, version):
@@ -587,7 +563,7 @@ class TestVersionValidator:
 
 SAMPLE_META_YML = {
     "input": [
-        {"meta":  {"type": "map",  "description": "Sample metadata"}},
+        {"meta": {"type": "map", "description": "Sample metadata"}},
         {"reads": {"type": "file", "pattern": "*_{1,2}.fastq.gz"}},
     ]
 }
@@ -668,6 +644,7 @@ class TestParseModuleSchema:
 # NfModule model-level integration
 # ---------------------------------------------------------------------------
 
+
 class TestNfModuleParamValidation:
     """Integration tests for NfModule param-schema validation
     (dynamic_validation.check_module_params_schema).
@@ -689,19 +666,16 @@ class TestNfModuleParamValidation:
 
     def test_required_param_missing_raises(self, monkeypatch):
         schema = {
-            "meta":  {"type": "map",  "required": True},
+            "meta": {"type": "map", "required": True},
             "reads": {"type": "file", "required": True},
         }
         wf = self._module_with_schema(monkeypatch, schema)
         diagnostics = check_module_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "Required parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "Required parameter" in d.message for d in diagnostics)
 
     def test_all_required_params_present_passes(self, monkeypatch):
         schema = {
-            "meta":  {"type": "map",  "required": True},
+            "meta": {"type": "map", "required": True},
             "reads": {"type": "file", "required": True},
         }
         wf = self._module_with_schema(
@@ -714,7 +688,7 @@ class TestNfModuleParamValidation:
 
     def test_map_subkey_satisfies_required(self, monkeypatch):
         schema = {
-            "meta":  {"type": "map",  "required": True},
+            "meta": {"type": "map", "required": True},
             "reads": {"type": "file", "required": True},
         }
         wf = self._module_with_schema(
@@ -727,7 +701,7 @@ class TestNfModuleParamValidation:
 
     def test_unknown_param_raises(self, monkeypatch):
         schema = {
-            "meta":  {"type": "map",  "required": True},
+            "meta": {"type": "map", "required": True},
             "reads": {"type": "file", "required": True},
         }
         wf = self._module_with_schema(
@@ -736,14 +710,11 @@ class TestNfModuleParamValidation:
             params={"meta.id": "s1", "reads": "/r.fastq.gz", "extra": "nope"},
         )
         diagnostics = check_module_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "Unknown parameter" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "Unknown parameter" in d.message for d in diagnostics)
 
     def test_map_raw_value_raises(self, monkeypatch):
         schema = {
-            "meta":  {"type": "map",  "required": True},
+            "meta": {"type": "map", "required": True},
             "reads": {"type": "file", "required": True},
         }
         wf = self._module_with_schema(
@@ -752,10 +723,7 @@ class TestNfModuleParamValidation:
             params={"meta": "[id:'s1']", "reads": "/data/r1.fastq.gz"},
         )
         diagnostics = check_module_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "dot-notation" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "dot-notation" in d.message for d in diagnostics)
 
     def test_enum_enforced(self, monkeypatch):
         schema = {
@@ -763,19 +731,13 @@ class TestNfModuleParamValidation:
         }
         wf = self._module_with_schema(monkeypatch, schema, params={"mode": "interleaved"})
         diagnostics = check_module_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "allowed values" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "allowed values" in d.message for d in diagnostics)
 
     def test_float_type_validated(self, monkeypatch):
         schema = {"threshold": {"type": "float", "required": True}}
         wf = self._module_with_schema(monkeypatch, schema, params={"threshold": "not-a-float"})
         diagnostics = check_module_params_schema(wf)
-        assert any(
-            d.severity == Severity.ERROR and "number" in d.message
-            for d in diagnostics
-        )
+        assert any(d.severity == Severity.ERROR and "number" in d.message for d in diagnostics)
 
     def test_eval_type_skips_check(self, monkeypatch):
         schema = {"expr": {"type": "eval", "required": True}}
@@ -785,7 +747,7 @@ class TestNfModuleParamValidation:
 
     def test_reference_token_skips_validation(self, monkeypatch):
         schema = {
-            "meta":  {"type": "map",  "required": True},
+            "meta": {"type": "map", "required": True},
             "reads": {"type": "file", "required": True},
         }
         wf = self._module_with_schema(

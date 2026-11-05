@@ -1,26 +1,24 @@
 import pytest
 
-from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
-from nf_meta.core.history import History  # type: ignore[import]
-from nf_meta.core.models import NfModule, Transition, GlobalOptions  # type: ignore[import]
 from nf_meta.core.errors import ConfigValidationError  # type: ignore[import]
 from nf_meta.core.events import (  # type: ignore[import]
+    AddTransition,
+    AddWorkflow,
+    EditWorkflow,
+    GlobalOptionsUpdated,
+    RemoveTransition,
+    RemoveWorkflow,
+    Transaction,
+    TransitionAdded,
+    TransitionRemoved,
+    UpdateGlobalOptions,
     WorkflowAdded,
     WorkflowRemoved,
     WorkflowUpdated,
-    TransitionAdded,
-    TransitionRemoved,
-    GlobalOptionsUpdated,
 )
-from nf_meta.core.events import (
-    AddWorkflow,
-    RemoveWorkflow,
-    EditWorkflow,
-    AddTransition,
-    RemoveTransition,
-    UpdateGlobalOptions,
-    Transaction,
-)
+from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
+from nf_meta.core.history import History  # type: ignore[import]
+from nf_meta.core.models import GlobalOptions, NfModule, Transition  # type: ignore[import]
 
 
 @pytest.fixture
@@ -167,19 +165,15 @@ class TestUndoRedoRollback:
         assert history.undoable()
         assert not history.redoable()
 
-    def test_redo_rolls_back_on_failure_and_restores_stack(
-        self, history, graph, wf_rnaseq, monkeypatch
-    ):
+    def test_redo_rolls_back_on_failure_and_restores_stack(self, history, graph, wf_rnaseq, monkeypatch):
         history.execute(RemoveWorkflow(wf_rnaseq.id), graph)
         history.undo(graph)
         assert graph.get_workflow_by_id(wf_rnaseq.id) is not None
 
-        def failing_remove_workflow(self, wf_id, recursive=False):
+        def failing_remove_workflow(self, wf_id):
             raise RuntimeError("simulated failure")
 
-        monkeypatch.setattr(
-            MetaworkflowGraph, "remove_workflow", failing_remove_workflow
-        )
+        monkeypatch.setattr(MetaworkflowGraph, "remove_workflow", failing_remove_workflow)
 
         with pytest.raises(RuntimeError):
             history.redo(graph)
@@ -265,9 +259,7 @@ class TestUndoRedoRollback:
 
 
 class TestTransaction:
-    def test_transaction_applies_all_commands(
-        self, history, graph, wf_rnaseq, wf_fetchngs
-    ):
+    def test_transaction_applies_all_commands(self, history, graph, wf_rnaseq, wf_fetchngs):
         cmd = Transaction(
             (
                 RemoveWorkflow(wf_rnaseq.id),
@@ -331,9 +323,9 @@ class TestEventUndoCommands:
         assert cmd.transition.source == wf_rnaseq.id
 
     def test_global_options_updated_undo_restores_old(self):
-        old = GlobalOptions(profile="docker")
-        new = GlobalOptions(profile="singularity")
+        old = GlobalOptions(nf_profile="docker")
+        new = GlobalOptions(nf_profile="singularity")
         event = GlobalOptionsUpdated(new_globals=new, old_globals=old)
         cmd = event.get_undo_cmd()
         assert isinstance(cmd, UpdateGlobalOptions)
-        assert cmd.globals.profile == "docker"
+        assert cmd.globals.nf_profile == "docker"

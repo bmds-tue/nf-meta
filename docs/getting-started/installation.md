@@ -8,44 +8,22 @@ The package is published to the [Python Package Index](https://pypi.org/project/
 # with pip
 pip install nf-meta
 
-# with uv
+# as a command-line tool with uv
+uv tool install nf-meta
+
+# as a dependency of your project with uv
 uv add nf-meta
 ```
 
 !!! note
-    nf-meta orchestrates [Nextflow](https://nextflow.io) runs. It does not bundle
-    Nextflow itself. Running a metapipeline (`nf-meta run`) requires a working `nextflow`
-    on `PATH`, matching whatever `globals.nextflow_version` your config declares (if set).
-    Validating a config (`nf-meta validate`) does not require Nextflow to be installed.
+    nf-meta orchestrates [Nextflow](https://nextflow.io) runs. The PyPI package does not bundle
+    Nextflow, so running a metapipeline (`nf-meta run`) requires a working installation
+    on `PATH`.
+    Steps of type `nf-module` need Nextflow 26.04 or later (`nextflow module run`).
+    Validating a config (`nf-meta validate`) and the editor (`nf-meta editor`) don't need
+    Nextflow.
 
 ## Development setup
 
-Clone the repository and install with the dev dependency group:
-
-```bash
-git clone https://github.com/bmds-tue/nf-meta
-cd nf-meta
-uv sync --group dev
-```
-
-### Editor frontend
-
-The browser editor's frontend lives under `src/nf_meta/editor/frontend` and runs as a separate node server during development:
-
-```bash
-cd src/nf_meta/editor/frontend
-npm install
-npm run dev
-```
-
-With the frontend dev server running, launch the CLI in dev mode so it proxies to it instead of the bundled build:
-
-```bash
-NF_META_DEVMODE=1 uv run nf-meta editor [</path/to/metapipeline.yml>]
-```
-
-### Running the tests
-
-```bash
-uv run pytest
-```
+See [Contributing → Development setup](../contributing.md#development-setup) for installing from
+a clone and running the editor in dev mode.

@@ -3,7 +3,6 @@ from typing import ClassVar
 
 from .utils import EditorOptions
 
-
 _REGISTRY: dict[str, type["BaseEditor"]] = {}
 
 
@@ -36,9 +35,7 @@ class BaseEditor(ABC):
 
     def __init__(self, options: EditorOptions) -> None:
         if "EDITOR_NAME" not in type(self).__dict__:
-            raise TypeError(
-                f"{type(self).__name__} must define EDITOR_NAME = '...' as a class attribute"
-            )
+            raise TypeError(f"{type(self).__name__} must define EDITOR_NAME = '...' as a class attribute")
         self.options = options
 
     @abstractmethod

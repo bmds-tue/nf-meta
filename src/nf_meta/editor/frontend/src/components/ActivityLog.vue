@@ -30,6 +30,12 @@ function label(event: APIEvent): string {
         }
         case 'GlobalOptionsUpdated':
             return 'Updated global options'
+        case 'InputAdded':
+            return `Added input '${event.name ?? '?'}'`
+        case 'InputRemoved':
+            return `Removed input '${event.name ?? '?'}'`
+        case 'InputUpdated':
+            return `Updated input '${event.name ?? '?'}'`
         default:
             return event.type
     }
@@ -53,8 +59,8 @@ function formatTime(date: Date): string {
                 No changes in history yet
             </v-list-item>
             <v-list-item
-                v-for="(entry, i) in log"
-                :key="i"
+                v-for="entry in log"
+                :key="entry.id"
                 class="px-1 py-0"
             >
                 <div class="d-flex align-center ga-3 w-100">

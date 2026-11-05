@@ -13,22 +13,21 @@ namespaces = false
 
 [project]
 name = "nf-meta"
-version = "0.5.0"
+version = "0.6.0"
 description = "nf-meta is a cli tool for building, validating and running meta-pipelines based on the Nextflow workflow language"
 readme = "README.md"
 authors = [
     { name = "Julian Flesch", email = "julian.flesch@qbic.uni-tuebingen.de" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "click>=8.3.1",
     "fastapi>=0.128.0",
-    "flask>=3.1.2",
     "networkx>=3.6.1",
-    "numpy>=2.4.2",
     "packaging>=26.0",
     "pydantic>=2.12.5",
     "pyyaml>=6.0.3",
+    "questionary>=2.1",
     "requests>=2.32.5",
     "rich>=14.3.3",
     "uvicorn>=0.40.0",
@@ -44,29 +43,66 @@ nf-meta = "nf_meta.__main__:cli"
 
 [dependency-groups]
 dev = [
-    "twine>=6.2.0",
     "pytest>=9.0.3",
-    "pytest-mock>=3.15.1",
     "mypy>=2.1.0",
     "types-networkx>=3.6.1.20260408",
     "types-pyyaml>=6.0.12.20260408",
     "types-requests>=2.33.0.20260503",
     "jsonschema>=4.25.0",
+    "httpx2>=2.16.0",
+    "ruff~=0.17.2",
 ]
 docs = [
     "mkdocs~=1.6",
     "mkdocs-material~=9.5",
-    "mkdocstrings[python]~=0.27",
+    "mkdocstrings[python]~=1.0",
     "mike~=2.1",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not nextflow'"
+markers = [
+    "nextflow: runs real Nextflow (deselected by default; run with `-m nextflow`)",
+]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.11"
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
 module = ["uvicorn", "uvicorn.*"]
 ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "I",                                # isort
+    "E1", "E4", "E7", "E9", "E902",     # pycodestyle errors (partial)
+    "F",                                # pyflakes
+    "UP",                               # pyupgrade
+    "N",                                # pep8-naming
+    "B",                                # flake8-bugbear
+    "RSE",                              # flake8-raise
+    "PTH",                              # flake8-use-pathlib
+    "SIM",                              # flake8-simplify
+    "C4",                               # flake8-comprehensions
+    "BLE",                              # flake8-blind-except
+    "W",                                # pycodestyle warnings
+    "A",                                # flake8-builtins
+    "PIE",                              # flake8-pie
+]
+ignore = ["PTH123", "PIE790"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nf_meta"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares request bodies with Body(...) defaults; they are not shared mutable state
+extend-immutable-calls = ["fastapi.Body"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]

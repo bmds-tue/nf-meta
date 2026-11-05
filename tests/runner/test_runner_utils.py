@@ -1,13 +1,13 @@
 import subprocess
+
 import pytest
 
+from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 from nf_meta.runner.utils import (  # type: ignore[import]
     check_nextflow,
-    get_installed_nextflow_version,
     check_nextflow_version,
+    get_installed_nextflow_version,
 )
-from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
-
 
 # ---------------------------------------------------------------------------
 # check_nextflow
@@ -22,9 +22,7 @@ class TestCheckNextflow:
         check_nextflow.cache_clear()
 
     def test_found_returns_path(self, monkeypatch):
-        monkeypatch.setattr(
-            "nf_meta.runner.utils.shutil.which", lambda _: "/usr/bin/nextflow"
-        )
+        monkeypatch.setattr("nf_meta.runner.utils.shutil.which", lambda _: "/usr/bin/nextflow")
         result = check_nextflow()
         assert result == "/usr/bin/nextflow"
 
@@ -36,12 +34,8 @@ class TestCheckNextflow:
 
 class TestGetInstalledNextflowVersion:
     def _mock_run(self, monkeypatch, stdout="", returncode=0):
-        result = subprocess.CompletedProcess(
-            args=[], returncode=returncode, stdout=stdout, stderr=""
-        )
-        monkeypatch.setattr(
-            "nf_meta.runner.utils.subprocess.run", lambda *a, **kw: result
-        )
+        result = subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
+        monkeypatch.setattr("nf_meta.runner.utils.subprocess.run", lambda *a, **kw: result)
 
     def test_parses_standard_version(self, monkeypatch):
         self._mock_run(monkeypatch, stdout="      version 25.10.4 build 11173\n")
@@ -85,9 +79,7 @@ class TestGetInstalledNextflowVersion:
 
 class TestCheckNextflowVersion:
     def _patch_installed(self, monkeypatch, version: tuple):
-        monkeypatch.setattr(
-            "nf_meta.runner.utils.get_installed_nextflow_version", lambda: version
-        )
+        monkeypatch.setattr("nf_meta.runner.utils.get_installed_nextflow_version", lambda: version)
 
     def test_matching_version_returns_true(self, monkeypatch):
         self._patch_installed(monkeypatch, (25, 10, 4, 0))

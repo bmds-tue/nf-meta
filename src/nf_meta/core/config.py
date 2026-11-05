@@ -1,32 +1,23 @@
 """
-Construction / serialization — free functions, not methods.
+Construction and serialization functions.
 
-MetaworkflowGraph (core/graph.py) itself stays "a validated graph with
-mutation methods"; the YAML/dict-boundary concerns (parsing raw data into one,
-projecting one back to a dict, constructing individual workflows/globals) live
-here instead, alongside the file/config-format boundary they're all about.
-There is no top-level pydantic model for the whole document -- construction
-happens directly, one workflow at a time, so a single broken workflow no
-longer blocks the others from being added.
+There is no top-level pydantic model for the whole configuration document,
+just the major building blocks like global options and steps. (Pipeline, Module, ...)
+A MetaworkflowGraph is instad constructed by parsing the top level keys and then these
+building blocks from a nf-meta YAML configuration.
 """
 
+import difflib
 import logging
+import re
 from pathlib import Path
 
+import requests
 import yaml
+from packaging.version import Version
 from pydantic import ValidationError
 
-from .graph import MetaworkflowGraph
-from .models import (
-    GlobalOptions,
-    NfModule,
-    NfPipeline,
-    Transition,
-    Workflow,
-    WorkflowType,
-    validate_config_version,
-    CONFIG_VERSION_MAX,
-)
+from .dynamic_validation import check_all, check_config_files, log_warnings, run_dynamic_checks
 from .errors import (
     ConfigValidationError,
     Diagnostic,
@@ -34,67 +25,201 @@ from .errors import (
     Severity,
     diagnostics_from_pydantic_error,
 )
-from .dynamic_validation import check_all, log_warnings, run_dynamic_checks
+from .graph import MetaworkflowGraph
+from .inputs import InputDefinition
+from .models import (
+    CONFIG_VERSION_MAX,
+    INPUTS_MIN_CONFIG_VERSION,
+    LEGACY_KEYS,
+    LEGACY_STEPS_KEY,
+    STEPS_KEY,
+    STEPS_MIN_CONFIG_VERSION,
+    GlobalOptions,
+    NfModule,
+    NfPipeline,
+    Transition,
+    Workflow,
+    WorkflowType,
+    validate_config_version,
+    with_absolute_config_paths,
+)
+from .refs import INPUT_REF_PATTERN
 
 logger = logging.getLogger()
 
 
-def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
-    if g.global_options and g.global_options.config_file:
-        return
-
-    for wf in g.get_workflows():
-        if not wf.type == WorkflowType.NF_MODULE:
-            continue
-        if wf.container_engine:  # type: ignore[union-attr]
-            continue
-        logger.warning(
-            "Running Nextflow module(s) without specifying an executor "
-            "or a global Nextflow config relies on the local environment.\n"
-            "This will cause errors, if module dependencies are not "
-            "available locally and breaks reproducibility"
+def _module_executor_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    if g.global_options and g.global_options.nf_config:
+        return []
+    return [
+        Diagnostic(
+            workflow_id=wf.id,
+            field="container_engine",
+            yaml_path=f"steps.{wf.id}",
+            message=(
+                "Module runs without a container_engine or a global Nextflow config "
+                "rely on the local environment: missing dependencies cause errors, "
+                "and results aren't reproducible"
+            ),
+            severity=Severity.WARNING,
         )
+        for wf in g.get_workflows()
+        if wf.type == WorkflowType.NF_MODULE and not wf.container_engine  # type: ignore[union-attr]
+    ]
+
+
+_ABBREVIATED_SHA = re.compile(r"^[0-9a-fA-F]{7,39}$")
+
+
+def _abbreviated_sha_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    """Pipeline versions given as abbreviated commit hashes: Nextflow 26 can't
+    fetch those (it fetches each revision separately, by full id)."""
+    return [
+        Diagnostic(
+            workflow_id=wf.id,
+            field="version",
+            yaml_path=f"steps.{wf.id}.version",
+            message="Abbreviated commit hash; Nextflow 26+ can't fetch these. Use the full 40-character hash.",
+            severity=Severity.WARNING,
+        )
+        for wf in g.get_workflows()
+        if wf.type == WorkflowType.NF_PIPELINE and wf.version and _ABBREVIATED_SHA.match(wf.version)
+    ]
+
+
+def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
+    log_warnings(_module_executor_warnings(g))
+    log_warnings(_abbreviated_sha_warnings(g))
+
+
+TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", STEPS_KEY, LEGACY_STEPS_KEY, "transitions")
+
+
+def _with_steps_key(data: dict) -> tuple[dict, list[Diagnostic]]:
+    """`data` with its steps under `steps:`, and a deprecation warning if they
+    were under the old name `workflows:`. Raises `GraphValidationError` if both
+    keys are given."""
+    if LEGACY_STEPS_KEY not in data:
+        return data, []
+    if STEPS_KEY in data:
+        raise GraphValidationError("Use one of 'steps:' and 'workflows:', not both")
+    data = {(STEPS_KEY if key == LEGACY_STEPS_KEY else key): value for key, value in data.items()}
+    warning = Diagnostic(
+        workflow_id=None,
+        field=LEGACY_STEPS_KEY,
+        yaml_path=LEGACY_STEPS_KEY,
+        message="Deprecated in favor of 'steps:'. Saving from the editor updates it.",
+        severity=Severity.WARNING,
+    )
+    return data, [warning]
+
+
+def legacy_key_warnings(data: dict) -> list[Diagnostic]:
+    """A deprecation warning for each legacy key (see `models.LEGACY_KEYS`)
+    in `globals` and workflow entries."""
+    sections: list[tuple[str, dict]] = []
+    if isinstance(data.get("globals"), dict):
+        sections.append(("globals.", data["globals"]))
+    sections += [(f"steps.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
+    return [w for prefix, section in sections for w in _legacy_section_warnings(section, prefix)]
+
+
+def _legacy_section_warnings(section: dict, prefix: str = "") -> list[Diagnostic]:
+    return [
+        Diagnostic(
+            workflow_id=None,
+            field=old,
+            yaml_path=f"{prefix}{old}",
+            message=f"Deprecated key, use '{new}' instead. Saving from the editor updates it.",
+            severity=Severity.WARNING,
+        )
+        for old, new in LEGACY_KEYS.items()
+        if old in section
+    ]
+
+
+# Keys a workflow entry may have besides its model's fields
+_EXTRA_WORKFLOW_KEYS = ("from", "id", "type")
+
+
+def _unknown_key(key: str, allowed, yaml_path: str, workflow_id=None) -> Diagnostic:
+    close = difflib.get_close_matches(str(key), list(allowed), n=1, cutoff=0.6)
+    hint = f" Did you mean '{close[0]}'?" if close else ""
+    return Diagnostic(
+        workflow_id=workflow_id,
+        field=str(key),
+        yaml_path=yaml_path,
+        message=f"Unknown key.{hint}",
+        severity=Severity.ERROR,
+    )
+
+
+def unknown_key_diagnostics(data: dict) -> list[Diagnostic]:
+    """Errors for keys the config format doesn't know: at the top level, in
+    `globals`, and in each workflow entry. (Unknown keys in `inputs` entries
+    are reported when they are parsed.)"""
+    diagnostics = [_unknown_key(key, TOP_LEVEL_KEYS, str(key)) for key in data if key not in TOP_LEVEL_KEYS]
+    globals_ = data.get("globals")
+    if isinstance(globals_, dict):
+        global_keys = [*GlobalOptions.model_fields, *LEGACY_KEYS]
+        diagnostics += [_unknown_key(key, global_keys, f"globals.{key}") for key in globals_ if key not in global_keys]
+    for wf_id, item in _workflow_items(data):
+        model = NfModule if item.get("type") == WorkflowType.NF_MODULE else NfPipeline
+        allowed = [*model.model_fields, *_EXTRA_WORKFLOW_KEYS, *LEGACY_KEYS]
+        diagnostics += [_unknown_key(key, allowed, f"steps.{wf_id}.{key}", wf_id) for key in item if key not in allowed]
+    return diagnostics
 
 
 def _extract_items_and_transitions(
-    data: dict,
+    data: dict, warnings: list[Diagnostic] | None = None
 ) -> tuple[list[dict], list[tuple[str, str]]]:
-    """Normalize `workflows:`/`transitions:`/`from:` into a flat list of
+    """Normalize `steps:`/`transitions:`/`from:` into a flat list of
     workflow-definition dicts (`type`/`id` defaulted) and a list of pending
     `(source, target)` transitions.
 
-    Raises `GraphValidationError` immediately for malformed input shapes (a
-    `workflows:` value that's neither a mapping nor a list, a non-dict item, a
-    malformed `from:` value, mixed legacy-`transitions:`-and-`from:` usage, a
-    malformed legacy transition entry) -- these represent invalid input, not
-    ordinary per-workflow mistakes, so every caller lets them raise immediately
-    rather than aggregating around them.
+    Raises `GraphValidationError` immediately for shape-errors with the YAML file,
+    which represent invalid input. They cannot be meaningfully recovered and
+    attempting to parse step-models is likely to fail without useful errors.
     """
+
+    def warn(yaml_path: str, message: str) -> None:
+        if warnings is None:
+            logger.warning(message)
+        else:
+            warnings.append(
+                Diagnostic(
+                    workflow_id=None,
+                    field=yaml_path,
+                    yaml_path=yaml_path,
+                    message=message,
+                    severity=Severity.WARNING,
+                )
+            )
+
     has_top_level_transitions = "transitions" in data
     if has_top_level_transitions:
-        logger.warning(
-            "Legacy top-level 'transitions:' key is deprecated -- declare each "
-            "workflow's predecessors via its own 'from:' key instead. Update by "
-            "opening and saving the config in the editor."
+        warn(
+            "transitions",
+            "Legacy top-level key 'transitions:' is deprecated. Declare each "
+            "step's predecessors via its own 'from:' key instead. Update by "
+            "saving the config from the editor.",
         )
 
-    raw_workflows = data.get("workflows") or {}
+    raw_workflows = data.get(STEPS_KEY) or {}
     if isinstance(raw_workflows, dict):
         raw_items: list[tuple[str | None, object]] = list(raw_workflows.items())
     elif isinstance(raw_workflows, list):
-        logger.warning(
-            "Legacy list-format for 'workflows' is deprecated -- use the dict-"
-            "format keyed by workflow id instead. Update by opening and saving the "
-            "config in the editor."
+        warn(
+            STEPS_KEY,
+            "Legacy list-format for 'steps' is deprecated. Use the dict-"
+            "format the step-id as key instead. Update by saving the "
+            "config from the editor.",
         )
-        raw_items = [
-            (item.get("id") if isinstance(item, dict) else None, item)
-            for item in raw_workflows
-        ]
+        raw_items = [(item.get("id") if isinstance(item, dict) else None, item) for item in raw_workflows]
     else:
         raise GraphValidationError(
-            f"'workflows:' must be a mapping keyed by workflow id or a list "
-            f"of workflow definitions, got {type(raw_workflows).__name__!r}"
+            f"'steps:' must be a mapping keyed by step id or a list "
+            f"of step definitions, got {type(raw_workflows).__name__!r}"
         )
 
     items: list[dict] = []
@@ -103,8 +228,7 @@ def _extract_items_and_transitions(
     for key, item in raw_items:
         if not isinstance(item, dict):
             raise GraphValidationError(
-                f"Invalid definition of workflow {key}: Must be a key-value "
-                f"mapping, got '{item}' instead"
+                f"Invalid definition of step {key}: Must be a key-value mapping, got '{item}' instead"
             )
         item = {**item}
         item.setdefault("type", WorkflowType.NF_PIPELINE)
@@ -114,12 +238,10 @@ def _extract_items_and_transitions(
         from_ids = item.pop("from", None) or []
         if isinstance(from_ids, str):
             from_ids = [from_ids]  # a single predecessor id, not wrapped in a list
-        if not isinstance(from_ids, list) or not all(
-            isinstance(f, str) for f in from_ids
-        ):
+        if not isinstance(from_ids, list) or not all(isinstance(f, str) for f in from_ids):
             raise GraphValidationError(
-                f"Invalid 'from' value for workflow {item.get('id', '<unknown>')}: "
-                f"expected a workflow id or a list of workflow ids, got "
+                f"Invalid 'from' value for step {item.get('id', '<unknown>')}: "
+                f"expected a step id or a list of step ids, got "
                 f"'{from_ids}' instead"
             )
         target_id = item.get("id", "<unknown>")
@@ -129,7 +251,7 @@ def _extract_items_and_transitions(
     if has_top_level_transitions and any_from_key_present:
         raise GraphValidationError(
             "Cannot mix the legacy top-level 'transitions:' key with "
-            "per-workflow 'from:' declarations in the same file — use one "
+            "per-step 'from:' declarations in the same file — use one "
             "style consistently."
         )
 
@@ -154,11 +276,9 @@ def construct_workflow(
 ) -> tuple[Workflow | None, list[Diagnostic]]:
     """Attempt to construct one `NfPipeline`/`NfModule` from a raw dict
     (discriminated on `type`). Returns `(workflow, [])` on success, or
-    `(None, diagnostics)` on failure -- a reusable building block for
-    validating one workflow at a time, whether inside a full-graph build or a
-    standalone snippet. yaml_path_prefix is forwarded to
-    diagnostics_from_pydantic_error -- pass e.g. "workflows.<id>." when this
-    workflow is embedded in a whole config; leave it empty (the default) for
+    `(None, diagnostics)` on failure. yaml_path_prefix is forwarded to
+    diagnostics_from_pydantic_error. Pass "steps.<id>." when this
+    workflow is embedded in a whole config or leave it empty for
     an isolated snippet.
     """
     try:
@@ -166,60 +286,73 @@ def construct_workflow(
             return NfModule(**item), []
         return NfPipeline(**item), []
     except ValidationError as e:
-        return None, diagnostics_from_pydantic_error(
-            e, workflow_id=workflow_id, yaml_path_prefix=yaml_path_prefix
-        )
+        return None, diagnostics_from_pydantic_error(e, workflow_id=workflow_id, yaml_path_prefix=yaml_path_prefix)
 
 
-def validated_workflow(data: dict) -> Workflow:
+def validated_workflow(
+    data: dict, warnings: list[Diagnostic] | None = None, project_dir: Path | None = None
+) -> Workflow:
     """Construct and fully validate a single workflow from a flat, raw dict
-    (`id` optional -- the model's own `default_factory` generates one if
-    omitted). Runs the same tier-0/1 construction plus tier-2 dynamic checks
+    (`id` is optional and will be generated).
+    Runs the same tier-0/1 construction plus tier-2 dynamic checks
     a workflow gets as part of a full config build. Returns the validated
     Workflow, or raises `GraphValidationError`/`ConfigValidationError`.
+
+    Warnings are appended to `warnings` when given, else logged. Relative
+    `params_file`/`nf_config` are looked up in `project_dir` (default: the
+    current directory).
     """
     if not data:
         raise GraphValidationError("No config data provided")
     if not isinstance(data, dict):
-        raise GraphValidationError(
-            f"Expected a flat mapping, got {type(data).__name__!r}"
-        )
+        raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
+    legacy = _legacy_section_warnings(data)
+    if warnings is None:
+        log_warnings(legacy)
+    else:
+        warnings.extend(legacy)
     wf, diagnostics = construct_workflow(data, data.get("id", "<unknown>"))
     if wf is None:
         raise ConfigValidationError(diagnostics)
-    dynamic_diagnostics = run_dynamic_checks(wf, previous=None)
+    dynamic_diagnostics = run_dynamic_checks(with_absolute_config_paths(wf, project_dir), previous=None)
     errors = [d for d in dynamic_diagnostics if d.severity == Severity.ERROR]
+    found_warnings = [d for d in dynamic_diagnostics if d.severity == Severity.WARNING]
     if errors:
-        raise ConfigValidationError(errors)
-    log_warnings(dynamic_diagnostics)
+        raise ConfigValidationError(errors, warnings=found_warnings)
+    if warnings is None:
+        log_warnings(found_warnings)
+    else:
+        warnings.extend(found_warnings)
     return wf
 
 
-def validated_globals(data: dict) -> GlobalOptions:
+def validated_globals(data: dict, project_dir: Path | None = None) -> GlobalOptions:
     """Construct and validate a `GlobalOptions` block from a flat, raw dict.
     Returns the validated `GlobalOptions`, or raises
-    `GraphValidationError`/`ConfigValidationError`.
+    `GraphValidationError`/`ConfigValidationError`. A relative `nf_config` is
+    looked up in `project_dir` (default: the current directory).
     """
     if not data:
         raise GraphValidationError("No config data provided")
     if not isinstance(data, dict):
-        raise GraphValidationError(
-            f"Expected a flat mapping, got {type(data).__name__!r}"
-        )
+        raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
     try:
-        return GlobalOptions(**data)
+        log_warnings(_legacy_section_warnings(data))
+        globals_ = GlobalOptions(**data)
     except ValidationError as e:
-        raise ConfigValidationError(
-            diagnostics_from_pydantic_error(e, workflow_id=None)
-        ) from e
+        raise ConfigValidationError(diagnostics_from_pydantic_error(e, workflow_id=None)) from e
+    missing = check_config_files(globals_, project_dir, yaml_path_prefix="")
+    if missing:
+        raise ConfigValidationError(missing)
+    return globals_
 
 
-def validated_workflow_from_file(cfg_file: Path) -> Workflow:
+def validated_workflow_from_file(cfg_file: Path, warnings: list[Diagnostic] | None = None) -> Workflow:
     """Read `cfg_file` as YAML and validate it as a standalone workflow
     snippet. See `validated_workflow`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
-    return validated_workflow(data)
+    return validated_workflow(data, warnings, project_dir=Path(cfg_file).resolve().parent)
 
 
 def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
@@ -227,16 +360,98 @@ def validated_globals_from_file(cfg_file: Path) -> GlobalOptions:
     snippet. See `validated_globals`."""
     with open(cfg_file) as fh:
         data = yaml.safe_load(fh)
-    return validated_globals(data)
+    return validated_globals(data, project_dir=Path(cfg_file).resolve().parent)
 
 
-def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
-    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
-    failing fast: raises immediately on the first problem found (a workflow's
-    construction, graph topology, cross-workflow references, or a tier-2
-    check). See `_full_validated_graph` for the collect-everything alternative
-    used by the CLI's `validate` command. Not called directly -- use
-    `validated_graph(data)` (the default, `collect_errors=False`).
+def parse_inputs(data: dict, config_version: str) -> tuple[dict[str, InputDefinition], list[Diagnostic]]:
+    """Parse the config's `inputs:` section. Returns the definitions that
+    parsed and a diagnostic per problem (malformed entries, or `inputs:` or
+    `${inputs:...}` in a config version that predates them)."""
+    version_diagnostics = _input_refs_before_inputs(data, config_version)
+    definitions, diagnostics = _parse_inputs_section(data, config_version)
+    return definitions, version_diagnostics + diagnostics
+
+
+def _input_refs_before_inputs(data: dict, config_version: str) -> list[Diagnostic]:
+    if Version(config_version) >= Version(INPUTS_MIN_CONFIG_VERSION):
+        return []
+    workflows = data.get(STEPS_KEY)
+    if isinstance(workflows, dict):
+        items = [(str(k), v) for k, v in workflows.items()]
+    elif isinstance(workflows, list):
+        items = [(str(w.get("id", "")), w) for w in workflows if isinstance(w, dict)]
+    else:
+        return []
+    diagnostics = []
+    for wf_id, wf in items:
+        params = wf.get("params") if isinstance(wf, dict) else None
+        for key, value in (params or {}).items() if isinstance(params, dict) else ():
+            if isinstance(value, str) and INPUT_REF_PATTERN.search(value):
+                diagnostics.append(
+                    Diagnostic(
+                        workflow_id=wf_id,
+                        field=f"params.{key}",
+                        yaml_path=f"steps.{wf_id}.params.{key}",
+                        message=f"'${{inputs:...}}' needs config_version {INPUTS_MIN_CONFIG_VERSION} or later",
+                        severity=Severity.ERROR,
+                    )
+                )
+    return diagnostics
+
+
+def _parse_inputs_section(data: dict, config_version: str) -> tuple[dict[str, InputDefinition], list[Diagnostic]]:
+    raw = data.get("inputs")
+    if raw is None:
+        return {}, []
+    if not isinstance(raw, dict):
+        return {}, [
+            Diagnostic(
+                workflow_id=None,
+                field="inputs",
+                yaml_path="inputs",
+                message=f"'inputs:' must be a mapping keyed by input name, got {type(raw).__name__!r}",
+                severity=Severity.ERROR,
+            )
+        ]
+
+    diagnostics: list[Diagnostic] = []
+    if raw and Version(config_version) < Version(INPUTS_MIN_CONFIG_VERSION):
+        diagnostics.append(
+            Diagnostic(
+                workflow_id=None,
+                field="inputs",
+                yaml_path="inputs",
+                message=f"'inputs:' needs config_version {INPUTS_MIN_CONFIG_VERSION} or later",
+                severity=Severity.ERROR,
+            )
+        )
+
+    definitions: dict[str, InputDefinition] = {}
+    for name, entry in raw.items():
+        try:
+            definitions[str(name)] = InputDefinition.from_config(entry)
+        except ValidationError as e:
+            diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix=f"inputs.{name}."))
+        except (TypeError, ValueError) as e:
+            diagnostics.append(
+                Diagnostic(
+                    workflow_id=None,
+                    field=str(name),
+                    yaml_path=f"inputs.{name}",
+                    message=str(e),
+                    severity=Severity.ERROR,
+                )
+            )
+    return definitions, diagnostics
+
+
+def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "MetaworkflowGraph":
+    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict
+    raising immediately on the first problem found. (e.g. construction,
+    metadata-based validation, graph topology, cross-step references)
+    See `_full_validated_graph` for the variant collecting all error if possible.
+    The public interface `validated_graph(data, collect_errors=True)` wraps both
+    `_full_validated_graph` and `_fast_validated_graph`.
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -246,17 +461,22 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
     except ValueError as e:
         raise GraphValidationError(str(e)) from e
 
+    data, steps_warnings = _with_steps_key(data)
+    log_warnings(steps_warnings + legacy_key_warnings(data))
+    unknown = unknown_key_diagnostics(data)
+    if unknown:
+        raise ConfigValidationError(unknown)
+
     items, pending_transitions = _extract_items_and_transitions(data)
 
     g = MetaworkflowGraph()
+    g.project_dir = project_dir
     g.config_version = config_version
 
     with g.deferred_validation():
         for item in items:
             wf_id = item.get("id", "<unknown>")
-            wf, diagnostics = construct_workflow(
-                item, wf_id, yaml_path_prefix=f"workflows.{wf_id}."
-            )
+            wf, diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"steps.{wf_id}.")
             if wf is None:
                 raise ConfigValidationError(diagnostics)
             g.add_workflow(wf)
@@ -269,10 +489,17 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
                 g.global_options = GlobalOptions(**data["globals"])
             except ValidationError as e:
                 raise ConfigValidationError(
-                    diagnostics_from_pydantic_error(
-                        e, workflow_id=None, yaml_path_prefix="globals."
-                    )
+                    diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals.")
                 ) from e
+            missing = check_config_files(g.global_options, project_dir)
+            if missing:
+                raise ConfigValidationError(missing)
+
+        inputs, input_errors = parse_inputs(data, config_version)
+        if input_errors:
+            raise ConfigValidationError(input_errors)
+        g.inputs = inputs
+        g._inputs_touched = bool(inputs)
 
         _warn_about_module_executor(g)
 
@@ -282,19 +509,16 @@ def _fast_validated_graph(data: dict) -> "MetaworkflowGraph":
     return g
 
 
-def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
-    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict,
-    collecting every problem instead of stopping at the first -- used by the
-    CLI's `validate` command so one run can show a construction error, a
-    dangling edge, a cycle, and reference errors together. Returns a fully
-    valid MetaworkflowGraph if nothing was wrong, or raises one
+def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "MetaworkflowGraph":
+    """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict and
+    collect every validation issue, instead of stopping early.
+    Returns a valid MetaworkflowGraph if nothing was wrong, or raises one
     `ConfigValidationError` carrying every diagnostic and graph-level message
-    found -- the same "always fully succeeds or raises" contract as
-    `_fast_validated_graph`, just without stopping along the way. Shape-level
-    errors (malformed `workflows:`/`from:`/`transitions:`) still raise
-    immediately, same as `_fast_validated_graph` -- aggregation only applies to
-    per-workflow and graph-level problems. Not called directly -- use
-    `validated_graph(data, collect_errors=True)`.
+    that occured. (see also `_fast_validated_graph` for the early-stopping variant)
+    Shape-errors like malformed `steps:`/`from:`/`transitions:` still raise
+    immediately just as in `_fast_validated_graph`.
+    The public interface `validated_graph(data, collect_errors=True)` wraps both
+    `_full_validated_graph` and `_fast_validated_graph`.
     """
     if not data:
         raise GraphValidationError("No config data provided")
@@ -306,19 +530,20 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
         graph_messages.append(str(e))
         config_version = CONFIG_VERSION_MAX
 
-    items, pending_transitions = _extract_items_and_transitions(data)
+    data, warnings = _with_steps_key(data)
+    warnings += legacy_key_warnings(data)
+    items, pending_transitions = _extract_items_and_transitions(data, warnings)
 
     g = MetaworkflowGraph()
+    g.project_dir = project_dir
     g.config_version = config_version
 
-    diagnostics: list[Diagnostic] = []
+    diagnostics: list[Diagnostic] = unknown_key_diagnostics(data)
     attempted_ids = {item.get("id") for item in items}
     constructed: list[Workflow] = []
     for item in items:
         wf_id = item.get("id", "<unknown>")
-        wf, item_diagnostics = construct_workflow(
-            item, wf_id, yaml_path_prefix=f"workflows.{wf_id}."
-        )
+        wf, item_diagnostics = construct_workflow(item, wf_id, yaml_path_prefix=f"steps.{wf_id}.")
         if wf is None:
             diagnostics.extend(item_diagnostics)
             continue
@@ -328,18 +553,12 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
     for source_id, target_id in pending_transitions:
         if source_id not in g.G or target_id not in g.G:
             # A missing endpoint that was attempted but failed to construct is
-            # already reported above -- re-reporting it as "unknown node" would
+            # already reported above. re-reporting it as "unknown node" would
             # be a confusing secondary symptom of the same problem. Only a
             # genuinely undeclared id gets its own message here.
-            never_declared = [
-                i
-                for i in (source_id, target_id)
-                if i not in g.G and i not in attempted_ids
-            ]
+            never_declared = [i for i in (source_id, target_id) if i not in g.G and i not in attempted_ids]
             if never_declared:
-                graph_messages.append(
-                    f"Edge refers to nonexistent node: {source_id}->{target_id}"
-                )
+                graph_messages.append(f"Edge refers to nonexistent node: {source_id}->{target_id}")
             continue
         g.G.add_edge(
             source_id,
@@ -352,110 +571,206 @@ def _full_validated_graph(data: dict) -> "MetaworkflowGraph":
     except GraphValidationError as e:
         graph_messages.append(str(e))
 
+    # Inputs first: a reference may point at a param an input fills with `bind:`
+    inputs, input_errors = parse_inputs(data, config_version)
+    diagnostics.extend(input_errors)
+    g.inputs = inputs
+
     for wf in constructed:
         try:
             g.validate_param_references(wf)
         except ConfigValidationError as e:
             diagnostics.extend(e.errors)
 
-    tier2_diagnostics = check_all(constructed)
-    diagnostics.extend(d for d in tier2_diagnostics if d.severity == Severity.ERROR)
-    log_warnings(tier2_diagnostics)
+    input_diagnostics = g.input_diagnostics()
+    if inputs:
+        input_diagnostics += g.effective_inputs()[1]
+    tier2_diagnostics = check_all([g.for_checks(wf) for wf in constructed])
+    for found in (input_diagnostics, tier2_diagnostics):
+        diagnostics.extend(d for d in found if d.severity == Severity.ERROR)
+        warnings.extend(d for d in found if d.severity == Severity.WARNING)
 
     if data.get("globals") is not None:
         try:
             g.global_options = GlobalOptions(**data["globals"])
+            diagnostics.extend(check_config_files(g.global_options, project_dir))
         except ValidationError as e:
-            diagnostics.extend(
-                diagnostics_from_pydantic_error(
-                    e, workflow_id=None, yaml_path_prefix="globals."
-                )
-            )
+            diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals."))
 
-    _warn_about_module_executor(g)
+    diagnostics.extend(g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows()))
+    warnings.extend(_module_executor_warnings(g))
+    warnings.extend(_abbreviated_sha_warnings(g))
 
     if diagnostics or graph_messages:
-        raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages)
+        raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages, warnings=warnings)
 
+    g.warnings = warnings
     return g
 
 
-def validated_graph(data: dict, *, collect_errors: bool = False) -> "MetaworkflowGraph":
+# Legacy "config_file" is still accepted (models alias it to "nf_config")
+_PATH_KEYS = ("nf_config", "config_file", "params_file")
+
+
+def _workflow_items(data: dict) -> list[tuple[str, dict]]:
+    workflows = data.get(STEPS_KEY, data.get(LEGACY_STEPS_KEY))
+    if isinstance(workflows, dict):
+        return [(str(k), v) for k, v in workflows.items() if isinstance(v, dict)]
+    if isinstance(workflows, list):
+        return [(str(w.get("id", "<unknown>")), w) for w in workflows if isinstance(w, dict)]
+    return []
+
+
+def _reject_relative_config_paths(data: dict) -> None:
+    """Raise `ConfigValidationError` for each relative `nf_config`/`params_file`
+    in `data`, a config loaded from a URL: it has no folder to be relative to."""
+    sections: list[tuple[str, dict]] = []
+    if isinstance(data.get("globals"), dict):
+        sections.append(("globals.", data["globals"]))
+    sections += [(f"steps.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
+
+    diagnostics = []
+    for prefix, section in sections:
+        for key in _PATH_KEYS:
+            value = section.get(key)
+            if not isinstance(value, str) or not value or Path(value).is_absolute():
+                continue
+            diagnostics.append(
+                Diagnostic(
+                    workflow_id=None if prefix == "globals." else prefix.split(".")[1],
+                    field=key,
+                    yaml_path=f"{prefix}{key}",
+                    message=(
+                        f"Relative path '{value}' in a config loaded from a URL: "
+                        "use an absolute path, download the file, or declare it as an input"
+                    ),
+                    severity=Severity.ERROR,
+                )
+            )
+    if diagnostics:
+        raise ConfigValidationError(diagnostics)
+
+
+def validated_graph(
+    data: dict, *, collect_errors: bool = False, project_dir: Path | None = None
+) -> "MetaworkflowGraph":
     """Construct a MetaworkflowGraph from a raw, parsed-YAML config dict.
 
-    Workflows can be declared as a dict keyed by id (`workflows: {<id>: {...}}`,
-    the preferred form) or as a legacy list of definitions each carrying their
-    own `id`. Transitions are declared per-workflow via `from: <id>` or
-    `from: [<id>, ...]`; a top-level `transitions:` key is also still accepted,
-    but mixing both styles in the same file raises rather than merging them.
+    Steps can be declared as a dict keyed by id (`steps: {<id>: {...}}`,
+    the preferred form) or in list notation each with an `id` key.
+    Transitions, describing directed dependencies in the MetaworkflowGraph
+    is defined via `from:` keys in each step definition, where a single id string
+    or a list of ids is accepted.
 
-    Both the list-format `workflows:` and the top-level `transitions:` key are
-    deprecated -- reading either logs a CLI warning. Fix by opening and saving
-    the config in the editor, which always writes the current dict-keyed
-    `workflows:` + per-workflow `from:` form.
+    By default the graph construction fails fast, raising on the first parsing error
+    found. For a best-effort pass that collects every problem instead of stopping
+    at the first use `collect_errors=True`.
 
-    By default (`collect_errors=False`) this fails fast, raising on the first
-    problem found. Pass `collect_errors=True` for a best-effort pass that
-    collects every problem instead of stopping at the first -- used by the
-    CLI's `validate` command.
+    All paths, unless they are absolute, are interpreted relative to the `project_dir`,
+    where the YAML config lives. `project_dir` defaults to the current workdir.
+
+    Deprecations: the old key names `workflows:` (for `steps:`), `config_file` and
+    `profile`, the list form of `steps:` and the top-level `transitions:` key are
+    still read, with a warning. Automatically fix this by opening and saving the
+    config via the editor.
     """
+    project_dir = (project_dir or Path.cwd()).resolve()
     if collect_errors:
-        return _full_validated_graph(data)
-    return _fast_validated_graph(data)
+        return _full_validated_graph(data, project_dir)
+    return _fast_validated_graph(data, project_dir)
 
 
-def from_file(cfg_file: Path, *, collect_errors: bool = False) -> "MetaworkflowGraph":
-    """Read `cfg_file` as YAML and build+validate a `MetaworkflowGraph` from
-    it. Reads the whole file into memory; makes no other side effects. See
-    `validated_graph` for the validation contract and `collect_errors`."""
-    with open(cfg_file) as fh:
+def is_remote_config(location: str | Path) -> bool:
+    return str(location).startswith(("https://", "http://"))
+
+
+def from_file(cfg_file: str | Path, *, collect_errors: bool = False) -> "MetaworkflowGraph":
+    """Read the config at `cfg_file` (a path, or an `http(s)://` URL) and
+    build+validate a `MetaworkflowGraph` from it. See `validated_graph` for
+    the validation contract and `collect_errors`.
+
+    Relative paths in a local config resolve against the config's folder,
+    which becomes the graph's `project_dir`. A config loaded from a URL has
+    no project dir, and relative `nf_config`/`params_file` paths in it are
+    an error.
+    """
+    if is_remote_config(cfg_file):
+        response = requests.get(str(cfg_file), timeout=30)
+        response.raise_for_status()
+        data = yaml.safe_load(response.text)
+        if isinstance(data, dict):
+            _reject_relative_config_paths(data)
+        if collect_errors:
+            return _full_validated_graph(data)
+        return _fast_validated_graph(data)
+
+    path = Path(cfg_file)
+    with open(path) as fh:
         data = yaml.safe_load(fh)
-    return validated_graph(data, collect_errors=collect_errors)
+    return validated_graph(data, collect_errors=collect_errors, project_dir=path.parent.resolve())
 
 
 def dump_config(g: "MetaworkflowGraph") -> dict:
     """Project a `MetaworkflowGraph` back to the config's dict shape (the
-    inverse of `validated_graph`): `config_version`, `globals` (omitted if
-    empty), and `workflows` keyed by id with each workflow's own `from:` list
+    inverse of `validated_graph`): `config_version`, `globals` and `inputs`
+    (each omitted if empty), and `steps` keyed by id with each step's own `from:` list
     reconstructed from the graph's edges. Always writes the current
-    dict-keyed `workflows:` + per-workflow `from:` form, never the legacy
-    list/top-level-`transitions:` shapes, even if the graph was loaded from
-    one of those."""
+    dict-keyed `steps:` + per-step `from:` form (and a config_version that
+    allows it), never the legacy `workflows:`, list or top-level-`transitions:`
+    shapes, even if the graph was loaded from one of those."""
     from_by_target: dict[str, list[str]] = {}
     for tr in g.get_transitions():
         from_by_target.setdefault(tr.target, []).append(tr.source)
 
     workflows_dict = {}
     for w in g.get_workflows():
-        wf_dict = {k: v for k, v in w.model_dump_config().items()}
+        wf_dict = dict(w.model_dump_config())
         if w.id in from_by_target:
-            wf_dict["from"] = from_by_target[w.id]
+            wf_dict["from"] = _FlowList(from_by_target[w.id])
         workflows_dict[w.id] = wf_dict
 
     config_dict = {
-        "config_version": g.config_version,
-        "globals": g.global_options.model_dump(exclude_none=True)
-        if g.global_options
-        else None,
-        "workflows": workflows_dict,
+        "config_version": max(g.config_version, STEPS_MIN_CONFIG_VERSION, key=Version),
+        "globals": g.global_options.model_dump(exclude_none=True) if g.global_options else None,
+        "inputs": {name: _flow_bind(d.model_dump_config()) for name, d in g.inputs.items()},
+        STEPS_KEY: workflows_dict,
     }
 
     if not config_dict["globals"]:
         del config_dict["globals"]
+    if not config_dict["inputs"]:
+        del config_dict["inputs"]
 
     return config_dict
 
 
-SCHEMA_URL = (
-    "https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/"
-    "schemas/metapipeline.schema.json"
+class _FlowList(list):
+    """A list that `to_file` writes in flow style: `[a, b]`."""
+
+
+class _ConfigDumper(yaml.SafeDumper):
+    pass
+
+
+_ConfigDumper.add_representer(
+    _FlowList, lambda dumper, data: dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
 )
 
 
+def _flow_bind(entry: dict) -> dict:
+    if "bind" in entry:
+        return {**entry, "bind": _FlowList(entry["bind"])}
+    return entry
+
+
+SCHEMA_URL = "https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/schemas/metapipeline.schema.json"
+
+
 def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
-    """Write `g` to `file` as YAML (via `dump_config`), prefixed with a
+    """Write `g` to `file` as YAML (via `dump_config`; `from:` and `bind:`
+    lists in flow style, `[n01, n02]`), prefixed with a
     `# yaml-language-server: $schema=...` comment pointing at the published
     JSON Schema for editor autocompletion. Overwrites `file` if it exists."""
     with open(file, "w") as fh:
         fh.write(f"# yaml-language-server: $schema={SCHEMA_URL}\n")
-        yaml.safe_dump(dump_config(g), fh, sort_keys=False)
+        yaml.dump(dump_config(g), fh, Dumper=_ConfigDumper, sort_keys=False)

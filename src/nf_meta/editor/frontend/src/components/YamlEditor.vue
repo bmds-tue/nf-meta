@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue"
+import { nextTick, ref, watch } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
@@ -14,7 +14,7 @@ import {
   type CompletionResult,
 } from "@codemirror/autocomplete"
 import { useGraphStore, useEditorStore } from "../store"
-import type { APINodeData } from "../types"
+import { lintInputReferences, lintReferenceCount } from "../utils"
 
 const props = defineProps<{
   modelValue?: object
@@ -62,6 +62,7 @@ const refMark = {
   nodeId:    Decoration.mark({ class: "cm-ref-node" }),       // n01
   params:    Decoration.mark({ class: "cm-ref-params" }),     // :params:
   paramKey:  Decoration.mark({ class: "cm-ref-paramkey" }),   // outdir
+  input:     Decoration.mark({ class: "cm-ref-input" }),      // ids in ${inputs:ids}
 }
 
 // Matches: ${nodeId}  or  ${nodeId:params:key}  (not preceded by \)
@@ -96,6 +97,22 @@ const referenceHighlighter = ViewPlugin.fromClass(
           const closing   = match[4]  // "}" or undefined
 
           let cursor = base
+
+          // ${inputs:<name>}: the namespace styled like ":params:", the name as an input
+          if (nodeId === "inputs" && text[match.index + 2 + nodeId.length] === ":") {
+            const rest = text.slice(match.index + 2 + nodeId.length + 1)
+            const name = rest.match(/^[^}:\s]*/)?.[0] ?? ""
+            const closed = rest[name.length] === "}"
+            builder.add(cursor, cursor + 2, refMark.delimiter)
+            cursor += 2
+            builder.add(cursor, cursor + nodeId.length + 1, refMark.params)
+            cursor += nodeId.length + 1
+            if (name) builder.add(cursor, cursor + name.length, refMark.input)
+            cursor += name.length
+            if (closed) builder.add(cursor, cursor + 1, refMark.delimiter)
+            REF_PATTERN.lastIndex = Math.max(REF_PATTERN.lastIndex, cursor - from + (closed ? 1 : 0))
+            continue
+          }
 
           // "${" — 2 chars
           builder.add(cursor, cursor + 2, refMark.delimiter)
@@ -137,6 +154,7 @@ const referenceHighlightTheme = EditorView.baseTheme({
   ".cm-ref-params":    { color: "#5a6478", fontStyle: "italic" },
   ".cm-ref-node":      { color: "#61afef" },
   ".cm-ref-paramkey":  { color: "#61afef" },
+  ".cm-ref-input":     { color: "#c678dd" },
 })
 
 // ==== AUTOCOMPLETION ==============================
@@ -146,6 +164,22 @@ async function referenceCompletionSource(
   const line = context.state.doc.lineAt(context.pos)
   const textBefore = line.text.slice(0, context.pos - line.from)
 
+  // ${inputs:<partial>  ->  suggest inputs that a reference may use
+  const inputMatch = textBefore.match(/(?<!\\)\$\{inputs:([^:}]*)$/)
+  if (inputMatch) {
+    const partial = inputMatch[1] ?? ""
+    const from = context.pos - partial.length
+    const closed = context.state.doc.sliceString(context.pos, context.pos + 1) === "}"
+    const options = graphStore.inputs
+      .filter((input) => !input.definition?.bind?.length)
+      .map((input) => ({
+        label: input.name,
+        detail: input.declared ? input.description || undefined : "implicit",
+        apply: closed ? input.name : input.name + "}",
+      }))
+    return { from, options, validFor: /^[^:}]*$/ }
+  }
+
   // Stage 2 - inside ${nodeId:params:<partial> ->  suggest param keys
   const paramMatch = textBefore.match(/(?<!\\)\$\{([^:}]+):params:([^}]*)$/)
   if (paramMatch) {
@@ -153,8 +187,7 @@ async function referenceCompletionSource(
     const partial = paramMatch[2] ?? ""
     const from = context.pos - partial.length
     try {
-      const params = await graphStore.getParams(nodeId) as Record<string, unknown>
-      const options = Object.keys(params ?? {}).map((key) => ({
+      const options = graphStore.getReferencableParams(nodeId).map((key) => ({
         label: key,
         apply: key,
       }))
@@ -164,17 +197,20 @@ async function referenceCompletionSource(
     }
   }
 
-  // Stage 1 - ${<partial>  ->  suggest predecessor node IDs
+  // Stage 1 - ${<partial>  ->  suggest the steps that can be referenced (connected ones first)
   const nodeMatch = textBefore.match(/(?<!\\)\$\{([^:}]*)$/)
   if (nodeMatch) {
     const partial = nodeMatch[1] ?? ""
     const from = context.pos - partial.length
     try {
-      const predecessors = await graphStore.getPredecessors(props.nodeId) as APINodeData[]
-      const options = predecessors.map((node) => ({
-        label: `${node.id} (${node.name})`,
-        apply: node.id + ":params:",
+      const options: { label: string, apply: string, detail?: string }[] = graphStore.getReferenceTargets(props.nodeId)
+        .filter((target) => target.params.length > 0)
+        .map((target) => ({
+        label: `${target.stepId} (${target.stepName})`,
+        apply: target.stepId + ":params:",
+        detail: target.connected ? "connected" : "saving adds an edge",
       }))
+      options.push({ label: "inputs", apply: "inputs:" })
       return { from, options, validFor: /^[^:}]*$/ }
     } catch {
       return null
@@ -259,13 +295,10 @@ const smartBackspaceKeymap = Prec.high(
 const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
   const diagnostics: Diagnostic[] = []
 
-  let predecessors: APINodeData[]
-  try {
-    predecessors = graphStore.getPredecessors(props.nodeId) as APINodeData[]
-  } catch {
-    return []  // can't validate without predecessor list
-  }
-  const validNodeIds = new Set(predecessors.map((n) => n.id))
+  // Steps this one can reference; a connected one needs no new edge
+  const targets = graphStore.getReferenceTargets(props.nodeId)
+  const referable = new Map(targets.map((t) => [t.stepId, t.connected]))
+  const existing = new Set(graphStore.nodeData.map((n) => n.id))
 
   // Matches complete references only: ${nodeId}  or  ${nodeId:params:key}
   const pattern = /(?<!\\)\$\{([^:}]*)(?::params:([^}]*))?\}/g
@@ -277,15 +310,20 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
     const paramKey = match[2] ?? ""  // undefined if no :params: section
     const from     = match.index
     const to       = from + match[0].length
+    if (nodeId === "inputs") continue  // ${inputs} without a name; checked below
 
     if (nodeId) {
-      if (!validNodeIds.has(nodeId)) {
+      if (!existing.has(nodeId)) {
+        diagnostics.push({ from, to, severity: "error", message: `No step "${nodeId}"` })
+      } else if (!referable.has(nodeId)) {
         diagnostics.push({
-          from,
-          to,
-          severity: "error",
-          message:  `Referenced node is not a predecessor: "${nodeId}"`,
+          from, to, severity: "error",
+          message: nodeId === props.nodeId
+            ? "A step can't reference its own params"
+            : `"${nodeId}" runs after this step; referencing it would make a cycle`,
         })
+      } else if (!referable.get(nodeId)) {
+        diagnostics.push({ from, to, severity: "info", message: `Saving adds an edge from "${nodeId}" to this step` })
       }
     } else {
       diagnostics.push({
@@ -297,13 +335,8 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
     }
 
     if (paramKey) {
-      let params: Record<string, unknown>
-      try {
-        params = await graphStore.getParams(nodeId) as Record<string, unknown>
-      } catch {
-        continue
-      }
-      if (!Object.prototype.hasOwnProperty.call(params ?? {}, paramKey)) {
+      // set in the step's params or filled by an input
+      if (!graphStore.getReferencableParams(nodeId).includes(paramKey)) {
         diagnostics.push({
           from,
           to,
@@ -319,6 +352,13 @@ const referenceLinter = linter(async (): Promise<Diagnostic[]> => {
         message: "Param key missing"
       })
     }
+  }
+
+  for (const problem of lintInputReferences(text, graphStore.inputs)) {
+    diagnostics.push({ ...problem, severity: "error" })
+  }
+  for (const problem of lintReferenceCount(text)) {
+    diagnostics.push({ ...problem, severity: "error" })
   }
 
   return diagnostics
@@ -347,9 +387,9 @@ const extensions = [
   globalSaveKeymap,
 ]
 
-// Only add the node references features,
-// if YAML-Editor is used in node-details
-if (props.nodeId) {
+// Only add the node references features if YAML-Editor is used in node
+// details: global params pass an empty nodeId, a step not saved yet none
+if (props.nodeId !== "") {
   const nodeRefExtensions = [
     referenceHighlighter,
     referenceHighlightTheme,
@@ -357,14 +397,49 @@ if (props.nodeId) {
     completionTriggerKeymap,
     smartBackspaceKeymap,
     autocompletion({ override: [referenceCompletionSource] }),
-    placeholder("Define Workflow Params here as yaml. \n\nThey overwrite global params \nand complement a params-file. \n\nUse '${}' to reference \npredecessor nodes' params, \ne.g. ${n01:params:outdir}")
+    placeholder("Define the step's params here as yaml. \n\nThey overwrite global params \nand complement a params-file. \n\nUse '${}' to reference \npredecessor nodes' params, \ne.g. ${n01:params:outdir}, \nor a run input with ${inputs:<name>}")
   ]
   extensions.push(nodeRefExtensions)
 } else {
   extensions.push(
-    placeholder("Define global params here as yaml. \n\nThey are applied to all workflows.")
+    placeholder("Define global params here as yaml. \n\nThey are applied to all steps.")
   )
 }
+
+// ─── Adding params from outside (param pills) ─────────────────────────────────
+
+let view: EditorView | undefined
+
+function onReady(payload: { view: EditorView }) {
+  view = payload.view
+}
+
+// Set `key` to `value`: replace its value if the params have it, otherwise
+// append `key: value` as a new line; put the cursor at the end of that line
+function addParam(key: string, value: string) {
+  const doc = YAML.parseDocument(code.value)
+  if (!doc.errors.length && doc.has(key)) {
+    doc.set(key, value)
+    code.value = doc.toString()
+    nextTick(() => {
+      if (!view) return
+      view.focus()
+      const line = code.value.split("\n").findIndex(l => l.startsWith(`${key}:`))
+      if (line >= 0) view.dispatch({ selection: { anchor: view.state.doc.line(line + 1).to } })
+    })
+    return
+  }
+  const line = `${key}: ${value}`
+  const text = code.value.trim() ? `${code.value.replace(/\s*$/, "")}\n${line}\n` : `${line}\n`
+  code.value = text
+  nextTick(() => {
+    if (!view) return
+    view.focus()
+    view.dispatch({ selection: { anchor: Math.min(text.length - 1, view.state.doc.length) } })
+  })
+}
+
+defineExpose({ addParam })
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
 
@@ -390,6 +465,6 @@ function save(): boolean {
   <p v-show="error || serverError" style="color: rgb(var(--v-theme-error))">
     {{ error || serverError }}
   </p>
-  <Codemirror v-model="code" :extensions="extensions" />
+  <Codemirror v-model="code" :extensions="extensions" @ready="onReady" />
   <small>{{ hint }}</small>
 </template>

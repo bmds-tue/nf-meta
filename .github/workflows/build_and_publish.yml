@@ -40,6 +40,49 @@ jobs:
       - name: Push changes
         run: git push origin HEAD:${{ github.event.repository.default_branch }}
 
+  # The README shows the committed screenshots; refresh them for the released editor.
+  # Not needed by the package jobs, so a failure here can't hold up the PyPI release.
+  screenshots:
+    name: Update editor screenshots
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install nf-meta and Chromium
+        run: |
+          uv sync
+          uv run --with playwright playwright install --with-deps chromium
+
+      - name: Take the screenshots
+        run: uv run --with playwright python scripts/editor_screenshots.py
+
+      - name: Configure git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Commit the screenshots
+        run: |
+          git add docs/editor/nf-meta-screenshot*.png assets/nf-meta-screenshot*.png
+          git commit -m "ci: update editor screenshots" || echo "No changes to commit"
+
+      - name: Push changes
+        run: git push origin HEAD:${{ github.event.repository.default_branch }}
+
   build-package:
     name: Build distribution
     runs-on: ubuntu-latest

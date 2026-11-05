@@ -18,12 +18,18 @@ nf-meta editor
 nf-meta editor path/to/metapipeline.yaml
 ```
 
-!!! note
-    `nf-meta editor` runs the editor's backend, which the browser page needs. It keeps the
-    terminal busy until you stop it via `Ctrl` + `C` in the terminal or the **Quit editor** button in the page's file menu.
-    Every change is gets automatically saved, so nothing is lost either way. 
-
+`nf-meta editor` runs the editor's backend, which exposes an api and serves a one-page frontend application
+that can be accessed from the browser.
+It tries to open the frontend as a new tab in your local browser automatically.
+You can always access the editor also by copy-pasting the printed url and token in the address bar of
+new tab in a local web browser. 
 ![The browser page talks to the editor backend, which reads and saves the config](editor-local.svg)
+
+
+!!! note
+    The nf-meta editor backend blocks the terminal by listening to requests until you stop it manually `Ctrl` + `C`
+    in the terminal or via the **Quit editor** button in the page's file menu.
+    Every change is gets automatically saved, so nothing is lost either way. 
 
 Started without a config, the editor shows a start screen, asking to open a config, pick one of the configs you recently opened, or
 start a new metapipeline. 
@@ -88,14 +94,6 @@ When the browser runs on a remote machine (VS Code Remote-SSH, dev containers, C
 You can start with `--no-redirect-file` or open the printed link manually.
 
 
-## Editor backends
-
-The editor is extensible via plugins in the same way runners are: `--editor <name>` selects a registered
-`BaseEditor` subclass.
-The one described above is the only one shipped with nf-meta right now and opens by default.
-See [Writing an editor plugin](../guides/writing-an-editor-plugin.md)
-to add a new third-party-editor.
-
 ## Running the editor on a remote machine
 
 Data and pipelines usually live on a cluster with no access to a display server or a browser.
@@ -129,3 +127,11 @@ Start the editor with `--no-redirect-file`, so the link can be opened on your co
 ```bash
 nf-meta editor --port 8080 --no-redirect-file
 ```
+
+## Editor backends
+
+The editor is extensible via plugins in the same way runners are: `--editor <name>` selects a registered
+`BaseEditor` subclass.
+The one described above is the only one shipped with nf-meta right now and opens by default.
+See [Writing an editor plugin](../guides/writing-an-editor-plugin.md)
+to add a new third-party-editor.

@@ -24,12 +24,6 @@ Steps declare their predecessors with `from:`, and a reference to a step that is
 The editor and the Python API add the needed `from:` entries when a step is saved, so you only pick the reference.
 A reference that would create a cycle is refused.
 
-## Validation
-
-`nf-meta validate` (and every change in the editor) checks each reference: the step must exist
-and be upstream, and the key must be a param of that step (where its schema can be fetched, or
-it sets the param itself).
-
 ## Resolution at run time
 
 References are resolved in **string** params only, just before the referencing step runs, from

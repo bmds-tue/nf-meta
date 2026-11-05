@@ -74,6 +74,29 @@ For a `nextflow module run` step (Nextflow 26.04 or later):
     Modules can only be run as leaf-nodes in the metapipeline graph at this time. 
     No steps can refernce from a step of type `nf-module`, yet.
 
+
+## Keys of an `inputs:` entry
+
+| Key | Notes |
+|---|---|
+| `bind` | `<step-id>.<param>` entries the input fills. |
+| `description` | Shown in prompts and in the editor. |
+| `default` | Used when the run gets no value. A relative path is relative to the config's folder. |
+| `type` | `string`, `integer`, `number` or `boolean`. |
+| `format` | For paths: `file-path`, `directory-path`, `path` (a file or a folder) or `file-path-pattern` (a glob). |
+| `exists` | `true`: a path value must exist. |
+| `enum` | The allowed values. |
+| `pattern` | A regular expression a string value must match. |
+| `minimum`, `maximum` | Bounds for numbers. |
+| `mimetype`, `schema` | Kept from nf-core schemas, passed through. |
+
+Keys you leave out are **inherited** from the schema of the param the input fills. Keys you set
+must narrow that schema, never widen it: an `enum` that picks a few genomes is fine, a `type`
+that contradicts the param's is an error. For paths, `file-path` and `directory-path` narrow
+`path`; declaring `path` for a param that takes only a `file-path` is an error. When an input
+fills several params, their schemas must agree (or one must narrow the other).
+
+
 ## Key names from previous versions
 
 Configs written for earlier versions still load. Each old form gives a deprecation warning, and

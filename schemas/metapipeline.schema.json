@@ -101,9 +101,16 @@
           "type": "string"
         },
         "version": {
-          "minLength": 1,
-          "title": "Version",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
         },
         "nf_config": {
           "anyOf": [
@@ -129,6 +136,18 @@
           ],
           "default": null,
           "title": "Params"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
         },
         "url": {
           "title": "Url",
@@ -199,7 +218,6 @@
       },
       "required": [
         "name",
-        "version",
         "url"
       ],
       "title": "NfPipeline",

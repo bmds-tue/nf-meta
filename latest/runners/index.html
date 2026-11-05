@@ -10,20 +10,20 @@
       
       
       
-        <link rel="canonical" href="https://bmds-tue.github.io/nf-meta/0.5/runners/">
+        <link rel="canonical" href="https://bmds-tue.github.io/nf-meta/0.6/runners/">
       
       
         <link rel="prev" href="../editor/">
       
       
-        <link rel="next" href="python-runner/">
+        <link rel="next" href="../representation/overview/">
       
       
         
       
       
       <link rel="icon" href="../assets/nf-meta-octo-light.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -378,149 +378,6 @@
   
   
   
-    
-    
-    
-    
-      
-        
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    YAML representation
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    YAML representation
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../representation/overview/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    YAML representation overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../representation/reference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Config reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../representation/interpolation/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cross-workflow references
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
     <li class="md-nav__item">
       <a href="../editor/" class="md-nav__link">
         
@@ -544,60 +401,6 @@
     
       
       
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-      
-        
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Runners
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_6">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Runners
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
   
   
     
@@ -663,13 +466,74 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#available-today" class="md-nav__link">
+  <a href="#python-runner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Available today
+        Python runner
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Python runner">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-results-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where results go
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resume
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-part-of-a-metapipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running part of a metapipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other options
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -702,42 +566,6 @@
     </li>
   
 
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="python-runner/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Python runner
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
     
       
       
@@ -759,17 +587,17 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    Guides
+    YAML representation
   
 
     
@@ -780,12 +608,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Guides
+    YAML representation
   
 
           </label>
@@ -798,14 +626,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/writing-a-runner/" class="md-nav__link">
+      <a href="../representation/overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Writing a runner
+    YAML representation overview
   
 
     
@@ -826,14 +654,70 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/writing-an-editor-plugin/" class="md-nav__link">
+      <a href="../representation/interpolation/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Writing an editor plugin
+    Step references
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../representation/inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../representation/reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config reference
   
 
     
@@ -850,6 +734,33 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/command-line/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -969,6 +880,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../api/python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../api/runners/" class="md-nav__link">
         
   
@@ -1059,6 +998,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/writing-a-runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a runner plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/writing-an-editor-plugin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing an editor plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../changelog/" class="md-nav__link">
         
   
@@ -1106,13 +1099,74 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#available-today" class="md-nav__link">
+  <a href="#python-runner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Available today
+        Python runner
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Python runner">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-results-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where results go
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resume
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-part-of-a-metapipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running part of a metapipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other options
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1164,14 +1218,112 @@
 
 
 <h1 id="runners">Runners<a class="headerlink" href="#runners" title="Permanent link">&para;</a></h1>
-<p>A runner takes a validated metapipeline graph and actually executes it. nf-meta selects a
-runner by name (<code>nf-meta run --runner &lt;name&gt;</code>, default <code>python</code>) and dispatches to a
-registered <code>BaseRunner</code> subclass.</p>
-<h2 id="available-today">Available today<a class="headerlink" href="#available-today" title="Permanent link">&para;</a></h2>
+<p>A runner executes a validated metapipeline. <code>nf-meta run --runner &lt;name&gt;</code> selects one (default
+<code>python</code>); runners are registered <code>BaseRunner</code> subclasses, and other packages can add their own.</p>
+<h2 id="python-runner">Python runner<a class="headerlink" href="#python-runner" title="Permanent link">&para;</a></h2>
+<p><code>nf-meta run</code> uses the Python runner (<code>--runner python</code>, the default). It runs the steps in
+dag order from this Python process, each as a <code>nextflow run</code> (pipelines) or
+<code>nextflow module run</code> (modules) subprocess, and streams their output.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>metapipeline.yaml<span class="w">                 </span><span class="c1"># run everything</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>metapipeline.yaml<span class="w"> </span>--resume<span class="w">        </span><span class="c1"># skip what already succeeded, resume the rest</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>metapipeline.yaml<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print each step's command and params, run nothing</span>
+</code></pre></div>
+<h3 id="where-results-go">Where results go<a class="headerlink" href="#where-results-go" title="Permanent link">&para;</a></h3>
+<p>Every step runs in one <strong>out dir</strong>: <code>nf-meta-out/</code> next to the config, or the folder given with
+<code>--out</code>. A relative <code>outdir</code> param therefore lands inside it, and references to an upstream
+step's <code>outdir</code> find its results there.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>nf-meta-out/                       every step's Nextflow launch folder
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  out_fetchngs/  out_rnaseq/  ...  relative step outdirs
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  work/                            Nextflow's work dir (-w), shared by all steps
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  .nf-meta/
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    steps/&lt;id&gt;_&lt;step key&gt;/         params.yaml, nextflow.log, OUT.txt, ERROR.txt
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    nextflow/&lt;id&gt;/                 the step's own Nextflow history and task cache
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    inputs.yaml                    the input values of the last run (for --input-mode reproduce)
+</code></pre></div>
+<p>Relative input paths in params are made absolute against the config's folder before a step
+runs, so they work from the out dir: a param counts as an input path when its schema declares a
+path, or when its value names a file or folder that exists in the config's folder. <code>outdir</code>,
+URLs and references are left alone. See
+<a href="../representation/reference/#paths">Paths</a>.</p>
+<p>A step that fails stops the run: later steps don't start, and the message names the step's
+folder under <code>.nf-meta/steps/</code> with its Nextflow log.</p>
+<h3 id="resume">Resume<a class="headerlink" href="#resume" title="Permanent link">&para;</a></h3>
+<p><code>nf-meta run --resume</code> works on two levels.</p>
+<p><strong>1. Steps (nf-meta).</strong> A step is <strong>skipped</strong> when it already finished successfully with the
+same <strong>step key</strong>. The step key covers everything that defines the step's result:</p>
 <ul>
-<li><strong><a href="python-runner/">Python runner</a></strong> (<code>python</code>, default): wraps <code>nextflow run</code>/<code>nextflow
-  module run</code> per workflow from this Python process, in DAG order.</li>
+<li>the step as configured, after its references are resolved (name, version, params, …);</li>
+<li>the <strong>content</strong> of its <code>nf_config</code> and <code>params_file</code>, and of the global and <code>--nf-config</code>
+  configs;</li>
+<li>the <code>globals</code>, the <code>--nf-profile</code> and <code>--stub</code> options;</li>
+<li>the <strong>local input files</strong> its params name: path, size and modification time (for a folder,
+  those of its entries);</li>
+<li>for a <a href="../representation/overview/#developing-a-pipeline-locally">local pipeline</a>, its files;</li>
+<li>the step keys of its upstream steps.</li>
 </ul>
+<p>So a change to a step re-runs that step <strong>and every step downstream of it</strong>; steps before it
+stay skipped.</p>
+<p><strong>2. Tasks (Nextflow).</strong> A step that does run is started with Nextflow's <code>-resume</code>, against that
+step's own Nextflow cache (<code>.nf-meta/nextflow/&lt;id&gt;/</code>). Nextflow then reuses every task whose
+script and inputs are unchanged. A step that failed at task 10 of 15, run again after a fix,
+only redoes the tasks the fix affects.</p>
+<p>What resume can't see:</p>
+<ul>
+<li>files named <strong>inside</strong> an input file (e.g. the FASTQ files listed in a sample sheet) and files
+  named in a <code>params_file</code>; only the sample sheet or params file itself counts;</li>
+<li>remote inputs (<code>https://</code>, <code>s3://</code>);</li>
+<li>tasks <strong>across</strong> steps: each pipeline is one unit for nf-meta. After an upstream step re-ran,
+  Nextflow can only reuse a downstream task when its input files are unchanged, which is rare.</li>
+</ul>
+<h3 id="inputs">Inputs<a class="headerlink" href="#inputs" title="Permanent link">&para;</a></h3>
+<p>Values for the config's <a href="../representation/inputs/">inputs</a> come from <code>--input name=value</code>
+(once per value), <code>--inputs-file values.yaml</code>, an input's default, or a prompt. All of them are
+collected and checked <strong>before the first step runs</strong>. <code>--input-mode</code> decides what happens with
+missing ones: <code>prompt</code> (ask; the default in a terminal), <code>fail</code> (stop with a list; the default
+otherwise), or <code>reproduce</code> (use exactly the values of the last run).</p>
+<p>A changed input value changes the step key, so the steps it reaches re-run.</p>
+<h3 id="running-part-of-a-metapipeline">Running part of a metapipeline<a class="headerlink" href="#running-part-of-a-metapipeline" title="Permanent link">&para;</a></h3>
+<p><code>--start &lt;id&gt;</code> and <code>--target &lt;id&gt;</code> run only the steps between two steps (inclusive). A step
+inside the selection that references a step outside it takes that value from the other step's
+last run. If it never ran, the value is asked for like an input, or given as
+<code>--input &lt;step-id&gt;.&lt;param&gt;=&lt;value&gt;</code>. With <code>--input-mode reproduce</code>, the steps outside must have
+run before.</p>
+<h3 id="other-options">Other options<a class="headerlink" href="#other-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--out DIR</code></td>
+<td>The out dir (required for a config from a URL).</td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>Print each step's command and params file without running anything. In <code>prompt</code> mode it asks for missing values, so the commands are the real ones; otherwise missing values show as placeholders.</td>
+</tr>
+<tr>
+<td><code>--stub</code></td>
+<td>Pass <code>-stub</code> to Nextflow: each process runs its stub instead of its script, to check the wiring without real compute.</td>
+</tr>
+<tr>
+<td><code>--nf-profile</code>, <code>-p</code></td>
+<td>A Nextflow profile for every step, after the configured ones.</td>
+</tr>
+<tr>
+<td><code>--nf-config</code>, <code>-c</code></td>
+<td>A Nextflow config for every step, taking precedence over the global and step configs.</td>
+</tr>
+<tr>
+<td><code>--output-lines</code>, <code>-l</code></td>
+<td>How many lines of each step's output to show while it runs.</td>
+</tr>
+</tbody>
+</table>
+<p><code>globals.params</code> are merged under each step's own <code>params</code> (the step's values win).</p>
 <h2 id="planned">Planned<a class="headerlink" href="#planned" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>nf-cascade runner</strong>: compile the config into a single daisy-chained Nextflow script,
@@ -1186,7 +1338,7 @@ registered <code>BaseRunner</code> subclass.</p>
 <p>Runners are pluggable via the same entry-point mechanism as third-party packages: a package
 registers a <code>BaseRunner</code> subclass under the <code>nf_meta.runners</code> entry-point group, and it
 becomes selectable via <code>--runner &lt;name&gt;</code> as soon as it's installed, with no changes to nf-meta
-itself. See <a href="../guides/writing-a-runner/">Writing a runner</a>.</p>
+itself. See <a href="../guides/writing-a-runner/">Writing a runner plugin</a>.</p>
 
 
 
@@ -1246,10 +1398,10 @@ itself. See <a href="../guides/writing-a-runner/">Writing a runner</a>.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.tracking", "content.code.copy", "content.code.annotate", "content.action.edit", "search.suggest", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.tracking", "content.code.copy", "content.code.annotate", "content.action.edit", "search.suggest", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>

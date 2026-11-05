@@ -1,11 +1,13 @@
 # nf-meta: metapipeline representation, editor, and runner
 
-A reproducible representation for Nextflow metapipelines — chains of nf-core/Nextflow pipeline
-and module runs — with an interactive browser-based editor and a CLI validator/runner.
+A metapipeline is a directed graph of atomic, individually reproducible Nextflow/nf-core
+pipelines and module steps.
+`nf-meta` offers a reproducible representation for metapipelines in a single artifact
+that ships with an interactive browser-based editor and a CLI validator/runner.
 
 **This is a beta version: things can be unstable and change.**
 
-📖 **[Documentation](https://bmds-tue.github.io/nf-meta/)** — installation, quickstart, the
+📖 **[Documentation](https://bmds-tue.github.io/nf-meta/latest)** — installation, quickstart, the
 full config reference, and the API reference.
 
 Find a growing collection of examples in the dedicated
@@ -15,8 +17,8 @@ Find a growing collection of examples in the dedicated
 
 * **One file for the whole chain:** steps, the flow between them, shared settings, and the
   values supplied at run time (inputs), validated against each pipeline's own schema.
-* **Run it:** `nf-meta run` runs the steps in order from one output folder; `--resume` skips what
-  already succeeded and resumes Nextflow's tasks for the rest.
+* **Run it:** `nf-meta run` runs the steps in directed order from one output folder, 
+  skips already succeeded and resumes Nextflow's tasks for the rest.
 * **Edit it visually:** a browser-based editor with schema-based forms, references and inputs
   picked from menus, and undo/redo. It also runs on a cluster, used through an SSH tunnel.
 * **Share it:** run or open a published config straight from its URL.
@@ -71,19 +73,18 @@ for output folders and `--resume`.
 ## Runners
 
 Currently:
-* **Python runner** — wraps `nextflow` commands, runs the steps in dependency order.
+* **Python runner**: Wraps `nextflow` commands, runs the steps in DAG order.
 
 Planned:
-1. [nf-cascade](https://github.com/mahesh-panchal/nf-cascade/) runner — convert the config into
+1. [nf-cascade](https://github.com/mahesh-panchal/nf-cascade/) runner: convert the config into
    one daisy-chained Nextflow script.
-2. Seqera Platform runner — start and monitor locally, calling a Platform instance's API with
+2. Seqera Platform runner: start and monitor locally, calling a Platform instance's API with
    run parameters to handle running Nextflow.
-3. Meta-pipeline runner — compile the config into a new monolithic Nextflow project that
+3. All-in-nextflow meta-pipeline runner: compile the config into a new Nextflow project that
    imports the required workflows, for the most efficient orchestration and graceful error
    handling.
 
-Runners are pluggable — see the [runner docs](https://bmds-tue.github.io/nf-meta/latest/runners/)
-to write your own.
+More runners can be added via third-party plugins. (see the [runner docs](https://bmds-tue.github.io/nf-meta/latest/runners/))
 
 ## Install from PyPI
 
@@ -95,8 +96,7 @@ pip install nf-meta
 uv tool install nf-meta
 ```
 
-Running needs [Nextflow](https://nextflow.io) on `PATH` (26.04 or later for module steps);
-validating and editing don't.
+Running needs [Nextflow](https://nextflow.io) on `PATH`.
 
 ## Development setup
 
@@ -107,15 +107,16 @@ uv sync --group dev
 uv run pytest
 ```
 
-To work on the editor, run the frontend dev server and start the editor in dev mode
-(`NF_META_DEVMODE=1`), then open the link it prints (`http://127.0.0.1:5180/?token=…`):
+To work on the editor frontend and get live-builds, run the frontend dev server manually
+and start the editor in dev mode. (via the `NF_META_DEVMODE=1` env variable)
+Then open the link it prints (`http://127.0.0.1:5180/?token=…`):
 
 ```bash
-# terminal 1
+# terminal 1, run this first
 cd src/nf_meta/editor/frontend && npm install && npm run dev
 # terminal 2
 NF_META_DEVMODE=1 uv run nf-meta editor [path/to/metapipeline.yaml]
 ```
 
 See [Contributing](https://bmds-tue.github.io/nf-meta/latest/contributing/) for details, and the
-[docs](https://bmds-tue.github.io/nf-meta/) for the editor and the full API reference.
+[docs](https://bmds-tue.github.io/nf-meta/latest) for the editor and the full API reference.

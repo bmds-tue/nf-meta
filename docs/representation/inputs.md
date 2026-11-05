@@ -55,7 +55,7 @@ rules. But an input with `bind:` cannot also be referrenced with `${inputs:...}`
 Several params can reference the same input and will all get its value,
 but an unreferenced input leads to a warning.
 
-See [TODO] for the full input reference.
+See also [`inputs:` keys reference](reference.md#keys-of-an-inputs-entry).
 
 ## Supplying values when running
 

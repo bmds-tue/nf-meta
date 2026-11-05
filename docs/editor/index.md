@@ -23,6 +23,8 @@ nf-meta editor path/to/metapipeline.yaml
     terminal busy until you stop it via `Ctrl` + `C` in the terminal or the **Quit editor** button in the page's file menu.
     Every change is gets automatically saved, so nothing is lost either way. 
 
+![The browser page talks to the editor backend, which reads and saves the config](editor-local.svg)
+
 Started without a config, the editor shows a start screen, asking to open a config, pick one of the configs you recently opened, or
 start a new metapipeline. 
 The list of recent configs is tracked per user in (`~/.local/state/nf-meta/recent-configs.json`).
@@ -98,6 +100,8 @@ to add a new third-party-editor.
 
 Data and pipelines usually live on a cluster with no access to a display server or a browser.
 To use the editor there anyway, run its backend on the cluster and connect to it through an **SSH tunnel**.
+
+![An SSH tunnel connects the browser on your computer to the editor backend on the cluster](editor-ssh.svg)
 
 On the cluster start the editor backend:
 

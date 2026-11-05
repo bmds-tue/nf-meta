@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # the lowest supported version, and the one we develop with (.python-version)
-        python: ["3.11", "3.12"]
+        # every supported version: 3.11 is the lowest, 3.12 the one we develop with (.python-version)
+        python: ["3.11", "3.12", "3.13", "3.14"]
     env:
       UV_PYTHON: ${{ matrix.python }}
 

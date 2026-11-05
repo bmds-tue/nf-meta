@@ -69,7 +69,7 @@ running it: `nf-meta run metapipeline.yaml --input ids=fetchngs-ids.csv`, or a p
 
 See the [config reference](https://bmds-tue.github.io/nf-meta/latest/representation/reference/) for every key,
 [cross-step references](https://bmds-tue.github.io/nf-meta/latest/representation/interpolation/) for the `${...}` syntax,
-[inputs](https://bmds-tue.github.io/nf-meta/latest/representation/inputs/), and [running a metapipeline](https://bmds-tue.github.io/nf-meta/latest/runners/python-runner/)
+[inputs](https://bmds-tue.github.io/nf-meta/latest/representation/inputs/), and [running a metapipeline](https://bmds-tue.github.io/nf-meta/latest/runners/#python-runner)
 for output folders and `--resume`.
 
 ## Runners

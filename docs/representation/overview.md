@@ -10,7 +10,7 @@ The top-level keys of the YAML are:
 - **`steps`** is a mapping of step id to step definition. Each step is one Nextflow pipeline
   or module run. The flow between steps is declared per step via `from:`. (Configs from before
   0.5.0 call this key `workflows`; it is still read, see
-  [Old key names](reference.md#old-key-names).)
+  [Old key names](reference.md#key-names-from-previous-versions).)
 - **`globals`** holds settings applied to every step (Nextflow version, profile, shared
   params, ...).
 - **`inputs`** declares values supplied when the metapipeline runs, such as the sample sheet.

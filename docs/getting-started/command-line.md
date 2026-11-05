@@ -38,7 +38,7 @@ Runs the steps in the order declared by the graph. The main options:
 | `--stub` | Pass `-stub` to Nextflow. |
 | `-p`, `--nf-profile`, `-c`, `--nf-config` | A Nextflow profile or config for every step. |
 
-See [Running a metapipeline](../runners/python-runner.md) for what each does in detail.
+See [Runners](../runners/index.md#python-runner) for what each does in detail.
 
 ## `nf-meta editor`
 

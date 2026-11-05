@@ -66,4 +66,4 @@ The results land in `nf-meta-out/results/` next to the config: every step runs i
 - Leaving values such as the sample sheet to the person running it: see
   [Inputs](../representation/inputs.md).
 - Where results go and how `nf-meta run --resume` decides what to re-run: see
-  [Running a metapipeline](../runners/python-runner.md).
+  [Runners](../runners/index.md#python-runner).

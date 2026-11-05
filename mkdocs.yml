@@ -88,15 +88,13 @@ nav:
   - Overview: index.md
   - Installation: getting-started/installation.md
   - Quickstart: getting-started/quickstart.md
+  - Editor: editor/index.md
+  - Runners: runners/index.md
   - YAML representation:
       - representation/overview.md
       - representation/interpolation.md
       - representation/inputs.md
       - representation/reference.md
-  - Editor: editor/index.md
-  - Runners:
-      - runners/index.md
-      - runners/python-runner.md
   - Guides:
       - guides/writing-a-runner.md
       - guides/writing-an-editor-plugin.md

@@ -98,4 +98,4 @@ Every value is checked against the input's rules before anything runs, and all p
 reported together. Relative paths given on the command line are relative to the current folder,
 as usual for a command; defaults written in the config are relative to the config's folder.
 
-See [Running](../runners/python-runner.md) for how inputs interact with `--resume`.
+See [Resume](../runners/index.md#resume) for how inputs interact with `--resume`.

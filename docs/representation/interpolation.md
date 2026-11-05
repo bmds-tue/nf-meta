@@ -5,7 +5,8 @@ A param value can read the value of another step's param with a construct like t
 ```
 ${<step-id>:<namespace>:<key>}
 ```
-Here, 
+
+Here,
 
 - **`<step-id>`** is the id of another step under `steps:` in the same config.
 - **`<namespace>`**: only `params` is supported currently.
@@ -13,12 +14,12 @@ Here,
 
 For example, `samplesheet: ${n01:params:outdir}/samplesheet/samplesheet.csv` reads the param `outdir` from the step `n01` and uses it to construct the value of `samplesheet` at run time.
 
-Each param value can reference and read from only **one** other param in a predecessor step, a value containing two references parses with an error.
-To expose a param value as a metapipline input, instead, use use an [input](inputs.md) `${inputs:<name>}`.
+Each param value can reference and read from only **one** other param in a predecessor step. A value containing two references is an error.
+To expose a param value as a metapipeline input instead, use an [input](inputs.md): `${inputs:<name>}`.
 
 ## The flow between steps
 
-A reference requires a directed from the referenced to referencing step.
+A reference requires a directed edge from the referenced to the referencing step.
 Steps declare their predecessors with `from:`, and a reference to a step that isn't upstream is an error.
 The editor and the Python API add the needed `from:` entries when a step is saved, so you only pick the reference.
 A reference that would create a cycle is refused.
@@ -37,4 +38,4 @@ points into the run's output folder where that step wrote its results.
 
 When only part of a metapipeline runs (`--start`/`--target`), a reference to a step outside the
 run takes the value from that step's last run. If there is none, the run asks for it, or takes
-it from `--input <step-id>.<param>=<value>` (see [Running](../runners/python-runner.md)).
+it from `--input <step-id>.<param>=<value>` (see [Running part of a metapipeline](../runners/index.md#running-part-of-a-metapipeline)).

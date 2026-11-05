@@ -10,7 +10,7 @@ Key-by-key reference for the metapipeline `.yaml` format. See
 A relative path in a config (`params_file`, `nf_config`, a local pipeline's `path`, path params
 and input defaults) is always interpreted as relative to the folder containing the metapipeline config file.
 This is regardless of where `nf-meta` is run from with the exception of a step's `outdir` which is relative
-to the run's output folder (`--out`, see [Running](../runners/python-runner.md)).
+to the run's output folder (`--out`, see [Where results go](../runners/index.md#where-results-go)).
 Paths are kept as written when saved via the editor.
 
 ## Top level YAML keys

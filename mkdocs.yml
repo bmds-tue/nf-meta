@@ -88,12 +88,11 @@ nav:
   - Overview: index.md
   - Installation: getting-started/installation.md
   - Quickstart: getting-started/quickstart.md
-  - Command line: getting-started/command-line.md
   - YAML representation:
       - representation/overview.md
-      - representation/reference.md
       - representation/interpolation.md
       - representation/inputs.md
+      - representation/reference.md
   - Editor: editor/index.md
   - Runners:
       - runners/index.md
@@ -101,6 +100,7 @@ nav:
   - Guides:
       - guides/writing-a-runner.md
       - guides/writing-an-editor-plugin.md
+  - CLI reference: getting-started/command-line.md
   - API reference:
       - api/index.md
       - api/core.md

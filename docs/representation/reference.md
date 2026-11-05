@@ -71,7 +71,7 @@ For a `nextflow module run` step (Nextflow 26.04 or later):
 | `container_engine` | `docker` \| `singularity` \| `conda` \| `podman` | no | none | Passed as `-with-<engine>`. Without it (and without a global `nf_config`), a warning says the module runs without a container. |
 
 !!! warning "Not fully supported yet"
-    Modules can only be run as leaf-nodes in the metapipeline graph at this. 
+    Modules can only be run as leaf-nodes in the metapipeline graph at this time. 
     No steps can refernce from a step of type `nf-module`, yet.
 
 ## Key names from previous versions

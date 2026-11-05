@@ -1,30 +1,26 @@
-# Cross-step references
+# Step references
 
-A param value can take the value of another step's param:
+A param value can read the value of another step's param with a construct like this:
 
 ```
 ${<step-id>:<namespace>:<key>}
 ```
-
-For example, `input: ${n01:params:outdir}/samplesheet/samplesheet.csv` takes `n01`'s `outdir`
-param and puts it into `n02`'s `input` param at run time.
+Here, 
 
 - **`<step-id>`** is the id of another step under `steps:` in the same config.
-- **`<namespace>`**: only `params` is supported today. `outputs` is reserved for a future
-  capability (referencing a pipeline's declared outputs rather than its params).
-- **`<key>`** is the referenced step's param name. It may be a param the step sets itself, or
-  one an [input](inputs.md) fills.
+- **`<namespace>`**: only `params` is supported currently.
+- **`<key>`** is the referenced step's param name.
 
-A param value can contain **one** step reference, with any text around it
-(`results/${n01:params:outdir}/n02`). A value with two references is an error. (To take a value
-from the person running the metapipeline instead, use an [input](inputs.md):
-`${inputs:<name>}`.)
+For example, `samplesheet: ${n01:params:outdir}/samplesheet/samplesheet.csv` reads the param `outdir` from the step `n01` and uses it to construct the value of `samplesheet` at run time.
+
+Each param value can reference and read from only **one** other param in a predecessor step, a value containing two references parses with an error.
+To expose a param value as a metapipline input, instead, use use an [input](inputs.md) `${inputs:<name>}`.
 
 ## The flow between steps
 
-A reference also means "run after": the referenced step must finish first. Steps declare that
-with `from:`, and a reference to a step that isn't upstream is an error. The editor and the
-Python API add the needed `from:` entries when a step is saved, so you only pick the reference.
+A reference requires a directed from the referenced to referencing step.
+Steps declare their predecessors with `from:`, and a reference to a step that isn't upstream is an error.
+The editor and the Python API add the needed `from:` entries when a step is saved, so you only pick the reference.
 A reference that would create a cycle is refused.
 
 ## Validation

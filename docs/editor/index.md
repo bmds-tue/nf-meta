@@ -23,7 +23,8 @@ that can be accessed from the browser.
 It tries to open the frontend as a new tab in your local browser automatically.
 You can always access the editor also by copy-pasting the printed url and token in the address bar of
 new tab in a local web browser. 
-![The browser page talks to the editor backend, which reads and saves the config](editor-local.svg)
+![The browser page talks to the editor backend, which reads and saves the config](editor-local-light.svg#only-light)
+![The browser page talks to the editor backend, which reads and saves the config](editor-local.svg#only-dark)
 
 
 !!! note
@@ -99,7 +100,8 @@ You can start with `--no-redirect-file` or open the printed link manually.
 Data and pipelines usually live on a cluster with no access to a display server or a browser.
 To use the editor there anyway, run its backend on the cluster and connect to it through an **SSH tunnel**.
 
-![An SSH tunnel connects the browser on your computer to the editor backend on the cluster](editor-ssh.svg)
+![An SSH tunnel connects the browser on the local computer to the editor backend on the cluster](editor-ssh-light.svg#only-light)
+![An SSH tunnel connects the browser on the local computer to the editor backend on the cluster](editor-ssh.svg#only-dark)
 
 On the cluster start the editor backend:
 

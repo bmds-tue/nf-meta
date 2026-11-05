@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal, TypeVar
 
 import yaml
 from packaging.version import Version
@@ -78,7 +78,11 @@ def config_path(value: str, project_dir: Path | None) -> Path:
     return (path if path.is_absolute() else (project_dir or Path.cwd()) / path).resolve()
 
 
-def with_absolute_config_paths[M: BaseModel](item: M, project_dir: Path | None) -> M:
+# A workflow or `GlobalOptions`: the copy has the same type as the item
+_Model = TypeVar("_Model", bound=BaseModel)
+
+
+def with_absolute_config_paths(item: _Model, project_dir: Path | None) -> _Model:
     """`item` (a workflow or `GlobalOptions`) with its `params_file`/`nf_config`
     (and a local pipeline's `path`) made absolute with `config_path`, for
     reading them."""

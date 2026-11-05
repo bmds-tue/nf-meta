@@ -7,8 +7,14 @@ on:
 
 jobs:
   test:
-    name: Run pytest
+    name: Run pytest (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # the lowest supported version, and the one we develop with (.python-version)
+        python: ["3.11", "3.12"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
 
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +27,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version-file: .python-version
+          python-version: ${{ matrix.python }}
 
       - name: Install dependencies
         run: uv sync --group dev

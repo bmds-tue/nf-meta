@@ -11,7 +11,7 @@ not part of the supported API, and may change without notice.
 nf-meta is beta: **everything here can still change.** Within that:
 
 - **`BaseRunner`/`RunOptions`** and **`BaseEditor`/`EditorOptions`** are the intended plugin
-  extension points. See [Writing a runner](../guides/writing-a-runner.md) and
+  extension points. See [Writing a runner plugin](../guides/writing-a-runner.md) and
   [Writing an editor plugin](../guides/writing-an-editor-plugin.md). These are the most
   deliberately designed part of the surface and change the least often, but are not yet under
   a formal compatibility guarantee.

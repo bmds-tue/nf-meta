@@ -1,4 +1,4 @@
-# Writing a runner
+# Writing a runner plugin
 
 A runner turns a validated [`MetaworkflowGraph`](../api/core.md) into actual Nextflow
 execution. This walks through the minimum needed to add one as an installable plugin. See

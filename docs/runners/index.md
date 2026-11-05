@@ -6,7 +6,7 @@ A runner executes a validated metapipeline. `nf-meta run --runner <name>` select
 ## Python runner
 
 `nf-meta run` uses the Python runner (`--runner python`, the default). It runs the steps in
-dependency order from this Python process, each as a `nextflow run` (pipelines) or
+dag order from this Python process, each as a `nextflow run` (pipelines) or
 `nextflow module run` (modules) subprocess, and streams their output.
 
 ```bash
@@ -119,4 +119,4 @@ run before.
 Runners are pluggable via the same entry-point mechanism as third-party packages: a package
 registers a `BaseRunner` subclass under the `nf_meta.runners` entry-point group, and it
 becomes selectable via `--runner <name>` as soon as it's installed, with no changes to nf-meta
-itself. See [Writing a runner](../guides/writing-a-runner.md).
+itself. See [Writing a runner plugin](../guides/writing-a-runner.md).

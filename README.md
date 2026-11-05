@@ -15,7 +15,10 @@ full config reference, and the API reference.
 Find a growing collection of examples in the dedicated
 [showcase repository](https://github.com/bmds-tue/nf-meta-showcases/tree/main).
 
-![nf-meta editor](assets/nf-meta-screenshot.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/nf-meta-screenshot.png">
+  <img alt="nf-meta editor" src="assets/nf-meta-screenshot-light.png">
+</picture>
 
 * **One file for the whole chain:** steps, the flow between them, shared settings, and the
   values supplied at run time (inputs), validated against each pipeline's own schema.

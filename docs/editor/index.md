@@ -5,7 +5,8 @@ configs visually: steps as a graph, schema-based forms for their params, referen
 picked from menus, and validation as you edit. Every change is saved to the config file right
 away, and the history (undo, redo) takes you back to any earlier state.
 
-![nf-meta editor](nf-meta-screenshot.png)
+![nf-meta editor](nf-meta-screenshot-light.png#only-light)
+![nf-meta editor](nf-meta-screenshot.png#only-dark)
 
 ## Usage
 
@@ -31,7 +32,8 @@ start a new, empty metapipeline. Closing the start screen starts a new one too. 
 per run of `nf-meta editor`, not again when you reload the page. The list of recent configs is
 kept per user on that machine (`~/.local/state/nf-meta/recent-configs.json`).
 
-![The start screen](editor-start.png){ width="420" }
+![The start screen](editor-start-light.png#only-light){ width="420" }
+![The start screen](editor-start.png#only-dark){ width="420" }
 
 A new config, or one opened from a URL (`nf-meta editor https://…`), asks where to save it before
 your first change; for a URL, that is your local copy, and the published file stays as it is.
@@ -66,13 +68,10 @@ highlights its steps on the graph. An input's form sets its description, default
 then the param, with each param's description, type and default. A choice at the top writes all
 inputs in the steps' params or all in the `inputs:` section.
 
-![The Inputs tab](editor-inputs.png)
+![The Inputs tab](editor-inputs-light.png#only-light)
+![The Inputs tab](editor-inputs.png#only-dark)
 
 **Globals.** Settings for every step: Nextflow version, profile and config, and shared params.
-
-The button at the top right switches between the dark and the light theme.
-
-![The light theme](editor-light.png)
 
 Fields that take a path (a step's params file and Nextflow config, the global Nextflow config,
 params and input defaults with a path format) have a folder button that browses the machine

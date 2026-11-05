@@ -20,24 +20,15 @@ nf-meta editor path/to/metapipeline.yaml
 
 !!! note
     `nf-meta editor` runs the editor's backend, which the browser page needs. It keeps the
-    terminal busy until you stop it: **Quit editor** in the page's file menu, or `Ctrl` + `C` in
-    the terminal. Every change is already saved, so nothing is lost either way. **Quit editor**
-    also closes the tab if the browser lets it; most only let a page close tabs it opened itself,
-    so the tab usually stays open and says you can close it. A page whose editor has stopped says
-    so; run `nf-meta editor` again and open the new link.
+    terminal busy until you stop it via `Ctrl` + `C` in the terminal or the **Quit editor** button in the page's file menu.
+    Every change is gets automatically saved, so nothing is lost either way. 
 
-Started without a config, the editor shows a start screen: open a config (browsing the folders of
-the machine running the editor), pick one of the configs you recently opened or saved there, or
-start a new, empty metapipeline. Closing the start screen starts a new one too. It is shown once
-per run of `nf-meta editor`, not again when you reload the page. The list of recent configs is
-kept per user on that machine (`~/.local/state/nf-meta/recent-configs.json`).
+Started without a config, the editor shows a start screen, asking to open a config, pick one of the configs you recently opened, or
+start a new metapipeline. 
+The list of recent configs is tracked per user in (`~/.local/state/nf-meta/recent-configs.json`).
 
-![The start screen](editor-start-light.png#only-light){ width="420" }
-![The start screen](editor-start.png#only-dark){ width="420" }
-
-A new config, or one opened from a URL (`nf-meta editor https://…`), asks where to save it before
-your first change; for a URL, that is your local copy, and the published file stays as it is.
-Cancelling leaves the change unsaved and your form open.
+A new config, or one opened from a URL (`nf-meta editor https://…`), asks for a path to save to before your first change.
+Cancelling leaves the change unsaved and your edit form open.
 
 ## Working with the editor
 
@@ -62,7 +53,7 @@ or module (nf-core names and versions are completed from the nf-core catalog), a
 
 Problems show at the field they belong to; a change the checks refuse is not saved.
 
-**Inputs.** All inputs of the metapipeline, with the params they fill. Hovering an input
+**Inputs.** Lists all run-time inputs of the metapipeline, with the params they fill. Hovering an input
 highlights its steps on the graph. An input's form sets its description, default and rules
 (type, format, allowed values, …), and the step params it fills: "Add step param" picks the step,
 then the param, with each param's description, type and default. A choice at the top writes all
@@ -86,21 +77,14 @@ run's output folder.
 
 ### The editor link
 
-On start, the editor prints its address with an access token, for example
-`Editor running at: http://127.0.0.1:8080/?token=…`, and opens that link in your browser. The page
-keeps the token for the tab and sends it with every request; without it, the editor refuses to
-read or write anything. This keeps other users of a shared machine (and websites open in your
-browser) out of your configs. If a tab shows "Cannot reach the editor backend", open the printed
-link again; each start of `nf-meta editor` makes a new token.
+On start, the editor backend prints a url where the frontend can be reached along with an access token that is regenerated on every startup. It looks like this: `Editor running at: http://127.0.0.1:8080/?token=…`.
+The token is saved and resend by the editor on every request, or the editor backend refuses access.
+This keeps other users of a shared machine (and websites open in your
+browser) out of your configs. 
+The browser gets the link through a small file only you can read (in `$XDG_RUNTIME_DIR` or `~/.cache/nf-meta/editor`, removed when the editor stops), so the token isn't leaked in the process monitor of a shared machine.
+When the browser runs on a remote machine (VS Code Remote-SSH, dev containers, Codespaces), that file can't be reached. 
+You can start with `--no-redirect-file` or open the printed link manually.
 
-The browser gets the link through a small file only you can read (in `$XDG_RUNTIME_DIR` or
-`~/.cache/nf-meta/editor`, removed when the editor stops), so the token doesn't show up in the process list
-of a shared machine. When the browser runs on another machine (VS Code Remote-SSH, dev containers,
-Codespaces), that file doesn't exist there: start with `--no-redirect-file` to open the link
-directly, or open the printed link yourself.
-
-The editor also only answers requests addressed to `localhost` or `127.0.0.1` (or the name given
-with `--host`).
 
 ## Editor backends
 
@@ -108,7 +92,7 @@ The editor is extensible via plugins in the same way runners are: `--editor <nam
 `BaseEditor` subclass.
 The one described above is the only one shipped with nf-meta right now and opens by default.
 See [Writing an editor plugin](../guides/writing-an-editor-plugin.md)
-to add another.
+to add a new third-party-editor.
 
 ## Running the editor on a remote machine
 

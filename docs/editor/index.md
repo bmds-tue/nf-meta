@@ -23,14 +23,13 @@ that can be accessed from the browser.
 It tries to open the frontend as a new tab in your local browser automatically.
 You can always access the editor also by copy-pasting the printed url and token in the address bar of
 new tab in a local web browser. 
+
 ![The browser page talks to the editor backend, which reads and saves the config](editor-local-light.svg#only-light)
 ![The browser page talks to the editor backend, which reads and saves the config](editor-local.svg#only-dark)
 
-
-!!! note
-    The nf-meta editor backend blocks the terminal by listening to requests until you stop it manually `Ctrl` + `C`
-    in the terminal or via the **Quit editor** button in the page's file menu.
-    Every change is gets automatically saved, so nothing is lost either way. 
+The nf-meta editor backend blocks the terminal by listening to requests until you stop it manually `Ctrl` + `C`
+in the terminal or via the **Quit editor** button in the page's file menu.
+Every change is gets automatically saved, so nothing is lost either way. 
 
 Started without a config, the editor shows a start screen, asking to open a config, pick one of the configs you recently opened, or
 start a new metapipeline. 

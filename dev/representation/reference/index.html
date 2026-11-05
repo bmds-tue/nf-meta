@@ -13,17 +13,17 @@
         <link rel="canonical" href="https://bmds-tue.github.io/nf-meta/dev/representation/reference/">
       
       
-        <link rel="prev" href="../overview/">
+        <link rel="prev" href="../inputs/">
       
       
-        <link rel="next" href="../interpolation/">
+        <link rel="next" href="../../getting-started/command-line/">
       
       
         
       
       
       <link rel="icon" href="../../assets/nf-meta-octo-light.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -382,6 +382,60 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../editor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Editor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runners/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runners
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -400,10 +454,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -421,8 +475,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -447,6 +501,62 @@
     
   
     YAML representation overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interpolation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Step references
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inputs
   
 
     
@@ -527,10 +637,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#top-level" class="md-nav__link">
+  <a href="#paths" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Top level
+        Paths
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-yaml-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top level YAML keys
       
     </span>
   </a>
@@ -541,7 +662,7 @@
   <a href="#globals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        globals
+        Globals
       
     </span>
   </a>
@@ -549,10 +670,49 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-common-fields" class="md-nav__link">
+  <a href="#steps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow (common fields)
+        Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nf-pipeline-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nf-pipeline steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nf-module-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nf-module steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keys-of-an-inputs-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys of an inputs: entry
       
     </span>
   </a>
@@ -560,32 +720,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nf-pipeline-additional-fields" class="md-nav__link">
+  <a href="#key-names-from-previous-versions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        nf-pipeline additional fields
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nf-module-additional-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nf-module additional fields
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#legacy-transitions-entries" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Legacy transitions: entries
+        Key names from previous versions
       
     </span>
   </a>
@@ -601,34 +739,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../interpolation/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cross-workflow references
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -643,14 +753,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../editor/" class="md-nav__link">
+      <a href="../../getting-started/command-line/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Editor
+    CLI reference
   
 
     
@@ -659,236 +769,6 @@
   
 
       </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-        
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Runners
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Runners
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../runners/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Runners
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../runners/python-runner/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Python runner
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-        
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Guides
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Guides
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/writing-a-runner/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Writing a runner
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/writing-an-editor-plugin/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Writing an editor plugin
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
     </li>
   
 
@@ -1008,6 +888,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/runners/" class="md-nav__link">
         
   
@@ -1098,6 +1006,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/writing-a-runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a runner plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/writing-an-editor-plugin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing an editor plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../changelog/" class="md-nav__link">
         
   
@@ -1145,10 +1107,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#top-level" class="md-nav__link">
+  <a href="#paths" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Top level
+        Paths
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-yaml-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top level YAML keys
       
     </span>
   </a>
@@ -1159,7 +1132,7 @@
   <a href="#globals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        globals
+        Globals
       
     </span>
   </a>
@@ -1167,10 +1140,49 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-common-fields" class="md-nav__link">
+  <a href="#steps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow (common fields)
+        Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nf-pipeline-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nf-pipeline steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nf-module-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nf-module steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keys-of-an-inputs-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys of an inputs: entry
       
     </span>
   </a>
@@ -1178,32 +1190,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nf-pipeline-additional-fields" class="md-nav__link">
+  <a href="#key-names-from-previous-versions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        nf-pipeline additional fields
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nf-module-additional-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nf-module additional fields
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#legacy-transitions-entries" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Legacy transitions: entries
+        Key names from previous versions
       
     </span>
   </a>
@@ -1237,10 +1227,16 @@
 
 <h1 id="config-reference">Config reference<a class="headerlink" href="#config-reference" title="Permanent link">&para;</a></h1>
 <p>Key-by-key reference for the metapipeline <code>.yaml</code> format. See
-<a href="../overview/">YAML representation overview</a> for how these fit together and
-<a href="../interpolation/">Cross-workflow references</a> for the <code>${...}</code> syntax usable in <code>params</code>
-values.</p>
-<h2 id="top-level">Top level<a class="headerlink" href="#top-level" title="Permanent link">&para;</a></h2>
+<a href="../overview/">YAML representation overview</a> for how these fit together,
+<a href="../interpolation/">Cross-step references</a> for the <code>${...}</code> syntax usable in <code>params</code> values, and
+<a href="../inputs/">Inputs</a> for the <code>inputs:</code> section.</p>
+<h2 id="paths">Paths<a class="headerlink" href="#paths" title="Permanent link">&para;</a></h2>
+<p>A relative path in a config (<code>params_file</code>, <code>nf_config</code>, a local pipeline's <code>path</code>, path params
+and input defaults) is always interpreted as relative to the folder containing the metapipeline config file.
+This is regardless of where <code>nf-meta</code> is run from with the exception of a step's <code>outdir</code> which is relative
+to the run's output folder (<code>--out</code>, see <a href="../../runners/#where-results-go">Where results go</a>).
+Paths are kept as written when saved via the editor.</p>
+<h2 id="top-level-yaml-keys">Top level YAML keys<a class="headerlink" href="#top-level-yaml-keys" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -1257,32 +1253,33 @@ values.</p>
 <td>string</td>
 <td>yes</td>
 <td>—</td>
-<td>Must be between <code>0.0.1</code> and the current maximum (<code>0.3.0</code>). Rejected outside that range.</td>
+<td>The format version the config follows, between <code>0.0.1</code> and the current <code>0.5.0</code>. Saving from the editor writes <code>0.5.0</code>.</td>
 </tr>
 <tr>
-<td><code>workflows</code></td>
-<td>mapping (id → workflow)</td>
+<td><code>steps</code></td>
+<td>mapping (id → step definition)</td>
 <td>yes</td>
 <td>—</td>
-<td>See <a href="#workflow-common-fields">Workflow (common fields)</a> below. A list form exists for backward compatibility but is deprecated.</td>
+<td>See <a href="#steps">Steps</a> below. A list form exists for backward compatibility but is deprecated.</td>
 </tr>
 <tr>
 <td><code>globals</code></td>
 <td>mapping</td>
 <td>no</td>
 <td>none</td>
-<td>See <a href="#globals"><code>globals</code></a> below.</td>
+<td>See <a href="#globals">Globals</a> below.</td>
 </tr>
 <tr>
-<td><code>transitions</code></td>
-<td>list</td>
+<td><code>inputs</code></td>
+<td>mapping (name → input)</td>
 <td>no</td>
 <td>none</td>
-<td>Legacy edge list (<code>{source, target}</code> pairs). Deprecated in favor of each workflow's own <code>from:</code>; still readable but triggers a warning.</td>
+<td>Values supplied when the metapipeline runs. See <a href="../inputs/">Inputs</a>. Requires config_version 0.4.0 or later.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="globals"><code>globals</code><a class="headerlink" href="#globals" title="Permanent link">&para;</a></h2>
+<h2 id="globals">Globals<a class="headerlink" href="#globals" title="Permanent link">&para;</a></h2>
+<p>Settings for every step. A step's own settings take precedence over them.</p>
 <table>
 <thead>
 <tr>
@@ -1295,38 +1292,38 @@ values.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>profile</code></td>
+<td><code>nf_profile</code></td>
 <td>string</td>
 <td>no</td>
 <td>none</td>
-<td>Nextflow <code>-profile</code> applied to every workflow that doesn't set its own <code>profile</code>. Whitespace is stripped.</td>
+<td>Nextflow <code>-profile</code> for every step that doesn't set its own <code>nf_profile</code>. Whitespace is stripped.</td>
 </tr>
 <tr>
-<td><code>config_file</code></td>
-<td>path to an existing <code>.config</code> file</td>
+<td><code>nf_config</code></td>
+<td>path to an existing file</td>
 <td>no</td>
 <td>none</td>
-<td>Passed as a Nextflow <code>-c</code> to every workflow, in addition to any per-workflow <code>config_file</code>.</td>
+<td>Passed as a Nextflow <code>-c</code> to every step, before a step's own <code>nf_config</code>.</td>
 </tr>
 <tr>
 <td><code>params</code></td>
 <td>mapping (str → scalar)</td>
 <td>no</td>
 <td>none</td>
-<td>Merged under each workflow's own <code>params</code>, with the workflow's values taking precedence on key collision. Values must be <code>str</code>/<code>int</code>/<code>float</code>/<code>bool</code>.</td>
+<td>Merged under each step's own <code>params</code>; the step's values win on a key collision. Values must be <code>str</code>/<code>int</code>/<code>float</code>/<code>bool</code>.</td>
 </tr>
 <tr>
 <td><code>nextflow_version</code></td>
-<td>string, int, or float</td>
+<td>string, int or float</td>
 <td>no</td>
 <td>none</td>
-<td>e.g. <code>"25.10"</code>, <code>"25.10.4-edge"</code>, <code>25</code>. Checked against the actually-installed <code>nextflow -version</code> before a run; mismatch is reported, not silently ignored.</td>
+<td>e.g. <code>"25.10"</code>, <code>"25.10.4-edge"</code>, <code>25</code>. Checked against <code>nextflow -version</code> before a run; a mismatch is reported. Steps of type <code>nf-module</code> need 26.04 or later.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="workflow-common-fields">Workflow (common fields)<a class="headerlink" href="#workflow-common-fields" title="Permanent link">&para;</a></h2>
-<p>Every entry under <code>workflows:</code> is one of two types, selected by <code>type:</code> (default
-<code>nf-pipeline</code> when omitted). These fields apply to both:</p>
+<h2 id="steps">Steps<a class="headerlink" href="#steps" title="Permanent link">&para;</a></h2>
+<p>Every entry under <code>steps:</code> is one of two types, selected by <code>type:</code>, <code>nf-pipeline</code> or <code>nf-module</code>.
+These fields apply to both:</p>
 <table>
 <thead>
 <tr>
@@ -1339,58 +1336,58 @@ values.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>type</code></td>
-<td><code>nf-pipeline</code> | <code>nf-module</code></td>
-<td>no</td>
-<td><code>nf-pipeline</code></td>
-<td>Selects <a href="#nf-pipeline-additional-fields"><code>NfPipeline</code></a> vs. <a href="#nf-module-additional-fields"><code>NfModule</code></a> below.</td>
-</tr>
-<tr>
 <td><em>(id)</em></td>
 <td>—</td>
 <td>yes</td>
 <td>—</td>
-<td>Not a field inside the entry; it's the entry's own key under <code>workflows:</code>, e.g. <code>n01:</code>. Referenced by <code>from:</code>, <code>${id:params:key}</code>, and the CLI's <code>--start</code>/<code>--target</code>.</td>
+<td>The steps mapping key under the top-level <code>steps:</code>, e.g. <code>n01:</code>. Referenced by <code>from:</code>, <code>${id:params:key}</code> and the CLI's <code>--start</code>/<code>--target</code>.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td><code>nf-pipeline</code> | <code>nf-module</code></td>
+<td>no</td>
+<td><code>nf-pipeline</code></td>
+<td>Selects the <a href="#nf-pipeline-steps">pipeline</a> or <a href="#nf-module-steps">module</a> fields below.</td>
 </tr>
 <tr>
 <td><code>name</code></td>
 <td>string, non-empty</td>
 <td>yes</td>
 <td>—</td>
-<td>Pipeline/module name, e.g. <code>nf-core/rnaseq</code>. For nf-core pipelines, also used to auto-resolve <code>url</code>/<code>description</code>.</td>
+<td>Pipeline or module name, e.g. <code>nf-core/rnaseq</code>. An <code>nf-core/…</code> name must be in the nf-core catalog; its <code>url</code> and <code>description</code> are filled in from it.</td>
 </tr>
 <tr>
 <td><code>version</code></td>
-<td>string, non-empty</td>
-<td>yes</td>
+<td>string</td>
+<td>yes (except for a local pipeline)</td>
 <td>—</td>
-<td>A release tag (<code>1.12.0</code>, <code>v1.12.0</code>) or a full/short commit SHA (7-40 hex chars). A branch name (e.g. <code>dev</code>, <code>master</code>) is rejected, since reproducibility requires a pinned revision.</td>
+<td>A release tag (<code>1.12.0</code>, <code>v1.12.0</code>) or a commit hash. A branch name (<code>dev</code>, <code>master</code>) is rejected, since a reproducible run needs a pinned revision. Use the full 40-character hash: Nextflow 26 can't fetch abbreviated ones (a warning says so).</td>
 </tr>
 <tr>
 <td><code>from</code></td>
 <td>string or list of strings</td>
 <td>no</td>
 <td>none</td>
-<td>Id(s) of the workflow(s) that must complete before this one runs. Determines execution (DAG) order.</td>
+<td>Id(s) of the steps that must finish before this one runs. Saving a step that references another step's params adds the edge it needs.</td>
 </tr>
 <tr>
 <td><code>params</code></td>
 <td>mapping (str → scalar)</td>
 <td>no</td>
 <td>none</td>
-<td>Passed to the pipeline as <code>-params-file</code>. Values must be <code>str</code>/<code>int</code>/<code>float</code>/<code>bool</code>; real types are preserved through to the generated params file, not stringified. May contain <code>${...}</code> references (string values only).</td>
+<td>Passed to Nextflow in a params file. Values must be <code>str</code>/<code>int</code>/<code>float</code>/<code>bool</code> and keep their types. A value may be one <a href="../interpolation/">step reference</a> (with text after it) or one whole <a href="../inputs/">input reference</a>.</td>
 </tr>
 <tr>
-<td><code>config_file</code></td>
-<td>path to an existing <code>.config</code> file</td>
+<td><code>nf_config</code></td>
+<td>path to an existing file</td>
 <td>no</td>
 <td>none</td>
-<td>Workflow-specific Nextflow <code>-c</code>, in addition to <code>globals.config_file</code>.</td>
+<td>The step's own Nextflow <code>-c</code>, after <code>globals.nf_config</code>.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="nf-pipeline-additional-fields"><code>nf-pipeline</code> additional fields<a class="headerlink" href="#nf-pipeline-additional-fields" title="Permanent link">&para;</a></h2>
-<p>For a <code>nextflow run</code>-style pipeline step (the default <code>type</code>):</p>
+<h3 id="nf-pipeline-steps"><code>nf-pipeline</code> steps<a class="headerlink" href="#nf-pipeline-steps" title="Permanent link">&para;</a></h3>
+<p>For a <code>nextflow run</code> pipeline (the default <code>type</code>):</p>
 <table>
 <thead>
 <tr>
@@ -1405,42 +1402,49 @@ values.</p>
 <tr>
 <td><code>url</code></td>
 <td>string</td>
-<td>conditional</td>
-<td>auto-resolved for nf-core pipelines</td>
-<td>Required for non-nf-core pipelines (must start with <code>https://</code>). For an nf-core pipeline matched by <code>name</code>, auto-filled from the nf-core pipeline list; an explicit mismatching <code>url</code> is rejected.</td>
+<td>for non-nf-core pipelines</td>
+<td>from the nf-core catalog</td>
+<td>The pipeline's repository (<code>https://…</code>). For an nf-core pipeline it is filled in from the catalog; a different <code>url</code> is rejected.</td>
+</tr>
+<tr>
+<td><code>path</code></td>
+<td>path to a folder</td>
+<td>no</td>
+<td>none</td>
+<td>A <strong>local pipeline folder, for development</strong>, used instead of <code>url</code> and <code>version</code>. See <a href="../overview/#developing-a-pipeline-locally">Developing a pipeline locally</a>. Not for nf-core pipelines.</td>
 </tr>
 <tr>
 <td><code>description</code></td>
 <td>string</td>
 <td>no</td>
-<td>auto-filled for nf-core pipelines</td>
-<td>Free text; auto-populated from nf-core's own description when available.</td>
+<td>from the nf-core catalog</td>
+<td>Free text.</td>
 </tr>
 <tr>
 <td><code>params_file</code></td>
 <td>path to an existing <code>.yaml</code>/<code>.yml</code> file</td>
 <td>no</td>
 <td>none</td>
-<td>An external base params file. Merged with <code>params</code> at run time (<code>params</code> overrides on key collision) and included in schema validation.</td>
+<td>Base params, merged under <code>params</code> (<code>params</code> wins on a key collision) and included in the params check.</td>
 </tr>
 <tr>
-<td><code>profile</code></td>
+<td><code>nf_profile</code></td>
 <td>string</td>
 <td>no</td>
 <td>none</td>
-<td>Overrides <code>globals.profile</code> for this workflow specifically.</td>
+<td>Overrides <code>globals.nf_profile</code> for this step.</td>
 </tr>
 <tr>
 <td><code>main_script</code></td>
 <td>string</td>
 <td>no</td>
 <td>none</td>
-<td>Alternate entry script within the pipeline repo. Not settable for nf-core pipelines.</td>
+<td>Another entry script of the pipeline (<code>-main-script</code>). Not for nf-core pipelines.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="nf-module-additional-fields"><code>nf-module</code> additional fields<a class="headerlink" href="#nf-module-additional-fields" title="Permanent link">&para;</a></h2>
-<p>For a <code>nextflow module run</code>-style step:</p>
+<h3 id="nf-module-steps"><code>nf-module</code> steps<a class="headerlink" href="#nf-module-steps" title="Permanent link">&para;</a></h3>
+<p>For a <code>nextflow module run</code> step (Nextflow 26.04 or later):</p>
 <table>
 <thead>
 <tr>
@@ -1457,14 +1461,110 @@ values.</p>
 <td><code>docker</code> | <code>singularity</code> | <code>conda</code> | <code>podman</code></td>
 <td>no</td>
 <td>none</td>
-<td>Passed as <code>-with-&lt;engine&gt;</code>.</td>
+<td>Passed as <code>-with-&lt;engine&gt;</code>. Without it (and without a global <code>nf_config</code>), a warning says the module runs without a container.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="legacy-transitions-entries">Legacy <code>transitions:</code> entries<a class="headerlink" href="#legacy-transitions-entries" title="Permanent link">&para;</a></h2>
-<p>Each entry is <code>{source: &lt;id&gt;, target: &lt;id&gt;}</code>, equivalent to adding <code>from: &lt;source&gt;</code> to the
-<code>target</code> workflow. Prefer <code>from:</code> in new configs; opening and saving a config with legacy
-<code>transitions:</code> in the editor rewrites it automatically.</p>
+<div class="admonition warning">
+<p class="admonition-title">Not fully supported yet</p>
+<p>Modules can only be run as leaf-nodes in the metapipeline graph at this time. 
+No steps can refernce from a step of type <code>nf-module</code>, yet.</p>
+</div>
+<h2 id="keys-of-an-inputs-entry">Keys of an <code>inputs:</code> entry<a class="headerlink" href="#keys-of-an-inputs-entry" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bind</code></td>
+<td><code>&lt;step-id&gt;.&lt;param&gt;</code> entries the input fills.</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>Shown in prompts and in the editor.</td>
+</tr>
+<tr>
+<td><code>default</code></td>
+<td>Used when the run gets no value. A relative path is relative to the config's folder.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td><code>string</code>, <code>integer</code>, <code>number</code> or <code>boolean</code>.</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td>For paths: <code>file-path</code>, <code>directory-path</code>, <code>path</code> (a file or a folder) or <code>file-path-pattern</code> (a glob).</td>
+</tr>
+<tr>
+<td><code>exists</code></td>
+<td><code>true</code>: a path value must exist.</td>
+</tr>
+<tr>
+<td><code>enum</code></td>
+<td>The allowed values.</td>
+</tr>
+<tr>
+<td><code>pattern</code></td>
+<td>A regular expression a string value must match.</td>
+</tr>
+<tr>
+<td><code>minimum</code>, <code>maximum</code></td>
+<td>Bounds for numbers.</td>
+</tr>
+<tr>
+<td><code>mimetype</code>, <code>schema</code></td>
+<td>Kept from nf-core schemas, passed through.</td>
+</tr>
+</tbody>
+</table>
+<p>Keys you leave out are <strong>inherited</strong> from the schema of the param the input fills. Keys you set
+must narrow that schema, never widen it: an <code>enum</code> that picks a few genomes is fine, a <code>type</code>
+that contradicts the param's is an error. For paths, <code>file-path</code> and <code>directory-path</code> narrow
+<code>path</code>; declaring <code>path</code> for a param that takes only a <code>file-path</code> is an error. When an input
+fills several params, their schemas must agree (or one must narrow the other).</p>
+<h2 id="key-names-from-previous-versions">Key names from previous versions<a class="headerlink" href="#key-names-from-previous-versions" title="Permanent link">&para;</a></h2>
+<p>Configs written for earlier versions still load. Each old form gives a deprecation warning, and
+saving from the editor writes the current form.</p>
+<table>
+<thead>
+<tr>
+<th>Old</th>
+<th>Current</th>
+<th>Since</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>workflows:</code></td>
+<td><code>steps:</code></td>
+<td>config_version 0.5.0</td>
+</tr>
+<tr>
+<td><code>config_file</code></td>
+<td><code>nf_config</code></td>
+<td>config_version 0.4.0</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td><code>nf_profile</code></td>
+<td>config_version 0.4.0</td>
+</tr>
+<tr>
+<td><code>steps:</code> as a list of entries with their own <code>id</code></td>
+<td>a mapping keyed by id</td>
+<td>earlier versions</td>
+</tr>
+<tr>
+<td>top-level <code>transitions:</code> (<code>{source, target}</code> pairs)</td>
+<td>each step's <code>from:</code></td>
+<td>earlier versions</td>
+</tr>
+</tbody>
+</table>
 
 
 
@@ -1524,10 +1624,10 @@ values.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.tracking", "content.code.copy", "content.code.annotate", "content.action.edit", "search.suggest", "search.highlight", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.tracking", "content.code.copy", "content.code.annotate", "content.action.edit", "search.suggest", "search.highlight", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>

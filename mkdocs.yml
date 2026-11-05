@@ -95,9 +95,6 @@ nav:
       - representation/interpolation.md
       - representation/inputs.md
       - representation/reference.md
-  - Guides:
-      - guides/writing-a-runner.md
-      - guides/writing-an-editor-plugin.md
   - CLI reference: getting-started/command-line.md
   - API reference:
       - api/index.md
@@ -106,4 +103,6 @@ nav:
       - api/runners.md
       - api/editor.md
   - Contributing: contributing.md
+  - guides/writing-a-runner.md
+  - guides/writing-an-editor-plugin.md
   - Changelog: changelog.md

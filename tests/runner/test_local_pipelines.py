@@ -45,6 +45,32 @@ def write_config(project, **step):
     return path
 
 
+@pytest.fixture
+def connectors(tmp_path):
+    """A folder with two connectors, each its own pipeline, and a root schema
+    that Nextflow doesn't read for them."""
+    repo = tmp_path / "pipelines" / "connectors"
+    a2b, c2d = repo / "connectors" / "a2b", repo / "connectors" / "c2d"
+    a2b.mkdir(parents=True)
+    c2d.mkdir(parents=True)
+    (a2b / "main.nf").write_text("workflow { }\n")
+    (c2d / "run.nf").write_text("workflow { }\n")
+    root = {"$defs": {"main": {"properties": {"outdir": {"type": "string"}, "root_only": {"type": "string"}}}}}
+    (repo / "nextflow_schema.json").write_text(json.dumps(root))
+    a2b_schema = {"$defs": {"main": {"properties": {"outdir": {"type": "string"}, "a2b_only": {"type": "string"}}}}}
+    (a2b / "nextflow_schema.json").write_text(json.dumps(a2b_schema))
+    (c2d / "nextflow_schema.json").write_text(json.dumps(SCHEMA))
+    project = tmp_path / "project"
+    project.mkdir()
+    return project
+
+
+def write_connector_config(project, main_script, **params):
+    return write_config(
+        project, path="../pipelines/connectors", main_script=main_script, params={"outdir": "out", **params}
+    )
+
+
 class TestModel:
     def test_path_instead_of_url_and_version(self):
         assert NfPipeline(name="connector", path="../p").model_dump_config() == {"name": "connector", "path": "../p"}
@@ -121,3 +147,21 @@ class TestRun:
         (work / "task.log").write_text("x")
         (project.parent / "pipelines" / "connector" / ".nextflow.log").write_text("x")
         assert self.plan(path)[0].spec.state_dir == before
+
+
+class TestMainScript:
+    """With `main_script`, the script's folder is the pipeline (as for Nextflow)."""
+
+    def test_params_are_checked_against_the_script_folders_schema(self, connectors):
+        from_file(write_connector_config(connectors, "connectors/a2b/main.nf", a2b_only="x"))
+        with pytest.raises(ConfigValidationError) as exc:
+            from_file(write_connector_config(connectors, "connectors/a2b/main.nf", root_only="x"))
+        assert [d.field for d in exc.value.errors] == ["params.root_only"]
+
+    def test_a_script_not_named_main_nf(self, connectors, tmp_path, monkeypatch):
+        path = write_connector_config(connectors, "connectors/c2d/run.nf")
+        monkeypatch.chdir(tmp_path)
+        (step,) = SimplePythonRunner(RunOptions()).plan(from_file(path))
+        script = (tmp_path / "pipelines" / "connectors" / "connectors" / "c2d" / "run.nf").resolve()
+        assert step.command.argv[-1] == str(script)
+        assert "-main-script" not in step.command.argv

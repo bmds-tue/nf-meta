@@ -1,7 +1,7 @@
 import pytest
 import yaml
 
-from nf_meta.core.models import GlobalOptions, NfModule, WorkflowType
+from nf_meta.core.models import GlobalOptions, NfModule, NfPipeline, WorkflowType
 from nf_meta.runner.engines import (
     NextflowModuleEngine,
     NextflowPipelineEngine,
@@ -146,6 +146,12 @@ class TestPipelineCommand:
         wf = wf_rnaseq.model_copy(update={"main_script": "workflows/special.nf"})
         argv = build(wf).argv
         assert argv[argv.index("-main-script") + 1] == "workflows/special.nf"
+
+    def test_local_main_script_runs_the_script_file(self, build, tmp_path):
+        wf = NfPipeline(name="connectors", path=str(tmp_path), main_script="connectors/a2b/main.nf")
+        argv = build(wf).argv
+        assert "-main-script" not in argv
+        assert str(tmp_path / "connectors" / "a2b" / "main.nf") in argv
 
     def test_no_main_script_omits_flag(self, build, wf_rnaseq):
         assert "-main-script" not in build(wf_rnaseq).argv

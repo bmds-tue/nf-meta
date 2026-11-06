@@ -537,9 +537,10 @@ def _parse_nextflow_schema(data: dict) -> Schema:
 
 
 @functools.cache
-def get_pipeline_schema(url: str, version: str) -> Schema:
+def get_pipeline_schema(url: str, version: str, folder: str = "") -> Schema:
     """
-    Fetch and parse ``nextflow_schema.json`` for the pipeline at ``url@version``.
+    Fetch and parse ``nextflow_schema.json`` for the pipeline at ``url@version``,
+    from ``folder`` within the repository (its root by default).
 
     Results are cached in memory (per process) and on disk via
     ``nf_meta.core.cache``. Raises ``PipelineSchemaError`` if the schema
@@ -548,20 +549,21 @@ def get_pipeline_schema(url: str, version: str) -> Schema:
     """
     from nf_meta.core.cache import read_schema_cache, write_schema_cache
 
-    cached = read_schema_cache(url, version)
+    cached = read_schema_cache(url, version, folder)
     if cached is not None:
         return cached
 
+    where = f"{url}@{version}" + (f" in {folder}" if folder else "")
     host, owner, repo = _parse_repo_url(url)
-    schema_url = _raw_url(host, owner, repo, version, "nextflow_schema.json")
+    schema_url = _raw_url(host, owner, repo, version, f"{folder}/nextflow_schema.json")
     auth_headers = _get_auth_headers(host)
 
     try:
         response = requests.get(schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
     except requests.exceptions.Timeout as e:
-        raise PipelineSchemaError(f"Timeout fetching nextflow_schema.json for {url}@{version}") from e
+        raise PipelineSchemaError(f"Timeout fetching nextflow_schema.json for {where}") from e
     except requests.exceptions.RequestException as e:
-        raise PipelineSchemaError(f"Network error fetching nextflow_schema.json for {url}@{version}: {e}") from e
+        raise PipelineSchemaError(f"Network error fetching nextflow_schema.json for {where}: {e}") from e
 
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After", "unknown")
@@ -573,26 +575,27 @@ def get_pipeline_schema(url: str, version: str) -> Schema:
             else "Authenticate to increase the rate limit."
         )
         raise PipelineSchemaError(
-            f"Rate-limited (429) fetching nextflow_schema.json for {url}@{version}. "
-            f"Retry-After: {retry_after}. {token_hint}"
+            f"Rate-limited (429) fetching nextflow_schema.json for {where}. Retry-After: {retry_after}. {token_hint}"
         )
     if response.status_code == 404:
         raise PipelineSchemaError(
-            f"nextflow_schema.json not found for {url}@{version}. "
-            "Ensure the pipeline includes a nextflow_schema.json at its root."
+            f"nextflow_schema.json not found for {where}. "
+            + (
+                f"With main_script, the schema must be next to it, in {folder}."
+                if folder
+                else "Ensure the pipeline includes a nextflow_schema.json at its root."
+            )
         )
     if response.status_code != 200:
-        raise PipelineSchemaError(
-            f"Unexpected HTTP {response.status_code} fetching nextflow_schema.json for {url}@{version}"
-        )
+        raise PipelineSchemaError(f"Unexpected HTTP {response.status_code} fetching nextflow_schema.json for {where}")
 
     try:
         data = response.json()
     except ValueError as e:
-        raise PipelineSchemaError(f"Failed to parse nextflow_schema.json for {url}@{version} as JSON: {e}") from e
+        raise PipelineSchemaError(f"Failed to parse nextflow_schema.json for {where} as JSON: {e}") from e
 
     schema = _parse_nextflow_schema(data)
-    write_schema_cache(url, version, schema)
+    write_schema_cache(url, version, schema, folder)
     return schema
 
 

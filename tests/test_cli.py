@@ -307,7 +307,9 @@ class TestRunInputs:
             "outdir": {"type": "string"},
             "genome": {"type": "string"},
         }
-        monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: schema)
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": schema
+        )
         path = _write(tmp_path, self.CONFIG)
         monkeypatch.chdir(tmp_path)
         return CliRunner().invoke(cli, ["run", "-r", "python", "--dry-run", *args, str(path)], input=stdin)

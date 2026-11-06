@@ -6,7 +6,7 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, ClassVar, Literal, TypeVar
 
 import yaml
@@ -237,6 +237,16 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
 # ---------------------------------------------------------------------------
 # NfPipeline — nextflow run
 # ---------------------------------------------------------------------------
+
+
+def script_folder(main_script: str | None) -> str:
+    """The folder of a pipeline's `main_script` within the pipeline (`""` for
+    its root). Nextflow treats that folder as the pipeline: its
+    `nextflow_schema.json` and `nextflow.config` apply, the root's don't."""
+    if not main_script:
+        return ""
+    folder = PurePosixPath(main_script).parent.as_posix()
+    return "" if folder == "." else folder
 
 
 class NfPipeline(BaseWorkflow):

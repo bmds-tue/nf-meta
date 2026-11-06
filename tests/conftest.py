@@ -107,7 +107,7 @@ def mock_nfcore(monkeypatch):
     )
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_pipeline_schema",
-        lambda url, version: FAKE_PIPELINE_SCHEMA,
+        lambda url, version, folder="": FAKE_PIPELINE_SCHEMA,
     )
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_module_schema",

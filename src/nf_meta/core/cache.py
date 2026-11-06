@@ -14,13 +14,13 @@ GLOBAL_CACHE_DIR: Path = Path(os.environ.get(_ENV_VAR) or Path.home() / ".cache"
 _SCHEMA_CACHE_FORMAT = 2
 
 
-def schema_cache_path(url: str, version: str) -> Path:
-    key = hashlib.sha256(f"v{_SCHEMA_CACHE_FORMAT}:{url}@{version}".encode()).hexdigest()[:16]
+def schema_cache_path(url: str, version: str, folder: str = "") -> Path:
+    key = hashlib.sha256(f"v{_SCHEMA_CACHE_FORMAT}:{url}@{version}/{folder}".encode()).hexdigest()[:16]
     return GLOBAL_CACHE_DIR / "schemas" / f"{key}.json"
 
 
-def read_schema_cache(url: str, version: str) -> dict | None:
-    path = schema_cache_path(url, version)
+def read_schema_cache(url: str, version: str, folder: str = "") -> dict | None:
+    path = schema_cache_path(url, version, folder)
     if not path.exists():
         return None
     try:
@@ -31,8 +31,8 @@ def read_schema_cache(url: str, version: str) -> dict | None:
         return None
 
 
-def write_schema_cache(url: str, version: str, schema: dict) -> None:
-    path = schema_cache_path(url, version)
+def write_schema_cache(url: str, version: str, schema: dict, folder: str = "") -> None:
+    path = schema_cache_path(url, version, folder)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:

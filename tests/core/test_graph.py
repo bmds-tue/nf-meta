@@ -261,7 +261,7 @@ class TestDynamicValidationOnMutation:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or {},
+            lambda url, version, folder="": calls.append("schema") or {},
         )
 
         updated = wf.model_copy(update={"description": "a new description"})
@@ -281,7 +281,7 @@ class TestDynamicValidationOnMutation:
         schema = {"foo": {"type": "string", "required": False, "enum": None}}
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or schema,
+            lambda url, version, folder="": calls.append("schema") or schema,
         )
 
         updated = wf.model_copy(update={"params": {"foo": "bar"}})
@@ -302,7 +302,7 @@ class TestDynamicValidationOnMutation:
         schema = {"x": {"type": "string", "required": False, "enum": None}}
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: checked_urls.append(url) or schema,
+            lambda url, version, folder="": checked_urls.append(url) or schema,
         )
 
         with empty_graph.deferred_validation():

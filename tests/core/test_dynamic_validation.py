@@ -127,7 +127,7 @@ class TestCheckPipelineParamsSchema:
     def test_schema_fetch_error_warns(self, wf_rnaseq, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("boom")),
+            lambda url, version, folder="": (_ for _ in ()).throw(PipelineSchemaError("boom")),
         )
         diagnostics = check_pipeline_params_schema(wf_rnaseq)
         assert len(diagnostics) == 1
@@ -137,7 +137,7 @@ class TestCheckPipelineParamsSchema:
     def test_valid_params_no_diagnostics(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: self.SCHEMA,
+            lambda url, version, folder="": self.SCHEMA,
         )
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "/data/x.csv"})
         assert check_pipeline_params_schema(wf) == []
@@ -145,7 +145,7 @@ class TestCheckPipelineParamsSchema:
     def test_required_param_missing_raises_error(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: self.SCHEMA,
+            lambda url, version, folder="": self.SCHEMA,
         )
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
         diagnostics = check_pipeline_params_schema(wf)
@@ -154,7 +154,7 @@ class TestCheckPipelineParamsSchema:
     def test_malformed_params_file_warns_and_skips_required(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: self.SCHEMA,
+            lambda url, version, folder="": self.SCHEMA,
         )
         pf = tmp_path / "params.yaml"
         pf.write_text("- not\n- a\n- mapping\n")
@@ -266,7 +266,7 @@ class TestRunDynamicChecks:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.__setitem__("schema", calls["schema"] + 1) or {},
+            lambda url, version, folder="": calls.__setitem__("schema", calls["schema"] + 1) or {},
         )
         run_dynamic_checks(wf_custom, previous=None)
         assert calls["url"] == 1
@@ -280,7 +280,7 @@ class TestRunDynamicChecks:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or {},
+            lambda url, version, folder="": calls.append("schema") or {},
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.github_file_exists",
@@ -301,7 +301,7 @@ class TestRunDynamicChecks:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or {},
+            lambda url, version, folder="": calls.append("schema") or {},
         )
         previous = wf_custom
         updated = wf_custom.model_copy(update={"params": {"foo": "bar"}})
@@ -326,7 +326,7 @@ class TestCheckAll:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: {},
+            lambda url, version, folder="": {},
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_module_schema",
@@ -349,7 +349,7 @@ class TestCheckAll:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: {},
+            lambda url, version, folder="": {},
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_module_schema",
@@ -427,7 +427,7 @@ def test_workflow_schema_is_none_when_unavailable(monkeypatch, wf_rnaseq):
 
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_pipeline_schema",
-        lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("down")),
+        lambda url, version, folder="": (_ for _ in ()).throw(PipelineSchemaError("down")),
     )
     assert workflow_schema(wf_rnaseq) is None
 
@@ -437,7 +437,7 @@ def test_workflow_schema_lets_bugs_through(monkeypatch, wf_rnaseq):
 
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_pipeline_schema",
-        lambda url, version: (_ for _ in ()).throw(TypeError("bug")),
+        lambda url, version, folder="": (_ for _ in ()).throw(TypeError("bug")),
     )
     with pytest.raises(TypeError):
         workflow_schema(wf_rnaseq)

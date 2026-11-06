@@ -429,3 +429,15 @@ class TestLocalPipeline:
         monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
         assert list(client.get("/api/pipelines/local/schema/", params={"path": "connector"}).json()) == ["outdir"]
         assert client.get("/api/pipelines/local/schema/", params={"path": "missing"}).status_code == 422
+
+    def test_the_local_schema_endpoint_reads_the_main_scripts_folder(
+        self, client, pipeline, tmp_path_factory, monkeypatch
+    ):
+        sub = pipeline / "sub"
+        sub.mkdir()
+        (sub / "run.nf").write_text("workflow { }\n")
+        schema = {"$defs": {"main": {"properties": {"sub_only": {"type": "string"}}}}}
+        (sub / "nextflow_schema.json").write_text(json.dumps(schema))
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+        params = {"path": "connector", "main_script": "sub/run.nf"}
+        assert list(client.get("/api/pipelines/local/schema/", params=params).json()) == ["sub_only"]

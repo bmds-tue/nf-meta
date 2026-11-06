@@ -27,7 +27,14 @@ from nf_meta.core.events import (
     UpdateGlobalOptions,
 )
 from nf_meta.core.inputs import Binding, InputDefinition
-from nf_meta.core.models import GlobalOptions, Transition, Workflow, config_path, with_absolute_config_paths
+from nf_meta.core.models import (
+    GlobalOptions,
+    Transition,
+    Workflow,
+    config_path,
+    script_folder,
+    with_absolute_config_paths,
+)
 from nf_meta.core.registry import (
     ModuleSchemaError,
     NotInRegistryError,
@@ -381,17 +388,18 @@ def get_nfcore_module_schema(name: str, version: str):
 
 
 @api_router.get("/pipelines/local/schema/")
-def get_local_schema(path: str):
+def get_local_schema(path: str, main_script: str | None = None):
     """The parsed param schema of the local pipeline folder `path` (relative
     to the config's folder), like `/nfcore/pipelines/schema/`."""
     try:
-        return get_local_pipeline_schema(config_path(path, SESSION.graph.project_dir))
+        folder = config_path(path, SESSION.graph.project_dir) / script_folder(main_script)
+        return get_local_pipeline_schema(folder)
     except PipelineSchemaError as exc:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 @api_router.get("/nfcore/pipelines/schema/")
-def get_nfcore_pipeline_schema(url: str, version: str):
+def get_nfcore_pipeline_schema(url: str, version: str, main_script: str | None = None):
     """Return the parsed param schema for the pipeline at ``url`` at ``version``.
 
     ``url`` must be a GitHub, GitLab, or Bitbucket repository URL.
@@ -399,7 +407,7 @@ def get_nfcore_pipeline_schema(url: str, version: str):
     ``enum``, ``pattern``, ``format``, ``default``, and ``hidden`` fields.
     """
     try:
-        return get_pipeline_schema(url, version)
+        return get_pipeline_schema(url, version, script_folder(main_script))
     except PipelineSchemaError as exc:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 

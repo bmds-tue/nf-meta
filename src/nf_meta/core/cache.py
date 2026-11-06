@@ -15,7 +15,8 @@ _SCHEMA_CACHE_FORMAT = 2
 
 
 def schema_cache_path(url: str, version: str, folder: str = "") -> Path:
-    key = hashlib.sha256(f"v{_SCHEMA_CACHE_FORMAT}:{url}@{version}/{folder}".encode()).hexdigest()[:16]
+    where = f"{url}@{version}" + (f"/{folder}" if folder else "")
+    key = hashlib.sha256(f"v{_SCHEMA_CACHE_FORMAT}:{where}".encode()).hexdigest()[:16]
     return GLOBAL_CACHE_DIR / "schemas" / f"{key}.json"
 
 

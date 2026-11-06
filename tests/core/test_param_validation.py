@@ -398,6 +398,15 @@ class TestGetPipelineSchema:
         url = "https://github.com/my-org/connectors"
         assert schema_cache_path(url, "1.0.0") != schema_cache_path(url, "1.0.0", "connectors/a2b")
 
+    def test_cache_key_without_folder_is_unchanged(self):
+        import hashlib
+
+        from nf_meta.core.cache import _SCHEMA_CACHE_FORMAT, schema_cache_path
+
+        url = "https://github.com/my-org/pipeline"
+        old_key = hashlib.sha256(f"v{_SCHEMA_CACHE_FORMAT}:{url}@1.0.0".encode()).hexdigest()[:16]
+        assert schema_cache_path(url, "1.0.0").stem == old_key
+
     def test_network_error_raises(self):
         import requests as req
 

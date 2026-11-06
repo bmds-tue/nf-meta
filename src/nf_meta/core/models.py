@@ -240,9 +240,8 @@ class BaseWorkflow(BaseModel, ABC, use_enum_values=True):
 
 
 def script_folder(main_script: str | None) -> str:
-    """The folder of a pipeline's `main_script` within the pipeline (`""` for
-    its root). Nextflow treats that folder as the pipeline: its
-    `nextflow_schema.json` and `nextflow.config` apply, the root's don't."""
+    """The folder of a pipeline's `main_script` within the pipeline, where its
+    `nextflow_schema.json` is (`""` for the root)."""
     if not main_script:
         return ""
     folder = PurePosixPath(main_script).parent.as_posix()

@@ -335,7 +335,7 @@ _PIPELINE_CHECKS: list[_CheckEntry] = [
     (
         "params_schema",
         check_pipeline_params_schema,
-        ("url", "version", "path", "params", "params_file"),
+        ("url", "version", "path", "main_script", "params", "params_file"),
     ),
 ]
 

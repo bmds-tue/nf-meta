@@ -293,6 +293,16 @@ class TestRunDynamicChecks:
         assert diagnostics == []
         assert calls == []
 
+    def test_changed_main_script_rechecks_params_in_its_folder(self, wf_custom, monkeypatch):
+        folders = []
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
+            lambda url, version, folder="": folders.append(folder) or {},
+        )
+        updated = wf_custom.model_copy(update={"main_script": "connectors/a2b/main.nf"})
+        run_dynamic_checks(updated, previous=wf_custom)
+        assert folders == ["connectors/a2b"]
+
     def test_changed_params_only_triggers_schema_check(self, wf_custom, monkeypatch):
         calls = []
         monkeypatch.setattr(

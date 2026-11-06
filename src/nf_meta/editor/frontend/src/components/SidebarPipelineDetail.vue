@@ -128,6 +128,7 @@ const { schema, loading: schemaLoading, error: schemaError } = useStepSchema(() 
   url: form.value.url || (form.value.is_nfcore && form.value.name ? `https://github.com/${form.value.name}` : undefined),
   version: form.value.version,
   path: form.value.path || undefined,
+  main_script: form.value.main_script || undefined,
 }))
 const boundParams = computed(() => Object.fromEntries(
   form.value.id

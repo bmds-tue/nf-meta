@@ -32,7 +32,7 @@ SCHEMA = {
 
 @pytest.fixture(autouse=True)
 def schema(monkeypatch):
-    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: SCHEMA)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": SCHEMA)
 
 
 @pytest.fixture

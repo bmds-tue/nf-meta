@@ -6,7 +6,7 @@ import type { StepSchema } from './types'
 const FETCH_PAUSE_MS = 400
 
 export type StepSchemaSource =
-  | { kind: 'pipeline', url?: string, version?: string, path?: string }
+  | { kind: 'pipeline', url?: string, version?: string, path?: string, main_script?: string }
   | { kind: 'module', name?: string, version?: string }
 
 /**
@@ -43,9 +43,9 @@ export function useStepSchema(source: () => StepSchemaSource): {
         timer = setTimeout(async () => {
             try {
                 const result = local
-                    ? await apiStore.getLocalPipelineSchema(local)
+                    ? await apiStore.getLocalPipelineSchema(local, s.kind === 'pipeline' ? s.main_script : undefined)
                     : s.kind === 'pipeline'
-                        ? await apiStore.getPipelineSchema(id!, s.version!)
+                        ? await apiStore.getPipelineSchema(id!, s.version!, s.main_script)
                         : await apiStore.getModuleSchema(id!, s.version!)
                 if (request !== latest) return
                 schema.value = result.ok ? result.data : null

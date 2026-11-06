@@ -372,6 +372,41 @@ class TestGetPipelineSchema:
         ):
             get_pipeline_schema("https://github.com/my-org/pipeline", "4.0.0")
 
+    def test_folder_is_part_of_the_raw_url(self):
+        mock_resp = self._mock_response(200, json_data=SAMPLE_SCHEMA_JSON)
+        with (
+            patch("nf_meta.core.registry.requests.get", return_value=mock_resp) as mock_get,
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            patch("nf_meta.core.cache.write_schema_cache"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/connectors", "1.0.0", "connectors/a2b")
+        assert mock_get.call_args.args[0] == (
+            "https://raw.githubusercontent.com/my-org/connectors/1.0.0/connectors/a2b/nextflow_schema.json"
+        )
+
+    def test_404_in_a_folder_names_it(self):
+        with (
+            patch("nf_meta.core.registry.requests.get", return_value=self._mock_response(404)),
+            patch("nf_meta.core.cache.read_schema_cache", return_value=None),
+            pytest.raises(PipelineSchemaError, match="next to it, in connectors/a2b"),
+        ):
+            get_pipeline_schema("https://github.com/my-org/connectors", "1.0.0", "connectors/a2b")
+
+    def test_cache_key_differs_per_folder(self):
+        from nf_meta.core.cache import schema_cache_path
+
+        url = "https://github.com/my-org/connectors"
+        assert schema_cache_path(url, "1.0.0") != schema_cache_path(url, "1.0.0", "connectors/a2b")
+
+    def test_cache_key_without_folder_is_unchanged(self):
+        import hashlib
+
+        from nf_meta.core.cache import _SCHEMA_CACHE_FORMAT, schema_cache_path
+
+        url = "https://github.com/my-org/pipeline"
+        old_key = hashlib.sha256(f"v{_SCHEMA_CACHE_FORMAT}:{url}@1.0.0".encode()).hexdigest()[:16]
+        assert schema_cache_path(url, "1.0.0").stem == old_key
+
     def test_network_error_raises(self):
         import requests as req
 
@@ -395,7 +430,7 @@ class TestNfPipelineParamValidation:
     def _pipeline_with_schema(self, monkeypatch, schema, **kwargs):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: schema,
+            lambda url, version, folder="": schema,
         )
         return NfPipeline(
             name="nf-core/rnaseq",
@@ -476,7 +511,7 @@ class TestNfPipelineParamValidation:
     def test_schema_error_warns_and_skips_validation(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("schema unavailable")),
+            lambda url, version, folder="": (_ for _ in ()).throw(PipelineSchemaError("schema unavailable")),
         )
         # Should not raise — schema unavailability is a warning, not a hard error
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0")

@@ -28,12 +28,12 @@ from .models import (
     NfPipeline,
     Workflow,
     config_path,
+    script_folder,
     with_absolute_config_paths,
 )
 from .nf_param_validation import validate_params
 from .registry import (
     ParamSpec,
-    PipelineSchemaError,
     RegistryError,
     RegistryUnavailableError,
     Schema,
@@ -184,8 +184,8 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
         return []
 
     try:
-        schema = get_local_pipeline_schema(wf.path) if wf.path else get_pipeline_schema(url, version)  # type: ignore[arg-type]
-    except PipelineSchemaError as e:
+        schema = get_step_schema(wf)
+    except SchemaUnavailableError as e:
         return [
             Diagnostic(
                 workflow_id=node_id,
@@ -335,7 +335,7 @@ _PIPELINE_CHECKS: list[_CheckEntry] = [
     (
         "params_schema",
         check_pipeline_params_schema,
-        ("url", "version", "path", "params", "params_file"),
+        ("url", "version", "path", "main_script", "params", "params_file"),
     ),
 ]
 
@@ -404,9 +404,9 @@ def _prefetch(workflows: list[Workflow]) -> None:
                     (wf.url, wf.main_script, wf.version),
                 )
             if wf.url and wf.name and wf.version:
-                tasks[("pipeline_schema", wf.url, wf.version)] = (
+                tasks[("pipeline_schema", wf.url, wf.version, script_folder(wf.main_script))] = (
                     get_pipeline_schema,
-                    (wf.url, wf.version),
+                    (wf.url, wf.version, script_folder(wf.main_script)),
                 )
         elif isinstance(wf, NfModule):
             short_name = wf.name.removeprefix("nf-core/")
@@ -474,8 +474,8 @@ def get_step_schema(step: Workflow) -> Schema:
     `SchemaUnavailableError` if it can't be fetched or parsed."""
     if isinstance(step, NfPipeline):
         if step.path:
-            return get_local_pipeline_schema(step.path)
-        return get_pipeline_schema(step.url, step.version)  # type: ignore[arg-type]
+            return get_local_pipeline_schema(Path(step.path) / script_folder(step.main_script))
+        return get_pipeline_schema(step.url, step.version, script_folder(step.main_script))  # type: ignore[arg-type]
     return get_module_schema(step.name, step.version)
 
 

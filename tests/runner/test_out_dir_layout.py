@@ -29,12 +29,12 @@ SCHEMA = {
 @pytest.fixture(autouse=True)
 def schema(monkeypatch):
     """A schema knowing every param used here, none of them declared as paths."""
-    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: SCHEMA)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": SCHEMA)
 
 
 def with_path_format(monkeypatch, param):
     schema = {**SCHEMA, param: {**SCHEMA[param], "format": "file-path"}}
-    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: schema)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": schema)
 
 
 @pytest.fixture

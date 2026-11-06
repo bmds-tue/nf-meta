@@ -7,6 +7,7 @@ from nf_meta.core.models import (
     GlobalOptions,
     NfPipeline,
     Transition,
+    script_folder,
 )
 
 # ---------------------------------------------------------------------------
@@ -234,3 +235,11 @@ class TestTransition:
 # and TestDynamicValidationOnLoad — MetaworkflowGraph's validated_graph/
 # dump_config/from_file/to_file are now the construction/serialization entry
 # points.
+
+
+@pytest.mark.parametrize(
+    ("main_script", "folder"),
+    [(None, ""), ("main.nf", ""), ("run.nf", ""), ("connectors/a2b/main.nf", "connectors/a2b")],
+)
+def test_script_folder(main_script, folder):
+    assert script_folder(main_script) == folder

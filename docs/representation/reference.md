@@ -60,7 +60,7 @@ For a `nextflow run` pipeline (the default `type`):
 | `description` | string | no | from the nf-core catalog | Free text. |
 | `params_file` | path to an existing `.yaml`/`.yml` file | no | none | Base params, merged under `params` (`params` wins on a key collision) and included in the params check. |
 | `nf_profile` | string | no | none | Overrides `globals.nf_profile` for this step. |
-| `main_script` | string | no | none | Another entry script of the pipeline (`-main-script`). Not for nf-core pipelines. |
+| `main_script` | string | no | none | Another entry script of the pipeline (`-main-script`), relative to its root. Nextflow then treats the script's folder as the pipeline: the params are checked against the `nextflow_schema.json` next to the script, and only that folder's `nextflow.config` is read, not the root's. See [Several pipelines in one repository](overview.md#several-pipelines-in-one-repository). Not for nf-core pipelines. |
 
 ### `nf-module` steps
 

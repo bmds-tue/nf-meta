@@ -400,3 +400,57 @@ def test_h16_abbreviated_commit_hashes(pipeline_repo, launch_dir, tmp_path):
     else:
         assert run.returncode != 0
         assert "available for fetch" in run.stdout + run.stderr
+
+
+# ---------------------------------------------------------------------------
+# H17: with -main-script, the script's folder is the pipeline (main_script steps
+# read their schema from there)
+# ---------------------------------------------------------------------------
+
+_REPORT = 'workflow { println "projectDir=${projectDir} root=${params.root} own=${params.own}" }\n'
+
+
+@pytest.fixture
+def connectors_repo(tmp_path):
+    """A repository with a connector in `connectors/a2b` and its own config,
+    next to a root config."""
+    work = tmp_path / "connectors_repo"
+    a2b = work / "connectors" / "a2b"
+    a2b.mkdir(parents=True)
+    (a2b / "main.nf").write_text(_REPORT)
+    (a2b / "nextflow.config").write_text('params.own = "a2b"\n')
+    (work / "nextflow.config").write_text('params.root = "yes"\n')
+    _git("init", "-q", "-b", "main", cwd=work)
+    _git("add", ".", cwd=work)
+    _git("commit", "-qm", "one", cwd=work)
+    _git("tag", "1.0.0", cwd=work)
+    bare = tmp_path / "connectors.git"
+    _git("clone", "-q", "--bare", str(work), str(bare), cwd=tmp_path)
+    return {"url": f"file://{bare}", "work": work}
+
+
+def test_h17_main_script_folder_is_the_pipeline(connectors_repo, launch_dir, tmp_path):
+    run = nextflow(
+        "run",
+        connectors_repo["url"],
+        "-r",
+        "1.0.0",
+        "-main-script",
+        "connectors/a2b/main.nf",
+        cwd=launch_dir,
+        nxf_home=tmp_path / "nxf_home",
+    )
+    assert re.search(r"projectDir=\S+/connectors/a2b root=null own=a2b", run.stdout), run.stdout
+
+
+def test_h17_a_local_script_file_runs_like_main_script(connectors_repo, launch_dir):
+    script = connectors_repo["work"] / "connectors" / "a2b" / "main.nf"
+    run = nextflow("run", str(script), cwd=launch_dir)
+    assert f"projectDir={script.parent} root=null own=a2b" in run.stdout
+
+
+def test_h17_a_local_folder_ignores_main_script(connectors_repo, launch_dir):
+    run = nextflow(
+        "run", str(connectors_repo["work"]), "-main-script", "connectors/a2b/main.nf", cwd=launch_dir, check=False
+    )
+    assert run.returncode != 0

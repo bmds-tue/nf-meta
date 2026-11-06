@@ -60,7 +60,7 @@ SCHEMA = {
 
 @pytest.fixture(autouse=True)
 def schema(monkeypatch):
-    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: SCHEMA)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": SCHEMA)
 
 
 def pipeline(wf_id="n01", **params):
@@ -315,7 +315,7 @@ class TestGraph:
     def test_implicit_input_problems_point_at_the_param(self, monkeypatch):
         from nf_meta.core.registry import PipelineSchemaError
 
-        def unavailable(url, version):
+        def unavailable(url, version, folder=""):
             raise PipelineSchemaError("offline")
 
         g = graph(pipeline("n01", input="${inputs:ids}", outdir="o"))

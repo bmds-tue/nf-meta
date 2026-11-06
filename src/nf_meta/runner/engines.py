@@ -99,8 +99,8 @@ def engine_for(workflow_type: WorkflowType) -> Engine:
 
 
 class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
-    """`nextflow run <url> -r <version>`, or `nextflow run <folder>` for a
-    local pipeline (`path`, absolute by then)."""
+    """`nextflow run <url> -r <version>`, or `nextflow run <folder>` (or
+    `<folder>/<main_script>`) for a local pipeline (`path`, absolute by then)."""
 
     def build(self, spec: StepSpec) -> StepCommand:
         wf = cast(NfPipeline, spec.workflow)
@@ -115,13 +115,15 @@ class NextflowPipelineEngine(Engine, workflow_type=WorkflowType.NF_PIPELINE):
             argv += ["-profile", ",".join(spec.profiles)]
         if params_file:
             argv += ["-params-file", str(params_file)]
-        if wf.main_script:
-            argv += ["-main-script", wf.main_script]
         if wf.path:
-            argv += [wf.path]
+            # Nextflow rejects -main-script with a local folder ("Cannot find script
+            # file"), so a local pipeline runs its script file directly.
+            argv += [str(Path(wf.path) / wf.main_script) if wf.main_script else wf.path]
         elif not wf.url or not wf.version:
             raise NfMetaRunnerError(f"Step '{wf.id}' has no URL and version to run.")
         else:
+            if wf.main_script:
+                argv += ["-main-script", wf.main_script]
             # No -latest: versions are pinned tags/commits, which Nextflow fetches
             # when missing; -latest's pull fails for commits checked out detached.
             argv += [wf.url, "-r", wf.version]

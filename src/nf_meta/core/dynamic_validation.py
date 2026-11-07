@@ -12,6 +12,7 @@ preserved exactly as it was in the original Pydantic validators in
 
 import contextlib
 import dataclasses
+import functools
 import logging
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -171,8 +172,9 @@ def check_pipeline_main_script_exists(wf: NfPipeline) -> list[Diagnostic]:
     ]
 
 
-def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
-    """From NfPipeline.validate_params_against_schema, verbatim branch-by-branch."""
+def check_pipeline_params_schema(wf: NfPipeline, global_params: dict | None = None) -> list[Diagnostic]:
+    """Check `wf`'s params (over its `params_file` and the `global_params` its
+    schema knows) against its pipeline's schema."""
     url = wf.url
     version = wf.version
     node_id = wf.id
@@ -233,6 +235,7 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
             )
             skip_required = True
 
+    merged.update(_known_global_params(global_params, schema))
     merged.update(value or {})
 
     diagnostics.extend(
@@ -281,8 +284,9 @@ def check_module_version_in_registry(wf: NfModule) -> list[Diagnostic]:
     return []
 
 
-def check_module_params_schema(wf: NfModule) -> list[Diagnostic]:
-    """From NfModule.validate_params_against_schema."""
+def check_module_params_schema(wf: NfModule, global_params: dict | None = None) -> list[Diagnostic]:
+    """Check `wf`'s params (over the `global_params` its schema knows) against
+    its module's schema."""
     name = wf.name
     version = wf.version
     node_id = wf.id
@@ -305,11 +309,17 @@ def check_module_params_schema(wf: NfModule) -> list[Diagnostic]:
         return []
 
     return validate_params(
-        wf.params or {},
+        {**_known_global_params(global_params, schema), **(wf.params or {})},
         schema,
         pipeline_id=node_id,
         skip_required=False,
     )
+
+
+def _known_global_params(global_params: dict | None, schema: Schema) -> dict:
+    """The entries of `global_params` that `schema` declares (the others are
+    meant for other steps)."""
+    return {k: v for k, v in (global_params or {}).items() if k in schema}
 
 
 # ---------------------------------------------------------------------------
@@ -352,8 +362,11 @@ def _fields_changed(wf: Workflow, previous: Workflow | None, fields: tuple[str, 
     return any(getattr(wf, f, None) != getattr(previous, f, None) for f in fields)
 
 
-def run_dynamic_checks(wf: Workflow, previous: Workflow | None = None) -> list[Diagnostic]:
-    """Run the checks applicable to wf's type.
+def run_dynamic_checks(
+    wf: Workflow, previous: Workflow | None = None, global_params: dict | None = None
+) -> list[Diagnostic]:
+    """Run the checks applicable to wf's type. `global_params` (from
+    `globals.params`) count in the params checks.
 
     previous=None: run all checks unconditionally (fresh/CLI load path).
     previous=<Workflow>: only run a check if its trigger fields differ from
@@ -366,7 +379,11 @@ def run_dynamic_checks(wf: Workflow, previous: Workflow | None = None) -> list[D
     else:
         return []
 
-    to_run = [(name, fn) for name, fn, fields in checks if _fields_changed(wf, previous, fields)]
+    to_run = [
+        (name, functools.partial(fn, global_params=global_params) if name == "params_schema" else fn)
+        for name, fn, fields in checks
+        if _fields_changed(wf, previous, fields)
+    ]
     if not to_run:
         return []
 
@@ -435,7 +452,7 @@ def _prefetch(workflows: list[Workflow]) -> None:
             future.result()
 
 
-def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
+def check_all(workflows: Iterable[Workflow], global_params: dict | None = None) -> list[Diagnostic]:
     """Full, non-diffed run across all workflows — used by the CLI/batch load path.
 
     Always called against a whole config (never an isolated snippet — see
@@ -451,7 +468,7 @@ def check_all(workflows: Iterable[Workflow]) -> list[Diagnostic]:
 
     diagnostics: list[Diagnostic] = []
     with ThreadPoolExecutor(max_workers=len(workflows)) as executor:
-        futures = [(wf, executor.submit(run_dynamic_checks, wf)) for wf in workflows]
+        futures = [(wf, executor.submit(run_dynamic_checks, wf, None, global_params)) for wf in workflows]
         for wf, future in futures:
             diagnostics.extend(dataclasses.replace(d, yaml_path=f"steps.{wf.id}.{d.field}") for d in future.result())
     return diagnostics

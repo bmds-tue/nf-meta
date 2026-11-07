@@ -592,7 +592,11 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     input_diagnostics = g.input_diagnostics()
     if inputs or any(input_refs(wf.params) for wf in constructed):  # also implicit inputs
         input_diagnostics += g.effective_inputs()[1]
-    tier2_diagnostics = check_all([g.for_checks(wf) for wf in constructed])
+    raw_globals = data.get("globals")
+    global_params = raw_globals.get("params") if isinstance(raw_globals, dict) else None
+    tier2_diagnostics = check_all(
+        [g.for_checks(wf) for wf in constructed], global_params if isinstance(global_params, dict) else None
+    )
     for found in (input_diagnostics, tier2_diagnostics):
         diagnostics.extend(d for d in found if d.severity == Severity.ERROR)
         warnings.extend(d for d in found if d.severity == Severity.WARNING)

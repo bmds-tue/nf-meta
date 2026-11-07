@@ -187,6 +187,17 @@ class TestGlobalOptions:
         g = GlobalOptions()
         assert g.nf_profile is None
 
+    def test_nextflow_version_that_lost_its_trailing_zero(self):
+        with pytest.raises(ValidationError, match="in quotes, e.g. '26.10'"):
+            GlobalOptions(nextflow_version=26.1)
+
+    def test_nextflow_version_boolean(self):
+        with pytest.raises(ValidationError, match="must be a version"):
+            GlobalOptions(nextflow_version=True)
+
+    def test_nextflow_version_number_with_two_digits(self):
+        assert GlobalOptions(nextflow_version=25.04).nextflow_version_tuple[:2] == (25, 4)
+
     def test_nextflow_version_full_string(self):
         g = GlobalOptions(nextflow_version="25.10.4")
         assert g.nextflow_version_tuple == (25, 10, 4, 0)

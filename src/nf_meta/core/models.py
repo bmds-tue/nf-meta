@@ -498,6 +498,13 @@ class GlobalOptions(BaseModel):
         if v is None:
             return v
 
+        if isinstance(v, bool):
+            raise ValueError(f"nextflow_version must be a version such as '25.10', got {v!r}.")
+        if isinstance(v, float) and len(str(v).split(".")[1]) == 1:
+            # YAML read an unquoted 25.10 as the number 25.1
+            raise ValueError(
+                f"Write nextflow_version in quotes, e.g. '{v}0': unquoted, YAML reads it as the number {v}."
+            )
         if isinstance(v, (int, float)):
             return str(v)
 

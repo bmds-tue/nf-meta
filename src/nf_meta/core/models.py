@@ -251,7 +251,7 @@ def script_folder(main_script: str | None) -> str:
 class NfPipeline(BaseWorkflow):
     """A Nextflow pipeline step executed with 'nextflow run'."""
 
-    type: Literal[WorkflowType.NF_PIPELINE] = WorkflowType.NF_PIPELINE
+    type: Literal[WorkflowType.NF_PIPELINE] = Field(default=WorkflowType.NF_PIPELINE, validate_default=True)
     # None only for a local pipeline (`path`)
     version: str | None = None  # type: ignore[assignment]
     # A local pipeline folder, for development: used instead of `url` and `version`
@@ -429,7 +429,7 @@ class NfPipeline(BaseWorkflow):
 class NfModule(BaseWorkflow):
     """A Nextflow module step executed with 'nextflow module run'."""
 
-    type: Literal[WorkflowType.NF_MODULE] = WorkflowType.NF_MODULE
+    type: Literal[WorkflowType.NF_MODULE] = Field(default=WorkflowType.NF_MODULE, validate_default=True)
     container_engine: Literal["docker", "singularity", "conda", "podman"] | None = None
 
     # `nextflow module` exists from this Nextflow version (major, minor) on

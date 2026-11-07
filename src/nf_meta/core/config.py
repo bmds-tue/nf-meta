@@ -771,6 +771,7 @@ def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
     lists in flow style, `[n01, n02]`), prefixed with a
     `# yaml-language-server: $schema=...` comment pointing at the published
     JSON Schema for editor autocompletion. Overwrites `file` if it exists."""
+    text = yaml.dump(dump_config(g), Dumper=_ConfigDumper, sort_keys=False)
     with open(file, "w") as fh:
         fh.write(f"# yaml-language-server: $schema={SCHEMA_URL}\n")
-        yaml.dump(dump_config(g), fh, Dumper=_ConfigDumper, sort_keys=False)
+        fh.write(text)

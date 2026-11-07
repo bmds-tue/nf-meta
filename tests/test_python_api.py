@@ -9,6 +9,7 @@ from nf_meta import (
     InputDefinition,
     Metapipeline,
     NfMetaRunnerError,
+    NfModule,
     NfPipeline,
     Ref,
     run_step,
@@ -191,6 +192,28 @@ class TestLoadSave:
 
         loaded.save()
         assert path.read_text() != before
+
+    def test_a_module_step_round_trips(self, tmp_path):
+        mp = Metapipeline(project_dir=tmp_path)
+        module = mp.add(NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a"))
+        path = tmp_path / "metaconfig.yaml"
+        mp.save(path)
+        assert yaml.safe_load(path.read_text())["steps"][module.id]["type"] == "nf-module"
+        assert Metapipeline.load(path).steps[0].name == "nf-core/fastqc"
+
+    def test_a_failed_save_keeps_the_old_file(self, two_steps, tmp_path, monkeypatch):
+        mp, _, _ = two_steps
+        path = tmp_path / "metaconfig.yaml"
+        mp.save(path)
+        before = path.read_text()
+
+        def broken(_):
+            raise RuntimeError("dump failed")
+
+        monkeypatch.setattr("nf_meta.core.config.dump_config", broken)
+        with pytest.raises(RuntimeError):
+            mp.save(path)
+        assert path.read_text() == before
 
     def test_save_without_a_path_raises(self, tmp_path):
         with pytest.raises(ValueError):

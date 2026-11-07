@@ -270,6 +270,21 @@ class TestInputFilesInStepKey:
         os.utime(project / "ids.csv", ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
         assert self._keys(path)["n01"] != before["n01"]
 
+    def test_a_file_named_in_global_params_counts(self, project, monkeypatch):
+        with_path_format(monkeypatch, "contrasts")
+        steps = two_steps()
+        del steps["n02"]["params"]["contrasts"]
+        path = write_config(project, steps, {"params": {"contrasts": "contrasts.csv"}})
+        before = self._keys(path)
+        (project / "contrasts.csv").write_text("id\nA\n")
+        assert self._keys(path)["n02"] != before["n02"]
+
+    def test_a_steps_nf_profile_counts(self, project):
+        before = self._keys(write_config(project, two_steps()))
+        steps = two_steps()
+        steps["n01"]["nf_profile"] = "docker"
+        assert self._keys(write_config(project, steps))["n01"] != before["n01"]
+
     def test_unchanged_files_keep_the_key(self, project):
         path = write_config(project, two_steps())
         assert self._keys(path) == self._keys(path)

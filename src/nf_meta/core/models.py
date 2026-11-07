@@ -382,6 +382,8 @@ class NfPipeline(BaseWorkflow):
         data += self.params_file or ""
         data += json.dumps(self.params, sort_keys=True, default=str)
         data += self.main_script or ""
+        if self.nf_profile:  # only when set, so other steps keep their keys
+            data += f"\nnf_profile: {self.nf_profile}"
         return hashlib.sha256(data.encode()).hexdigest()[:8]
 
     def model_dump_config(self) -> dict:

@@ -279,7 +279,10 @@ class SimplePythonRunner(BaseRunner):
 
             # Before references are resolved: other steps' outputs are covered by
             # their step keys, and may not exist yet
-            input_files = input_fingerprints(wf.params or {})
+            global_params = (global_options.params if global_options else None) or {}
+            if project_dir is not None and global_params:
+                global_params = absolutize_input_paths(global_params, project_dir, schema)
+            input_files = input_fingerprints({**global_params, **(wf.params or {})})
             wf_resolved = resolve_references(wf, graph, resolved=resolved)
             resolved[wf.id] = wf_resolved.params or {}
 

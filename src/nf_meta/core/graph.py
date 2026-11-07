@@ -6,7 +6,14 @@ from pathlib import Path
 import networkx as nx
 from packaging.version import Version
 
-from .dynamic_validation import check_all, check_config_files, check_inputs, log_warnings, run_dynamic_checks
+from .dynamic_validation import (
+    check_all,
+    check_config_files,
+    check_inputs,
+    checks_to_run,
+    log_warnings,
+    run_dynamic_checks,
+)
 from .errors import (
     ConfigValidationError,
     Diagnostic,
@@ -69,6 +76,10 @@ class MetaworkflowGraph:
         self.inputs: dict[str, InputDefinition] = {}
         # Warnings found when the graph was loaded with collect_errors=True
         self.warnings: list[Diagnostic] = []
+        # Of those, the ones about the file's old forms (key names, layout)
+        self.format_warnings: list[Diagnostic] = []
+        # Each step's dynamic check warnings, kept current as steps change
+        self.step_warnings: dict[str, list[Diagnostic]] = {}
         self._events: list[Event] = []
         # None = not suspended. A set = suspended, accumulating the ids of
         # workflows touched while suspended, so deferred_validation's exit
@@ -108,6 +119,7 @@ class MetaworkflowGraph:
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
             log_warnings(diagnostics)
+            self.set_step_warnings(diagnostics, [wf.id])
 
         self.G.add_node(wf.id, workflow=wf.model_copy(deep=True))
 
@@ -138,13 +150,14 @@ class MetaworkflowGraph:
             self._validation_suspended.add(wf.id)
         else:
             self.validate_module_nextflow_version(self.global_options, [wf])
-            diagnostics = run_dynamic_checks(
-                self.for_checks(wf),
-                previous=self.for_checks(old_wf),  # type: ignore[arg-type]
-            )
+            previous = self.for_checks(old_wf)  # type: ignore[arg-type]
+            diagnostics = run_dynamic_checks(self.for_checks(wf), previous=previous)
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
             log_warnings(diagnostics)
+            rerun = checks_to_run(self.for_checks(wf), previous)
+            kept = [d for d in self.step_warnings.get(wf.id, []) if d.check not in rerun]
+            new_warnings = kept + [d for d in diagnostics if d.severity == Severity.WARNING]
             if wf.params:
                 self.validate_param_references(wf)
 
@@ -155,6 +168,7 @@ class MetaworkflowGraph:
             except ConfigValidationError:
                 self.G.nodes[wf.id]["workflow"] = old_wf
                 raise
+            self.step_warnings[wf.id] = new_warnings
         if input_refs(wf.params):
             self._ensure_inputs_config_version()
         self._emit(WorkflowUpdated(old_workflow=old_wf, new_workflow=wf))  # type: ignore
@@ -168,6 +182,7 @@ class MetaworkflowGraph:
         """
         if wf_id not in self.G.nodes:
             raise ValueError("Invalid wf_id")
+        self.step_warnings.pop(wf_id, None)
 
         for edge in list(self.G.in_edges(wf_id)):
             self.remove_transition(*edge)
@@ -633,7 +648,10 @@ class MetaworkflowGraph:
             # Non-existent workflow-ids are ignored here
             raw = [self.get_workflow_by_id(n) for n in touched if n in self.G.nodes]
             workflows = [self.for_checks(wf) for wf in raw if wf is not None]
-            diagnostics += check_all(workflows)
+            found = check_all(workflows)
+            diagnostics += found
+            if not any(d.severity == Severity.ERROR for d in found):
+                self.set_step_warnings(found, [wf.id for wf in workflows])
         if any(d.severity == Severity.ERROR for d in diagnostics):
             raise ConfigValidationError([d for d in diagnostics if d.severity == Severity.ERROR])
         log_warnings([d for d in diagnostics if d.severity == Severity.WARNING])
@@ -641,6 +659,14 @@ class MetaworkflowGraph:
     # ===========================
     #        UTILITIES
     # ===========================
+    def set_step_warnings(self, diagnostics: list[Diagnostic], step_ids: list[str]) -> None:
+        """Replace the dynamic check warnings of `step_ids` with the warnings
+        among `diagnostics` (all checks of those steps)."""
+        for step_id in step_ids:
+            self.step_warnings[step_id] = [
+                d for d in diagnostics if d.severity == Severity.WARNING and d.workflow_id == step_id
+            ]
+
     def get_workflow_by_id(self, wf_id: str) -> Workflow | None:
         """Return the workflow with this id, or `None` if it doesn't exist."""
         try:

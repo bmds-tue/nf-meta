@@ -27,8 +27,8 @@ class EditorSession:
         self.write_on_change = write_on_change
         self.graph = MetaworkflowGraph()
         self.history = History()
-        # Warnings found when the config was loaded
-        self.warnings: list[Diagnostic] = []
+        # Warnings about the loaded file's old forms, until the session writes it
+        self.format_warnings: list[Diagnostic] = []
 
     def load_config(self, config: Path | str):
         self.start(config)
@@ -42,7 +42,7 @@ class EditorSession:
         graph = from_file(config_file, collect_errors=True) if config_file else MetaworkflowGraph()
         self.config_file = config_file
         self.graph = graph
-        self.warnings = self.graph.warnings
+        self.format_warnings = self.graph.format_warnings
         self.history = History()
 
     def execute(self, c: Command):
@@ -115,6 +115,7 @@ class EditorSession:
 
         path = Path(target).expanduser()
         to_file(self.graph, path)
+        self.format_warnings = []
         self.config_file = path
         # relative paths in the config are relative to its folder
         self.graph.project_dir = path.resolve().parent

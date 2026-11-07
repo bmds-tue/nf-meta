@@ -28,6 +28,7 @@ const isHovered = computed(() =>
     editorStore.hoveredNodeId === props.id || inputFillsStep(hoveredInput.value, props.id)
 )
 const filledBy = computed(() => inputsOfStep(graphStore.inputs, props.id))
+const warnings = computed(() => graphStore.warningsOf(props.id))
 
 async function copyToClipboard() {
     try {
@@ -85,6 +86,15 @@ async function copyToClipboard() {
                 @click.stop="editorStore.showInputs(filledBy.map(f => f.input.name))"
                 @dblclick.stop>
                 {{ filledBy.length }}
+            </v-chip>
+            <v-chip
+                v-if="warnings.length"
+                color="warning"
+                size="small"
+                class="ml-1"
+                prepend-icon="mdi-alert-outline"
+                :title="warnings.map(w => w.message).join('\n')">
+                {{ warnings.length }}
             </v-chip>
         </div>
         <div class="d-flex flex-row align-center">

@@ -352,33 +352,42 @@ def _fields_changed(wf: Workflow, previous: Workflow | None, fields: tuple[str, 
     return any(getattr(wf, f, None) != getattr(previous, f, None) for f in fields)
 
 
-def run_dynamic_checks(wf: Workflow, previous: Workflow | None = None) -> list[Diagnostic]:
-    """Run the checks applicable to wf's type.
-
-    previous=None: run all checks unconditionally (fresh/CLI load path).
-    previous=<Workflow>: only run a check if its trigger fields differ from
-    previous — this is the skip-if-unchanged fast path used by the editor.
-    """
+def _checks_to_run(wf: Workflow, previous: Workflow | None) -> list[tuple[str, Callable]]:
     if isinstance(wf, NfPipeline):
         checks = _PIPELINE_CHECKS
     elif isinstance(wf, NfModule):
         checks = _MODULE_CHECKS
     else:
         return []
+    return [(name, fn) for name, fn, fields in checks if _fields_changed(wf, previous, fields)]
 
-    to_run = [(name, fn) for name, fn, fields in checks if _fields_changed(wf, previous, fields)]
+
+def checks_to_run(wf: Workflow, previous: Workflow | None = None) -> set[str]:
+    """The names of the checks `run_dynamic_checks(wf, previous)` runs."""
+    return {name for name, _ in _checks_to_run(wf, previous)}
+
+
+def run_dynamic_checks(wf: Workflow, previous: Workflow | None = None) -> list[Diagnostic]:
+    """Run the checks applicable to wf's type. Each diagnostic names its check
+    in `check`.
+
+    previous=None: run all checks unconditionally (fresh/CLI load path).
+    previous=<Workflow>: only run a check if its trigger fields differ from
+    previous — this is the skip-if-unchanged fast path used by the editor.
+    """
+    to_run = _checks_to_run(wf, previous)
     if not to_run:
         return []
 
     if len(to_run) == 1:
-        _, fn = to_run[0]
-        return fn(wf)
+        name, fn = to_run[0]
+        return [dataclasses.replace(d, check=name) for d in fn(wf)]
 
     diagnostics: list[Diagnostic] = []
     with ThreadPoolExecutor(max_workers=len(to_run)) as executor:
-        futures = [executor.submit(fn, wf) for _, fn in to_run]
-        for future in futures:
-            diagnostics.extend(future.result())
+        futures = [(name, executor.submit(fn, wf)) for name, fn in to_run]
+        for name, future in futures:
+            diagnostics.extend(dataclasses.replace(d, check=name) for d in future.result())
     return diagnostics
 
 

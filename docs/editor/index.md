@@ -61,6 +61,11 @@ or module (nf-core names and versions are completed from the nf-core catalog), a
 
 Problems show at the field they belong to; a change the checks refuse is not saved.
 
+Warnings don't block a change: an old key name, two steps sharing an outdir, a local pipeline, a
+repository that couldn't be checked. Each step's warnings show as a yellow count on its node, and
+the yellow button in the toolbar lists all warnings about the config. Warnings about old key
+names go away once the editor has saved the file in the current form.
+
 **Inputs.** Lists all run-time inputs of the metapipeline, with the params they fill. Hovering an input
 highlights its steps on the graph. An input's form sets its description, default and rules
 (type, format, allowed values, …), and the step params it fills: "Add step param" picks the step,
@@ -70,7 +75,7 @@ inputs in the steps' params or all in the `inputs:` section.
 ![The Inputs tab](editor-inputs-light.png#only-light)
 ![The Inputs tab](editor-inputs.png#only-dark)
 
-**Globals.** Settings for every step: Nextflow version, profile and config, and shared params.
+**Globals.** Settings for every step: Nextflow version, profile and config, and shared params (deprecated, see the [config reference](../representation/reference.md)).
 
 Fields that take a path (a step's params file and Nextflow config, the global Nextflow config,
 params and input defaults with a path format) have a folder button that browses the machine

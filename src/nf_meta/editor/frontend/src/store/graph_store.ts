@@ -4,7 +4,7 @@ import type { Node, Edge } from '@vue-flow/core'
 import { MarkerType } from '@vue-flow/core'
 import type {
     ApiResult, APINodeData, APIEdgeData, APICommandResponse,
-    APIGlobalOptions, APIInput, APIInputSave, Selection,
+    APIGlobalOptions, APIInput, APIInputSave, APIWarning, Selection,
 } from '../types'
 import { useLayout } from '../layout_graph'
 import { useMessageStore, useActivityStore, useEditorStore } from './ui_store'
@@ -82,6 +82,12 @@ export const useGraphStore = defineStore('graph', () => {
         document.title = _filename.value ? `nf-meta - ${_filename.value}` : 'nf-meta'
     })
 
+    const _warnings = ref<APIWarning[]>([])
+    const warnings = computed(() => _warnings.value)
+    function warningsOf(nodeId: string): APIWarning[] {
+        return _warnings.value.filter(w => w.workflow_id === nodeId)
+    }
+
     const _undoable = ref<boolean>(false)
     const undoable = computed(() => _undoable.value)
     const _redoable = ref<boolean>(false)
@@ -146,6 +152,7 @@ export const useGraphStore = defineStore('graph', () => {
             _edgeData.value = []
             _nodeData.value = []
             _inputs.value = []
+            _warnings.value = []
             return false
         } else {
             _edgeData.value = response.data.transitions
@@ -157,6 +164,7 @@ export const useGraphStore = defineStore('graph', () => {
             _filename.value = response.data.filename
             globalOptions.value = response.data.globals ?? { params: null, nf_config: null, nf_profile: null }
             _inputs.value = response.data.inputs ?? []
+            _warnings.value = response.data.warnings ?? []
             return response.data.start_screen ?? false
         }
     }
@@ -318,7 +326,7 @@ export const useGraphStore = defineStore('graph', () => {
     return {
         nodes, nodeData, edges, globalOptions, inputs, filename,
         isHorizontalLayout, layoutDirection, switchLayout,
-        undoable, redoable,
+        undoable, redoable, warnings, warningsOf,
         getAndUpdateGraph, ensureConfigFile,
         saveNode, saveEdge, updateGlobalOptions, saveInput, removeInput, declareStepInputs, setInputsStyle,
         showInputsNode, toggleInputsNode,

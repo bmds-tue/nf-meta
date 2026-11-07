@@ -247,6 +247,27 @@ class TestRun:
         mp.run(out_dir=tmp_path / "out", start=fetch, target=fetch)
         assert executed == [fetch.id]
 
+    def test_resume_reruns_a_step_whose_outdir_another_run_overwrote(self, tmp_path, monkeypatch, mock_nextflow):
+        executed: list[str] = []
+
+        def execute(self, spec, command):
+            executed.append(spec.params["count"])
+            spec.state_dir.mkdir(parents=True, exist_ok=True)
+            (spec.state_dir / SimplePythonRunner.OUT_FILE).write_text("done")
+            return True
+
+        monkeypatch.setattr(SimplePythonRunner, "_execute", execute)
+        monkeypatch.setattr(SimplePythonRunner, "_check_nextflow", lambda self, graph, steps: None)
+        mp = Metapipeline(project_dir=tmp_path)
+        step = mp.add(rnaseq(count=1))
+        for count in (1, 2, 1):
+            step.params["count"] = count
+            mp.update(step)
+            mp.run(out_dir=tmp_path / "out", resume=True)
+        assert executed == [1, 2, 1]
+        mp.run(out_dir=tmp_path / "out", resume=True)
+        assert executed == [1, 2, 1]
+
     def test_plan_runs_nothing(self, two_steps, fake_execute, tmp_path):
         mp, fetch, rna = two_steps
         executed, _ = fake_execute

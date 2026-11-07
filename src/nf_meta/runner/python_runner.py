@@ -89,6 +89,15 @@ class SimplePythonRunner(BaseRunner):
     def _state_dir(self, wf: Workflow, step_key: str) -> Path:
         return self.state_root / "steps" / f"{wf.id}_{step_key}"
 
+    def _current_key_file(self, wf: Workflow) -> Path:
+        return self.state_root / "current" / wf.id
+
+    def _last_run_was(self, wf: Workflow, state_dir: Path) -> bool:
+        """Whether the step's last run used `state_dir` (also when nf-meta didn't
+        record it yet)."""
+        current = self._current_key_file(wf)
+        return not current.exists() or current.read_text().strip() == state_dir.name
+
     def _nextflow_cache_dir(self, wf: Workflow) -> Path:
         return self.state_root / "nextflow" / wf.id
 
@@ -313,7 +322,9 @@ class SimplePythonRunner(BaseRunner):
                     resolved_params=wf_resolved.params or {},
                     spec=spec,
                     command=engine_for(spec.workflow_type).build(spec),
-                    skip=resume and self._check_run_success(run_dir=state_dir),
+                    # The step's outdir holds the last run's results, so an older
+                    # success with this key counts only if no other key ran since.
+                    skip=resume and self._check_run_success(run_dir=state_dir) and self._last_run_was(wf, state_dir),
                 )
             )
         return RunPlan(
@@ -433,6 +444,10 @@ class SimplePythonRunner(BaseRunner):
         for i, step in enumerate(steps):
             step_label = f"Step {i + 1}/{len(steps)} - {step.workflow.name}"
             self._write_resolved_params(step.workflow, step.resolved_params)
+
+            current = self._current_key_file(step.workflow)
+            current.parent.mkdir(parents=True, exist_ok=True)
+            current.write_text(step.spec.state_dir.name)
 
             if step.skip:
                 logger.info(f"{step_label}: Skipping (already succeeded)")

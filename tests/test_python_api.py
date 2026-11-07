@@ -156,6 +156,15 @@ def test_adding_the_same_step_twice_raises(tmp_path):
     assert [s.id for s in mp.steps] == [step.id]
 
 
+def test_update_validates_a_changed_step(tmp_path):
+    mp = Metapipeline(project_dir=tmp_path)
+    step = mp.add(fetchngs())
+    step.version = "main"
+    with pytest.raises(ValueError):
+        mp.update(step)
+    assert mp.steps[0].version == "1.12.0"
+
+
 class TestHistory:
     def test_undo_and_redo(self, two_steps):
         mp, _, rna = two_steps

@@ -421,14 +421,15 @@ def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
     using the GitHub Contents API. Raises `RegistryUnavailableError` if
     GitHub can't be reached or rate-limits the request.
     """
-    after_host = repo_url.rstrip("/").split("github.com/", 1)[-1]
-    parts = after_host.split("/")
-    if len(parts) < 2:
+    try:
+        host, owner, repo = _parse_repo_url(repo_url)
+    except PipelineSchemaError:
         return False
-    owner, repo = parts[0], parts[1]
+    if host != "github.com":
+        return False
     api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path.lstrip('/')}?ref={ref}"
-
-    return _fetch_json(api_url, f"GitHub file {path}@{ref}", headers=_GITHUB_API_HEADERS) is not None
+    headers = {**_GITHUB_API_HEADERS, **_get_auth_headers(host)}
+    return _fetch_json(api_url, f"GitHub file {path}@{ref}", headers=headers) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -442,7 +443,7 @@ class PipelineSchemaError(SchemaUnavailableError):
 
 _REPO_URL_PATTERN = re.compile(
     r"https?://(?P<host>(?:github\.com|gitlab\.com|bitbucket\.org))"
-    r"/(?P<owner>[^/]+)/(?P<repo>[^/?.#]+)"
+    r"/(?P<owner>[^/]+)/(?P<repo>[^/?#]+)"
 )
 
 

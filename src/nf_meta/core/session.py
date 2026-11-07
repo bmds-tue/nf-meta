@@ -88,14 +88,14 @@ class EditorSession:
         """`undo`, with errors raised as `SessionCommandError`."""
         try:
             return self.undo()
-        except ValueError as e:
+        except (GraphValidationError, ValueError, ConfigValidationError) as e:
             raise SessionCommandError.from_exception(e) from e
 
     def handle_redo(self):
         """`redo`, with errors raised as `SessionCommandError`."""
         try:
             return self.redo()
-        except ValueError as e:
+        except (GraphValidationError, ValueError, ConfigValidationError) as e:
             raise SessionCommandError.from_exception(e) from e
 
     def _check_writable(self):
@@ -113,10 +113,11 @@ class EditorSession:
         if is_remote_config(target):
             raise RemoteConfigWriteError(f"Can't write to a URL ({target}); save to a local file")
 
-        self.config_file = target
+        path = Path(target).expanduser()
+        to_file(self.graph, path)
+        self.config_file = path
         # relative paths in the config are relative to its folder
-        self.graph.project_dir = Path(target).expanduser().resolve().parent
-        to_file(self.graph, target)
+        self.graph.project_dir = path.resolve().parent
 
 
 SESSION = EditorSession()

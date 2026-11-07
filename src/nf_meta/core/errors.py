@@ -62,6 +62,9 @@ class ConfigValidationError(Exception):
     # collect-everything validation path).
     warnings: list[Diagnostic] = field(default_factory=list)
 
+    def __str__(self) -> str:
+        return "\n".join([*self.graph_messages, *(f"{d.yaml_path}: {d.message}" for d in self.errors)])
+
 
 def diagnostics_from_pydantic_error(
     e: ValidationError, workflow_id: str | None, yaml_path_prefix: str = ""

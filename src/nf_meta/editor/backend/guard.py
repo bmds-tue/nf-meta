@@ -25,7 +25,7 @@ def configure_access(app: FastAPI, token: str | None, bind_host: str | None = No
     if bind_host is not None and bind_host.strip("[]") in WILDCARD_HOSTS:
         app.state.allowed_hosts = None
     else:
-        app.state.allowed_hosts = LOOPBACK_HOSTS | ({bind_host.strip("[]")} if bind_host else set())
+        app.state.allowed_hosts = LOOPBACK_HOSTS | ({bind_host.strip("[]").lower()} if bind_host else set())
 
 
 def host_name(host_header: str) -> str:
@@ -40,7 +40,7 @@ async def guard(request: Request, call_next: Callable[[Request], Awaitable[Respo
     the session's token. Refuses API requests when no token is configured."""
     state = request.app.state
     allowed = getattr(state, "allowed_hosts", LOOPBACK_HOSTS)
-    if allowed is not None and host_name(request.headers.get("host", "")) not in allowed:
+    if allowed is not None and host_name(request.headers.get("host", "")).lower() not in allowed:
         return JSONResponse(status_code=400, content={"detail": "Invalid host"})
     if request.url.path.startswith("/api/"):
         expected = getattr(state, "token", None)

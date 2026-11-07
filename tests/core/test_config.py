@@ -796,3 +796,25 @@ def test_the_collecting_loader_checks_implicit_inputs():
     with pytest.raises(ConfigValidationError) as collected:
         validated_graph(data, collect_errors=True)
     assert {d.yaml_path for d in collected.value.errors} == {d.yaml_path for d in fast.value.errors}
+
+
+class TestReadableErrors:
+    def test_config_version_as_a_number(self):
+        with pytest.raises((GraphValidationError, ConfigValidationError), match="in quotes"):
+            validated_graph({"config_version": 0.5, "steps": {}}, collect_errors=True)
+
+    @pytest.mark.parametrize("collect_errors", [False, True])
+    def test_globals_that_is_not_a_mapping(self, collect_errors):
+        data = {"config_version": "0.5.0", "steps": {}, "globals": ["a"]}
+        with pytest.raises(ConfigValidationError) as exc:
+            validated_graph(data, collect_errors=collect_errors)
+        assert str(exc.value).startswith("globals")
+
+    def test_config_validation_error_has_a_message(self):
+        from nf_meta.core.errors import Diagnostic
+
+        error = ConfigValidationError(
+            [Diagnostic(workflow_id="n01", field="params.x", message="Unknown parameter 'x'", severity=Severity.ERROR)],
+            graph_messages=["a cycle"],
+        )
+        assert str(error) == "a cycle\nparams.x: Unknown parameter 'x'"

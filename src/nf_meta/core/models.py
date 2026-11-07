@@ -585,6 +585,8 @@ class Transition(BaseModel):
 
 
 def validate_config_version(config_version: str) -> str:
+    if not isinstance(config_version, str):
+        raise ValueError(f"Invalid config version: {config_version!r}. Write it in quotes, e.g. '0.5.0'.")
     result = re.match(r"^\d+\.\d+\.\d$", config_version)
     if not result:
         raise ValueError(f"Invalid config version: {config_version}")

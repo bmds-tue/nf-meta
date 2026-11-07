@@ -21,7 +21,7 @@ from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType,
 from nf_meta.core.registry import Schema
 
 from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
-from .collect import InputMode, Request, collect
+from .collect import InputMode, Request, collect, is_placeholder
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
 from .paths import absolutize_input_paths, declared_path, folder_fingerprint, input_fingerprints, is_url, param_schema
@@ -226,6 +226,11 @@ class SimplePythonRunner(BaseRunner):
         if self.run_options.start or self.run_options.target:
             logger.info(f"Calculating subset of graph from step {self.run_options.start} to {self.run_options.target}")
             workflows = graph.subset_workflows(self.run_options.start, self.run_options.target, workflows)
+            if not workflows:
+                raise NfMetaRunnerError(
+                    f"No steps between start {self.run_options.start} and target {self.run_options.target}: "
+                    "the target must come after the start."
+                )
             logger.info(f"Steps to run: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
         return workflows
 
@@ -416,6 +421,7 @@ class SimplePythonRunner(BaseRunner):
             and isinstance(value, str)
             and value
             and "${" not in value
+            and not is_placeholder(value)
             and not is_url(value)
             and not Path(value).is_absolute()
         ]

@@ -224,7 +224,7 @@ def check_pipeline_params_schema(wf: NfPipeline, global_params: dict | None = No
                     )
                 )
                 skip_required = True
-        except (OSError, yaml.YAMLError) as exc:
+        except (OSError, ValueError, yaml.YAMLError) as exc:
             diagnostics.append(
                 Diagnostic(
                     workflow_id=node_id,

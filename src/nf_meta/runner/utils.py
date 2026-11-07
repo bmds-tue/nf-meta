@@ -77,7 +77,8 @@ class RunOptions:
         if self.out_dir is not None:
             self.out_dir = Path(self.out_dir)
         if self.nf_config is not None:
-            self.nf_config = Path(self.nf_config)
+            # Nextflow runs in the out dir, so a relative path must not reach it
+            self.nf_config = Path(self.nf_config).expanduser().resolve()
         self.input_mode = InputMode(self.input_mode)
 
 

@@ -48,8 +48,11 @@ const moduleNames = computed(() => {
   return moduleStore.nfCoreModules?.map(m => `nf-core/${m.name}`) ?? []
 })
 
-// Load the module's versions; a newly picked module gets its latest one
+// Load the module's versions; a newly picked module gets its latest one.
+// Only the latest request counts, so a slow answer for a previous name is ignored.
+let versionsRequest = 0
 async function loadVersions(pickLatest: boolean) {
+  const request = ++versionsRequest
   const name = form.value.name
   versionsError.value = undefined
   if (pickLatest) form.value.version = undefined
@@ -60,15 +63,18 @@ async function loadVersions(pickLatest: boolean) {
   const shortName = name.replace(/^nf-core\//, '')
   versionsLoading.value = true
   try {
-    moduleVersions.value = (await moduleStore.fetchModuleVersions(shortName)).map(nfmv => nfmv.version)
+    const versions = (await moduleStore.fetchModuleVersions(shortName)).map(nfmv => nfmv.version)
+    if (request !== versionsRequest) return
+    moduleVersions.value = versions
     if (!form.value.version && moduleVersions.value.length > 0) {
       form.value.version = moduleVersions.value[0]
     }
   } catch {
+    if (request !== versionsRequest) return
     versionsError.value = 'Failed to load versions'
     moduleVersions.value = []
   } finally {
-    versionsLoading.value = false
+    if (request === versionsRequest) versionsLoading.value = false
   }
 }
 

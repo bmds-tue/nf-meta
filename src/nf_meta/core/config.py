@@ -493,7 +493,7 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
 
         if data.get("globals") is not None:
             try:
-                g.global_options = GlobalOptions(**data["globals"])
+                g.global_options = GlobalOptions.model_validate(data["globals"])
             except ValidationError as e:
                 raise ConfigValidationError(
                     diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals.")
@@ -603,7 +603,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
 
     if data.get("globals") is not None:
         try:
-            g.global_options = GlobalOptions(**data["globals"])
+            g.global_options = GlobalOptions.model_validate(data["globals"])
             diagnostics.extend(check_config_files(g.global_options, project_dir))
         except ValidationError as e:
             diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals."))

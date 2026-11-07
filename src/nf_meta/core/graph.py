@@ -104,9 +104,7 @@ class MetaworkflowGraph:
             self._validation_suspended.add(wf.id)
         else:
             self.validate_module_nextflow_version(self.global_options, [wf])
-            diagnostics = run_dynamic_checks(
-                self.for_checks(wf), previous=None, global_params=self.global_options.params
-            )
+            diagnostics = run_dynamic_checks(self.for_checks(wf), previous=None)
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
             log_warnings(diagnostics)
@@ -143,7 +141,6 @@ class MetaworkflowGraph:
             diagnostics = run_dynamic_checks(
                 self.for_checks(wf),
                 previous=self.for_checks(old_wf),  # type: ignore[arg-type]
-                global_params=self.global_options.params,
             )
             if any(d.severity == Severity.ERROR for d in diagnostics):
                 raise ConfigValidationError(diagnostics)
@@ -217,21 +214,13 @@ class MetaworkflowGraph:
     def update_global_options(self, glob: GlobalOptions):
         """Replace the graph's `GlobalOptions`.
         Raises a `ConfigValidationError` if `nextflow_version` is too old for the
-        graph's `nf-module` steps, any referenced config or params files
-        do not exist, or changed `params` make a step's params invalid."""
+        graph's `nf-module` steps or any referenced config or params files
+        do not exist."""
         self.validate_module_nextflow_version(glob, self.get_workflows())
         missing = check_config_files(glob, self.project_dir)
         if missing:
             raise ConfigValidationError(missing)
         old_globals = self.global_options
-        if glob.params != old_globals.params:
-            if self._validation_suspended is not None:
-                self._validation_suspended.update(self.G.nodes)
-            else:
-                workflows = [self.for_checks(wf) for wf in self.get_workflows()]
-                errors = [d for d in check_all(workflows, glob.params) if d.severity == Severity.ERROR]
-                if errors:
-                    raise ConfigValidationError(errors)
         self.global_options = glob
         self._emit(GlobalOptionsUpdated(new_globals=glob, old_globals=old_globals))
 
@@ -293,7 +282,7 @@ class MetaworkflowGraph:
         workflows = [
             self.for_checks(wf) for wf in (self.get_workflow_by_id(i) for i in set(affected_step_ids)) if wf is not None
         ]
-        diagnostics = check_all(workflows, self.global_options.params)
+        diagnostics = check_all(workflows)
         if any(d.severity == Severity.ERROR for d in diagnostics):
             raise ConfigValidationError(diagnostics)
 
@@ -643,7 +632,7 @@ class MetaworkflowGraph:
             # Non-existent workflow-ids are ignored here
             raw = [self.get_workflow_by_id(n) for n in touched if n in self.G.nodes]
             workflows = [self.for_checks(wf) for wf in raw if wf is not None]
-            diagnostics += check_all(workflows, self.global_options.params)
+            diagnostics += check_all(workflows)
         if any(d.severity == Severity.ERROR for d in diagnostics):
             raise ConfigValidationError([d for d in diagnostics if d.severity == Severity.ERROR])
         log_warnings([d for d in diagnostics if d.severity == Severity.WARNING])

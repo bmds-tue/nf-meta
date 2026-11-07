@@ -1,6 +1,5 @@
 import pytest
 
-from nf_meta.core.config import validated_graph  # type: ignore[import]
 from nf_meta.core.errors import (  # type: ignore[import]
     ConfigValidationError,
     GraphValidationError,
@@ -388,39 +387,3 @@ class TestModuleNextflowVersion:
             GlobalOptions(nextflow_version="25"), [module_fastqc]
         )
         assert [(d.workflow_id, d.yaml_path) for d in diagnostics] == [(None, "globals.nextflow_version")]
-
-
-class TestGlobalParamsInParamChecks:
-    """A required param may come from globals.params."""
-
-    @pytest.fixture(autouse=True)
-    def schema(self, monkeypatch):
-        from tests.conftest import _make_spec
-
-        schema = {"input": _make_spec("string", required=True), "outdir": _make_spec("string")}
-        monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": schema
-        )
-
-    def config(self, global_params):
-        return {
-            "config_version": "0.5.0",
-            "globals": {"params": global_params},
-            "steps": {"n01": {"name": "nf-core/rnaseq", "version": "3.14.0", "params": {"outdir": "o"}}},
-        }
-
-    @pytest.mark.parametrize("collect_errors", [False, True])
-    def test_a_required_param_from_globals(self, collect_errors):
-        validated_graph(self.config({"input": "ids.csv", "other_steps_param": 1}), collect_errors=collect_errors)
-
-    def test_still_missing_without_it(self):
-        with pytest.raises(ConfigValidationError) as exc:
-            validated_graph(self.config({"other_steps_param": 1}), collect_errors=True)
-        assert [d.yaml_path for d in exc.value.errors] == ["steps.n01.params.input"]
-
-    def test_removing_it_from_globals_is_refused(self):
-        g = validated_graph(self.config({"input": "ids.csv"}))
-        with pytest.raises(ConfigValidationError) as exc:
-            g.update_global_options(GlobalOptions(params={}))
-        assert [d.field for d in exc.value.errors] == ["params.input"]
-        assert g.global_options.params == {"input": "ids.csv"}

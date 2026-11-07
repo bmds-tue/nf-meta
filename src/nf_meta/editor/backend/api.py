@@ -227,7 +227,7 @@ def update_global_config(global_options: GlobalOptions):
 def validate_node(wf: Workflow):
     """Validate a single workflow in isolation -- same body shape as
     `/node/add/`, but non-mutating: no session command, no auto-save."""
-    diagnostics = run_dynamic_checks(wf, previous=None, global_params=SESSION.graph.global_options.params)
+    diagnostics = run_dynamic_checks(wf, previous=None)
     errors = [d for d in diagnostics if d.severity == Severity.ERROR]
     if errors:
         raise SessionCommandError.from_diagnostics(errors)

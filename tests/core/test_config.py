@@ -783,3 +783,16 @@ class TestStepIds:
         step = {"id": "n01", "name": "nf-core/rnaseq", "version": "3.14.0"}
         with pytest.raises(GraphValidationError, match="more than once"):
             validated_graph({"config_version": "0.5.0", "steps": [step, dict(step)]})
+
+
+def test_the_collecting_loader_checks_implicit_inputs():
+    data = {
+        "config_version": "0.5.0",
+        "steps": {"n01": {"name": "nf-core/rnaseq", "version": "3.14.0", "params": {"count": "${inputs:x}"}}},
+    }
+    data["steps"]["n02"] = {"name": "nf-core/rnaseq", "version": "3.14.0", "params": {"flag": "${inputs:x}"}}
+    with pytest.raises(ConfigValidationError) as fast:
+        validated_graph(data)
+    with pytest.raises(ConfigValidationError) as collected:
+        validated_graph(data, collect_errors=True)
+    assert {d.yaml_path for d in collected.value.errors} == {d.yaml_path for d in fast.value.errors}

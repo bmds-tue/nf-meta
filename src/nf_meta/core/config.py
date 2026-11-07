@@ -26,7 +26,7 @@ from .errors import (
     diagnostics_from_pydantic_error,
 )
 from .graph import MetaworkflowGraph
-from .inputs import InputDefinition
+from .inputs import InputDefinition, input_refs
 from .models import (
     CONFIG_VERSION_MAX,
     INPUTS_MIN_CONFIG_VERSION,
@@ -590,7 +590,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
             diagnostics.extend(e.errors)
 
     input_diagnostics = g.input_diagnostics()
-    if inputs:
+    if inputs or any(input_refs(wf.params) for wf in constructed):  # also implicit inputs
         input_diagnostics += g.effective_inputs()[1]
     tier2_diagnostics = check_all([g.for_checks(wf) for wf in constructed])
     for found in (input_diagnostics, tier2_diagnostics):

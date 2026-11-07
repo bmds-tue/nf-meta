@@ -189,6 +189,7 @@ class MetaworkflowGraph:
         self.validate_edge(tr.source, tr.target)
 
         if self.G.has_edge(tr.source, tr.target):
+            logger.warning("Edge already exists: %s->%s", tr.source, tr.target)
             return
 
         self.G.add_edge(tr.source, tr.target, transition=tr.model_copy())

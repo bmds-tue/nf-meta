@@ -20,7 +20,7 @@ from nf_meta.core.inputs import Binding, InputDefinition, effective_input, input
 from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType, with_absolute_config_paths
 from nf_meta.core.registry import Schema
 
-from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
+from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult, step_outdir
 from .collect import InputMode, Request, collect, is_placeholder
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
@@ -243,8 +243,9 @@ class SimplePythonRunner(BaseRunner):
         Raises:
             NfMetaRunnerError: if values are missing (except in a dry run
                 outside prompt mode, where they become placeholders) or
-                invalid, if no out dir can be determined, or if a config loaded
-                from a URL has relative input paths.
+                invalid, if no out dir can be determined, if a config loaded
+                from a URL has relative input paths, or if two steps write to
+                the same outdir.
         """
         self.out_dir = self._resolve_out_dir(graph)
         project_dir = graph.project_dir
@@ -332,6 +333,7 @@ class SimplePythonRunner(BaseRunner):
                     skip=resume and self._check_run_success(run_dir=state_dir) and self._last_run_was(wf, state_dir),
                 )
             )
+        _check_outdirs(planned)
         return RunPlan(
             steps=planned,
             values=dict(collected.values),
@@ -491,3 +493,35 @@ class SimplePythonRunner(BaseRunner):
 
     def resume(self, graph: MetaworkflowGraph) -> RunResults:
         return self.run(graph, resume=True)
+
+
+def _check_outdirs(steps: list[PlannedStep]) -> None:
+    """Raise `NfMetaRunnerError` if two steps write to the same outdir. Warn
+    about an outdir inside another step's, and about pipeline steps without one."""
+    owners: dict[str, str] = {}
+    for step in steps:
+        outdir = step_outdir(step.spec)
+        if outdir is None:
+            if step.workflow.type == WorkflowType.NF_PIPELINE:
+                logger.warning(
+                    "Step '%s' has no outdir param: its results go where the pipeline puts them, "
+                    "relative to the run's folder, and may mix with other steps' results.",
+                    step.workflow.id,
+                )
+            continue
+        if outdir in owners:
+            raise NfMetaRunnerError(
+                f"Steps '{owners[outdir]}' and '{step.workflow.id}' write to the same outdir '{outdir}': "
+                "give each step its own outdir."
+            )
+        owners[outdir] = step.workflow.id
+    local = sorted((Path(d), step_id) for d, step_id in owners.items() if "://" not in d)
+    for outer, outer_id in local:
+        for inner, inner_id in local:
+            if inner != outer and inner.is_relative_to(outer):
+                logger.warning(
+                    "Step '%s' writes inside step '%s''s outdir (%s): their results may mix.",
+                    inner_id,
+                    outer_id,
+                    outer,
+                )

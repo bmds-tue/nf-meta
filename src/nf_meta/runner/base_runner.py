@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
@@ -14,6 +15,18 @@ from .spec import StepSpec
 from .utils import RunOptions
 
 _REGISTRY: dict[str, type["BaseRunner"]] = {}
+
+
+def step_outdir(spec: StepSpec) -> str | None:
+    """The step's `outdir` param, a relative one under `spec.launch_dir`, or
+    `None` if it has none. Remote outdirs (`s3://...`) are returned as given."""
+    outdir = spec.params.get("outdir")
+    if not isinstance(outdir, (str, Path)) or not str(outdir):
+        return None
+    outdir = str(outdir)
+    if "://" in outdir:
+        return outdir
+    return os.path.normpath(spec.launch_dir / outdir)
 
 
 @dataclass(frozen=True)
@@ -114,14 +127,12 @@ class StepResult:
     @classmethod
     def from_planned(cls, step: PlannedStep) -> "StepResult":
         """The result of running `step` as planned."""
-        outdir = step.spec.params.get("outdir")
-        if isinstance(outdir, str) and outdir and "://" not in outdir:
-            outdir = step.spec.launch_dir / outdir
+        outdir = step_outdir(step.spec)
         return cls(
             step_id=step.workflow.id,
             name=step.workflow.name,
             params=step.spec.params,
-            outdir=Path(outdir) if isinstance(outdir, (str, Path)) and outdir else None,
+            outdir=Path(outdir) if outdir and "://" not in outdir else None,
             state_dir=step.spec.state_dir,
             log_file=step.spec.log_file,
             command=step.command.argv,

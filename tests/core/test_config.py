@@ -720,6 +720,28 @@ def test_global_params_load_with_a_deprecation_warning(tmp_path):
     assert g.global_options.params == {"max_cpus": 2}
 
 
+@pytest.mark.parametrize(
+    ("second", "expected"),
+    [
+        ("o", "Same outdir as step 'n01'"),
+        ("./o/", "Same outdir as step 'n01'"),
+        ("o/sub", "Inside step 'n01''s outdir"),
+        ("other", None),
+    ],
+)
+def test_shared_outdirs_warn(second, expected):
+    data = _config()
+    data["steps"]["n02"] = {
+        "name": "nf-core/rnaseq",
+        "version": "3.14.0",
+        "from": "n01",
+        "params": {"input": "s.csv", "outdir": second},
+    }
+    g = validated_graph(data, collect_errors=True)
+    messages = [d.message for d in g.warnings if d.yaml_path == "steps.n02.params.outdir"]
+    assert messages[0].startswith(expected) if expected else messages == []
+
+
 def test_missing_nf_config_is_an_error(tmp_path):
     data = _config(globals={"nf_config": str(tmp_path / "missing.config")})
     with pytest.raises(ConfigValidationError) as exc:

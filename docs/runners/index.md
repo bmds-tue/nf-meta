@@ -31,6 +31,14 @@ nf-meta-out/                       every step's Nextflow launch folder
     inputs.yaml                    the input values of the last run (for --input-mode reproduce)
 ```
 
+Give each step its own `outdir`. `nf-meta run` refuses two steps with the same outdir, and
+`validate` and `run` warn about an outdir inside another step's. A pipeline step
+without an `outdir` param writes wherever the pipeline's own config says, relative to the out dir,
+so `run` warns about it too.
+
+With `--resume`, a step that already succeeded with the same step key is skipped only if no other
+version of it ran since, because the step's outdir holds the results of its last run.
+
 Relative input paths in params are made absolute against the config's folder before a step
 runs, so they work from the out dir: a param counts as an input path when its schema declares a
 path, or when its value names a file or folder that exists in the config's folder. `outdir`,

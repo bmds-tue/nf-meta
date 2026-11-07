@@ -9,6 +9,7 @@ building blocks from a nf-meta YAML configuration.
 
 import difflib
 import logging
+import posixpath
 import re
 from pathlib import Path
 
@@ -87,9 +88,44 @@ def _abbreviated_sha_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
     ]
 
 
-def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
-    log_warnings(_module_executor_warnings(g))
-    log_warnings(_abbreviated_sha_warnings(g))
+def _shared_outdir_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    """Steps whose literal `outdir` params are the same folder or one inside
+    the other. Values with references or inputs are left to the runner."""
+    outdirs = [
+        (wf.id, value.rstrip("/"), posixpath.normpath(value))
+        for wf in g.get_workflows()
+        if isinstance(value := (wf.params or {}).get("outdir"), str) and value and "${" not in value
+    ]
+    warnings = []
+    for wf_id, _value, path in outdirs:
+        for other_id, other_value, other_path in outdirs:
+            if other_id == wf_id:
+                continue
+            if path == other_path:
+                message = f"Same outdir as step '{other_id}': their results mix, and nf-meta run refuses this."
+            elif "://" not in path and path.startswith(other_path.rstrip("/") + "/"):
+                message = f"Inside step '{other_id}''s outdir '{other_value}': their results may mix."
+            else:
+                continue
+            warnings.append(
+                Diagnostic(
+                    workflow_id=wf_id,
+                    field="params",
+                    yaml_path=f"steps.{wf_id}.params.outdir",
+                    message=message,
+                    severity=Severity.WARNING,
+                )
+            )
+            break
+    return warnings
+
+
+def _graph_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    return _module_executor_warnings(g) + _abbreviated_sha_warnings(g) + _shared_outdir_warnings(g)
+
+
+def _log_graph_warnings(g: "MetaworkflowGraph") -> None:
+    log_warnings(_graph_warnings(g))
 
 
 TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", STEPS_KEY, LEGACY_STEPS_KEY, "transitions")
@@ -526,7 +562,7 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
         g.inputs = inputs
         g._inputs_touched = bool(inputs)
 
-        _warn_about_module_executor(g)
+        _log_graph_warnings(g)
 
     # Reset events accumulated by add_workflow/add_transition during initial load
     g._events = []
@@ -623,8 +659,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
             diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals."))
 
     diagnostics.extend(g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows()))
-    warnings.extend(_module_executor_warnings(g))
-    warnings.extend(_abbreviated_sha_warnings(g))
+    warnings.extend(_graph_warnings(g))
 
     if diagnostics or graph_messages:
         raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages, warnings=warnings)

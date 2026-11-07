@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue"
+import { nextTick, onBeforeUnmount, ref, watch } from "vue"
 import { Codemirror } from "vue-codemirror"
 import { yaml as langyaml } from "@codemirror/lang-yaml"
 import YAML, { YAMLParseError } from "yaml"
@@ -26,6 +26,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:modelValue", value: object | undefined): void
   (e: "save"): void
+  (e: "parse-error", message: string): void
     }>()
 
 const graphStore = useGraphStore()
@@ -37,14 +38,17 @@ const error = ref<string>("")
 
 // Emit parsed params on every valid YAML change so v-model stays live.
 // Explicit save() is still needed only for the @save event (Cmd+S / API call).
+// Invalid YAML is shown at once and reported, so a form can refuse to save the last valid value
 watch(code, (newCode) => {
   try {
     emit("update:modelValue", YAML.parse(newCode))
     error.value = ""
-  } catch {
-    // don't emit on parse error — keep last valid modelValue
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
   }
+  emit("parse-error", error.value)
 })
+onBeforeUnmount(() => emit("parse-error", ""))
 
 
 // ==== THEMES ================================================

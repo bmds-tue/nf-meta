@@ -27,6 +27,7 @@ const CONTAINER_ENGINES = ['docker', 'singularity', 'conda', 'podman']
 const form = ref<APINfModuleNodeData>({ ...props.initialValue })
 const isEditing = ref(props.isNew)
 const saving = ref(false)
+const yamlError = ref('')
 const errors = ref<Record<string, string[]>>({})
 const moduleVersions = ref<string[]>([])
 const versionsLoading = ref(false)
@@ -76,6 +77,7 @@ async function submitForm(e: SubmitEventPromise) {
   if (!valid) return
   errors.value = {}
   paramErrors.value = { byParam: {}, general: [] }
+  if (yamlError.value) return  // shown in the YAML editor
   saving.value = true
   try {
     const previousIds = new Set(graphStore.nodeData.map(n => n.id))
@@ -206,6 +208,7 @@ async function copyPath(text: string, field: string) {
 
     <ParamsForm
       v-model="form.params"
+      @parse-error="yamlError = $event"
       :schema="schema" :loading="schemaLoading" :error="schemaError"
       :input-for="inputForParam" :references="references" :bound="boundParams"
       :errors="paramErrors.byParam" :general-errors="paramErrors.general"

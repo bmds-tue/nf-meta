@@ -393,10 +393,14 @@ class SimplePythonRunner(BaseRunner):
             return yaml.safe_load(f) or {}
 
     def _record_inputs(self, plan: RunPlan, graph: MetaworkflowGraph) -> None:
-        """Remember the input values of this run for `reproduce` mode."""
-        values = {name: v for name, v in plan.values.items() if name in graph.all_inputs()}
+        """Remember the input values of this run for `reproduce` mode, keeping
+        recorded values of inputs this run didn't use (e.g. a partial run)."""
+        inputs = graph.all_inputs()
+        values = {name: v for name, v in plan.values.items() if name in inputs}
         if not values:
             return
+        recorded = {name: v for name, v in self._load_recorded_inputs().items() if name in inputs}
+        values = {**recorded, **values}
         path = self._recorded_inputs_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:

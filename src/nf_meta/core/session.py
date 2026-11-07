@@ -53,7 +53,8 @@ class EditorSession:
         raises `RemoteConfigWriteError` before changing anything."""
         self._check_writable()
         events = self.history.execute(c, self.graph)
-        self._write_if_enabled()
+        if events:
+            self._write_if_enabled()
         return events
 
     def handle_command(self, c: Command):

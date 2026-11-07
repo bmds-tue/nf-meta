@@ -225,6 +225,7 @@ def _extract_items_and_transitions(
     items: list[dict] = []
     pending_transitions: list[tuple[str, str]] = []
     any_from_key_present = False
+    seen_ids: set[str] = set()
     for key, item in raw_items:
         if not isinstance(item, dict):
             raise GraphValidationError(
@@ -233,7 +234,13 @@ def _extract_items_and_transitions(
         item = {**item}
         item.setdefault("type", WorkflowType.NF_PIPELINE)
         if key is not None:
-            item.setdefault("id", key)  # dict form: the mapping key is authoritative
+            item["id"] = key  # dict form: the mapping key is authoritative
+        if "id" in item:
+            if not isinstance(item["id"], str) or not item["id"]:
+                raise GraphValidationError("Step id must be a non-empty string.")
+            if item["id"] in seen_ids:
+                raise GraphValidationError(f"Step id '{item['id']}' is used more than once.")
+            seen_ids.add(item["id"])
         any_from_key_present = any_from_key_present or "from" in item
         from_ids = item.pop("from", None) or []
         if isinstance(from_ids, str):

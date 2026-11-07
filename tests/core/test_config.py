@@ -767,3 +767,19 @@ def test_legacy_config_keeps_its_line_numbers():
     positioned, _ = collect_positioned_diagnostics(exc.value, text)
     bogus = next(p for p in positioned if p.diagnostic.yaml_path == "steps.n01.bogus")
     assert (bogus.position.line, bogus.position.column) == (6, 5)
+
+
+class TestStepIds:
+    def test_the_mapping_key_wins_over_an_explicit_id(self):
+        g = validated_graph(
+            {
+                "config_version": "0.5.0",
+                "steps": {"n01": {"id": "other", "name": "nf-core/rnaseq", "version": "3.14.0"}},
+            }
+        )
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+
+    def test_a_repeated_id_in_list_form_is_an_error(self):
+        step = {"id": "n01", "name": "nf-core/rnaseq", "version": "3.14.0"}
+        with pytest.raises(GraphValidationError, match="more than once"):
+            validated_graph({"config_version": "0.5.0", "steps": [step, dict(step)]})

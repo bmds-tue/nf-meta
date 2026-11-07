@@ -148,6 +148,14 @@ class TestBuild:
         assert mp.graph.input_bindings()["ids"]
 
 
+def test_adding_the_same_step_twice_raises(tmp_path):
+    mp = Metapipeline(project_dir=tmp_path)
+    step = mp.add(fetchngs())
+    with pytest.raises(ValueError, match="already exists"):
+        mp.add(step)
+    assert [s.id for s in mp.steps] == [step.id]
+
+
 class TestHistory:
     def test_undo_and_redo(self, two_steps):
         mp, _, rna = two_steps

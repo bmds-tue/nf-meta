@@ -90,13 +90,16 @@ class MetaworkflowGraph:
         return events
 
     def add_workflow(self, wf: Workflow):
-        """Add a new workflow node.
+        """Add a new workflow node. Raises `ValueError` if a step with its id
+        already exists.
 
         Runs dynamic (network-backed) validation immediately unless inside
         `deferred_validation()`. Raises `ConfigValidationError` and leaves the
         graph unchanged if `wf`'s id already has unresolved param references,
         or if dynamic validation reports an error.
         """
+        if wf.id in self.G:
+            raise ValueError(f"A step with id '{wf.id}' already exists")
         if self._validation_suspended is not None:
             self._validation_suspended.add(wf.id)
         else:
@@ -180,12 +183,13 @@ class MetaworkflowGraph:
         """Add an edge marking `tr.source` as a predecessor of `tr.target`.
 
         Raises `GraphValidationError` if either endpoint does not exist yet,
-        or if adding the edge would introduce a cycle.
+        or if adding the edge would introduce a cycle. An existing edge is left
+        as it is, without an event.
         """
         self.validate_edge(tr.source, tr.target)
 
         if self.G.has_edge(tr.source, tr.target):
-            logger.warning("Edge already exists: %s->%s", tr.source, tr.target)
+            return
 
         self.G.add_edge(tr.source, tr.target, transition=tr.model_copy())
         self._emit(TransitionAdded(tr))

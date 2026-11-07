@@ -114,18 +114,36 @@ def _with_steps_key(data: dict) -> tuple[dict, list[Diagnostic]]:
     return data, [warning]
 
 
+# Keys still read but planned for removal, with what to use instead
+DEPRECATED_GLOBAL_KEYS = {"params": "set params per step, and declare shared values as inputs"}
+
+
 def legacy_key_warnings(data: dict) -> list[Diagnostic]:
     """A deprecation warning for each legacy key (see `models.LEGACY_KEYS`)
-    in `globals` and workflow entries."""
-    sections: list[tuple[str, dict]] = []
+    and each deprecated key in `globals` and workflow entries."""
+    sections: list[tuple[str, dict, dict[str, str]]] = []
     if isinstance(data.get("globals"), dict):
-        sections.append(("globals.", data["globals"]))
-    sections += [(f"steps.{wf_id}.", item) for wf_id, item in _workflow_items(data)]
-    return [w for prefix, section in sections for w in _legacy_section_warnings(section, prefix)]
-
-
-def _legacy_section_warnings(section: dict, prefix: str = "") -> list[Diagnostic]:
+        sections.append(("globals.", data["globals"], DEPRECATED_GLOBAL_KEYS))
+    sections += [(f"steps.{wf_id}.", item, {}) for wf_id, item in _workflow_items(data)]
     return [
+        w for prefix, section, deprecated in sections for w in _legacy_section_warnings(section, prefix, deprecated)
+    ]
+
+
+def _legacy_section_warnings(
+    section: dict, prefix: str = "", deprecated: dict[str, str] | None = None
+) -> list[Diagnostic]:
+    return [
+        Diagnostic(
+            workflow_id=None,
+            field=key,
+            yaml_path=f"{prefix}{key}",
+            message=f"Deprecated key, it will be removed in a later version: {instead}.",
+            severity=Severity.WARNING,
+        )
+        for key, instead in (deprecated or {}).items()
+        if key in section
+    ] + [
         Diagnostic(
             workflow_id=None,
             field=old,
@@ -344,7 +362,7 @@ def validated_globals(data: dict, project_dir: Path | None = None) -> GlobalOpti
     if not isinstance(data, dict):
         raise GraphValidationError(f"Expected a flat mapping, got {type(data).__name__!r}")
     try:
-        log_warnings(_legacy_section_warnings(data))
+        log_warnings(_legacy_section_warnings(data, deprecated=DEPRECATED_GLOBAL_KEYS))
         globals_ = GlobalOptions(**data)
     except ValidationError as e:
         raise ConfigValidationError(diagnostics_from_pydantic_error(e, workflow_id=None)) from e

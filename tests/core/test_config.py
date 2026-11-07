@@ -709,6 +709,17 @@ def test_legacy_keys_still_load_with_a_warning_and_save_as_new(tmp_path):
     assert "config_file" not in dumped["globals"] and "profile" not in dumped["steps"]["n01"]
 
 
+def test_global_params_load_with_a_deprecation_warning(tmp_path):
+    params_file = tmp_path / "params.yaml"
+    params_file.write_text("outdir: o\n")
+    data = _config(globals={"params": {"max_cpus": 2}})
+    data["steps"]["n01"]["params_file"] = str(params_file)
+    g = validated_graph(data, collect_errors=True)
+    assert [d.yaml_path for d in g.warnings] == ["globals.params"]
+    assert "Deprecated key, it will be removed" in g.warnings[0].message
+    assert g.global_options.params == {"max_cpus": 2}
+
+
 def test_missing_nf_config_is_an_error(tmp_path):
     data = _config(globals={"nf_config": str(tmp_path / "missing.config")})
     with pytest.raises(ConfigValidationError) as exc:

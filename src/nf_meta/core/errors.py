@@ -43,6 +43,8 @@ class Diagnostic:
     # inside a whole config (e.g. under `steps.<id>.`/`globals.`) pass the
     # fully-qualified path
     yaml_path: str | None = None
+    # The dynamic check that reported it, if any (see `run_dynamic_checks`)
+    check: str | None = None
 
     def __post_init__(self):
         if self.yaml_path is None:

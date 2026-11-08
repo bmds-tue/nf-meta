@@ -359,7 +359,8 @@ export function toParamValue(text: unknown, spec?: ParamSpec): unknown {
 
 /** `params` without empty values ('' or null), as saved; undefined if none are left. */
 export function withoutEmptyValues(params: object | undefined): object | undefined {
-    if (!params) return params
+    // not a mapping (e.g. a list typed in the YAML editor): left for the backend to refuse
+    if (!params || typeof params !== 'object' || Array.isArray(params)) return params
     const kept = Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
     return kept.length ? Object.fromEntries(kept) : undefined
 }

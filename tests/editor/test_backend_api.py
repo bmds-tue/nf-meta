@@ -283,6 +283,11 @@ class TestAccess:
         assert client.get("/api/graph/", headers={"host": "csdnode1:8080"}).status_code == 200
         assert client.get("/api/graph/", headers={"host": "other:8080"}).status_code == 400
 
+    def test_host_names_are_case_insensitive(self, client):
+        configure_access(api.app, TOKEN, bind_host="CSDnode1")
+        assert client.get("/api/graph/", headers={"host": "csdNODE1:8080"}).status_code == 200
+        assert client.get("/api/graph/", headers={"host": "LOCALHOST:8080"}).status_code == 200
+
     def test_wildcard_bind_host_accepts_any_host_but_needs_the_token(self, client):
         configure_access(api.app, TOKEN, bind_host="0.0.0.0")
         assert client.get("/api/graph/", headers={"host": "other:8080"}).status_code == 200

@@ -20,8 +20,8 @@ from nf_meta.core.inputs import Binding, InputDefinition, effective_input, input
 from nf_meta.core.models import GlobalOptions, NfModule, Workflow, WorkflowType, with_absolute_config_paths
 from nf_meta.core.registry import Schema
 
-from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult
-from .collect import InputMode, Request, collect
+from .base_runner import BaseRunner, PlannedStep, RunPlan, RunResults, StepResult, step_outdir
+from .collect import InputMode, Request, collect, is_placeholder
 from .engines import StepCommand, engine_for
 from .errors import NfMetaRunnerError
 from .paths import absolutize_input_paths, declared_path, folder_fingerprint, input_fingerprints, is_url, param_schema
@@ -88,6 +88,15 @@ class SimplePythonRunner(BaseRunner):
 
     def _state_dir(self, wf: Workflow, step_key: str) -> Path:
         return self.state_root / "steps" / f"{wf.id}_{step_key}"
+
+    def _current_key_file(self, wf: Workflow) -> Path:
+        return self.state_root / "current" / wf.id
+
+    def _last_run_was(self, wf: Workflow, state_dir: Path) -> bool:
+        """Whether the step's last run used `state_dir` (also when nf-meta didn't
+        record it yet)."""
+        current = self._current_key_file(wf)
+        return not current.exists() or current.read_text().strip() == state_dir.name
 
     def _nextflow_cache_dir(self, wf: Workflow) -> Path:
         return self.state_root / "nextflow" / wf.id
@@ -217,6 +226,11 @@ class SimplePythonRunner(BaseRunner):
         if self.run_options.start or self.run_options.target:
             logger.info(f"Calculating subset of graph from step {self.run_options.start} to {self.run_options.target}")
             workflows = graph.subset_workflows(self.run_options.start, self.run_options.target, workflows)
+            if not workflows:
+                raise NfMetaRunnerError(
+                    f"No steps between start {self.run_options.start} and target {self.run_options.target}: "
+                    "the target must come after the start."
+                )
             logger.info(f"Steps to run: {' -> '.join([f'{wf.name} ({wf.id})' for wf in workflows])}")
         return workflows
 
@@ -229,8 +243,9 @@ class SimplePythonRunner(BaseRunner):
         Raises:
             NfMetaRunnerError: if values are missing (except in a dry run
                 outside prompt mode, where they become placeholders) or
-                invalid, if no out dir can be determined, or if a config loaded
-                from a URL has relative input paths.
+                invalid, if no out dir can be determined, if a config loaded
+                from a URL has relative input paths, or if two steps write to
+                the same outdir.
         """
         self.out_dir = self._resolve_out_dir(graph)
         project_dir = graph.project_dir
@@ -279,7 +294,10 @@ class SimplePythonRunner(BaseRunner):
 
             # Before references are resolved: other steps' outputs are covered by
             # their step keys, and may not exist yet
-            input_files = input_fingerprints(wf.params or {})
+            global_params = (global_options.params if global_options else None) or {}
+            if project_dir is not None and global_params:
+                global_params = absolutize_input_paths(global_params, project_dir, schema)
+            input_files = input_fingerprints({**global_params, **(wf.params or {})})
             wf_resolved = resolve_references(wf, graph, resolved=resolved)
             resolved[wf.id] = wf_resolved.params or {}
 
@@ -310,9 +328,12 @@ class SimplePythonRunner(BaseRunner):
                     resolved_params=wf_resolved.params or {},
                     spec=spec,
                     command=engine_for(spec.workflow_type).build(spec),
-                    skip=resume and self._check_run_success(run_dir=state_dir),
+                    # The step's outdir holds the last run's results, so an older
+                    # success with this key counts only if no other key ran since.
+                    skip=resume and self._check_run_success(run_dir=state_dir) and self._last_run_was(wf, state_dir),
                 )
             )
+        _check_outdirs(planned)
         return RunPlan(
             steps=planned,
             values=dict(collected.values),
@@ -379,10 +400,14 @@ class SimplePythonRunner(BaseRunner):
             return yaml.safe_load(f) or {}
 
     def _record_inputs(self, plan: RunPlan, graph: MetaworkflowGraph) -> None:
-        """Remember the input values of this run for `reproduce` mode."""
-        values = {name: v for name, v in plan.values.items() if name in graph.all_inputs()}
+        """Remember the input values of this run for `reproduce` mode, keeping
+        recorded values of inputs this run didn't use (e.g. a partial run)."""
+        inputs = graph.all_inputs()
+        values = {name: v for name, v in plan.values.items() if name in inputs}
         if not values:
             return
+        recorded = {name: v for name, v in self._load_recorded_inputs().items() if name in inputs}
+        values = {**recorded, **values}
         path = self._recorded_inputs_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
@@ -398,6 +423,7 @@ class SimplePythonRunner(BaseRunner):
             and isinstance(value, str)
             and value
             and "${" not in value
+            and not is_placeholder(value)
             and not is_url(value)
             and not Path(value).is_absolute()
         ]
@@ -431,6 +457,10 @@ class SimplePythonRunner(BaseRunner):
             step_label = f"Step {i + 1}/{len(steps)} - {step.workflow.name}"
             self._write_resolved_params(step.workflow, step.resolved_params)
 
+            current = self._current_key_file(step.workflow)
+            current.parent.mkdir(parents=True, exist_ok=True)
+            current.write_text(step.spec.state_dir.name)
+
             if step.skip:
                 logger.info(f"{step_label}: Skipping (already succeeded)")
                 console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
@@ -463,3 +493,35 @@ class SimplePythonRunner(BaseRunner):
 
     def resume(self, graph: MetaworkflowGraph) -> RunResults:
         return self.run(graph, resume=True)
+
+
+def _check_outdirs(steps: list[PlannedStep]) -> None:
+    """Raise `NfMetaRunnerError` if two steps write to the same outdir. Warn
+    about an outdir inside another step's, and about pipeline steps without one."""
+    owners: dict[str, str] = {}
+    for step in steps:
+        outdir = step_outdir(step.spec)
+        if outdir is None:
+            if step.workflow.type == WorkflowType.NF_PIPELINE:
+                logger.warning(
+                    "Step '%s' has no outdir param: its results go where the pipeline puts them, "
+                    "relative to the run's folder, and may mix with other steps' results.",
+                    step.workflow.id,
+                )
+            continue
+        if outdir in owners:
+            raise NfMetaRunnerError(
+                f"Steps '{owners[outdir]}' and '{step.workflow.id}' write to the same outdir '{outdir}': "
+                "give each step its own outdir."
+            )
+        owners[outdir] = step.workflow.id
+    local = sorted((Path(d), step_id) for d, step_id in owners.items() if "://" not in d)
+    for outer, outer_id in local:
+        for inner, inner_id in local:
+            if inner != outer and inner.is_relative_to(outer):
+                logger.warning(
+                    "Step '%s' writes inside step '%s''s outdir (%s): their results may mix.",
+                    inner_id,
+                    outer_id,
+                    outer,
+                )

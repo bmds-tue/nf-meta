@@ -255,3 +255,27 @@ class TestRegistryModuleName:
         registry.get_module_schema("nf-core/plastid_make_wiggle", "0.0.0-6c4ed3a")
         registry.get_module_schema.cache_clear()
         assert urls[0].endswith("/6c4ed3a/modules/nf-core/plastid/make_wiggle/meta.yml")
+
+
+class TestGithubFileExists:
+    @pytest.fixture
+    def calls(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            registry, "_fetch_json", lambda url, label, headers=None: calls.append((url, headers)) or {}
+        )
+        return calls
+
+    @pytest.mark.parametrize("url", ["https://github.com/org/my.repo", "https://github.com/org/my.repo.git"])
+    def test_repository_urls_with_dots_and_git_suffix(self, calls, url):
+        assert registry.github_file_exists(url, "sub/main.nf", "v1")
+        assert calls[0][0] == "https://api.github.com/repos/org/my.repo/contents/sub/main.nf?ref=v1"
+
+    def test_sends_the_github_token(self, calls, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "secret")
+        registry.github_file_exists("https://github.com/org/private", "main.nf", "v1")
+        assert calls[0][1]["Authorization"] == "Bearer secret"
+
+    def test_other_hosts_are_not_asked(self, calls):
+        assert not registry.github_file_exists("https://gitlab.com/org/repo", "main.nf", "v1")
+        assert calls == []

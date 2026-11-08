@@ -166,7 +166,7 @@ export const useApiStore = defineStore('api', () => {
         const key = `pipeline ${url} ${version} ${mainScript ?? ''}`
         if (!schemaCache.has(key)) {
             const query = new URLSearchParams({ url, version, ...(mainScript ? { main_script: mainScript } : {}) })
-            schemaCache.set(key, request<StepSchema>(`/api/nfcore/pipelines/schema/?${query}`, { method: 'GET' }))
+            cacheSchema(key, request<StepSchema>(`/api/nfcore/pipelines/schema/?${query}`, { method: 'GET' }))
         }
         return schemaCache.get(key)!
     }
@@ -176,9 +176,15 @@ export const useApiStore = defineStore('api', () => {
         if (!schemaCache.has(key)) {
             const short = encodeURIComponent(name.replace(/^nf-core\//, ''))
             const query = new URLSearchParams({ version })
-            schemaCache.set(key, request<StepSchema>(`/api/nfcore/modules/${short}/schema/?${query}`, { method: 'GET' }))
+            cacheSchema(key, request<StepSchema>(`/api/nfcore/modules/${short}/schema/?${query}`, { method: 'GET' }))
         }
         return schemaCache.get(key)!
+    }
+
+    // A failed fetch (offline, rate-limited) is tried again next time
+    function cacheSchema(key: string, result: Promise<ApiResult<StepSchema>>) {
+        schemaCache.set(key, result)
+        result.then(r => { if (!r.ok) schemaCache.delete(key) })
     }
 
     return {

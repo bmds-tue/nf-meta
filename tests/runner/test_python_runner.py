@@ -374,3 +374,39 @@ class TestRun:
         self._record(runner)
         with pytest.raises(NfMetaRunnerError, match="26.04"):
             runner.run(g)
+
+
+def _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, first, second):
+    a = wf_fetchngs.model_copy(update={"params": {"outdir": first}})
+    b = wf_rnaseq.model_copy(update={"params": {"outdir": second}})
+    g = MetaworkflowGraph()
+    with g.deferred_validation():
+        g.add_workflow(a)
+        g.add_workflow(b)
+        g.add_transition(Transition(source=a.id, target=b.id))
+    g.pop_events()
+    return g
+
+
+class TestOutdirChecks:
+    def test_two_steps_with_the_same_outdir_are_refused(self, runner, wf_fetchngs, wf_rnaseq, tmp_path):
+        g = _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, "results", str(tmp_path / "results"))
+        with pytest.raises(NfMetaRunnerError, match="write to the same outdir"):
+            runner.plan(g)
+
+    def test_an_outdir_inside_another_warns(self, runner, wf_fetchngs, wf_rnaseq, caplog):
+        g = _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, "results", "results/rnaseq")
+        with caplog.at_level("WARNING"):
+            runner.plan(g)
+        assert "writes inside step" in caplog.text
+
+    def test_separate_outdirs_plan_without_warnings(self, runner, wf_fetchngs, wf_rnaseq, caplog):
+        g = _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, "out_fetchngs", "out_rnaseq")
+        with caplog.at_level("WARNING"):
+            runner.plan(g)
+        assert "outdir" not in caplog.text
+
+    def test_a_pipeline_step_without_outdir_warns(self, runner, graph_two, caplog):
+        with caplog.at_level("WARNING"):
+            runner.plan(graph_two)
+        assert "has no outdir param" in caplog.text

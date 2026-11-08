@@ -143,6 +143,19 @@ class TestSaveToConfig:
         loaded_session.save_to_config(None)
         assert config_yaml.exists()
 
+    def test_a_failed_save_as_keeps_the_current_file(self, loaded_session, config_yaml, tmp_path):
+        project_dir = loaded_session.graph.project_dir
+        with pytest.raises(OSError):
+            loaded_session.save_to_config(tmp_path / "missing-dir" / "saved.yaml")
+        assert loaded_session.config_file == config_yaml
+        assert loaded_session.graph.project_dir == project_dir
+
+    def test_save_as_expands_the_home_folder(self, loaded_session, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        loaded_session.save_to_config("~/saved.yaml")
+        assert (tmp_path / "saved.yaml").exists()
+        assert loaded_session.config_file == tmp_path / "saved.yaml"
+
 
 class TestRemoteConfig:
     """A config loaded from a URL (here: a loaded session pointed at one) is never written to."""

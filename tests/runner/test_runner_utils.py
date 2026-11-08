@@ -98,3 +98,10 @@ class TestCheckNextflowVersion:
             result = check_nextflow_version((25, 10, 4, 0))
         assert result is True
         assert any("mismatch" in r.message.lower() for r in caplog.records)
+
+
+def test_run_options_resolve_a_relative_nf_config(tmp_path, monkeypatch):
+    from nf_meta.runner.utils import RunOptions
+
+    monkeypatch.chdir(tmp_path)
+    assert RunOptions(nf_config="run.config").nf_config == tmp_path / "run.config"

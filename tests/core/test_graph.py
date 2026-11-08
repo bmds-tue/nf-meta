@@ -387,3 +387,15 @@ class TestModuleNextflowVersion:
             GlobalOptions(nextflow_version="25"), [module_fastqc]
         )
         assert [(d.workflow_id, d.yaml_path) for d in diagnostics] == [(None, "globals.nextflow_version")]
+
+
+def test_an_existing_edge_is_kept_with_a_warning(empty_graph, wf_rnaseq, wf_fetchngs, caplog):
+    empty_graph.add_workflow(wf_rnaseq)
+    empty_graph.add_workflow(wf_fetchngs)
+    tr = Transition(source=wf_rnaseq.id, target=wf_fetchngs.id)
+    empty_graph.add_transition(tr)
+    empty_graph.pop_events()
+    with caplog.at_level("WARNING"):
+        empty_graph.add_transition(tr)
+    assert not empty_graph.pop_events()
+    assert "Edge already exists" in caplog.text

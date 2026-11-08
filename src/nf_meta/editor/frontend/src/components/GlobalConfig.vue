@@ -11,6 +11,7 @@ const graphStore = useGraphStore()
 
 const isEditing = ref(false)
 const saving = ref(false)
+const yamlError = ref('')
 const errors = ref<Record<string, string[]>>({})
 const form = ref<APIGlobalOptions>({})
 
@@ -32,6 +33,7 @@ function cancel() {
 
 async function save() {
   errors.value = {}
+  if (yamlError.value) return  // shown in the YAML editor
   saving.value = true
   try {
     const result = await graphStore.updateGlobalOptions({
@@ -118,7 +120,7 @@ async function save() {
         <div class="text-caption">Params</div>
         <p v-if="errors['params']?.length" class="field-error mb-0">{{ errors['params']!.join(' ') }}</p>
         <div class="params-editor">
-          <YamlEditor v-model="form.params" node-id="" @save="save" />
+          <YamlEditor v-model="form.params" node-id="" @save="save" @parse-error="yamlError = $event" />
         </div>
         <div class="d-flex justify-end ga-1">
           <v-btn size="small" variant="flat" color="primary" type="submit" :loading="saving" prepend-icon="mdi-check">Save</v-btn>

@@ -251,7 +251,7 @@ def script_folder(main_script: str | None) -> str:
 class NfPipeline(BaseWorkflow):
     """A Nextflow pipeline step executed with 'nextflow run'."""
 
-    type: Literal[WorkflowType.NF_PIPELINE] = WorkflowType.NF_PIPELINE
+    type: Literal[WorkflowType.NF_PIPELINE] = Field(default=WorkflowType.NF_PIPELINE, validate_default=True)
     # None only for a local pipeline (`path`)
     version: str | None = None  # type: ignore[assignment]
     # A local pipeline folder, for development: used instead of `url` and `version`
@@ -382,6 +382,8 @@ class NfPipeline(BaseWorkflow):
         data += self.params_file or ""
         data += json.dumps(self.params, sort_keys=True, default=str)
         data += self.main_script or ""
+        if self.nf_profile:  # only when set, so other steps keep their keys
+            data += f"\nnf_profile: {self.nf_profile}"
         return hashlib.sha256(data.encode()).hexdigest()[:8]
 
     def model_dump_config(self) -> dict:
@@ -429,7 +431,7 @@ class NfPipeline(BaseWorkflow):
 class NfModule(BaseWorkflow):
     """A Nextflow module step executed with 'nextflow module run'."""
 
-    type: Literal[WorkflowType.NF_MODULE] = WorkflowType.NF_MODULE
+    type: Literal[WorkflowType.NF_MODULE] = Field(default=WorkflowType.NF_MODULE, validate_default=True)
     container_engine: Literal["docker", "singularity", "conda", "podman"] | None = None
 
     # `nextflow module` exists from this Nextflow version (major, minor) on
@@ -496,6 +498,13 @@ class GlobalOptions(BaseModel):
         if v is None:
             return v
 
+        if isinstance(v, bool):
+            raise ValueError(f"nextflow_version must be a version such as '25.10', got {v!r}.")
+        if isinstance(v, float) and len(str(v).split(".")[1]) == 1:
+            # YAML read an unquoted 25.10 as the number 25.1
+            raise ValueError(
+                f"Write nextflow_version in quotes, e.g. '{v}0': unquoted, YAML reads it as the number {v}."
+            )
         if isinstance(v, (int, float)):
             return str(v)
 
@@ -576,6 +585,8 @@ class Transition(BaseModel):
 
 
 def validate_config_version(config_version: str) -> str:
+    if not isinstance(config_version, str):
+        raise ValueError(f"Invalid config version: {config_version!r}. Write it in quotes, e.g. '0.5.0'.")
     result = re.match(r"^\d+\.\d+\.\d$", config_version)
     if not result:
         raise ValueError(f"Invalid config version: {config_version}")

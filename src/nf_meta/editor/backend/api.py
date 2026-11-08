@@ -179,6 +179,7 @@ def load_graph(config: Path = Body(embed=True)):
     """Load the config at `config` (relative to where the editor was
     started). Answers 404 for a missing file and 422 with the first problems
     for an invalid config; the current graph stays as it was."""
+    config = config.expanduser()
     if not config.is_file():
         return JSONResponse(status_code=404, content={"detail": f"No such file: {config}"})
     try:

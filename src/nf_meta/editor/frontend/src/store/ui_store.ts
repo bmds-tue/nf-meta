@@ -136,6 +136,14 @@ export const useEditorStore = defineStore('editor', () => {
     // Inputs to point out in the inputs panel (scrolled to and flashed)
     const flashingInputNames = ref<string[]>([])
 
+    // The toolbar's warnings list, open with the warnings of `warningsStepId` marked
+    const warningsOpen = ref(false)
+    const warningsStepId = ref<string | null>(null)
+    function showWarnings(stepId: string | null = null) {
+        warningsStepId.value = stepId
+        warningsOpen.value = true
+    }
+
     function showInputs(names: string[]) {
         if (!_sideBarOpen.value) toggleSidebar()
         sideBarTab.value = 'inputs'
@@ -216,6 +224,7 @@ export const useEditorStore = defineStore('editor', () => {
         hoveredNodeId, setHoveredNodeId,
         hoveredInputName, setHoveredInputName,
         flashingInputNames, showInputs, showNode,
+        warningsOpen, warningsStepId, showWarnings,
         flashingNodeId, flashNode,
         saveDialogOpen, saveDialogReason, openSaveDialog, requireSave, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,

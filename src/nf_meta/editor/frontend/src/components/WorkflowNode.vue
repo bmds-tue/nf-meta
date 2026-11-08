@@ -91,9 +91,11 @@ async function copyToClipboard() {
                 v-if="warnings.length"
                 color="warning"
                 size="small"
-                class="ml-1"
+                class="ml-1 nodrag"
                 prepend-icon="mdi-alert-outline"
-                :title="warnings.map(w => w.message).join('\n')">
+                :title="warnings.map(w => w.message).join('\n') + '\n\nClick to show in the warnings list'"
+                @click.stop="editorStore.showWarnings(props.id)"
+                @dblclick.stop>
                 {{ warnings.length }}
             </v-chip>
         </div>

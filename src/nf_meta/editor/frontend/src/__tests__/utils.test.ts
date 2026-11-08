@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { APIInput } from '../types'
 import {
     cleanInputDefinition, extractFieldErrors, extractInputFieldErrors,
-    addableParams, baseName, folderOf, shortPath, canShareInput, joinPath, lintReferenceCount, pathCrumbs, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion, pathPick, isUrl,
+    addableParams, baseName, folderOf, groupWarnings, shortPath, canShareInput, joinPath, lintReferenceCount, pathCrumbs, unshownErrors, inputDeleteProblem, splitLeadingReference, paramFieldErrors, paramRows, toParamValue, inputFillsStep, inputFor, inputsOfStep, referenceTargets, lintInputReferences, paramSuggestions, shortVersion, pathPick, isUrl,
 } from '../utils'
 
 function input(name: string, overrides: Partial<APIInput> = {}): APIInput {
@@ -334,5 +334,23 @@ describe('isUrl', () => {
         expect(isUrl('/data/a.csv')).toBe(false)
         expect(isUrl('data/a.csv')).toBe(false)
         expect(isUrl(undefined)).toBe(false)
+    })
+})
+
+describe('groupWarnings', () => {
+    it('groups by key without the step prefix, each message once with its steps', () => {
+        const same = "Steps 'n01', 'n02' write to the same outdir 'o': nf-meta run refuses this."
+        const groups = groupWarnings([
+            { workflow_id: 'n01', yaml_path: 'steps.n01.params.outdir', message: same },
+            { workflow_id: 'n02', yaml_path: 'steps.n02.params.outdir', message: same },
+            { workflow_id: 'n01', yaml_path: 'steps.n01.container_engine', message: 'no engine' },
+            { workflow_id: 'n03', yaml_path: 'steps.n03.container_engine', message: 'no engine' },
+            { workflow_id: null, yaml_path: 'globals.params', message: 'deprecated' },
+        ])
+        expect(groups).toEqual([
+            { key: 'params.outdir', entries: [{ message: same, steps: ['n01', 'n02'] }] },
+            { key: 'container_engine', entries: [{ message: 'no engine', steps: ['n01', 'n03'] }] },
+            { key: 'globals.params', entries: [{ message: 'deprecated', steps: [] }] },
+        ])
     })
 })

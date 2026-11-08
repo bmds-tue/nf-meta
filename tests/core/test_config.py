@@ -723,13 +723,13 @@ def test_global_params_load_with_a_deprecation_warning(tmp_path):
 @pytest.mark.parametrize(
     ("second", "expected"),
     [
-        ("o", "Same outdir as step 'n01'"),
-        ("./o/", "Same outdir as step 'n01'"),
-        ("o/sub", "Inside step 'n01''s outdir"),
+        ("o", "Steps 'n01', 'n02' write to the same outdir 'o'"),
+        ("./o/", "Steps 'n01', 'n02' write to the same outdir 'o'"),
+        ("o/sub", "Step 'n02' writes inside step 'n01''s outdir ('o/sub' in 'o')"),
         ("other", None),
     ],
 )
-def test_shared_outdirs_warn(second, expected):
+def test_shared_outdirs_warn_both_steps_with_one_text(second, expected):
     data = _config()
     data["steps"]["n02"] = {
         "name": "nf-core/rnaseq",
@@ -738,8 +738,12 @@ def test_shared_outdirs_warn(second, expected):
         "params": {"input": "s.csv", "outdir": second},
     }
     g = validated_graph(data, collect_errors=True)
-    messages = [d.message for d in g.warnings if d.yaml_path == "steps.n02.params.outdir"]
-    assert messages[0].startswith(expected) if expected else messages == []
+    found = [(d.workflow_id, d.message) for d in g.warnings if d.yaml_path.endswith(".params.outdir")]
+    if expected is None:
+        assert found == []
+    else:
+        assert sorted(step for step, _ in found) == ["n01", "n02"]
+        assert found[0][1] == found[1][1] and found[0][1].startswith(expected)
 
 
 def test_missing_nf_config_is_an_error(tmp_path):

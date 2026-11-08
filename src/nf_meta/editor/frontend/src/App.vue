@@ -15,6 +15,7 @@ import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 import BackendNotice from './components/BackendNotice.vue'
 import StartScreen from './components/StartScreen.vue'
+import WarningsMenu from './components/WarningsMenu.vue'
 import { useLayout } from './layout_graph'
 import { useTheme } from 'vuetify'
 import { DARK_THEME, LIGHT_THEME, storeTheme, type ThemeName } from './themes'
@@ -210,22 +211,7 @@ onMounted(async () => {
           :title="graphStore.isHorizontalLayout ? 'Vertical layout' : 'Horizontal layout'"
           :icon="graphStore.isHorizontalLayout ? 'mdi-arrow-up-down' : 'mdi-arrow-left-right'" variant="text"
           @click="toggleLayoutAndFitView" />
-        <v-menu v-if="graphStore.warnings.length" location="bottom start" max-width="560">
-          <template #activator="{ props: menuProps }">
-            <v-btn v-bind="menuProps" title="Warnings about this config" variant="text" color="warning">
-              <v-icon icon="mdi-alert-outline" />
-              <span class="ml-1">{{ graphStore.warnings.length }}</span>
-            </v-btn>
-          </template>
-          <v-list density="compact">
-            <v-list-item
-              v-for="w in graphStore.warnings"
-              :key="w.yaml_path + w.message"
-              :title="w.yaml_path"
-              :subtitle="w.message"
-              lines="three" />
-          </v-list>
-        </v-menu>
+        <WarningsMenu />
       </div>
 
       <v-spacer />

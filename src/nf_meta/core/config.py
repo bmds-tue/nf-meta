@@ -91,34 +91,41 @@ def _abbreviated_sha_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
 
 def _shared_outdir_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
     """Steps whose literal `outdir` params are the same folder or one inside
-    the other. Values with references or inputs are left to the runner."""
-    outdirs = [
-        (wf.id, value.rstrip("/"), posixpath.normpath(value))
-        for wf in g.get_workflows()
-        if isinstance(value := (wf.params or {}).get("outdir"), str) and value and "${" not in value
+    the other, one warning per step involved, with the same text for each.
+    Values with references or inputs are left to the runner."""
+    by_path: dict[str, list[tuple[str, str]]] = {}
+    for wf in g.get_workflows():
+        value = (wf.params or {}).get("outdir")
+        if isinstance(value, str) and value and "${" not in value:
+            by_path.setdefault(posixpath.normpath(value), []).append((wf.id, value))
+    found: list[tuple[list[str], str]] = []
+    for steps in by_path.values():
+        if len(steps) > 1:
+            ids = [step_id for step_id, _ in steps]
+            names = ", ".join(f"'{step_id}'" for step_id in ids)
+            found.append((ids, f"Steps {names} write to the same outdir '{steps[0][1]}': nf-meta run refuses this."))
+    for outer, outer_steps in by_path.items():
+        for inner, inner_steps in by_path.items():
+            if "://" in inner or inner == outer or not inner.startswith(outer.rstrip("/") + "/"):
+                continue
+            for inner_id, inner_value in inner_steps:
+                for outer_id, outer_value in outer_steps:
+                    message = (
+                        f"Step '{inner_id}' writes inside step '{outer_id}''s outdir "
+                        f"('{inner_value}' in '{outer_value}'): their results may mix."
+                    )
+                    found.append(([inner_id, outer_id], message))
+    return [
+        Diagnostic(
+            workflow_id=step_id,
+            field="params",
+            yaml_path=f"steps.{step_id}.params.outdir",
+            message=message,
+            severity=Severity.WARNING,
+        )
+        for ids, message in found
+        for step_id in ids
     ]
-    warnings = []
-    for wf_id, _value, path in outdirs:
-        for other_id, other_value, other_path in outdirs:
-            if other_id == wf_id:
-                continue
-            if path == other_path:
-                message = f"Same outdir as step '{other_id}': their results mix, and nf-meta run refuses this."
-            elif "://" not in path and path.startswith(other_path.rstrip("/") + "/"):
-                message = f"Inside step '{other_id}''s outdir '{other_value}': their results may mix."
-            else:
-                continue
-            warnings.append(
-                Diagnostic(
-                    workflow_id=wf_id,
-                    field="params",
-                    yaml_path=f"steps.{wf_id}.params.outdir",
-                    message=message,
-                    severity=Severity.WARNING,
-                )
-            )
-            break
-    return warnings
 
 
 def _deprecated_key_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:

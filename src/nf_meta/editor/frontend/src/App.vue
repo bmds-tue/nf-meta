@@ -15,7 +15,6 @@ import SaveDialog from './components/SaveDialog.vue'
 import LoadDialog from './components/LoadDialog.vue'
 import BackendNotice from './components/BackendNotice.vue'
 import StartScreen from './components/StartScreen.vue'
-import WarningsMenu from './components/WarningsMenu.vue'
 import { useLayout } from './layout_graph'
 import { useTheme } from 'vuetify'
 import { DARK_THEME, LIGHT_THEME, storeTheme, type ThemeName } from './themes'
@@ -211,7 +210,6 @@ onMounted(async () => {
           :title="graphStore.isHorizontalLayout ? 'Vertical layout' : 'Horizontal layout'"
           :icon="graphStore.isHorizontalLayout ? 'mdi-arrow-up-down' : 'mdi-arrow-left-right'" variant="text"
           @click="toggleLayoutAndFitView" />
-        <WarningsMenu />
       </div>
 
       <v-spacer />

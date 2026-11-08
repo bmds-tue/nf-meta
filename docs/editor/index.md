@@ -62,10 +62,11 @@ or module (nf-core names and versions are completed from the nf-core catalog), a
 Problems show at the field they belong to; a change the checks refuse is not saved.
 
 Warnings don't block a change: an old key name, two steps sharing an outdir, a local pipeline, a
-repository that couldn't be checked. The yellow button in the toolbar lists all warnings about the
-config, grouped by key. Each step's warnings show as a yellow count on its node: click it to open
-the list with that step's warnings marked. Warnings about old key
-names go away once the editor has saved the file in the current form.
+repository that couldn't be checked. The yellow count in the footer, next to the history, opens
+the Warnings tab: all warnings about the config, grouped by key. Each step's warnings show as a
+yellow count on its node: click it to open the tab with that step's warnings marked. Warnings about
+old key names go away once the editor has saved the file in the current form. Drag the panel's top
+edge to make it taller.
 
 **Inputs.** Lists all run-time inputs of the metapipeline, with the params they fill. Hovering an input
 highlights its steps on the graph. An input's form sets its description, default and rules

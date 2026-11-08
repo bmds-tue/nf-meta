@@ -93,7 +93,7 @@ async function copyToClipboard() {
                 size="small"
                 class="ml-1 nodrag"
                 prepend-icon="mdi-alert-outline"
-                :title="warnings.map(w => w.message).join('\n') + '\n\nClick to show in the warnings list'"
+                :title="warnings.map(w => w.message).join('\n') + '\n\nClick to show in Warnings'"
                 @click.stop="editorStore.showWarnings(props.id)"
                 @dblclick.stop>
                 {{ warnings.length }}

@@ -194,10 +194,11 @@ class SimplePythonRunner(BaseRunner):
 
         return (process.returncode, stdout, stderr)
 
-    def _execute(self, spec: StepSpec, command: StepCommand, label: str = "") -> bool:
+    def _execute(self, spec: StepSpec, command: StepCommand, label: str = "") -> int:
         """Run one step's command, showing `label` and its latest output while
         it runs, then the step's outcome, and on failure its errors. Writes
-        `OUT_FILE` and, on failure, `ERROR_FILE` to the step's state dir."""
+        `OUT_FILE` and, on failure, `ERROR_FILE` to the step's state dir.
+        Returns the command's exit code."""
         spec.state_dir.mkdir(parents=True, exist_ok=True)
         command.cwd.mkdir(parents=True, exist_ok=True)
         command.write_files()
@@ -212,14 +213,14 @@ class SimplePythonRunner(BaseRunner):
         if exit_code != 0:
             console.print(Text.assemble(("✗ ", "bold red"), f"{label}: Step failed"))
             self._show_failure_output(out, err)
-            logger.error(f"Command exited with code {exit_code}. Step dir: {spec.state_dir}")
+            logger.info(f"Command exited with code {exit_code}. Step dir: {spec.state_dir}")
             with (spec.state_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
         else:
             console.print(Text.assemble(("✓ ", "green"), f"{label}: Done"))
             (spec.state_dir / self.ERROR_FILE).unlink(missing_ok=True)
 
-        return exit_code == 0
+        return exit_code
 
     def _show_failure_output(self, out: str, err: str) -> None:
         # Nextflow reports config errors on stderr, errors during the run on stdout
@@ -231,7 +232,7 @@ class SimplePythonRunner(BaseRunner):
         blocks = [(out_header, "\n".join(out_lines[-keep:])), ("Errors", err.rstrip())]
         shown = [(header, text) for header, text in blocks if text.strip()]
         for header, text in shown:
-            console.print(Text(f"  {header}:", style="dim"))
+            console.print(Text(f"  {header}:"))
             # Wrapped here, so that wrapped lines keep the indent
             for line in Text(text, style="dim").wrap(console, max(console.width - 4, 20)):
                 console.print(Text("    ") + line)
@@ -484,9 +485,11 @@ class SimplePythonRunner(BaseRunner):
                 console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
                 continue
 
-            if not self._execute(step.spec, step.command, label=step_label):
+            exit_code = self._execute(step.spec, step.command, label=step_label)
+            if exit_code != 0:
                 raise NfMetaRunnerError(
-                    f"Step '{step.workflow.id}' ({step.workflow.name}) failed. Output and errors: {step.spec.state_dir}"
+                    f"Step '{step.workflow.id}' ({step.workflow.name}) failed with exit code {exit_code}. "
+                    f"Output and errors: {step.spec.state_dir}"
                 )
 
         console.print("[bold green]All steps completed successfully[/bold green]")

@@ -41,7 +41,7 @@ def fake_execute(monkeypatch, mock_nextflow):
 
     def execute(self, spec, command, label=""):
         executed.append(spec.step_id)
-        return outcome["success"]
+        return 0 if outcome["success"] else 1
 
     monkeypatch.setattr(SimplePythonRunner, "_execute", execute)
     monkeypatch.setattr(SimplePythonRunner, "_check_nextflow", lambda self, graph, steps: None)
@@ -271,7 +271,7 @@ class TestRun:
             executed.append(spec.params["count"])
             spec.state_dir.mkdir(parents=True, exist_ok=True)
             (spec.state_dir / SimplePythonRunner.OUT_FILE).write_text("done")
-            return True
+            return 0
 
         monkeypatch.setattr(SimplePythonRunner, "_execute", execute)
         monkeypatch.setattr(SimplePythonRunner, "_check_nextflow", lambda self, graph, steps: None)

@@ -191,13 +191,13 @@ class TestExecute:
     def test_success_writes_out_file(self, runner, wf_rnaseq):
         runner._stream_proc_out = MagicMock(return_value=(0, "stdout output", ""))
         step = self._step(runner, wf_rnaseq)
-        assert runner._execute(step.spec, step.command) is True
+        assert runner._execute(step.spec, step.command) == 0
         assert (step.spec.state_dir / SimplePythonRunner.OUT_FILE).exists()
 
     def test_failure_writes_error_file(self, runner, wf_rnaseq):
         runner._stream_proc_out = MagicMock(return_value=(1, "", "error text"))
         step = self._step(runner, wf_rnaseq)
-        assert runner._execute(step.spec, step.command) is False
+        assert runner._execute(step.spec, step.command) == 1
         assert (step.spec.state_dir / SimplePythonRunner.ERROR_FILE).read_text() == "error text"
 
     def _shown(self, runner, step):
@@ -304,7 +304,7 @@ class TestRun:
 
         def fake_execute(spec, command, label=""):
             executed.append(spec.workflow)
-            return success
+            return 0 if success else 1
 
         runner._execute = fake_execute
         return executed
@@ -326,7 +326,7 @@ class TestRun:
 
     def test_run_raises_on_first_failure(self, runner, graph_two, wf_fetchngs):
         executed = self._record(runner, success=False)
-        with pytest.raises(NfMetaRunnerError, match=wf_fetchngs.id):
+        with pytest.raises(NfMetaRunnerError, match=f"{wf_fetchngs.id}.*failed with exit code 1"):
             runner.run(graph_two)
         assert len(executed) == 1
 

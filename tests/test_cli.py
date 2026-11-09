@@ -471,3 +471,19 @@ class TestEditorCommand:
         monkeypatch.setattr(nf_meta.editor, "run_editor", lambda options: None)
         assert CliRunner().invoke(cli, ["editor"]).exit_code == 0
         assert recent.recent_configs() == []
+
+
+class TestRunErrors:
+    def test_header_in_bold_red_details_plain(self, tmp_path, monkeypatch):
+        from nf_meta.runner.errors import NfMetaRunnerError
+
+        def fail(graph, options):
+            raise NfMetaRunnerError("Invalid input values:\n  sheet = 'missing.csv': does not exist")
+
+        monkeypatch.setattr("nf_meta.runner.run_metapipeline", fail)
+        text = "config_version: 0.5.0\nsteps:\n  n01:\n    name: nf-core/fetchngs\n    version: 1.12.0\n"
+        result = CliRunner().invoke(cli, ["run", "-r", "python", str(_write(tmp_path, text))], color=True)
+        assert result.exit_code == 1, result.output
+        assert result.output.endswith(
+            "\x1b[31m\x1b[1mInvalid input values:\x1b[0m\n  sheet = 'missing.csv': does not exist\n"
+        )

@@ -211,12 +211,7 @@ class SimplePythonRunner(BaseRunner):
 
         if exit_code != 0:
             console.print(Text.assemble(("✗ ", "bold red"), f"{label}: Step failed"))
-            # Nextflow reports config errors on stderr, errors during the run on stdout
-            last_lines = "\n".join(out.splitlines()[-self.run_options.output_lines :])
-            for header, text in (("Step output", last_lines), ("Errors", err)):
-                if text.strip():
-                    console.print(Text(header, style="bold"))
-                    console.print(Text(text.rstrip(), style="dim"))
+            self._show_failure_output(out, err)
             logger.error(f"Command exited with code {exit_code}. Step dir: {spec.state_dir}")
             with (spec.state_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
@@ -225,6 +220,23 @@ class SimplePythonRunner(BaseRunner):
             (spec.state_dir / self.ERROR_FILE).unlink(missing_ok=True)
 
         return exit_code == 0
+
+    def _show_failure_output(self, out: str, err: str) -> None:
+        # Nextflow reports config errors on stderr, errors during the run on stdout
+        out_lines = out.rstrip().splitlines()
+        keep = self.run_options.output_lines
+        out_header = "Step output"
+        if len(out_lines) > keep:
+            out_header += f" (last {keep} of {len(out_lines)} lines)"
+        blocks = [(out_header, "\n".join(out_lines[-keep:])), ("Errors", err.rstrip())]
+        shown = [(header, text) for header, text in blocks if text.strip()]
+        for header, text in shown:
+            console.print(Text(f"  {header}:", style="dim"))
+            # Wrapped here, so that wrapped lines keep the indent
+            for line in Text(text, style="dim").wrap(console, max(console.width - 4, 20)):
+                console.print(Text("    ") + line)
+        if shown:
+            console.print()
 
     def _selected_workflows(self, graph: MetaworkflowGraph) -> list[Workflow]:
         workflows = graph.get_workflows_sorted()

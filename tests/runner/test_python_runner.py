@@ -214,15 +214,22 @@ class TestExecute:
         shown = self._shown(runner, self._step(runner, wf_rnaseq))
         assert shown == (
             "✗ Step 1/1 - nf-core/rnaseq: Step failed\n"
-            "Step output\nprogress\n"
-            "Errors\nUnknown configuration profile: 'm3c'\n"
+            "  Step output:\n    progress\n"
+            "  Errors:\n    Unknown configuration profile: 'm3c'\n"
+            "\n"
         )
 
     def test_failure_without_stderr_shows_the_last_output(self, runner, wf_rnaseq):
         runner._stream_proc_out = MagicMock(return_value=(1, "line 1\nERROR ~ [boom]\n", ""))
         shown = self._shown(runner, self._step(runner, wf_rnaseq))
-        assert shown.endswith("Step output\nline 1\nERROR ~ [boom]\n")
+        assert shown.endswith("  Step output:\n    line 1\n    ERROR ~ [boom]\n\n")
         assert "Errors" not in shown
+
+    def test_failure_says_when_the_output_is_cut(self, runner, wf_rnaseq):
+        runner.run_options.output_lines = 2
+        runner._stream_proc_out = MagicMock(return_value=(1, "a\nb\nc\n", ""))
+        shown = self._shown(runner, self._step(runner, wf_rnaseq))
+        assert "  Step output (last 2 of 3 lines):\n    b\n    c\n" in shown
 
     def test_writes_params_file_before_running(self, runner, wf_rnaseq):
         wf = wf_rnaseq.model_copy(update={"params": {"input": "samples.csv"}})

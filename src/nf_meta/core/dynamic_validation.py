@@ -28,6 +28,7 @@ from .models import (
     NfPipeline,
     Workflow,
     config_path,
+    script_folder,
     with_absolute_config_paths,
 )
 from .nf_param_validation import validate_params
@@ -42,7 +43,7 @@ from .registry import (
     get_module_schema,
     get_nfcore_module_releases,
     get_pipeline_schema,
-    github_file_exists,
+    repo_file_exists,
     url_exists,
 )
 
@@ -132,43 +133,34 @@ def check_pipeline_folder(wf: NfPipeline) -> list[Diagnostic]:
 
 
 def check_pipeline_main_script_exists(wf: NfPipeline) -> list[Diagnostic]:
-    """From NfPipeline.validate_main_script's github_file_exists block."""
-    if wf.main_script is None or wf.path:  # a local one: see check_pipeline_folder
+    """For a pipeline with `main_script` in a repository: an error if the
+    script isn't in the repository at `version`, a warning if that can't be
+    checked."""
+    if wf.main_script is None or wf.path or not wf.url or not wf.version:  # local: see check_pipeline_folder
         return []
 
-    if wf.url and "github.com" in wf.url and wf.version:
-        try:
-            exists = github_file_exists(wf.url, wf.main_script, wf.version)
-        except RegistryUnavailableError as e:
-            return [
-                Diagnostic(
-                    workflow_id=wf.id,
-                    field="main_script",
-                    message=f"Cannot check main_script '{wf.main_script}': {e}",
-                    severity=Severity.WARNING,
-                )
-            ]
-        if not exists:
-            return [
-                Diagnostic(
-                    workflow_id=wf.id,
-                    field="main_script",
-                    message=(
-                        f"main_script '{wf.main_script}' not found in repository '{wf.url}' at ref '{wf.version}'"
-                    ),
-                    severity=Severity.ERROR,
-                )
-            ]
-        return []
+    def warning(message: str) -> list[Diagnostic]:
+        return [Diagnostic(workflow_id=wf.id, field="main_script", message=message, severity=Severity.WARNING)]
 
-    return [
-        Diagnostic(
-            workflow_id=wf.id,
-            field="main_script",
-            message=(f"Cannot validate main_script '{wf.main_script}': '{wf.url}' is not a GitHub URL"),
-            severity=Severity.WARNING,
+    try:
+        exists = repo_file_exists(wf.url, wf.main_script, wf.version)
+    except PipelineSchemaError:
+        return warning(
+            f"Cannot validate main_script '{wf.main_script}': '{wf.url}' is not on github.com, gitlab.com "
+            "or bitbucket.org"
         )
-    ]
+    except RegistryUnavailableError as e:
+        return warning(f"Cannot check main_script '{wf.main_script}': {e}")
+    if not exists:
+        return [
+            Diagnostic(
+                workflow_id=wf.id,
+                field="main_script",
+                message=f"main_script '{wf.main_script}' not found in repository '{wf.url}' at ref '{wf.version}'",
+                severity=Severity.ERROR,
+            )
+        ]
+    return []
 
 
 def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
@@ -184,8 +176,8 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
         return []
 
     try:
-        schema = get_local_pipeline_schema(wf.path) if wf.path else get_pipeline_schema(url, version)  # type: ignore[arg-type]
-    except PipelineSchemaError as e:
+        schema = get_step_schema(wf)
+    except SchemaUnavailableError as e:
         return [
             Diagnostic(
                 workflow_id=node_id,
@@ -222,7 +214,7 @@ def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
                     )
                 )
                 skip_required = True
-        except (OSError, yaml.YAMLError) as exc:
+        except (OSError, ValueError, yaml.YAMLError) as exc:
             diagnostics.append(
                 Diagnostic(
                     workflow_id=node_id,
@@ -335,7 +327,7 @@ _PIPELINE_CHECKS: list[_CheckEntry] = [
     (
         "params_schema",
         check_pipeline_params_schema,
-        ("url", "version", "path", "params", "params_file"),
+        ("url", "version", "path", "main_script", "params", "params_file"),
     ),
 ]
 
@@ -352,33 +344,42 @@ def _fields_changed(wf: Workflow, previous: Workflow | None, fields: tuple[str, 
     return any(getattr(wf, f, None) != getattr(previous, f, None) for f in fields)
 
 
-def run_dynamic_checks(wf: Workflow, previous: Workflow | None = None) -> list[Diagnostic]:
-    """Run the checks applicable to wf's type.
-
-    previous=None: run all checks unconditionally (fresh/CLI load path).
-    previous=<Workflow>: only run a check if its trigger fields differ from
-    previous — this is the skip-if-unchanged fast path used by the editor.
-    """
+def _checks_to_run(wf: Workflow, previous: Workflow | None) -> list[tuple[str, Callable]]:
     if isinstance(wf, NfPipeline):
         checks = _PIPELINE_CHECKS
     elif isinstance(wf, NfModule):
         checks = _MODULE_CHECKS
     else:
         return []
+    return [(name, fn) for name, fn, fields in checks if _fields_changed(wf, previous, fields)]
 
-    to_run = [(name, fn) for name, fn, fields in checks if _fields_changed(wf, previous, fields)]
+
+def checks_to_run(wf: Workflow, previous: Workflow | None = None) -> set[str]:
+    """The names of the checks `run_dynamic_checks(wf, previous)` runs."""
+    return {name for name, _ in _checks_to_run(wf, previous)}
+
+
+def run_dynamic_checks(wf: Workflow, previous: Workflow | None = None) -> list[Diagnostic]:
+    """Run the checks applicable to wf's type. Each diagnostic names its check
+    in `check`.
+
+    previous=None: run all checks unconditionally (fresh/CLI load path).
+    previous=<Workflow>: only run a check if its trigger fields differ from
+    previous — this is the skip-if-unchanged fast path used by the editor.
+    """
+    to_run = _checks_to_run(wf, previous)
     if not to_run:
         return []
 
     if len(to_run) == 1:
-        _, fn = to_run[0]
-        return fn(wf)
+        name, fn = to_run[0]
+        return [dataclasses.replace(d, check=name) for d in fn(wf)]
 
     diagnostics: list[Diagnostic] = []
     with ThreadPoolExecutor(max_workers=len(to_run)) as executor:
-        futures = [executor.submit(fn, wf) for _, fn in to_run]
-        for future in futures:
-            diagnostics.extend(future.result())
+        futures = [(name, executor.submit(fn, wf)) for name, fn in to_run]
+        for name, future in futures:
+            diagnostics.extend(dataclasses.replace(d, check=name) for d in future.result())
     return diagnostics
 
 
@@ -398,15 +399,15 @@ def _prefetch(workflows: list[Workflow]) -> None:
         if isinstance(wf, NfPipeline):
             if wf.url and not wf.is_nfcore:
                 tasks[("url_exists", wf.url)] = (url_exists, (wf.url,))
-            if wf.main_script and wf.url and "github.com" in wf.url and wf.version:
-                tasks[("github_file_exists", wf.url, wf.main_script, wf.version)] = (
-                    github_file_exists,
+            if wf.main_script and wf.url and wf.version and not wf.path:
+                tasks[("repo_file_exists", wf.url, wf.main_script, wf.version)] = (
+                    repo_file_exists,
                     (wf.url, wf.main_script, wf.version),
                 )
             if wf.url and wf.name and wf.version:
-                tasks[("pipeline_schema", wf.url, wf.version)] = (
+                tasks[("pipeline_schema", wf.url, wf.version, script_folder(wf.main_script))] = (
                     get_pipeline_schema,
-                    (wf.url, wf.version),
+                    (wf.url, wf.version, script_folder(wf.main_script)),
                 )
         elif isinstance(wf, NfModule):
             short_name = wf.name.removeprefix("nf-core/")
@@ -474,8 +475,8 @@ def get_step_schema(step: Workflow) -> Schema:
     `SchemaUnavailableError` if it can't be fetched or parsed."""
     if isinstance(step, NfPipeline):
         if step.path:
-            return get_local_pipeline_schema(step.path)
-        return get_pipeline_schema(step.url, step.version)  # type: ignore[arg-type]
+            return get_local_pipeline_schema(Path(step.path) / script_folder(step.main_script))
+        return get_pipeline_schema(step.url, step.version, script_folder(step.main_script))  # type: ignore[arg-type]
     return get_module_schema(step.name, step.version)
 
 

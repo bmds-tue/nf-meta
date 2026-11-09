@@ -27,8 +27,8 @@ class EditorSession:
         self.write_on_change = write_on_change
         self.graph = MetaworkflowGraph()
         self.history = History()
-        # Warnings found when the config was loaded
-        self.warnings: list[Diagnostic] = []
+        # Warnings about the loaded file's old forms, until the session writes it
+        self.format_warnings: list[Diagnostic] = []
 
     def load_config(self, config: Path | str):
         self.start(config)
@@ -42,7 +42,7 @@ class EditorSession:
         graph = from_file(config_file, collect_errors=True) if config_file else MetaworkflowGraph()
         self.config_file = config_file
         self.graph = graph
-        self.warnings = self.graph.warnings
+        self.format_warnings = self.graph.format_warnings
         self.history = History()
 
     def execute(self, c: Command):
@@ -53,7 +53,8 @@ class EditorSession:
         raises `RemoteConfigWriteError` before changing anything."""
         self._check_writable()
         events = self.history.execute(c, self.graph)
-        self._write_if_enabled()
+        if events:
+            self._write_if_enabled()
         return events
 
     def handle_command(self, c: Command):
@@ -87,14 +88,14 @@ class EditorSession:
         """`undo`, with errors raised as `SessionCommandError`."""
         try:
             return self.undo()
-        except ValueError as e:
+        except (GraphValidationError, ValueError, ConfigValidationError) as e:
             raise SessionCommandError.from_exception(e) from e
 
     def handle_redo(self):
         """`redo`, with errors raised as `SessionCommandError`."""
         try:
             return self.redo()
-        except ValueError as e:
+        except (GraphValidationError, ValueError, ConfigValidationError) as e:
             raise SessionCommandError.from_exception(e) from e
 
     def _check_writable(self):
@@ -112,10 +113,12 @@ class EditorSession:
         if is_remote_config(target):
             raise RemoteConfigWriteError(f"Can't write to a URL ({target}); save to a local file")
 
-        self.config_file = target
+        path = Path(target).expanduser()
+        to_file(self.graph, path)
+        self.format_warnings = []
+        self.config_file = path
         # relative paths in the config are relative to its folder
-        self.graph.project_dir = Path(target).expanduser().resolve().parent
-        to_file(self.graph, target)
+        self.graph.project_dir = path.resolve().parent
 
 
 SESSION = EditorSession()

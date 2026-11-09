@@ -3,6 +3,7 @@ import type { ThemeDefinition } from 'vuetify'
 // Every color the editor uses is a theme color, so themes differ only here.
 //   background   graph canvas            surface      cards, app bar, menus
 //   panel        sidebar background      node*        graph nodes
+//   drawer       bottom panel's content, between the panel's tabs and the footer
 //   edge         edges between steps     grid         canvas dots
 //   handle       node connection handles
 //   nodeHover / nodeSelected   rings around hovered and selected nodes
@@ -17,6 +18,7 @@ const light: ThemeDefinition = {
     surface: '#2d3748',
     surfaceVariant: '#0a7652',
     panel: '#4a9479',
+    drawer: '#252e3c',
     primary: '#2563eb',
     primarySoft: '#5e88e3',
     success: '#16a34a',
@@ -47,6 +49,7 @@ const graphite: ThemeDefinition = {
     surface: '#232323',
     surfaceVariant: '#333333',
     panel: '#181818',
+    drawer: '#1b1b1b',
     primary: nfcore,
     primarySoft: '#1d7a49',
     success: '#4ade80',

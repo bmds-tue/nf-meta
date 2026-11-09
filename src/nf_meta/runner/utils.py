@@ -26,8 +26,9 @@ class RunOptions:
             registered in ``base_runner._REGISTRY``.
         out_dir: Directory every step runs in: step outputs with relative
             `outdir`s land here, plus Nextflow's work dir (`work/`) and
-            nf-meta's state (`.nf-meta/`). `None` means
-            `<project dir>/nf-meta-out`. Created if it does not exist.
+            nf-meta's state (`.nf-meta/`). `None` means `nf-meta-out` in
+            the current directory. A relative path is relative to the current
+            directory. Created if it does not exist.
         verbose: Enables verbose logging output.
         output_lines: Number of most-recent output lines shown in the live
             scrolling panel while a step is running. Only has an effect in the
@@ -77,7 +78,8 @@ class RunOptions:
         if self.out_dir is not None:
             self.out_dir = Path(self.out_dir)
         if self.nf_config is not None:
-            self.nf_config = Path(self.nf_config)
+            # Nextflow runs in the out dir, so a relative path must not reach it
+            self.nf_config = Path(self.nf_config).expanduser().resolve()
         self.input_mode = InputMode(self.input_mode)
 
 

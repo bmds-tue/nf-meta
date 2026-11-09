@@ -5,6 +5,7 @@ import yaml
 
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.models import GlobalOptions, Transition  # type: ignore[import]
+from nf_meta.runner import python_runner  # type: ignore[import]
 from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 from nf_meta.runner.python_runner import SimplePythonRunner  # type: ignore[import]
 from nf_meta.runner.spec import resolve_references  # type: ignore[import]
@@ -190,14 +191,45 @@ class TestExecute:
     def test_success_writes_out_file(self, runner, wf_rnaseq):
         runner._stream_proc_out = MagicMock(return_value=(0, "stdout output", ""))
         step = self._step(runner, wf_rnaseq)
-        assert runner._execute(step.spec, step.command) is True
+        assert runner._execute(step.spec, step.command) == 0
         assert (step.spec.state_dir / SimplePythonRunner.OUT_FILE).exists()
 
     def test_failure_writes_error_file(self, runner, wf_rnaseq):
         runner._stream_proc_out = MagicMock(return_value=(1, "", "error text"))
         step = self._step(runner, wf_rnaseq)
-        assert runner._execute(step.spec, step.command) is False
+        assert runner._execute(step.spec, step.command) == 1
         assert (step.spec.state_dir / SimplePythonRunner.ERROR_FILE).read_text() == "error text"
+
+    def _shown(self, runner, step):
+        with python_runner.console.capture() as captured:
+            runner._execute(step.spec, step.command, label="Step 1/1 - nf-core/rnaseq")
+        return captured.get()
+
+    def test_success_shows_one_line(self, runner, wf_rnaseq):
+        runner._stream_proc_out = MagicMock(return_value=(0, "N E X T F L O W\nall done\n", ""))
+        assert self._shown(runner, self._step(runner, wf_rnaseq)) == "✓ Step 1/1 - nf-core/rnaseq: Done\n"
+
+    def test_failure_shows_the_errors(self, runner, wf_rnaseq):
+        runner._stream_proc_out = MagicMock(return_value=(1, "progress\n", "Unknown configuration profile: 'm3c'\n"))
+        shown = self._shown(runner, self._step(runner, wf_rnaseq))
+        assert shown == (
+            "✗ Step 1/1 - nf-core/rnaseq: Step failed\n"
+            "  Step output:\n    progress\n"
+            "  Errors:\n    Unknown configuration profile: 'm3c'\n"
+            "\n"
+        )
+
+    def test_failure_without_stderr_shows_the_last_output(self, runner, wf_rnaseq):
+        runner._stream_proc_out = MagicMock(return_value=(1, "line 1\nERROR ~ [boom]\n", ""))
+        shown = self._shown(runner, self._step(runner, wf_rnaseq))
+        assert shown.endswith("  Step output:\n    line 1\n    ERROR ~ [boom]\n\n")
+        assert "Errors" not in shown
+
+    def test_failure_says_when_the_output_is_cut(self, runner, wf_rnaseq):
+        runner.run_options.output_lines = 2
+        runner._stream_proc_out = MagicMock(return_value=(1, "a\nb\nc\n", ""))
+        shown = self._shown(runner, self._step(runner, wf_rnaseq))
+        assert "  Step output (last 2 of 3 lines):\n    b\n    c\n" in shown
 
     def test_writes_params_file_before_running(self, runner, wf_rnaseq):
         wf = wf_rnaseq.model_copy(update={"params": {"input": "samples.csv"}})
@@ -270,9 +302,9 @@ class TestRun:
     def _record(self, runner, success=True):
         executed = []
 
-        def fake_execute(spec, command):
+        def fake_execute(spec, command, label=""):
             executed.append(spec.workflow)
-            return success
+            return 0 if success else 1
 
         runner._execute = fake_execute
         return executed
@@ -294,7 +326,7 @@ class TestRun:
 
     def test_run_raises_on_first_failure(self, runner, graph_two, wf_fetchngs):
         executed = self._record(runner, success=False)
-        with pytest.raises(NfMetaRunnerError, match=wf_fetchngs.id):
+        with pytest.raises(NfMetaRunnerError, match=f"{wf_fetchngs.id}.*failed with exit code 1"):
             runner.run(graph_two)
         assert len(executed) == 1
 
@@ -374,3 +406,39 @@ class TestRun:
         self._record(runner)
         with pytest.raises(NfMetaRunnerError, match="26.04"):
             runner.run(g)
+
+
+def _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, first, second):
+    a = wf_fetchngs.model_copy(update={"params": {"outdir": first}})
+    b = wf_rnaseq.model_copy(update={"params": {"outdir": second}})
+    g = MetaworkflowGraph()
+    with g.deferred_validation():
+        g.add_workflow(a)
+        g.add_workflow(b)
+        g.add_transition(Transition(source=a.id, target=b.id))
+    g.pop_events()
+    return g
+
+
+class TestOutdirChecks:
+    def test_two_steps_with_the_same_outdir_are_refused(self, runner, wf_fetchngs, wf_rnaseq, tmp_path):
+        g = _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, "results", str(tmp_path / "results"))
+        with pytest.raises(NfMetaRunnerError, match="write to the same outdir"):
+            runner.plan(g)
+
+    def test_an_outdir_inside_another_warns(self, runner, wf_fetchngs, wf_rnaseq, caplog):
+        g = _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, "results", "results/rnaseq")
+        with caplog.at_level("WARNING"):
+            runner.plan(g)
+        assert "writes inside step" in caplog.text
+
+    def test_separate_outdirs_plan_without_warnings(self, runner, wf_fetchngs, wf_rnaseq, caplog):
+        g = _two_steps_with_outdirs(wf_fetchngs, wf_rnaseq, "out_fetchngs", "out_rnaseq")
+        with caplog.at_level("WARNING"):
+            runner.plan(g)
+        assert "outdir" not in caplog.text
+
+    def test_a_pipeline_step_without_outdir_warns(self, runner, graph_two, caplog):
+        with caplog.at_level("WARNING"):
+            runner.plan(graph_two)
+        assert "has no outdir param" in caplog.text

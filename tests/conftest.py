@@ -96,18 +96,24 @@ def private_state_dir(monkeypatch, tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def start_in_an_empty_dir(monkeypatch, tmp_path_factory):
+    """Start every test in an empty folder: a run's default out dir is the current directory."""
+    monkeypatch.chdir(tmp_path_factory.mktemp("cwd"))
+
+
+@pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
     monkeypatch.setattr("nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES)
     monkeypatch.setattr("nf_meta.core.registry._get_nfcore_components_raw", lambda: FAKE_NFCORE_COMPONENTS)
     monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
     monkeypatch.setattr(
-        "nf_meta.core.dynamic_validation.github_file_exists",
+        "nf_meta.core.dynamic_validation.repo_file_exists",
         lambda url, path, ref: True,
     )
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_pipeline_schema",
-        lambda url, version: FAKE_PIPELINE_SCHEMA,
+        lambda url, version, folder="": FAKE_PIPELINE_SCHEMA,
     )
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_module_schema",

@@ -21,6 +21,15 @@ def _read_text(path) -> str | None:
         return None
 
 
+def _echo_error(message: str) -> None:
+    """Print an error like validation errors: its first line as a bold red
+    header, the rest as details in the normal colour."""
+    first, _, rest = message.partition("\n")
+    click.echo(click.style(first, fg="red", bold=True))
+    if rest:
+        click.echo(rest)
+
+
 def _echo_warnings(warnings, config) -> int:
     """Print `warnings` in the same format as validation errors; return how
     many there were."""
@@ -61,7 +70,7 @@ def handle_validation_errors(func):
             click.echo(format_errors_for_cli(e, source_text=source_text, filename=str(config or "")))
             raise SystemExit(1) from None
         except FileNotFoundError as e:
-            click.echo(click.style(str(e), fg="red"))
+            _echo_error(str(e))
             raise SystemExit(1) from None
 
     return wrapper
@@ -103,7 +112,7 @@ def edit_browser(config, verbose, editor, host, port, no_browser, no_redirect_fi
     from nf_meta.editor.backend import recent
 
     session = start_session(config)
-    _echo_warnings(session.warnings, config)
+    _echo_warnings(session.graph.warnings, config)
     if config:
         recent.remember(config)
     opts = EditorOptions(editor_name=editor, open_browser=not no_browser, use_redirect_file=not no_redirect_file)
@@ -258,7 +267,7 @@ def _with_warnings(warnings: list):
     "-o",
     "out_dir",
     type=click.Path(file_okay=False, path_type=Path),
-    help="Directory to run in and write results to (default: nf-meta-out next to the config)",
+    help="Directory to run in and write results to (default: nf-meta-out in the current directory)",
 )
 @click.option(
     "--dry-run",
@@ -337,7 +346,7 @@ def run(
         else:
             run_metapipeline(g, run_options)
     except NfMetaRunnerError as e:
-        click.echo(click.style(e.message, fg="red"))
+        _echo_error(e.message)
         raise SystemExit(1) from None
 
 

@@ -1,5 +1,5 @@
 import YAML, { isMap, isScalar } from 'yaml'
-import type { APIInput, APIInputDefinition, APINodeData, FieldError, ParamSpec, StepSchema } from './types'
+import type { APIInput, APIInputDefinition, APINodeData, APIWarning, FieldError, ParamSpec, StepSchema } from './types'
 import { WorkflowType } from './types'
 
 /**
@@ -359,7 +359,8 @@ export function toParamValue(text: unknown, spec?: ParamSpec): unknown {
 
 /** `params` without empty values ('' or null), as saved; undefined if none are left. */
 export function withoutEmptyValues(params: object | undefined): object | undefined {
-    if (!params) return params
+    // not a mapping (e.g. a list typed in the YAML editor): left for the backend to refuse
+    if (!params || typeof params !== 'object' || Array.isArray(params)) return params
     const kept = Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
     return kept.length ? Object.fromEntries(kept) : undefined
 }
@@ -504,4 +505,28 @@ export function pathPick(format?: string, type?: string): PathPick | undefined {
 /** Whether `value` is an `http(s)://` (or other `scheme://`) location rather than a local path. */
 export function isUrl(value?: string | null): boolean {
     return /^[a-z][a-z0-9+.-]*:\/\//i.test(value ?? '')
+}
+
+export type WarningGroup = {
+    key: string,
+    entries: { message: string, steps: string[] }[],
+}
+
+// Warnings grouped by the config key they are about (a step's key without the
+// `steps.<id>.` prefix), each message once with the steps it was reported for
+export function groupWarnings(warnings: APIWarning[]): WarningGroup[] {
+    const groups = new Map<string, Map<string, string[]>>()
+    for (const w of warnings) {
+        const prefix = w.workflow_id ? `steps.${w.workflow_id}.` : ''
+        const key = prefix && w.yaml_path.startsWith(prefix) ? w.yaml_path.slice(prefix.length) : w.yaml_path
+        const messages = groups.get(key) ?? new Map<string, string[]>()
+        groups.set(key, messages)
+        const steps = messages.get(w.message) ?? []
+        messages.set(w.message, steps)
+        if (w.workflow_id && !steps.includes(w.workflow_id)) steps.push(w.workflow_id)
+    }
+    return [...groups].map(([key, messages]) => ({
+        key,
+        entries: [...messages].map(([message, steps]) => ({ message, steps })),
+    }))
 }

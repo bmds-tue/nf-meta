@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         # every supported version: 3.11 is the lowest, 3.12 the one we develop with (.python-version)
-        python: ["3.11", "3.12", "3.13", "3.14"]
+        python: ["3.11", "3.12", "3.13", "3.14", "3.15"]
     env:
       UV_PYTHON: ${{ matrix.python }}
 

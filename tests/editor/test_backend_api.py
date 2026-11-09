@@ -283,6 +283,11 @@ class TestAccess:
         assert client.get("/api/graph/", headers={"host": "csdnode1:8080"}).status_code == 200
         assert client.get("/api/graph/", headers={"host": "other:8080"}).status_code == 400
 
+    def test_host_names_are_case_insensitive(self, client):
+        configure_access(api.app, TOKEN, bind_host="CSDnode1")
+        assert client.get("/api/graph/", headers={"host": "csdNODE1:8080"}).status_code == 200
+        assert client.get("/api/graph/", headers={"host": "LOCALHOST:8080"}).status_code == 200
+
     def test_wildcard_bind_host_accepts_any_host_but_needs_the_token(self, client):
         configure_access(api.app, TOKEN, bind_host="0.0.0.0")
         assert client.get("/api/graph/", headers={"host": "other:8080"}).status_code == 200
@@ -429,3 +434,68 @@ class TestLocalPipeline:
         monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
         assert list(client.get("/api/pipelines/local/schema/", params={"path": "connector"}).json()) == ["outdir"]
         assert client.get("/api/pipelines/local/schema/", params={"path": "missing"}).status_code == 422
+
+    def test_the_local_schema_endpoint_reads_the_main_scripts_folder(
+        self, client, pipeline, tmp_path_factory, monkeypatch
+    ):
+        sub = pipeline / "sub"
+        sub.mkdir()
+        (sub / "run.nf").write_text("workflow { }\n")
+        schema = {"$defs": {"main": {"properties": {"sub_only": {"type": "string"}}}}}
+        (sub / "nextflow_schema.json").write_text(json.dumps(schema))
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+        params = {"path": "connector", "main_script": "sub/run.nf"}
+        assert list(client.get("/api/pipelines/local/schema/", params=params).json()) == ["sub_only"]
+
+
+def warnings(client) -> list[tuple[str, str]]:
+    return [(w["yaml_path"], w["message"]) for w in client.get("/api/graph/").json()["warnings"]]
+
+
+class TestWarnings:
+    def test_a_loaded_configs_warnings_are_in_the_state(self, client, tmp_path):
+        other = tmp_path / "old.yaml"
+        other.write_text(
+            "config_version: 0.4.0\n"
+            "globals: {profile: docker, params: {max_cpus: 2}}\n"
+            "steps:\n"
+            "  n01: {name: nf-core/fetchngs, version: 1.12.0, params: {input: i.csv, outdir: o}}\n"
+            "  n02: {name: nf-core/fetchngs, version: 1.12.0, params: {input: j.csv, outdir: o}}\n"
+        )
+        assert client.post("/api/graph/load/", json={"config": str(other)}).status_code == 200
+        paths = [path for path, _ in warnings(client)]
+        assert sorted(paths) == [
+            "globals.params",
+            "globals.profile",
+            "steps.n01.params.outdir",
+            "steps.n02.params.outdir",
+        ]
+
+        # Writing the file drops the old key names, the rest still holds
+        add_step(client, outdir="elsewhere")
+        assert sorted(path for path, _ in warnings(client)) == [
+            "globals.params",
+            "steps.n01.params.outdir",
+            "steps.n02.params.outdir",
+        ]
+
+    def test_a_steps_warnings_follow_its_changes(self, client, config, tmp_path_factory, monkeypatch):
+        folder = config.parent / "connector"
+        folder.mkdir()
+        (folder / "main.nf").write_text("workflow { }\n")
+        schema = {"$defs": {"main": {"properties": {"outdir": {"type": "string"}}}}}
+        (folder / "nextflow_schema.json").write_text(json.dumps(schema))
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+        response = client.post("/api/node/add/", json={"type": "nf-pipeline", "name": "connector", "path": "connector"})
+        step = response.json()["events"][0]["workflow"]["id"]
+        assert [path for path, _ in warnings(client)] == [f"steps.{step}.path"]
+
+        # A params change doesn't re-run the folder check: its warning stays
+        node = next(n for n in client.get("/api/graph/").json()["nodes"] if n["id"] == step)
+        assert client.post("/api/node/update/", json={**node, "params": {"outdir": "o"}}).status_code == 200
+        assert [path for path, _ in warnings(client)] == [f"steps.{step}.path"]
+
+        client.request("DELETE", "/api/delete/", json={"nodes": [step], "edges": []})
+        assert warnings(client) == []
+        client.get("/api/graph/undo/")
+        assert [path for path, _ in warnings(client)] == [f"steps.{step}.path"]

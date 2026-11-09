@@ -136,6 +136,13 @@ export type APIInputSave = {
   definition: APIInputDefinition,
 }
 
+// A warning about the config: for one step, or for the whole config (`workflow_id` null)
+export type APIWarning = {
+  workflow_id: string | null,
+  yaml_path: string,
+  message: string,
+}
+
 export type APIGraph = {
   redoable: boolean,
   undoable: boolean,
@@ -145,6 +152,7 @@ export type APIGraph = {
   globals: APIGlobalOptions,
   start_screen?: boolean,
   inputs: APIInput[],
+  warnings?: APIWarning[],
 }
 
 export type NfCorePipelineReleaseInfo = {

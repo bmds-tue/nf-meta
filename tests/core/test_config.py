@@ -709,6 +709,43 @@ def test_legacy_keys_still_load_with_a_warning_and_save_as_new(tmp_path):
     assert "config_file" not in dumped["globals"] and "profile" not in dumped["steps"]["n01"]
 
 
+def test_global_params_load_with_a_deprecation_warning(tmp_path):
+    params_file = tmp_path / "params.yaml"
+    params_file.write_text("outdir: o\n")
+    data = _config(globals={"params": {"max_cpus": 2}})
+    data["steps"]["n01"]["params_file"] = str(params_file)
+    g = validated_graph(data, collect_errors=True)
+    assert [d.yaml_path for d in g.warnings] == ["globals.params"]
+    assert "Deprecated key, it will be removed" in g.warnings[0].message
+    assert g.global_options.params == {"max_cpus": 2}
+
+
+@pytest.mark.parametrize(
+    ("second", "expected"),
+    [
+        ("o", "Steps 'n01', 'n02' write to the same outdir 'o'"),
+        ("./o/", "Steps 'n01', 'n02' write to the same outdir 'o'"),
+        ("o/sub", "Step 'n02' writes inside step 'n01''s outdir ('o/sub' in 'o')"),
+        ("other", None),
+    ],
+)
+def test_shared_outdirs_warn_both_steps_with_one_text(second, expected):
+    data = _config()
+    data["steps"]["n02"] = {
+        "name": "nf-core/rnaseq",
+        "version": "3.14.0",
+        "from": "n01",
+        "params": {"input": "s.csv", "outdir": second},
+    }
+    g = validated_graph(data, collect_errors=True)
+    found = [(d.workflow_id, d.message) for d in g.warnings if d.yaml_path.endswith(".params.outdir")]
+    if expected is None:
+        assert found == []
+    else:
+        assert sorted(step for step, _ in found) == ["n01", "n02"]
+        assert found[0][1] == found[1][1] and found[0][1].startswith(expected)
+
+
 def test_missing_nf_config_is_an_error(tmp_path):
     data = _config(globals={"nf_config": str(tmp_path / "missing.config")})
     with pytest.raises(ConfigValidationError) as exc:
@@ -767,3 +804,54 @@ def test_legacy_config_keeps_its_line_numbers():
     positioned, _ = collect_positioned_diagnostics(exc.value, text)
     bogus = next(p for p in positioned if p.diagnostic.yaml_path == "steps.n01.bogus")
     assert (bogus.position.line, bogus.position.column) == (6, 5)
+
+
+class TestStepIds:
+    def test_the_mapping_key_wins_over_an_explicit_id(self):
+        g = validated_graph(
+            {
+                "config_version": "0.5.0",
+                "steps": {"n01": {"id": "other", "name": "nf-core/rnaseq", "version": "3.14.0"}},
+            }
+        )
+        assert [wf.id for wf in g.get_workflows()] == ["n01"]
+
+    def test_a_repeated_id_in_list_form_is_an_error(self):
+        step = {"id": "n01", "name": "nf-core/rnaseq", "version": "3.14.0"}
+        with pytest.raises(GraphValidationError, match="more than once"):
+            validated_graph({"config_version": "0.5.0", "steps": [step, dict(step)]})
+
+
+def test_the_collecting_loader_checks_implicit_inputs():
+    data = {
+        "config_version": "0.5.0",
+        "steps": {"n01": {"name": "nf-core/rnaseq", "version": "3.14.0", "params": {"count": "${inputs:x}"}}},
+    }
+    data["steps"]["n02"] = {"name": "nf-core/rnaseq", "version": "3.14.0", "params": {"flag": "${inputs:x}"}}
+    with pytest.raises(ConfigValidationError) as fast:
+        validated_graph(data)
+    with pytest.raises(ConfigValidationError) as collected:
+        validated_graph(data, collect_errors=True)
+    assert {d.yaml_path for d in collected.value.errors} == {d.yaml_path for d in fast.value.errors}
+
+
+class TestReadableErrors:
+    def test_config_version_as_a_number(self):
+        with pytest.raises((GraphValidationError, ConfigValidationError), match="in quotes"):
+            validated_graph({"config_version": 0.5, "steps": {}}, collect_errors=True)
+
+    @pytest.mark.parametrize("collect_errors", [False, True])
+    def test_globals_that_is_not_a_mapping(self, collect_errors):
+        data = {"config_version": "0.5.0", "steps": {}, "globals": ["a"]}
+        with pytest.raises(ConfigValidationError) as exc:
+            validated_graph(data, collect_errors=collect_errors)
+        assert str(exc.value).startswith("globals")
+
+    def test_config_validation_error_has_a_message(self):
+        from nf_meta.core.errors import Diagnostic
+
+        error = ConfigValidationError(
+            [Diagnostic(workflow_id="n01", field="params.x", message="Unknown parameter 'x'", severity=Severity.ERROR)],
+            graph_messages=["a cycle"],
+        )
+        assert str(error) == "a cycle\nparams.x: Unknown parameter 'x'"

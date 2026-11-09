@@ -61,7 +61,7 @@ class TestCheckPipelineMainScriptExists:
 
     def test_github_file_found_no_diagnostic(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: True,
         )
         wf = NfPipeline(
@@ -74,7 +74,7 @@ class TestCheckPipelineMainScriptExists:
 
     def test_github_file_missing_raises_error(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: False,
         )
         wf = NfPipeline(
@@ -88,17 +88,36 @@ class TestCheckPipelineMainScriptExists:
         assert diagnostics[0].severity == Severity.ERROR
         assert "not found" in diagnostics[0].message
 
-    def test_non_github_url_warns(self):
+    def test_gitlab_file_is_checked(self, monkeypatch):
+        asked = []
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.repo_file_exists",
+            lambda url, path, ref: asked.append(url) or False,
+        )
         wf = NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
             url="https://gitlab.com/my-org/custom-pipeline",
+            main_script="workflows/missing.nf",
+        )
+        [d] = check_pipeline_main_script_exists(wf)
+        assert d.severity == Severity.ERROR
+        assert asked == ["https://gitlab.com/my-org/custom-pipeline"]
+
+    def test_other_host_warns(self, monkeypatch):
+        def other_host(url, path, ref):
+            raise PipelineSchemaError("unsupported")
+
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.repo_file_exists", other_host)
+        wf = NfPipeline(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://example.org/my-org/custom-pipeline",
             main_script="workflows/special.nf",
         )
-        diagnostics = check_pipeline_main_script_exists(wf)
-        assert len(diagnostics) == 1
-        assert diagnostics[0].severity == Severity.WARNING
-        assert "Cannot validate" in diagnostics[0].message
+        [d] = check_pipeline_main_script_exists(wf)
+        assert d.severity == Severity.WARNING
+        assert "Cannot validate" in d.message
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +146,7 @@ class TestCheckPipelineParamsSchema:
     def test_schema_fetch_error_warns(self, wf_rnaseq, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("boom")),
+            lambda url, version, folder="": (_ for _ in ()).throw(PipelineSchemaError("boom")),
         )
         diagnostics = check_pipeline_params_schema(wf_rnaseq)
         assert len(diagnostics) == 1
@@ -137,7 +156,7 @@ class TestCheckPipelineParamsSchema:
     def test_valid_params_no_diagnostics(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: self.SCHEMA,
+            lambda url, version, folder="": self.SCHEMA,
         )
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0", params={"input": "/data/x.csv"})
         assert check_pipeline_params_schema(wf) == []
@@ -145,7 +164,7 @@ class TestCheckPipelineParamsSchema:
     def test_required_param_missing_raises_error(self, monkeypatch):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: self.SCHEMA,
+            lambda url, version, folder="": self.SCHEMA,
         )
         wf = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
         diagnostics = check_pipeline_params_schema(wf)
@@ -154,7 +173,7 @@ class TestCheckPipelineParamsSchema:
     def test_malformed_params_file_warns_and_skips_required(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: self.SCHEMA,
+            lambda url, version, folder="": self.SCHEMA,
         )
         pf = tmp_path / "params.yaml"
         pf.write_text("- not\n- a\n- mapping\n")
@@ -266,7 +285,7 @@ class TestRunDynamicChecks:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.__setitem__("schema", calls["schema"] + 1) or {},
+            lambda url, version, folder="": calls.__setitem__("schema", calls["schema"] + 1) or {},
         )
         run_dynamic_checks(wf_custom, previous=None)
         assert calls["url"] == 1
@@ -280,10 +299,10 @@ class TestRunDynamicChecks:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or {},
+            lambda url, version, folder="": calls.append("schema") or {},
         )
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: calls.append("github") or True,
         )
         previous = wf_custom
@@ -293,6 +312,16 @@ class TestRunDynamicChecks:
         assert diagnostics == []
         assert calls == []
 
+    def test_changed_main_script_rechecks_params_in_its_folder(self, wf_custom, monkeypatch):
+        folders = []
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.get_pipeline_schema",
+            lambda url, version, folder="": folders.append(folder) or {},
+        )
+        updated = wf_custom.model_copy(update={"main_script": "connectors/a2b/main.nf"})
+        run_dynamic_checks(updated, previous=wf_custom)
+        assert folders == ["connectors/a2b"]
+
     def test_changed_params_only_triggers_schema_check(self, wf_custom, monkeypatch):
         calls = []
         monkeypatch.setattr(
@@ -301,7 +330,7 @@ class TestRunDynamicChecks:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or {},
+            lambda url, version, folder="": calls.append("schema") or {},
         )
         previous = wf_custom
         updated = wf_custom.model_copy(update={"params": {"foo": "bar"}})
@@ -326,7 +355,7 @@ class TestCheckAll:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: {},
+            lambda url, version, folder="": {},
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_module_schema",
@@ -349,7 +378,7 @@ class TestCheckAll:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: {},
+            lambda url, version, folder="": {},
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_module_schema",
@@ -427,7 +456,7 @@ def test_workflow_schema_is_none_when_unavailable(monkeypatch, wf_rnaseq):
 
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_pipeline_schema",
-        lambda url, version: (_ for _ in ()).throw(PipelineSchemaError("down")),
+        lambda url, version, folder="": (_ for _ in ()).throw(PipelineSchemaError("down")),
     )
     assert workflow_schema(wf_rnaseq) is None
 
@@ -437,7 +466,7 @@ def test_workflow_schema_lets_bugs_through(monkeypatch, wf_rnaseq):
 
     monkeypatch.setattr(
         "nf_meta.core.dynamic_validation.get_pipeline_schema",
-        lambda url, version: (_ for _ in ()).throw(TypeError("bug")),
+        lambda url, version, folder="": (_ for _ in ()).throw(TypeError("bug")),
     )
     with pytest.raises(TypeError):
         workflow_schema(wf_rnaseq)

@@ -16,11 +16,6 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-_GITHUB_API_HEADERS = {
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-}
-
 _NFCORE_PIPELINES_URL = "https://nf-co.re/pipelines.json"
 _NFCORE_COMPONENTS_URL = "https://nf-co.re/components.json"
 _NXF_REGISTRY_BASE = "https://registry.nextflow.io/api/v1/modules"
@@ -410,29 +405,7 @@ def get_module_schema(name: str, version: str) -> Schema:
 
 
 # ---------------------------------------------------------------------------
-# GitHub / generic URL helpers
-# ---------------------------------------------------------------------------
-
-
-@functools.cache
-def github_file_exists(repo_url: str, path: str, ref: str) -> bool:
-    """
-    Check whether a file exists at `path` in a GitHub repository at `ref`
-    using the GitHub Contents API. Raises `RegistryUnavailableError` if
-    GitHub can't be reached or rate-limits the request.
-    """
-    after_host = repo_url.rstrip("/").split("github.com/", 1)[-1]
-    parts = after_host.split("/")
-    if len(parts) < 2:
-        return False
-    owner, repo = parts[0], parts[1]
-    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path.lstrip('/')}?ref={ref}"
-
-    return _fetch_json(api_url, f"GitHub file {path}@{ref}", headers=_GITHUB_API_HEADERS) is not None
-
-
-# ---------------------------------------------------------------------------
-# Pipeline schema fetching and validation helpers
+# Pipeline repositories: files, schemas
 # ---------------------------------------------------------------------------
 
 
@@ -442,7 +415,7 @@ class PipelineSchemaError(SchemaUnavailableError):
 
 _REPO_URL_PATTERN = re.compile(
     r"https?://(?P<host>(?:github\.com|gitlab\.com|bitbucket\.org))"
-    r"/(?P<owner>[^/]+)/(?P<repo>[^/?.#]+)"
+    r"/(?P<owner>[^/]+)/(?P<repo>[^/?#]+)"
 )
 
 
@@ -479,6 +452,53 @@ def _get_auth_headers(host: str) -> dict:
         if token:
             return {"PRIVATE-TOKEN": token}
     return {}
+
+
+def _token_hint(host: str) -> str:
+    if host == "github.com":
+        return "Set GITHUB_TOKEN to increase the rate limit."
+    if host == "gitlab.com":
+        return "Set GITLAB_TOKEN to authenticate."
+    return "Authenticate to increase the rate limit."
+
+
+@functools.cache
+def repo_file_exists(repo_url: str, path: str, ref: str) -> bool:
+    """
+    Check whether a file exists at ``path`` in the repository at ``repo_url``
+    at ``ref`` (github.com, gitlab.com or bitbucket.org), with one request for
+    the raw file. Raises ``PipelineSchemaError`` for a repository URL on
+    another host, and ``RegistryUnavailableError`` if the host can't be
+    reached, rate-limits the request or gives no clear answer.
+    """
+    host, owner, repo = _parse_repo_url(repo_url)
+    raw_url = _raw_url(host, owner, repo, ref, path)
+    label = f"{path} in {repo_url}@{ref}"
+    # No redirects: GitLab sends a private repository's raw file without a
+    # token to its sign-in page, which would look like a found file.
+    headers = _get_auth_headers(host)
+    try:
+        response = requests.head(raw_url, headers=headers, timeout=_REQUEST_TIMEOUT, allow_redirects=False)
+        if response.status_code == 405:
+            response = requests.get(
+                raw_url, headers=headers, timeout=_REQUEST_TIMEOUT, allow_redirects=False, stream=True
+            )
+            response.close()
+    except requests.exceptions.Timeout as e:
+        raise RegistryUnavailableError(f"Timeout checking {label}") from e
+    except requests.exceptions.RequestException as e:
+        raise RegistryUnavailableError(f"Network error checking {label}: {e}") from e
+
+    if response.status_code == 200:
+        return True
+    if response.status_code == 404:
+        return False
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After", "unknown")
+        raise RegistryUnavailableError(
+            f"Rate-limited (429) checking {label}. Retry-After: {retry_after}. {_token_hint(host)}"
+        )
+    raise RegistryUnavailableError(f"Cannot check {label} (HTTP {response.status_code}). {_token_hint(host)}")
 
 
 _EXTRA_SPEC_KEYWORDS = ("exists", "mimetype", "schema", "minimum", "maximum", "description")
@@ -537,9 +557,10 @@ def _parse_nextflow_schema(data: dict) -> Schema:
 
 
 @functools.cache
-def get_pipeline_schema(url: str, version: str) -> Schema:
+def get_pipeline_schema(url: str, version: str, folder: str = "") -> Schema:
     """
-    Fetch and parse ``nextflow_schema.json`` for the pipeline at ``url@version``.
+    Fetch and parse ``nextflow_schema.json`` for the pipeline at ``url@version``,
+    from ``folder`` within the repository (its root by default).
 
     Results are cached in memory (per process) and on disk via
     ``nf_meta.core.cache``. Raises ``PipelineSchemaError`` if the schema
@@ -548,51 +569,47 @@ def get_pipeline_schema(url: str, version: str) -> Schema:
     """
     from nf_meta.core.cache import read_schema_cache, write_schema_cache
 
-    cached = read_schema_cache(url, version)
+    cached = read_schema_cache(url, version, folder)
     if cached is not None:
         return cached
 
+    where = f"{url}@{version}" + (f" in {folder}" if folder else "")
     host, owner, repo = _parse_repo_url(url)
-    schema_url = _raw_url(host, owner, repo, version, "nextflow_schema.json")
+    schema_url = _raw_url(host, owner, repo, version, f"{folder}/nextflow_schema.json")
     auth_headers = _get_auth_headers(host)
 
     try:
         response = requests.get(schema_url, timeout=_REQUEST_TIMEOUT, headers=auth_headers)
     except requests.exceptions.Timeout as e:
-        raise PipelineSchemaError(f"Timeout fetching nextflow_schema.json for {url}@{version}") from e
+        raise PipelineSchemaError(f"Timeout fetching nextflow_schema.json for {where}") from e
     except requests.exceptions.RequestException as e:
-        raise PipelineSchemaError(f"Network error fetching nextflow_schema.json for {url}@{version}: {e}") from e
+        raise PipelineSchemaError(f"Network error fetching nextflow_schema.json for {where}: {e}") from e
 
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After", "unknown")
-        token_hint = (
-            "Set GITHUB_TOKEN to increase the rate limit."
-            if host == "github.com"
-            else "Set GITLAB_TOKEN to authenticate."
-            if host == "gitlab.com"
-            else "Authenticate to increase the rate limit."
-        )
         raise PipelineSchemaError(
-            f"Rate-limited (429) fetching nextflow_schema.json for {url}@{version}. "
-            f"Retry-After: {retry_after}. {token_hint}"
+            f"Rate-limited (429) fetching nextflow_schema.json for {where}. "
+            f"Retry-After: {retry_after}. {_token_hint(host)}"
         )
     if response.status_code == 404:
         raise PipelineSchemaError(
-            f"nextflow_schema.json not found for {url}@{version}. "
-            "Ensure the pipeline includes a nextflow_schema.json at its root."
+            f"nextflow_schema.json not found for {where}. "
+            + (
+                f"With main_script, the schema must be next to it, in {folder}."
+                if folder
+                else "Ensure the pipeline includes a nextflow_schema.json at its root."
+            )
         )
     if response.status_code != 200:
-        raise PipelineSchemaError(
-            f"Unexpected HTTP {response.status_code} fetching nextflow_schema.json for {url}@{version}"
-        )
+        raise PipelineSchemaError(f"Unexpected HTTP {response.status_code} fetching nextflow_schema.json for {where}")
 
     try:
         data = response.json()
     except ValueError as e:
-        raise PipelineSchemaError(f"Failed to parse nextflow_schema.json for {url}@{version} as JSON: {e}") from e
+        raise PipelineSchemaError(f"Failed to parse nextflow_schema.json for {where} as JSON: {e}") from e
 
     schema = _parse_nextflow_schema(data)
-    write_schema_cache(url, version, schema)
+    write_schema_cache(url, version, schema, folder)
     return schema
 
 

@@ -157,15 +157,16 @@ export const useApiStore = defineStore('api', () => {
     const schemaCache = new Map<string, Promise<ApiResult<StepSchema>>>()
 
     // Read again each time: a local pipeline's schema changes while it is developed
-    function getLocalPipelineSchema(path: string) {
-        return request<StepSchema>(`/api/pipelines/local/schema/?${new URLSearchParams({ path })}`, { method: 'GET' })
+    function getLocalPipelineSchema(path: string, mainScript?: string) {
+        const query = new URLSearchParams({ path, ...(mainScript ? { main_script: mainScript } : {}) })
+        return request<StepSchema>(`/api/pipelines/local/schema/?${query}`, { method: 'GET' })
     }
 
-    function getPipelineSchema(url: string, version: string) {
-        const key = `pipeline ${url} ${version}`
+    function getPipelineSchema(url: string, version: string, mainScript?: string) {
+        const key = `pipeline ${url} ${version} ${mainScript ?? ''}`
         if (!schemaCache.has(key)) {
-            const query = new URLSearchParams({ url, version })
-            schemaCache.set(key, request<StepSchema>(`/api/nfcore/pipelines/schema/?${query}`, { method: 'GET' }))
+            const query = new URLSearchParams({ url, version, ...(mainScript ? { main_script: mainScript } : {}) })
+            cacheSchema(key, request<StepSchema>(`/api/nfcore/pipelines/schema/?${query}`, { method: 'GET' }))
         }
         return schemaCache.get(key)!
     }
@@ -175,9 +176,15 @@ export const useApiStore = defineStore('api', () => {
         if (!schemaCache.has(key)) {
             const short = encodeURIComponent(name.replace(/^nf-core\//, ''))
             const query = new URLSearchParams({ version })
-            schemaCache.set(key, request<StepSchema>(`/api/nfcore/modules/${short}/schema/?${query}`, { method: 'GET' }))
+            cacheSchema(key, request<StepSchema>(`/api/nfcore/modules/${short}/schema/?${query}`, { method: 'GET' }))
         }
         return schemaCache.get(key)!
+    }
+
+    // A failed fetch (offline, rate-limited) is tried again next time
+    function cacheSchema(key: string, result: Promise<ApiResult<StepSchema>>) {
+        schemaCache.set(key, result)
+        result.then(r => { if (!r.ok) schemaCache.delete(key) })
     }
 
     return {

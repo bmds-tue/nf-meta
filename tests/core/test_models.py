@@ -1,12 +1,14 @@
 import pytest
 from pydantic import ValidationError
 
+from nf_meta.core import registry
 from nf_meta.core.dynamic_validation import check_pipeline_main_script_exists
 from nf_meta.core.errors import Severity
 from nf_meta.core.models import (
     GlobalOptions,
     NfPipeline,
     Transition,
+    script_folder,
 )
 
 # ---------------------------------------------------------------------------
@@ -129,7 +131,7 @@ class TestWorkflowMainScript:
 
     def test_main_script_raises_when_file_not_found_on_github(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: False,
         )
         wf = NfPipeline(
@@ -141,11 +143,12 @@ class TestWorkflowMainScript:
         diagnostics = check_pipeline_main_script_exists(wf)
         assert any(d.severity == Severity.ERROR and "not found" in d.message for d in diagnostics)
 
-    def test_main_script_warns_for_non_github_url(self):
+    def test_main_script_warns_for_an_unsupported_host(self, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.repo_file_exists", registry.repo_file_exists)
         wf = NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
-            url="https://gitlab.com/my-org/custom-pipeline",
+            url="https://example.org/my-org/custom-pipeline",
             main_script="workflows/special.nf",
         )
         diagnostics = check_pipeline_main_script_exists(wf)
@@ -185,6 +188,17 @@ class TestGlobalOptions:
     def test_profile_none(self):
         g = GlobalOptions()
         assert g.nf_profile is None
+
+    def test_nextflow_version_that_lost_its_trailing_zero(self):
+        with pytest.raises(ValidationError, match="in quotes, e.g. '26.10'"):
+            GlobalOptions(nextflow_version=26.1)
+
+    def test_nextflow_version_boolean(self):
+        with pytest.raises(ValidationError, match="must be a version"):
+            GlobalOptions(nextflow_version=True)
+
+    def test_nextflow_version_number_with_two_digits(self):
+        assert GlobalOptions(nextflow_version=25.04).nextflow_version_tuple[:2] == (25, 4)
 
     def test_nextflow_version_full_string(self):
         g = GlobalOptions(nextflow_version="25.10.4")
@@ -234,3 +248,11 @@ class TestTransition:
 # and TestDynamicValidationOnLoad — MetaworkflowGraph's validated_graph/
 # dump_config/from_file/to_file are now the construction/serialization entry
 # points.
+
+
+@pytest.mark.parametrize(
+    ("main_script", "folder"),
+    [(None, ""), ("main.nf", ""), ("run.nf", ""), ("connectors/a2b/main.nf", "connectors/a2b")],
+)
+def test_script_folder(main_script, folder):
+    assert script_folder(main_script) == folder

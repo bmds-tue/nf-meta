@@ -261,7 +261,7 @@ class TestDynamicValidationOnMutation:
         )
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or {},
+            lambda url, version, folder="": calls.append("schema") or {},
         )
 
         updated = wf.model_copy(update={"description": "a new description"})
@@ -281,7 +281,7 @@ class TestDynamicValidationOnMutation:
         schema = {"foo": {"type": "string", "required": False, "enum": None}}
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: calls.append("schema") or schema,
+            lambda url, version, folder="": calls.append("schema") or schema,
         )
 
         updated = wf.model_copy(update={"params": {"foo": "bar"}})
@@ -302,7 +302,7 @@ class TestDynamicValidationOnMutation:
         schema = {"x": {"type": "string", "required": False, "enum": None}}
         monkeypatch.setattr(
             "nf_meta.core.dynamic_validation.get_pipeline_schema",
-            lambda url, version: checked_urls.append(url) or schema,
+            lambda url, version, folder="": checked_urls.append(url) or schema,
         )
 
         with empty_graph.deferred_validation():
@@ -387,3 +387,15 @@ class TestModuleNextflowVersion:
             GlobalOptions(nextflow_version="25"), [module_fastqc]
         )
         assert [(d.workflow_id, d.yaml_path) for d in diagnostics] == [(None, "globals.nextflow_version")]
+
+
+def test_an_existing_edge_is_kept_with_a_warning(empty_graph, wf_rnaseq, wf_fetchngs, caplog):
+    empty_graph.add_workflow(wf_rnaseq)
+    empty_graph.add_workflow(wf_fetchngs)
+    tr = Transition(source=wf_rnaseq.id, target=wf_fetchngs.id)
+    empty_graph.add_transition(tr)
+    empty_graph.pop_events()
+    with caplog.at_level("WARNING"):
+        empty_graph.add_transition(tr)
+    assert not empty_graph.pop_events()
+    assert "Edge already exists" in caplog.text

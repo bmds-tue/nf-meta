@@ -43,6 +43,8 @@ class Diagnostic:
     # inside a whole config (e.g. under `steps.<id>.`/`globals.`) pass the
     # fully-qualified path
     yaml_path: str | None = None
+    # The dynamic check that reported it, if any (see `run_dynamic_checks`)
+    check: str | None = None
 
     def __post_init__(self):
         if self.yaml_path is None:
@@ -61,6 +63,9 @@ class ConfigValidationError(Exception):
     # Warnings found alongside the errors (only collected by the
     # collect-everything validation path).
     warnings: list[Diagnostic] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        return "\n".join([*self.graph_messages, *(f"{d.yaml_path}: {d.message}" for d in self.errors)])
 
 
 def diagnostics_from_pydantic_error(

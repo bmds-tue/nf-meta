@@ -27,6 +27,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: object | undefined],
+  'parse-error': [message: string],
 }>()
 
 const BOOLEANS: unknown[] = [true, false]
@@ -278,7 +279,7 @@ function inputTitle(name: string) {
       <p v-for="message in allErrors" :key="message" class="field-error mb-0">{{ message }}</p>
       <div class="params-editor">
         <!-- empty rows of the form are left out: they aren't saved either -->
-        <YamlEditor ref="yamlEditor" :model-value="withoutEmptyValues(modelValue)" :node-id="nodeId" @update:model-value="(v) => emit('update:modelValue', v)" />
+        <YamlEditor ref="yamlEditor" :model-value="withoutEmptyValues(modelValue)" :node-id="nodeId" @update:model-value="(v) => emit('update:modelValue', v)" @parse-error="(m) => emit('parse-error', m)" />
       </div>
     </template>
   </div>

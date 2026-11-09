@@ -9,13 +9,20 @@
     // Java is required by Nextflow (installed in post-create.sh)
     "ghcr.io/devcontainers/features/java:1": {
       "version": "17"
-    }
+    },
+    // conda (Miniforge: conda-forge only, as Bioconda expects), for building and testing the
+    // Bioconda recipe
+    "ghcr.io/rocker-org/devcontainer-features/miniforge:2": {}
   },
   "remoteEnv": {
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
     // Keeps uv and Claude Code binaries on PATH after postCreate
     "PATH": "${containerEnv:PATH}:/root/.local/bin"
   },
+  // Claude Code's login, settings and session history survive container rebuilds
+  "mounts": [
+    "source=nf-meta-claude,target=/home/vscode/.claude,type=volume"
+  ],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "forwardPorts": [
     5173

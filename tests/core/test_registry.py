@@ -1,6 +1,7 @@
 """Registry lookups: error contract, failure memo, module metadata."""
 
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -192,7 +193,7 @@ class TestChecksWhenUnavailable:
         def unreachable(url, path, ref):
             raise RegistryUnavailableError("rate-limited")
 
-        monkeypatch.setattr("nf_meta.core.dynamic_validation.github_file_exists", unreachable)
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.repo_file_exists", unreachable)
         wf = wf_custom.model_copy(update={"main_script": "main.nf"})
         [d] = check_pipeline_main_script_exists(wf)
         assert d.severity == Severity.WARNING
@@ -255,3 +256,75 @@ class TestRegistryModuleName:
         registry.get_module_schema("nf-core/plastid_make_wiggle", "0.0.0-6c4ed3a")
         registry.get_module_schema.cache_clear()
         assert urls[0].endswith("/6c4ed3a/modules/nf-core/plastid/make_wiggle/meta.yml")
+
+
+class TestRepoFileExists:
+    @pytest.fixture
+    def host(self, monkeypatch):
+        """Answers each HEAD request with `host.status` and records it in `host.calls`."""
+        host = SimpleNamespace(status=200, calls=[])
+
+        def head(url, **kwargs):
+            host.calls.append((url, kwargs))
+            return MagicMock(status_code=host.status, headers={})
+
+        monkeypatch.setattr(registry.requests, "head", head)
+        registry.repo_file_exists.cache_clear()
+        yield host
+        registry.repo_file_exists.cache_clear()
+
+    @pytest.mark.parametrize(
+        ("url", "raw"),
+        [
+            ("https://github.com/org/my.repo", "https://raw.githubusercontent.com/org/my.repo/v1/sub/main.nf"),
+            ("https://github.com/org/my.repo.git", "https://raw.githubusercontent.com/org/my.repo/v1/sub/main.nf"),
+            ("https://gitlab.com/org/repo", "https://gitlab.com/org/repo/-/raw/v1/sub/main.nf"),
+            ("https://bitbucket.org/org/repo", "https://bitbucket.org/org/repo/raw/v1/sub/main.nf"),
+        ],
+    )
+    def test_asks_for_the_raw_file(self, host, url, raw):
+        assert registry.repo_file_exists(url, "sub/main.nf", "v1")
+        assert host.calls[0][0] == raw
+        assert host.calls[0][1]["allow_redirects"] is False
+
+    @pytest.mark.parametrize(
+        ("url", "env", "header", "value"),
+        [
+            ("https://github.com/org/private", "GITHUB_TOKEN", "Authorization", "Bearer secret"),
+            ("https://gitlab.com/org/private", "GITLAB_TOKEN", "PRIVATE-TOKEN", "secret"),
+        ],
+    )
+    def test_sends_the_token(self, host, monkeypatch, url, env, header, value):
+        monkeypatch.setenv(env, "secret")
+        registry.repo_file_exists(url, "main.nf", "v1")
+        assert host.calls[0][1]["headers"][header] == value
+
+    def test_missing_file(self, host):
+        host.status = 404
+        assert not registry.repo_file_exists("https://github.com/org/repo", "main.nf", "v1")
+
+    @pytest.mark.parametrize("status", [302, 403, 429, 500])
+    def test_unclear_answers_are_unavailable(self, host, status):
+        host.status = status
+        with pytest.raises(RegistryUnavailableError):
+            registry.repo_file_exists("https://gitlab.com/org/repo", "main.nf", "v1")
+
+    def test_network_error_is_unavailable(self, host, monkeypatch):
+        def head(url, **kwargs):
+            raise requests.exceptions.ConnectionError("offline")
+
+        monkeypatch.setattr(registry.requests, "head", head)
+        with pytest.raises(RegistryUnavailableError, match="offline"):
+            registry.repo_file_exists("https://github.com/org/repo", "main.nf", "v1")
+
+    def test_falls_back_to_get_without_head(self, host, monkeypatch):
+        host.status = 405
+        get = MagicMock(return_value=MagicMock(status_code=200))
+        monkeypatch.setattr(registry.requests, "get", get)
+        assert registry.repo_file_exists("https://bitbucket.org/org/repo", "main.nf", "v1")
+        assert get.call_args.kwargs["stream"] is True
+
+    def test_other_hosts_are_not_asked(self, host):
+        with pytest.raises(registry.PipelineSchemaError):
+            registry.repo_file_exists("https://example.org/org/repo", "main.nf", "v1")
+        assert host.calls == []

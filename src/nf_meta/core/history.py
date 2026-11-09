@@ -32,8 +32,9 @@ class History:
             raise e
 
         events = graph.pop_events()
-        self.undo_stack.append(events)
-        self.redo_stack.clear()
+        if events:  # a command that changed nothing is not recorded
+            self.undo_stack.append(events)
+            self.redo_stack.clear()
         return events
 
     def _get_inverse_command(self, events: tuple[Event]) -> Command:

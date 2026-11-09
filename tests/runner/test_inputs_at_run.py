@@ -32,7 +32,7 @@ SCHEMA = {
 
 @pytest.fixture(autouse=True)
 def schema(monkeypatch):
-    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: SCHEMA)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": SCHEMA)
 
 
 @pytest.fixture
@@ -139,6 +139,19 @@ def test_reproduce_uses_the_values_of_the_last_run(project):
     _runner(inputs={"genome": "GRCh38"}).run(from_file(path))
     again = plan(path, input_mode="reproduce")[0]
     assert again.command.params["genome"] == "GRCh38"
+
+
+def test_a_partial_run_keeps_the_recorded_inputs_of_other_steps(project):
+    second = {"name": "nf-core/rnaseq", "version": "3.14.0", "params": {"outdir": "o2"}}
+    inputs = {
+        "genome": {"bind": ["n01.genome"], "default": "EB1"},
+        "count": {"bind": ["n02.count"], "default": 1},
+    }
+    path = config(project, inputs, {"input": "ids.csv"}, extra_steps={"n02": second})
+    _runner(inputs={"genome": "GRCh38", "count": 5}).run(from_file(path))
+    _runner(inputs={"genome": "T2T"}, target="n01").run(from_file(path))
+    again = {s.workflow.id: s.command.params for s in plan(path, input_mode="reproduce")}
+    assert (again["n01"]["genome"], again["n02"]["count"]) == ("T2T", 5)
 
 
 def test_reproduce_without_a_recorded_run_fails(project):

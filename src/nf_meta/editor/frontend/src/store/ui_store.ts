@@ -136,6 +136,13 @@ export const useEditorStore = defineStore('editor', () => {
     // Inputs to point out in the inputs panel (scrolled to and flashed)
     const flashingInputNames = ref<string[]>([])
 
+    // The footer panel's warnings tab, with the warnings of `warningsStepId` marked
+    const warningsStepId = ref<string | null>(null)
+    function showWarnings(stepId: string | null = null) {
+        warningsStepId.value = stepId
+        useActivityStore().openPanel('warnings')
+    }
+
     function showInputs(names: string[]) {
         if (!_sideBarOpen.value) toggleSidebar()
         sideBarTab.value = 'inputs'
@@ -216,6 +223,7 @@ export const useEditorStore = defineStore('editor', () => {
         hoveredNodeId, setHoveredNodeId,
         hoveredInputName, setHoveredInputName,
         flashingInputNames, showInputs, showNode,
+        warningsStepId, showWarnings,
         flashingNodeId, flashNode,
         saveDialogOpen, saveDialogReason, openSaveDialog, requireSave, closeSaveDialog,
         loadDialogOpen, openLoadDialog, closeLoadDialog,
@@ -245,9 +253,23 @@ export const useActivityStore = defineStore('activity', () => {
         log.value = []
     }
 
+    // The footer panel's tab: the history or the config's warnings
+    const panelTab = ref<'history' | 'warnings'>('history')
+
     function toggleDrawer() {
         drawerOpen.value = !drawerOpen.value
     }
 
-    return { log, pushEvents, clear, drawerOpen, toggleDrawer }
+    function openPanel(tab: 'history' | 'warnings') {
+        panelTab.value = tab
+        drawerOpen.value = true
+    }
+
+    // The footer buttons: open the panel on `tab`, or close it if it shows `tab` already
+    function togglePanel(tab: 'history' | 'warnings') {
+        if (drawerOpen.value && panelTab.value === tab) drawerOpen.value = false
+        else openPanel(tab)
+    }
+
+    return { log, pushEvents, clear, drawerOpen, toggleDrawer, panelTab, openPanel, togglePanel }
 })

@@ -7,8 +7,10 @@ A MetaworkflowGraph is instad constructed by parsing the top level keys and then
 building blocks from a nf-meta YAML configuration.
 """
 
+import dataclasses
 import difflib
 import logging
+import posixpath
 import re
 from pathlib import Path
 
@@ -26,7 +28,7 @@ from .errors import (
     diagnostics_from_pydantic_error,
 )
 from .graph import MetaworkflowGraph
-from .inputs import InputDefinition
+from .inputs import InputDefinition, input_refs
 from .models import (
     CONFIG_VERSION_MAX,
     INPUTS_MIN_CONFIG_VERSION,
@@ -87,9 +89,85 @@ def _abbreviated_sha_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
     ]
 
 
-def _warn_about_module_executor(g: "MetaworkflowGraph") -> None:
-    log_warnings(_module_executor_warnings(g))
-    log_warnings(_abbreviated_sha_warnings(g))
+def _shared_outdir_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    """Steps whose literal `outdir` params are the same folder or one inside
+    the other, one warning per step involved, with the same text for each.
+    Values with references or inputs are left to the runner."""
+    by_path: dict[str, list[tuple[str, str]]] = {}
+    for wf in g.get_workflows():
+        value = (wf.params or {}).get("outdir")
+        if isinstance(value, str) and value and "${" not in value:
+            by_path.setdefault(posixpath.normpath(value), []).append((wf.id, value))
+    found: list[tuple[list[str], str]] = []
+    for steps in by_path.values():
+        if len(steps) > 1:
+            ids = [step_id for step_id, _ in steps]
+            names = ", ".join(f"'{step_id}'" for step_id in ids)
+            found.append((ids, f"Steps {names} write to the same outdir '{steps[0][1]}': nf-meta run refuses this."))
+    for outer, outer_steps in by_path.items():
+        for inner, inner_steps in by_path.items():
+            if "://" in inner or inner == outer or not inner.startswith(outer.rstrip("/") + "/"):
+                continue
+            for inner_id, inner_value in inner_steps:
+                for outer_id, outer_value in outer_steps:
+                    message = (
+                        f"Step '{inner_id}' writes inside step '{outer_id}''s outdir "
+                        f"('{inner_value}' in '{outer_value}'): their results may mix."
+                    )
+                    found.append(([inner_id, outer_id], message))
+    return [
+        Diagnostic(
+            workflow_id=step_id,
+            field="params",
+            yaml_path=f"steps.{step_id}.params.outdir",
+            message=message,
+            severity=Severity.WARNING,
+        )
+        for ids, message in found
+        for step_id in ids
+    ]
+
+
+def _deprecated_key_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    if not (g.global_options and g.global_options.params):
+        return []
+    return [
+        Diagnostic(
+            workflow_id=None,
+            field="params",
+            yaml_path="globals.params",
+            message=(
+                "Deprecated key, it will be removed in a later version: "
+                "set params per step, and declare shared values as inputs."
+            ),
+            severity=Severity.WARNING,
+        )
+    ]
+
+
+def _graph_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    return (
+        _deprecated_key_warnings(g)
+        + _module_executor_warnings(g)
+        + _abbreviated_sha_warnings(g)
+        + _shared_outdir_warnings(g)
+    )
+
+
+def current_warnings(g: "MetaworkflowGraph") -> list[Diagnostic]:
+    """The warnings that hold for `g` as it is now: each step's own checks
+    (from when it was loaded, added or last changed) and the checks across
+    steps and globals. Input warnings are reported with the inputs instead."""
+    step_warnings = [
+        dataclasses.replace(d, yaml_path=f"steps.{wf_id}.{d.field}")
+        for wf_id, found in g.step_warnings.items()
+        for d in found
+    ]
+    return step_warnings + _graph_warnings(g)
+
+
+def _log_graph_warnings(g: "MetaworkflowGraph") -> None:
+    log_warnings(_graph_warnings(g))
 
 
 TOP_LEVEL_KEYS = ("config_version", "globals", "inputs", STEPS_KEY, LEGACY_STEPS_KEY, "transitions")
@@ -225,6 +303,7 @@ def _extract_items_and_transitions(
     items: list[dict] = []
     pending_transitions: list[tuple[str, str]] = []
     any_from_key_present = False
+    seen_ids: set[str] = set()
     for key, item in raw_items:
         if not isinstance(item, dict):
             raise GraphValidationError(
@@ -233,7 +312,13 @@ def _extract_items_and_transitions(
         item = {**item}
         item.setdefault("type", WorkflowType.NF_PIPELINE)
         if key is not None:
-            item.setdefault("id", key)  # dict form: the mapping key is authoritative
+            item["id"] = key  # dict form: the mapping key is authoritative
+        if "id" in item:
+            if not isinstance(item["id"], str) or not item["id"]:
+                raise GraphValidationError("Step id must be a non-empty string.")
+            if item["id"] in seen_ids:
+                raise GraphValidationError(f"Step id '{item['id']}' is used more than once.")
+            seen_ids.add(item["id"])
         any_from_key_present = any_from_key_present or "from" in item
         from_ids = item.pop("from", None) or []
         if isinstance(from_ids, str):
@@ -486,7 +571,7 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
 
         if data.get("globals") is not None:
             try:
-                g.global_options = GlobalOptions(**data["globals"])
+                g.global_options = GlobalOptions.model_validate(data["globals"])
             except ValidationError as e:
                 raise ConfigValidationError(
                     diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals.")
@@ -501,7 +586,7 @@ def _fast_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
         g.inputs = inputs
         g._inputs_touched = bool(inputs)
 
-        _warn_about_module_executor(g)
+        _log_graph_warnings(g)
 
     # Reset events accumulated by add_workflow/add_transition during initial load
     g._events = []
@@ -533,6 +618,7 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
     data, warnings = _with_steps_key(data)
     warnings += legacy_key_warnings(data)
     items, pending_transitions = _extract_items_and_transitions(data, warnings)
+    format_warnings = list(warnings)
 
     g = MetaworkflowGraph()
     g.project_dir = project_dir
@@ -583,28 +669,29 @@ def _full_validated_graph(data: dict, project_dir: Path | None = None) -> "Metaw
             diagnostics.extend(e.errors)
 
     input_diagnostics = g.input_diagnostics()
-    if inputs:
+    if inputs or any(input_refs(wf.params) for wf in constructed):  # also implicit inputs
         input_diagnostics += g.effective_inputs()[1]
     tier2_diagnostics = check_all([g.for_checks(wf) for wf in constructed])
+    g.set_step_warnings(tier2_diagnostics, [wf.id for wf in constructed])
     for found in (input_diagnostics, tier2_diagnostics):
         diagnostics.extend(d for d in found if d.severity == Severity.ERROR)
         warnings.extend(d for d in found if d.severity == Severity.WARNING)
 
     if data.get("globals") is not None:
         try:
-            g.global_options = GlobalOptions(**data["globals"])
+            g.global_options = GlobalOptions.model_validate(data["globals"])
             diagnostics.extend(check_config_files(g.global_options, project_dir))
         except ValidationError as e:
             diagnostics.extend(diagnostics_from_pydantic_error(e, workflow_id=None, yaml_path_prefix="globals."))
 
     diagnostics.extend(g.module_nextflow_version_diagnostics(g.global_options, g.get_workflows()))
-    warnings.extend(_module_executor_warnings(g))
-    warnings.extend(_abbreviated_sha_warnings(g))
+    warnings.extend(_graph_warnings(g))
 
     if diagnostics or graph_messages:
         raise ConfigValidationError(errors=diagnostics, graph_messages=graph_messages, warnings=warnings)
 
     g.warnings = warnings
+    g.format_warnings = format_warnings
     return g
 
 
@@ -771,6 +858,7 @@ def to_file(g: "MetaworkflowGraph", file: Path | str) -> None:
     lists in flow style, `[n01, n02]`), prefixed with a
     `# yaml-language-server: $schema=...` comment pointing at the published
     JSON Schema for editor autocompletion. Overwrites `file` if it exists."""
+    text = yaml.dump(dump_config(g), Dumper=_ConfigDumper, sort_keys=False)
     with open(file, "w") as fh:
         fh.write(f"# yaml-language-server: $schema={SCHEMA_URL}\n")
-        yaml.dump(dump_config(g), fh, Dumper=_ConfigDumper, sort_keys=False)
+        fh.write(text)

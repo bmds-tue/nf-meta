@@ -60,6 +60,24 @@ class TestExecute:
         assert len(events) == 1
         assert isinstance(events[0], WorkflowRemoved)
 
+    def test_redrawing_an_edge_records_nothing_and_undo_keeps_it(self, history, graph, wf_rnaseq, wf_fetchngs):
+        edge = Transition(source=wf_fetchngs.id, target=wf_rnaseq.id)
+        history.execute(AddTransition(edge), graph)
+        history.execute(AddWorkflow(NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a")), graph)
+        history.undo(graph)
+        assert history.redoable()
+
+        assert history.execute(AddTransition(edge), graph) == ()
+        assert history.redoable()  # an empty command keeps the redo stack
+        history.undo(graph)  # undoes the first AddTransition, not the re-drawn one
+        assert not graph.G.has_edge(wf_fetchngs.id, wf_rnaseq.id)
+
+    def test_adding_an_existing_id_raises_and_keeps_the_step(self, history, graph, wf_rnaseq):
+        with pytest.raises(ValueError, match="already exists"):
+            history.execute(AddWorkflow(wf_rnaseq.model_copy(update={"version": "3.0.0"})), graph)
+        assert graph.get_workflow_by_id(wf_rnaseq.id).version == "3.14.0"
+        assert not history.undoable()
+
     def test_execute_rolls_back_on_error(self, history, graph):
         initial_nodes = set(graph.G.nodes)
         with pytest.raises(ValueError):

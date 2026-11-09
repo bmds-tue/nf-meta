@@ -12,6 +12,7 @@ export function useEditorHotkeys() {
     // The inputs node and its edges are only in the view; there is nothing to delete
     const nodeIds = getSelectedNodes.value.map(n => n.id).filter(id => id !== INPUTS_NODE_ID)
     const edgeIds = getSelectedEdges.value.map(e => e.id).filter(id => !id.startsWith(`${INPUTS_NODE_ID}->`))
+    if (nodeIds.length === 0 && edgeIds.length === 0) return
 
     const result = await graphStore.removeSelectionById({nodes: nodeIds, edges: edgeIds})
     if (result.ok && nodeIds.length > 0) {

@@ -29,12 +29,12 @@ SCHEMA = {
 @pytest.fixture(autouse=True)
 def schema(monkeypatch):
     """A schema knowing every param used here, none of them declared as paths."""
-    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: SCHEMA)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": SCHEMA)
 
 
 def with_path_format(monkeypatch, param):
     schema = {**SCHEMA, param: {**SCHEMA[param], "format": "file-path"}}
-    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version: schema)
+    monkeypatch.setattr("nf_meta.core.dynamic_validation.get_pipeline_schema", lambda url, version, folder="": schema)
 
 
 @pytest.fixture
@@ -83,36 +83,46 @@ def plan(path, resume=False, **options):
 
 
 class TestOutDir:
-    def test_default_is_next_to_the_config(self, project, tmp_path, monkeypatch):
+    def test_default_is_in_the_current_dir(self, project, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         steps = plan(write_config(project, two_steps()))
-        assert {s.command.cwd for s in steps} == {project / "nf-meta-out"}
+        assert {s.command.cwd for s in steps} == {tmp_path / "nf-meta-out"}
 
     def test_out_option_overrides(self, project, tmp_path):
         steps = plan(write_config(project, two_steps()), out_dir=tmp_path / "results")
         assert {s.command.cwd for s in steps} == {tmp_path / "results"}
 
-    def test_shared_work_dir(self, project):
+    def test_relative_out_option_is_relative_to_the_current_dir(self, project, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        steps = plan(write_config(project, two_steps()), out_dir="results")
+        assert {s.command.cwd for s in steps} == {tmp_path / "results"}
+
+    def test_shared_work_dir(self, project, monkeypatch):
+        monkeypatch.chdir(project)
         steps = plan(write_config(project, two_steps()))
         work = {s.command.argv[s.command.argv.index("-w") + 1] for s in steps}
         assert work == {str(project / "nf-meta-out" / "work")}
 
-    def test_per_step_nextflow_cache_dir(self, project):
+    def test_per_step_nextflow_cache_dir(self, project, monkeypatch):
+        monkeypatch.chdir(project)
         steps = plan(write_config(project, two_steps()))
         cache = [s.command.env["NXF_CACHE_DIR"] for s in steps]
         state = project / "nf-meta-out" / ".nf-meta" / "nextflow"
         assert cache == [str(state / "n01"), str(state / "n02")]
 
-    def test_commands_do_not_depend_on_current_dir(self, project, tmp_path, monkeypatch):
+    def test_params_do_not_depend_on_current_dir(self, project, tmp_path, monkeypatch):
         path = write_config(project, two_steps())
         monkeypatch.chdir(project)
-        here = [(s.command.argv, s.command.params) for s in plan(path)]
+        here = [s.command.params for s in plan(path)]
         elsewhere = tmp_path / "elsewhere"
         elsewhere.mkdir()
         monkeypatch.chdir(elsewhere)
-        assert [(s.command.argv, s.command.params) for s in plan(path)] == here
+        steps = plan(path)
+        assert [s.command.params for s in steps] == here
+        assert {s.command.cwd for s in steps} == {elsewhere / "nf-meta-out"}
 
-    def test_plan_writes_nothing(self, project):
+    def test_plan_writes_nothing(self, project, monkeypatch):
+        monkeypatch.chdir(project)
         plan(write_config(project, two_steps()))
         assert not (project / "nf-meta-out").exists()
 
@@ -270,11 +280,27 @@ class TestInputFilesInStepKey:
         os.utime(project / "ids.csv", ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
         assert self._keys(path)["n01"] != before["n01"]
 
+    def test_a_file_named_in_global_params_counts(self, project, monkeypatch):
+        with_path_format(monkeypatch, "contrasts")
+        steps = two_steps()
+        del steps["n02"]["params"]["contrasts"]
+        path = write_config(project, steps, {"params": {"contrasts": "contrasts.csv"}})
+        before = self._keys(path)
+        (project / "contrasts.csv").write_text("id\nA\n")
+        assert self._keys(path)["n02"] != before["n02"]
+
+    def test_a_steps_nf_profile_counts(self, project):
+        before = self._keys(write_config(project, two_steps()))
+        steps = two_steps()
+        steps["n01"]["nf_profile"] = "docker"
+        assert self._keys(write_config(project, steps))["n01"] != before["n01"]
+
     def test_unchanged_files_keep_the_key(self, project):
         path = write_config(project, two_steps())
         assert self._keys(path) == self._keys(path)
 
-    def test_upstream_output_appearing_keeps_the_downstream_key(self, project):
+    def test_upstream_output_appearing_keeps_the_downstream_key(self, project, monkeypatch):
+        monkeypatch.chdir(project)
         path = write_config(project, two_steps())
         before = self._keys(path)
         sheet = project / "nf-meta-out" / "out_fetchngs" / "samplesheet" / "samplesheet.csv"
@@ -319,12 +345,13 @@ class TestRemoteConfig:
         with pytest.raises(ConfigValidationError, match="URL"):
             from_file("https://example.org/metaconfig.yaml")
 
-    def test_out_dir_required(self, serve):
+    def test_runs_in_the_current_dir(self, serve, tmp_path, monkeypatch):
         serve({"config_version": "0.3.0", "steps": two_steps()})
         g = from_file("https://example.org/metaconfig.yaml")
         assert g.project_dir is None
-        with pytest.raises(NfMetaRunnerError, match="--out"):
-            SimplePythonRunner(RunOptions()).plan(g)
+        monkeypatch.chdir(tmp_path)
+        steps = SimplePythonRunner(RunOptions()).plan(g)
+        assert {s.command.cwd for s in steps} == {tmp_path / "nf-meta-out"}
 
     def test_relative_declared_path_param_is_an_error(self, serve, monkeypatch, tmp_path):
         with_path_format(monkeypatch, "input")

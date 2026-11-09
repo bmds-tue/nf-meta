@@ -53,12 +53,11 @@ A reference is checked topologically, and against both pipeline's metadata, if a
 without downloading it first:
 
 ```bash
-nf-meta run https://raw.githubusercontent.com/<org>/<repo>/<commit>/metapipeline.yaml --out results
+nf-meta run https://raw.githubusercontent.com/<org>/<repo>/<commit>/metapipeline.yaml
 ```
 
 A config from a URL has no folder of its own, so:
 
-- `--out` is required for `run`;
 - relative `params_file`/`nf_config` paths in it are an error (use absolute paths, download the
   files, or make them [inputs](inputs.md));
 - the editor never writes back to the URL. Before the first change, the editor asks to save the metapipeline locally.
@@ -77,13 +76,37 @@ steps:
 ```
 
 nf-meta runs `nextflow run <folder>` and reads the param schema from the folder's
-`nextflow_schema.json`. The folder must hold `main.nf` (or the step's `main_script`). With
-`--resume`, a change to the pipeline's files re-runs the step.
+`nextflow_schema.json`. The folder must hold `main.nf` (or the step's `main_script`, see below).
+With `--resume`, a change to the pipeline's files re-runs the step.
 
 !!! warning "Not reproducible"
     A config referencing a local pipeline only runs where that folder exists and its code can change
     between runs, so `validate`, `run` and the editor always warn about it. To share the
     metapipeline, publish the pipeline to a public repository described with `url:` and `version:`.
+
+## Several pipelines in one repository
+
+One repository can hold several pipelines, for example small connectors between steps, each in
+its own folder. A step picks one with `main_script`, relative to the repository's root (or to the
+`path` folder):
+
+```yaml
+steps:
+  n02:
+    name: fetchngs2rnaseq
+    url: https://github.com/my-org/connectors
+    version: 1.0.0
+    main_script: connectors/fetchngs2rnaseq/main.nf
+    from: n01
+```
+
+Nextflow then treats the script's folder as the pipeline. Each folder needs everything a pipeline
+needs, in that folder:
+
+- `nextflow_schema.json`: nf-meta checks the step's params against this file and the editor builds
+  its form from it. A schema at the repository's root is not used.
+- `nextflow.config`, if the pipeline needs one. The root's `nextflow.config` (and its `manifest`)
+  is not read.
 
 ## Validating and running
 

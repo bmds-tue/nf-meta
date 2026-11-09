@@ -97,14 +97,16 @@ class Metapipeline:
     def add(self, step: Workflow, after: Iterable[StepOrId] = ()) -> Workflow:
         """Add `step` and return it. It runs after the steps it references
         (`Ref(...)` or `${...}` in its params) and after the steps in
-        `after`."""
-        self._execute([SaveWorkflow(step, create=True, after=tuple(_step_id(s) for s in after))])
+        `after`. Raises `ValueError` if `step`, changed since it was created,
+        is no longer valid."""
+        self._execute([SaveWorkflow(_validated(step), create=True, after=tuple(_step_id(s) for s in after))])
         return step
 
     def update(self, step: Workflow, after: Iterable[StepOrId] = ()) -> Workflow:
         """Replace the step with `step.id` by `step` and return it. Edges for
-        new references and for `after` are added; existing edges stay."""
-        self._execute([SaveWorkflow(step, create=False, after=tuple(_step_id(s) for s in after))])
+        new references and for `after` are added; existing edges stay. Raises
+        `ValueError` if `step` is no longer valid."""
+        self._execute([SaveWorkflow(_validated(step), create=False, after=tuple(_step_id(s) for s in after))])
         return step
 
     def remove(self, step: StepOrId) -> None:
@@ -178,6 +180,11 @@ class Metapipeline:
     def __repr__(self) -> str:
         steps = ", ".join(f"{wf.id}: {wf.name}" for wf in self.graph.get_workflows_sorted())
         return f"Metapipeline([{steps}])"
+
+
+def _validated(step: Workflow) -> Workflow:
+    # Assigning to a model's fields skips its validators, so check a fresh copy
+    return type(step).model_validate(step.model_dump(round_trip=True))
 
 
 def _step_id(step: StepOrId) -> str:

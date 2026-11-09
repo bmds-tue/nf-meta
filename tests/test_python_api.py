@@ -9,6 +9,7 @@ from nf_meta import (
     InputDefinition,
     Metapipeline,
     NfMetaRunnerError,
+    NfModule,
     NfPipeline,
     Ref,
     run_step,
@@ -38,9 +39,9 @@ def fake_execute(monkeypatch, mock_nextflow):
     executed: list[str] = []
     outcome = {"success": True}
 
-    def execute(self, spec, command):
+    def execute(self, spec, command, label=""):
         executed.append(spec.step_id)
-        return outcome["success"]
+        return 0 if outcome["success"] else 1
 
     monkeypatch.setattr(SimplePythonRunner, "_execute", execute)
     monkeypatch.setattr(SimplePythonRunner, "_check_nextflow", lambda self, graph, steps: None)
@@ -147,6 +148,23 @@ class TestBuild:
         assert mp.graph.input_bindings()["ids"]
 
 
+def test_adding_the_same_step_twice_raises(tmp_path):
+    mp = Metapipeline(project_dir=tmp_path)
+    step = mp.add(fetchngs())
+    with pytest.raises(ValueError, match="already exists"):
+        mp.add(step)
+    assert [s.id for s in mp.steps] == [step.id]
+
+
+def test_update_validates_a_changed_step(tmp_path):
+    mp = Metapipeline(project_dir=tmp_path)
+    step = mp.add(fetchngs())
+    step.version = "main"
+    with pytest.raises(ValueError):
+        mp.update(step)
+    assert mp.steps[0].version == "1.12.0"
+
+
 class TestHistory:
     def test_undo_and_redo(self, two_steps):
         mp, _, rna = two_steps
@@ -192,6 +210,28 @@ class TestLoadSave:
         loaded.save()
         assert path.read_text() != before
 
+    def test_a_module_step_round_trips(self, tmp_path):
+        mp = Metapipeline(project_dir=tmp_path)
+        module = mp.add(NfModule(name="nf-core/fastqc", version="0.0.0-6c4ed3a"))
+        path = tmp_path / "metaconfig.yaml"
+        mp.save(path)
+        assert yaml.safe_load(path.read_text())["steps"][module.id]["type"] == "nf-module"
+        assert Metapipeline.load(path).steps[0].name == "nf-core/fastqc"
+
+    def test_a_failed_save_keeps_the_old_file(self, two_steps, tmp_path, monkeypatch):
+        mp, _, _ = two_steps
+        path = tmp_path / "metaconfig.yaml"
+        mp.save(path)
+        before = path.read_text()
+
+        def broken(_):
+            raise RuntimeError("dump failed")
+
+        monkeypatch.setattr("nf_meta.core.config.dump_config", broken)
+        with pytest.raises(RuntimeError):
+            mp.save(path)
+        assert path.read_text() == before
+
     def test_save_without_a_path_raises(self, tmp_path):
         with pytest.raises(ValueError):
             Metapipeline(project_dir=tmp_path).save()
@@ -223,6 +263,27 @@ class TestRun:
         executed, _ = fake_execute
         mp.run(out_dir=tmp_path / "out", start=fetch, target=fetch)
         assert executed == [fetch.id]
+
+    def test_resume_reruns_a_step_whose_outdir_another_run_overwrote(self, tmp_path, monkeypatch, mock_nextflow):
+        executed: list[str] = []
+
+        def execute(self, spec, command, label=""):
+            executed.append(spec.params["count"])
+            spec.state_dir.mkdir(parents=True, exist_ok=True)
+            (spec.state_dir / SimplePythonRunner.OUT_FILE).write_text("done")
+            return 0
+
+        monkeypatch.setattr(SimplePythonRunner, "_execute", execute)
+        monkeypatch.setattr(SimplePythonRunner, "_check_nextflow", lambda self, graph, steps: None)
+        mp = Metapipeline(project_dir=tmp_path)
+        step = mp.add(rnaseq(count=1))
+        for count in (1, 2, 1):
+            step.params["count"] = count
+            mp.update(step)
+            mp.run(out_dir=tmp_path / "out", resume=True)
+        assert executed == [1, 2, 1]
+        mp.run(out_dir=tmp_path / "out", resume=True)
+        assert executed == [1, 2, 1]
 
     def test_plan_runs_nothing(self, two_steps, fake_execute, tmp_path):
         mp, fetch, rna = two_steps

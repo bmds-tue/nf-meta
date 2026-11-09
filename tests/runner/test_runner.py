@@ -62,3 +62,17 @@ def test_default_run_options_not_shared(graph, monkeypatch):
     plan_metapipeline(graph)
     plan_metapipeline(graph)
     assert seen[0] is not seen[1]
+
+
+def test_start_after_target_selects_nothing_and_fails(tmp_path):
+    from nf_meta.core.models import NfPipeline
+    from nf_meta.runner.python_runner import SimplePythonRunner
+
+    g = MetaworkflowGraph()
+    a = NfPipeline(name="nf-core/fetchngs", version="1.12.0")
+    b = NfPipeline(name="nf-core/rnaseq", version="3.14.0")
+    g.add_workflow(a)
+    g.add_workflow(b)
+    g.add_transition(Transition(source=a.id, target=b.id))
+    with pytest.raises(NfMetaRunnerError, match="No steps between"):
+        SimplePythonRunner(RunOptions(out_dir=tmp_path, start=b.id, target=a.id)).plan(g)

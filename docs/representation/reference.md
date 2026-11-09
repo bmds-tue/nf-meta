@@ -30,8 +30,8 @@ Settings for every step. A step's own settings take precedence over them.
 |---|---|---|---|---|
 | `nf_profile` | string | no | none | Nextflow `-profile` for every step that doesn't set its own `nf_profile`. Whitespace is stripped. |
 | `nf_config` | path to an existing file | no | none | Passed as a Nextflow `-c` to every step, before a step's own `nf_config`. |
-| `params` | mapping (str → scalar) | no | none | Merged under each step's own `params`; the step's values win on a key collision. Values must be `str`/`int`/`float`/`bool`. |
-| `nextflow_version` | string, int or float | no | none | e.g. `"25.10"`, `"25.10.4-edge"`, `25`. Checked against `nextflow -version` before a run; a mismatch is reported. Steps of type `nf-module` need 26.04 or later. |
+| `params` | mapping (str → scalar) | no | none | **Deprecated**, to be removed in a later version: set params per step and declare shared values as [inputs](inputs.md). Merged under each step's own `params`; the step's values win on a key collision. Values must be `str`/`int`/`float`/`bool`. |
+| `nextflow_version` | string, int or float | no | none | e.g. `"25.10"`, `"25.10.4-edge"`, `25`. Write it in quotes: unquoted, YAML reads `25.10` as the number 25.1, which is refused. Checked against `nextflow -version` before a run; a mismatch is reported. Steps of type `nf-module` need 26.04 or later. |
 
 ## Steps
 
@@ -60,7 +60,7 @@ For a `nextflow run` pipeline (the default `type`):
 | `description` | string | no | from the nf-core catalog | Free text. |
 | `params_file` | path to an existing `.yaml`/`.yml` file | no | none | Base params, merged under `params` (`params` wins on a key collision) and included in the params check. |
 | `nf_profile` | string | no | none | Overrides `globals.nf_profile` for this step. |
-| `main_script` | string | no | none | Another entry script of the pipeline (`-main-script`). Not for nf-core pipelines. |
+| `main_script` | string | no | none | Another entry script of the pipeline (`-main-script`), relative to its root. Nextflow then treats the script's folder as the pipeline: the params are checked against the `nextflow_schema.json` next to the script, and only that folder's `nextflow.config` is read, not the root's. The script must exist in the repository at `version` (checked on github.com, gitlab.com and bitbucket.org). See [Several pipelines in one repository](overview.md#several-pipelines-in-one-repository). Not for nf-core pipelines. |
 
 ### `nf-module` steps
 

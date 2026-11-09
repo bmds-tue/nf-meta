@@ -26,6 +26,7 @@ const graphStore = useGraphStore()
 const form = ref<APINfPipelineNodeData>({ ...props.initialValue })
 const isEditing = ref(props.isNew)
 const saving = ref(false)
+const yamlError = ref('')
 const errors = ref<Record<string, string[]>>({})
 
 // Fields of the "More options" section; it starts open if any of them is set
@@ -67,6 +68,7 @@ async function submitForm(e: SubmitEventPromise) {
   if (!valid) return
   errors.value = {}
   paramErrors.value = { byParam: {}, general: [] }
+  if (yamlError.value) return  // shown in the YAML editor
   saving.value = true
   try {
     const previousIds = new Set(graphStore.nodeData.map(n => n.id))
@@ -128,6 +130,7 @@ const { schema, loading: schemaLoading, error: schemaError } = useStepSchema(() 
   url: form.value.url || (form.value.is_nfcore && form.value.name ? `https://github.com/${form.value.name}` : undefined),
   version: form.value.version,
   path: form.value.path || undefined,
+  main_script: form.value.main_script || undefined,
 }))
 const boundParams = computed(() => Object.fromEntries(
   form.value.id
@@ -251,6 +254,7 @@ const pathRows = computed(() => [
 
     <ParamsForm
       v-model="form.params"
+      @parse-error="yamlError = $event"
       :schema="schema" :loading="schemaLoading" :error="schemaError"
       :input-for="inputForParam" :references="references" :bound="boundParams"
       :errors="paramErrors.byParam" :general-errors="paramErrors.general"

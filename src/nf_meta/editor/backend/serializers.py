@@ -2,6 +2,7 @@ import dataclasses
 
 from pydantic import BaseModel
 
+from nf_meta.core.config import current_warnings
 from nf_meta.core.errors import Diagnostic
 from nf_meta.core.events import Event
 from nf_meta.core.graph import MetaworkflowGraph
@@ -22,8 +23,19 @@ def serialize_state(session: EditorSession) -> dict:
         "transitions": session.graph.get_transitions(),
         "globals": session.graph.global_options,
         "inputs": serialize_inputs(session.graph),
+        "warnings": serialize_warnings(session),
     }
     return d
+
+
+def serialize_warnings(session: EditorSession) -> list[dict]:
+    """The warnings about the session's config: its old forms (until it is
+    written) and the ones that hold for the graph now (see
+    `current_warnings`), each with its step (`None` for the whole config)."""
+    return [
+        {"workflow_id": d.workflow_id, "yaml_path": d.yaml_path, "message": d.message}
+        for d in session.format_warnings + current_warnings(session.graph)
+    ]
 
 
 def serialize_inputs(graph: MetaworkflowGraph) -> list[dict]:

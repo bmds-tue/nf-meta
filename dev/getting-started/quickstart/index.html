@@ -1189,8 +1189,8 @@ You will get summarized validation feedback with line numbers and keys in your c
 <p>To just see that everything runs as expected, we use Nextflow's stub-run mechanism which replaces each process script with a no-op stub that requires no containers or environment.
 This Nextflow run options is resurfaced to the <code>nf-meta run</code> cli interface as the <code>--stub</code> flag.
 This can be useful to confirm the structure and parameter wiring resolves correctly without waiting on real compute or container pulls.</p>
-<p>The results land in <code>nf-meta-out/results/</code> next to the config: every step runs in the out dir
-(<code>--out</code> sets another one).</p>
+<p>The results land in <code>nf-meta-out/results/</code> in the folder you ran <code>nf-meta</code> from: every step runs
+in the out dir (<code>--out</code> sets another one).</p>
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
 <li>A metapipeline with more than one step, chained via references: see

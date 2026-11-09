@@ -1433,13 +1433,13 @@ repeating the constructor.</p>
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/nf_meta/runner/base_runner.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-215">215</a></span>
-<span class="normal"><a href="#__codelineno-0-216">216</a></span>
-<span class="normal"><a href="#__codelineno-0-217">217</a></span>
-<span class="normal"><a href="#__codelineno-0-218">218</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_options</span><span class="p">:</span> <span class="n">RunOptions</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-216" name="__codelineno-0-216"></a>    <span class="k">if</span> <span class="s2">"RUNNER_NAME"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a>        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> must define RUNNER_NAME = '...' as a class attribute"</span><span class="p">)</span>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">run_options</span> <span class="o">=</span> <span class="n">run_options</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-226">226</a></span>
+<span class="normal"><a href="#__codelineno-0-227">227</a></span>
+<span class="normal"><a href="#__codelineno-0-228">228</a></span>
+<span class="normal"><a href="#__codelineno-0-229">229</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_options</span><span class="p">:</span> <span class="n">RunOptions</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a>    <span class="k">if</span> <span class="s2">"RUNNER_NAME"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a>        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> must define RUNNER_NAME = '...' as a class attribute"</span><span class="p">)</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">run_options</span> <span class="o">=</span> <span class="n">run_options</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -1482,19 +1482,19 @@ than returning normally with partial results.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/nf_meta/runner/base_runner.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-220">220</a></span>
-<span class="normal"><a href="#__codelineno-0-221">221</a></span>
-<span class="normal"><a href="#__codelineno-0-222">222</a></span>
-<span class="normal"><a href="#__codelineno-0-223">223</a></span>
-<span class="normal"><a href="#__codelineno-0-224">224</a></span>
-<span class="normal"><a href="#__codelineno-0-225">225</a></span>
-<span class="normal"><a href="#__codelineno-0-226">226</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="nd">@abstractmethod</span>
-<a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResults</span><span class="p">:</span>
-<a id="__codelineno-0-222" name="__codelineno-0-222"></a><span class="w">    </span><span class="sd">"""Execute every workflow in `g` from scratch, in dependency order,</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="sd">    and return the results.</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="sd">    Called by `run_metapipeline` when `run_options.resume` is falsy.</span>
-<a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">    Exceptions are not caught by the caller -- let a failure raise rather</span>
-<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">    than returning normally with partial results."""</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-231">231</a></span>
+<span class="normal"><a href="#__codelineno-0-232">232</a></span>
+<span class="normal"><a href="#__codelineno-0-233">233</a></span>
+<span class="normal"><a href="#__codelineno-0-234">234</a></span>
+<span class="normal"><a href="#__codelineno-0-235">235</a></span>
+<span class="normal"><a href="#__codelineno-0-236">236</a></span>
+<span class="normal"><a href="#__codelineno-0-237">237</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-231" name="__codelineno-0-231"></a><span class="nd">@abstractmethod</span>
+<a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResults</span><span class="p">:</span>
+<a id="__codelineno-0-233" name="__codelineno-0-233"></a><span class="w">    </span><span class="sd">"""Execute every workflow in `g` from scratch, in dependency order,</span>
+<a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="sd">    and return the results.</span>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">    Called by `run_metapipeline` when `run_options.resume` is falsy.</span>
+<a id="__codelineno-0-236" name="__codelineno-0-236"></a><span class="sd">    Exceptions are not caught by the caller -- let a failure raise rather</span>
+<a id="__codelineno-0-237" name="__codelineno-0-237"></a><span class="sd">    than returning normally with partial results."""</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1526,17 +1526,17 @@ Same exception policy as <code>run</code>.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/nf_meta/runner/base_runner.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-228">228</a></span>
-<span class="normal"><a href="#__codelineno-0-229">229</a></span>
-<span class="normal"><a href="#__codelineno-0-230">230</a></span>
-<span class="normal"><a href="#__codelineno-0-231">231</a></span>
-<span class="normal"><a href="#__codelineno-0-232">232</a></span>
-<span class="normal"><a href="#__codelineno-0-233">233</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="nd">@abstractmethod</span>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="k">def</span><span class="w"> </span><span class="nf">resume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResults</span><span class="p">:</span>
-<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="w">    </span><span class="sd">"""Continue a previously interrupted run of `g`, skipping whatever</span>
-<a id="__codelineno-0-231" name="__codelineno-0-231"></a><span class="sd">    the implementation can determine already completed successfully.</span>
-<a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">    Called by `run_metapipeline` when `run_options.resume` is truthy.</span>
-<a id="__codelineno-0-233" name="__codelineno-0-233"></a><span class="sd">    Same exception policy as `run`."""</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-239">239</a></span>
+<span class="normal"><a href="#__codelineno-0-240">240</a></span>
+<span class="normal"><a href="#__codelineno-0-241">241</a></span>
+<span class="normal"><a href="#__codelineno-0-242">242</a></span>
+<span class="normal"><a href="#__codelineno-0-243">243</a></span>
+<span class="normal"><a href="#__codelineno-0-244">244</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="nd">@abstractmethod</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="k">def</span><span class="w"> </span><span class="nf">resume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResults</span><span class="p">:</span>
+<a id="__codelineno-0-241" name="__codelineno-0-241"></a><span class="w">    </span><span class="sd">"""Continue a previously interrupted run of `g`, skipping whatever</span>
+<a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">    the implementation can determine already completed successfully.</span>
+<a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">    Called by `run_metapipeline` when `run_options.resume` is truthy.</span>
+<a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="sd">    Same exception policy as `run`."""</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1574,19 +1574,19 @@ that can't plan ahead keep this default, which raises
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/nf_meta/runner/base_runner.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-235">235</a></span>
-<span class="normal"><a href="#__codelineno-0-236">236</a></span>
-<span class="normal"><a href="#__codelineno-0-237">237</a></span>
-<span class="normal"><a href="#__codelineno-0-238">238</a></span>
-<span class="normal"><a href="#__codelineno-0-239">239</a></span>
-<span class="normal"><a href="#__codelineno-0-240">240</a></span>
-<span class="normal"><a href="#__codelineno-0-241">241</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="k">def</span><span class="w"> </span><span class="nf">plan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">,</span> <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunPlan</span><span class="p">:</span>
-<a id="__codelineno-0-236" name="__codelineno-0-236"></a><span class="w">    </span><span class="sd">"""Return what `run` (or `resume`, with `resume=True`) would execute,</span>
-<a id="__codelineno-0-237" name="__codelineno-0-237"></a><span class="sd">    in order, without running anything. With `dry_run`, missing values</span>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="sd">    don't raise outside prompt mode; they show as placeholders. Runners</span>
-<a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="sd">    that can't plan ahead keep this default, which raises</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="sd">    `NfMetaRunnerError`."""</span>
-<a id="__codelineno-0-241" name="__codelineno-0-241"></a>    <span class="k">raise</span> <span class="n">NfMetaRunnerError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Runner '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">RUNNER_NAME</span><span class="si">}</span><span class="s2">' does not support dry runs."</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-246">246</a></span>
+<span class="normal"><a href="#__codelineno-0-247">247</a></span>
+<span class="normal"><a href="#__codelineno-0-248">248</a></span>
+<span class="normal"><a href="#__codelineno-0-249">249</a></span>
+<span class="normal"><a href="#__codelineno-0-250">250</a></span>
+<span class="normal"><a href="#__codelineno-0-251">251</a></span>
+<span class="normal"><a href="#__codelineno-0-252">252</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-246" name="__codelineno-0-246"></a><span class="k">def</span><span class="w"> </span><span class="nf">plan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">,</span> <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunPlan</span><span class="p">:</span>
+<a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="w">    </span><span class="sd">"""Return what `run` (or `resume`, with `resume=True`) would execute,</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">    in order, without running anything. With `dry_run`, missing values</span>
+<a id="__codelineno-0-249" name="__codelineno-0-249"></a><span class="sd">    don't raise outside prompt mode; they show as placeholders. Runners</span>
+<a id="__codelineno-0-250" name="__codelineno-0-250"></a><span class="sd">    that can't plan ahead keep this default, which raises</span>
+<a id="__codelineno-0-251" name="__codelineno-0-251"></a><span class="sd">    `NfMetaRunnerError`."""</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a>    <span class="k">raise</span> <span class="n">NfMetaRunnerError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Runner '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">RUNNER_NAME</span><span class="si">}</span><span class="s2">' does not support dry runs."</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1672,8 +1672,9 @@ registered in <code>base_runner._REGISTRY</code>.</p>
               <div class="doc-md-description">
                 <p>Directory every step runs in: step outputs with relative
 <code>outdir</code>s land here, plus Nextflow's work dir (<code>work/</code>) and
-nf-meta's state (<code>.nf-meta/</code>). <code>None</code> means
-<code>&lt;project dir&gt;/nf-meta-out</code>. Created if it does not exist.</p>
+nf-meta's state (<code>.nf-meta/</code>). <code>None</code> means <code>nf-meta-out</code> in
+the current directory. A relative path is relative to the current
+directory. Created if it does not exist.</p>
               </div>
             </td>
           </tr>
@@ -2517,7 +2518,7 @@ or <code>None</code> if the step has no params.</p>
 as a <code>nextflow run</code>/<code>nextflow module run</code> subprocess directly from this
 Python process, in DAG order, streaming output as it runs.</p>
 <p>Every step runs Nextflow from the out dir (<code>run_options.out_dir</code>, default
-<code>&lt;project dir&gt;/nf-meta-out</code>), sharing its <code>work/</code> dir. Relative input
+<code>nf-meta-out</code> in the current directory), sharing its <code>work/</code> dir. Relative input
 paths are made absolute against the project dir first. nf-meta's own state
 lives in <code>&lt;out dir&gt;/.nf-meta/</code>.</p>
 <p><code>resume=True</code> works on two levels: a step that already succeeded with an
@@ -2536,11 +2537,11 @@ dir, so Nextflow resumes that step's last run.</p>
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/nf_meta/runner/python_runner.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-72">72</a></span>
-<span class="normal"><a href="#__codelineno-0-73">73</a></span>
-<span class="normal"><a href="#__codelineno-0-74">74</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_options</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">run_options</span><span class="p">)</span>
-<a id="__codelineno-0-74" name="__codelineno-0-74"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">run_options</span><span class="o">.</span><span class="n">out_dir</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="k">if</span> <span class="n">run_options</span><span class="o">.</span><span class="n">out_dir</span> <span class="k">else</span> <span class="kc">None</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#__codelineno-0-73">73</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-71" name="__codelineno-0-71"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_options</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">run_options</span><span class="p">)</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">run_options</span><span class="o">.</span><span class="n">out_dir</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="k">if</span> <span class="n">run_options</span><span class="o">.</span><span class="n">out_dir</span> <span class="k">else</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -2602,8 +2603,9 @@ asks for them, even in a dry run.</p>
               <div class="doc-md-description">
                 <p>if values are missing (except in a dry run
 outside prompt mode, where they become placeholders) or
-invalid, if no out dir can be determined, or if a config loaded
-from a URL has relative input paths.</p>
+invalid, if no out dir can be determined, if a config loaded
+from a URL has relative input paths, or if two steps write to
+the same outdir.</p>
               </div>
             </td>
           </tr>
@@ -2613,39 +2615,7 @@ from a URL has relative input paths.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/nf_meta/runner/python_runner.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-223">223</a></span>
-<span class="normal"><a href="#__codelineno-0-224">224</a></span>
-<span class="normal"><a href="#__codelineno-0-225">225</a></span>
-<span class="normal"><a href="#__codelineno-0-226">226</a></span>
-<span class="normal"><a href="#__codelineno-0-227">227</a></span>
-<span class="normal"><a href="#__codelineno-0-228">228</a></span>
-<span class="normal"><a href="#__codelineno-0-229">229</a></span>
-<span class="normal"><a href="#__codelineno-0-230">230</a></span>
-<span class="normal"><a href="#__codelineno-0-231">231</a></span>
-<span class="normal"><a href="#__codelineno-0-232">232</a></span>
-<span class="normal"><a href="#__codelineno-0-233">233</a></span>
-<span class="normal"><a href="#__codelineno-0-234">234</a></span>
-<span class="normal"><a href="#__codelineno-0-235">235</a></span>
-<span class="normal"><a href="#__codelineno-0-236">236</a></span>
-<span class="normal"><a href="#__codelineno-0-237">237</a></span>
-<span class="normal"><a href="#__codelineno-0-238">238</a></span>
-<span class="normal"><a href="#__codelineno-0-239">239</a></span>
-<span class="normal"><a href="#__codelineno-0-240">240</a></span>
-<span class="normal"><a href="#__codelineno-0-241">241</a></span>
-<span class="normal"><a href="#__codelineno-0-242">242</a></span>
-<span class="normal"><a href="#__codelineno-0-243">243</a></span>
-<span class="normal"><a href="#__codelineno-0-244">244</a></span>
-<span class="normal"><a href="#__codelineno-0-245">245</a></span>
-<span class="normal"><a href="#__codelineno-0-246">246</a></span>
-<span class="normal"><a href="#__codelineno-0-247">247</a></span>
-<span class="normal"><a href="#__codelineno-0-248">248</a></span>
-<span class="normal"><a href="#__codelineno-0-249">249</a></span>
-<span class="normal"><a href="#__codelineno-0-250">250</a></span>
-<span class="normal"><a href="#__codelineno-0-251">251</a></span>
-<span class="normal"><a href="#__codelineno-0-252">252</a></span>
-<span class="normal"><a href="#__codelineno-0-253">253</a></span>
-<span class="normal"><a href="#__codelineno-0-254">254</a></span>
-<span class="normal"><a href="#__codelineno-0-255">255</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-255">255</a></span>
 <span class="normal"><a href="#__codelineno-0-256">256</a></span>
 <span class="normal"><a href="#__codelineno-0-257">257</a></span>
 <span class="normal"><a href="#__codelineno-0-258">258</a></span>
@@ -2710,104 +2680,150 @@ from a URL has relative input paths.</p>
 <span class="normal"><a href="#__codelineno-0-317">317</a></span>
 <span class="normal"><a href="#__codelineno-0-318">318</a></span>
 <span class="normal"><a href="#__codelineno-0-319">319</a></span>
-<span class="normal"><a href="#__codelineno-0-320">320</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="k">def</span><span class="w"> </span><span class="nf">plan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">,</span> <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunPlan</span><span class="p">:</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="w">    </span><span class="sd">"""Resolve every selected step to its spec and command, in DAG order,</span>
-<a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">    without writing files or running anything. Values the run needs are</span>
-<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">    collected first (see `RunOptions.input_mode`); in prompt mode this</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">    asks for them, even in a dry run.</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">        NfMetaRunnerError: if values are missing (except in a dry run</span>
-<a id="__codelineno-0-231" name="__codelineno-0-231"></a><span class="sd">            outside prompt mode, where they become placeholders) or</span>
-<a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">            invalid, if no out dir can be determined, or if a config loaded</span>
-<a id="__codelineno-0-233" name="__codelineno-0-233"></a><span class="sd">            from a URL has relative input paths.</span>
-<a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="sd">    """</span>
-<a id="__codelineno-0-235" name="__codelineno-0-235"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_out_dir</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
-<a id="__codelineno-0-236" name="__codelineno-0-236"></a>    <span class="n">project_dir</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">project_dir</span>
-<a id="__codelineno-0-237" name="__codelineno-0-237"></a>    <span class="c1"># params_file/nf_config are read from here on: as absolute paths</span>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="n">global_options</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">global_options</span> <span class="ow">and</span> <span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">global_options</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">)</span>
-<a id="__codelineno-0-239" name="__codelineno-0-239"></a>    <span class="n">workflows</span> <span class="o">=</span> <span class="p">[</span><span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">)</span> <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_selected_workflows</span><span class="p">(</span><span class="n">graph</span><span class="p">)]</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a>    <span class="n">subset_ids</span> <span class="o">=</span> <span class="p">{</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="n">workflows</span><span class="p">}</span>
-<a id="__codelineno-0-241" name="__codelineno-0-241"></a>
-<a id="__codelineno-0-242" name="__codelineno-0-242"></a>    <span class="c1"># Resolved params and step keys per workflow id, seeded from cached runs</span>
-<a id="__codelineno-0-243" name="__codelineno-0-243"></a>    <span class="c1"># of excluded workflows</span>
-<a id="__codelineno-0-244" name="__codelineno-0-244"></a>    <span class="n">resolved</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a>    <span class="n">keys</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-246" name="__codelineno-0-246"></a>    <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">get_workflows</span><span class="p">():</span>
-<a id="__codelineno-0-247" name="__codelineno-0-247"></a>        <span class="k">if</span> <span class="n">wf</span><span class="o">.</span><span class="n">id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">subset_ids</span><span class="p">:</span>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">)</span>
-<a id="__codelineno-0-249" name="__codelineno-0-249"></a>            <span class="n">keys</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">hash</span><span class="p">()</span>
-<a id="__codelineno-0-250" name="__codelineno-0-250"></a>            <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_resolved_params</span><span class="p">(</span><span class="n">wf</span><span class="p">)</span>
-<a id="__codelineno-0-251" name="__codelineno-0-251"></a>            <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a>                <span class="n">resolved</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">cached</span>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a>
-<a id="__codelineno-0-254" name="__codelineno-0-254"></a>    <span class="n">requests</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_requests</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">workflows</span><span class="p">,</span> <span class="n">subset_ids</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)</span>
-<a id="__codelineno-0-255" name="__codelineno-0-255"></a>    <span class="n">collected</span> <span class="o">=</span> <span class="n">collect</span><span class="p">(</span>
-<a id="__codelineno-0-256" name="__codelineno-0-256"></a>        <span class="n">requests</span><span class="p">,</span>
-<a id="__codelineno-0-257" name="__codelineno-0-257"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
-<a id="__codelineno-0-258" name="__codelineno-0-258"></a>        <span class="n">InputMode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">input_mode</span><span class="p">),</span>
-<a id="__codelineno-0-259" name="__codelineno-0-259"></a>        <span class="n">project_dir</span><span class="o">=</span><span class="n">project_dir</span><span class="p">,</span>
-<a id="__codelineno-0-260" name="__codelineno-0-260"></a>        <span class="n">prompter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">prompter</span><span class="p">,</span>
-<a id="__codelineno-0-261" name="__codelineno-0-261"></a>        <span class="n">dry_run</span><span class="o">=</span><span class="n">dry_run</span><span class="p">,</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a>    <span class="p">)</span>
-<a id="__codelineno-0-263" name="__codelineno-0-263"></a>    <span class="n">input_values</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">collected</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">requests</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="o">.</span><span class="n">is_reference</span><span class="p">}</span>
-<a id="__codelineno-0-264" name="__codelineno-0-264"></a>    <span class="n">reference_values</span> <span class="o">=</span> <span class="p">{</span><span class="n">Binding</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">):</span> <span class="n">collected</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">requests</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">is_reference</span><span class="p">}</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a>
-<a id="__codelineno-0-266" name="__codelineno-0-266"></a>    <span class="n">planned</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PlannedStep</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-267" name="__codelineno-0-267"></a>    <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="n">workflows</span><span class="p">:</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a>        <span class="n">bound</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">bound_params</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-<a id="__codelineno-0-269" name="__codelineno-0-269"></a>        <span class="k">if</span> <span class="n">bound</span> <span class="ow">or</span> <span class="n">input_refs</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">):</span>
-<a id="__codelineno-0-270" name="__codelineno-0-270"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"params"</span><span class="p">:</span> <span class="n">substitute_inputs</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">,</span> <span class="n">bound</span><span class="p">,</span> <span class="n">input_values</span><span class="p">)})</span>
-<a id="__codelineno-0-271" name="__codelineno-0-271"></a>        <span class="n">overrides</span> <span class="o">=</span> <span class="p">{</span><span class="n">b</span><span class="o">.</span><span class="n">param</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">reference_values</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">step_id</span> <span class="o">==</span> <span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">}</span>
-<a id="__codelineno-0-272" name="__codelineno-0-272"></a>        <span class="k">if</span> <span class="n">overrides</span><span class="p">:</span>
-<a id="__codelineno-0-273" name="__codelineno-0-273"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"params"</span><span class="p">:</span> <span class="p">{</span><span class="o">**</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{}),</span> <span class="o">**</span><span class="n">overrides</span><span class="p">}})</span>
-<a id="__codelineno-0-274" name="__codelineno-0-274"></a>        <span class="n">schema</span> <span class="o">=</span> <span class="n">param_schema</span><span class="p">(</span><span class="n">wf</span><span class="p">)</span>
-<a id="__codelineno-0-275" name="__codelineno-0-275"></a>        <span class="k">if</span> <span class="n">project_dir</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
-<a id="__codelineno-0-276" name="__codelineno-0-276"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"params"</span><span class="p">:</span> <span class="n">absolutize_input_paths</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">,</span> <span class="n">schema</span><span class="p">)})</span>
-<a id="__codelineno-0-277" name="__codelineno-0-277"></a>        <span class="k">elif</span> <span class="n">project_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-278" name="__codelineno-0-278"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_reject_relative_inputs</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
-<a id="__codelineno-0-279" name="__codelineno-0-279"></a>
-<a id="__codelineno-0-280" name="__codelineno-0-280"></a>        <span class="c1"># Before references are resolved: other steps' outputs are covered by</span>
-<a id="__codelineno-0-281" name="__codelineno-0-281"></a>        <span class="c1"># their step keys, and may not exist yet</span>
-<a id="__codelineno-0-282" name="__codelineno-0-282"></a>        <span class="n">input_files</span> <span class="o">=</span> <span class="n">input_fingerprints</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{})</span>
-<a id="__codelineno-0-283" name="__codelineno-0-283"></a>        <span class="n">wf_resolved</span> <span class="o">=</span> <span class="n">resolve_references</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">graph</span><span class="p">,</span> <span class="n">resolved</span><span class="o">=</span><span class="n">resolved</span><span class="p">)</span>
-<a id="__codelineno-0-284" name="__codelineno-0-284"></a>        <span class="n">resolved</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">wf_resolved</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{}</span>
-<a id="__codelineno-0-285" name="__codelineno-0-285"></a>
-<a id="__codelineno-0-286" name="__codelineno-0-286"></a>        <span class="n">upstream</span> <span class="o">=</span> <span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">predecessors</span><span class="p">(</span><span class="n">wf</span><span class="p">)</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
-<a id="__codelineno-0-287" name="__codelineno-0-287"></a>        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step_key</span><span class="p">(</span><span class="n">wf_resolved</span><span class="p">,</span> <span class="n">global_options</span><span class="p">,</span> <span class="n">upstream</span><span class="p">,</span> <span class="n">input_files</span><span class="p">)</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a>        <span class="n">keys</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">key</span>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>        <span class="n">state_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_dir</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a>
-<a id="__codelineno-0-291" name="__codelineno-0-291"></a>        <span class="n">spec</span> <span class="o">=</span> <span class="n">build_step_spec</span><span class="p">(</span>
-<a id="__codelineno-0-292" name="__codelineno-0-292"></a>            <span class="n">wf_resolved</span><span class="p">,</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a>            <span class="n">global_options</span><span class="p">,</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>            <span class="n">state_dir</span><span class="o">=</span><span class="n">state_dir</span><span class="p">,</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a>            <span class="n">launch_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span><span class="p">,</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>            <span class="n">work_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span> <span class="o">/</span> <span class="s2">"work"</span><span class="p">,</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a>            <span class="n">log_file</span><span class="o">=</span><span class="n">state_dir</span> <span class="o">/</span> <span class="s2">"nextflow.log"</span><span class="p">,</span>
-<a id="__codelineno-0-298" name="__codelineno-0-298"></a>            <span class="n">nextflow_cache_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_nextflow_cache_dir</span><span class="p">(</span><span class="n">wf</span><span class="p">),</span>
-<a id="__codelineno-0-299" name="__codelineno-0-299"></a>            <span class="n">project_dir</span><span class="o">=</span><span class="n">project_dir</span><span class="p">,</span>
-<a id="__codelineno-0-300" name="__codelineno-0-300"></a>            <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
-<a id="__codelineno-0-301" name="__codelineno-0-301"></a>            <span class="n">extra_profile</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">nf_profile</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span>
-<a id="__codelineno-0-302" name="__codelineno-0-302"></a>            <span class="n">nf_config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">nf_config</span><span class="p">,</span>
-<a id="__codelineno-0-303" name="__codelineno-0-303"></a>            <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304"></a>            <span class="n">stub</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">stub</span><span class="p">,</span>
-<a id="__codelineno-0-305" name="__codelineno-0-305"></a>        <span class="p">)</span>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a>        <span class="n">planned</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a>            <span class="n">PlannedStep</span><span class="p">(</span>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a>                <span class="c1"># as configured, with the config files' absolute paths (as its resolved params' cache key)</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a>                <span class="n">workflow</span><span class="o">=</span><span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">get_workflow_by_id</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">)</span> <span class="ow">or</span> <span class="n">wf</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">),</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a>                <span class="n">resolved_params</span><span class="o">=</span><span class="n">wf_resolved</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{},</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>                <span class="n">spec</span><span class="o">=</span><span class="n">spec</span><span class="p">,</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a>                <span class="n">command</span><span class="o">=</span><span class="n">engine_for</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">workflow_type</span><span class="p">)</span><span class="o">.</span><span class="n">build</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313"></a>                <span class="n">skip</span><span class="o">=</span><span class="n">resume</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_run_success</span><span class="p">(</span><span class="n">run_dir</span><span class="o">=</span><span class="n">state_dir</span><span class="p">),</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a>            <span class="p">)</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a>        <span class="p">)</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a>    <span class="k">return</span> <span class="n">RunPlan</span><span class="p">(</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a>        <span class="n">steps</span><span class="o">=</span><span class="n">planned</span><span class="p">,</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>        <span class="n">values</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">collected</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a>        <span class="n">missing</span><span class="o">=</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">collected</span><span class="o">.</span><span class="n">missing</span><span class="p">],</span>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a>    <span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-320">320</a></span>
+<span class="normal"><a href="#__codelineno-0-321">321</a></span>
+<span class="normal"><a href="#__codelineno-0-322">322</a></span>
+<span class="normal"><a href="#__codelineno-0-323">323</a></span>
+<span class="normal"><a href="#__codelineno-0-324">324</a></span>
+<span class="normal"><a href="#__codelineno-0-325">325</a></span>
+<span class="normal"><a href="#__codelineno-0-326">326</a></span>
+<span class="normal"><a href="#__codelineno-0-327">327</a></span>
+<span class="normal"><a href="#__codelineno-0-328">328</a></span>
+<span class="normal"><a href="#__codelineno-0-329">329</a></span>
+<span class="normal"><a href="#__codelineno-0-330">330</a></span>
+<span class="normal"><a href="#__codelineno-0-331">331</a></span>
+<span class="normal"><a href="#__codelineno-0-332">332</a></span>
+<span class="normal"><a href="#__codelineno-0-333">333</a></span>
+<span class="normal"><a href="#__codelineno-0-334">334</a></span>
+<span class="normal"><a href="#__codelineno-0-335">335</a></span>
+<span class="normal"><a href="#__codelineno-0-336">336</a></span>
+<span class="normal"><a href="#__codelineno-0-337">337</a></span>
+<span class="normal"><a href="#__codelineno-0-338">338</a></span>
+<span class="normal"><a href="#__codelineno-0-339">339</a></span>
+<span class="normal"><a href="#__codelineno-0-340">340</a></span>
+<span class="normal"><a href="#__codelineno-0-341">341</a></span>
+<span class="normal"><a href="#__codelineno-0-342">342</a></span>
+<span class="normal"><a href="#__codelineno-0-343">343</a></span>
+<span class="normal"><a href="#__codelineno-0-344">344</a></span>
+<span class="normal"><a href="#__codelineno-0-345">345</a></span>
+<span class="normal"><a href="#__codelineno-0-346">346</a></span>
+<span class="normal"><a href="#__codelineno-0-347">347</a></span>
+<span class="normal"><a href="#__codelineno-0-348">348</a></span>
+<span class="normal"><a href="#__codelineno-0-349">349</a></span>
+<span class="normal"><a href="#__codelineno-0-350">350</a></span>
+<span class="normal"><a href="#__codelineno-0-351">351</a></span>
+<span class="normal"><a href="#__codelineno-0-352">352</a></span>
+<span class="normal"><a href="#__codelineno-0-353">353</a></span>
+<span class="normal"><a href="#__codelineno-0-354">354</a></span>
+<span class="normal"><a href="#__codelineno-0-355">355</a></span>
+<span class="normal"><a href="#__codelineno-0-356">356</a></span>
+<span class="normal"><a href="#__codelineno-0-357">357</a></span>
+<span class="normal"><a href="#__codelineno-0-358">358</a></span>
+<span class="normal"><a href="#__codelineno-0-359">359</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-255" name="__codelineno-0-255"></a><span class="k">def</span><span class="w"> </span><span class="nf">plan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">MetaworkflowGraph</span><span class="p">,</span> <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunPlan</span><span class="p">:</span>
+<a id="__codelineno-0-256" name="__codelineno-0-256"></a><span class="w">    </span><span class="sd">"""Resolve every selected step to its spec and command, in DAG order,</span>
+<a id="__codelineno-0-257" name="__codelineno-0-257"></a><span class="sd">    without writing files or running anything. Values the run needs are</span>
+<a id="__codelineno-0-258" name="__codelineno-0-258"></a><span class="sd">    collected first (see `RunOptions.input_mode`); in prompt mode this</span>
+<a id="__codelineno-0-259" name="__codelineno-0-259"></a><span class="sd">    asks for them, even in a dry run.</span>
+<a id="__codelineno-0-260" name="__codelineno-0-260"></a>
+<a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="sd">        NfMetaRunnerError: if values are missing (except in a dry run</span>
+<a id="__codelineno-0-263" name="__codelineno-0-263"></a><span class="sd">            outside prompt mode, where they become placeholders) or</span>
+<a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">            invalid, if no out dir can be determined, if a config loaded</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">            from a URL has relative input paths, or if two steps write to</span>
+<a id="__codelineno-0-266" name="__codelineno-0-266"></a><span class="sd">            the same outdir.</span>
+<a id="__codelineno-0-267" name="__codelineno-0-267"></a><span class="sd">    """</span>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_out_dir</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+<a id="__codelineno-0-269" name="__codelineno-0-269"></a>    <span class="n">project_dir</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">project_dir</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a>    <span class="c1"># params_file/nf_config are read from here on: as absolute paths</span>
+<a id="__codelineno-0-271" name="__codelineno-0-271"></a>    <span class="n">global_options</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">global_options</span> <span class="ow">and</span> <span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">global_options</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">)</span>
+<a id="__codelineno-0-272" name="__codelineno-0-272"></a>    <span class="n">workflows</span> <span class="o">=</span> <span class="p">[</span><span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">)</span> <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_selected_workflows</span><span class="p">(</span><span class="n">graph</span><span class="p">)]</span>
+<a id="__codelineno-0-273" name="__codelineno-0-273"></a>    <span class="n">subset_ids</span> <span class="o">=</span> <span class="p">{</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="n">workflows</span><span class="p">}</span>
+<a id="__codelineno-0-274" name="__codelineno-0-274"></a>
+<a id="__codelineno-0-275" name="__codelineno-0-275"></a>    <span class="c1"># Resolved params and step keys per workflow id, seeded from cached runs</span>
+<a id="__codelineno-0-276" name="__codelineno-0-276"></a>    <span class="c1"># of excluded workflows</span>
+<a id="__codelineno-0-277" name="__codelineno-0-277"></a>    <span class="n">resolved</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-278" name="__codelineno-0-278"></a>    <span class="n">keys</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-279" name="__codelineno-0-279"></a>    <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">get_workflows</span><span class="p">():</span>
+<a id="__codelineno-0-280" name="__codelineno-0-280"></a>        <span class="k">if</span> <span class="n">wf</span><span class="o">.</span><span class="n">id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">subset_ids</span><span class="p">:</span>
+<a id="__codelineno-0-281" name="__codelineno-0-281"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">)</span>
+<a id="__codelineno-0-282" name="__codelineno-0-282"></a>            <span class="n">keys</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">hash</span><span class="p">()</span>
+<a id="__codelineno-0-283" name="__codelineno-0-283"></a>            <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_resolved_params</span><span class="p">(</span><span class="n">wf</span><span class="p">)</span>
+<a id="__codelineno-0-284" name="__codelineno-0-284"></a>            <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-285" name="__codelineno-0-285"></a>                <span class="n">resolved</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">cached</span>
+<a id="__codelineno-0-286" name="__codelineno-0-286"></a>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a>    <span class="n">requests</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_requests</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">workflows</span><span class="p">,</span> <span class="n">subset_ids</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a>    <span class="n">collected</span> <span class="o">=</span> <span class="n">collect</span><span class="p">(</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a>        <span class="n">requests</span><span class="p">,</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a>        <span class="n">InputMode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">input_mode</span><span class="p">),</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a>        <span class="n">project_dir</span><span class="o">=</span><span class="n">project_dir</span><span class="p">,</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a>        <span class="n">prompter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">prompter</span><span class="p">,</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>        <span class="n">dry_run</span><span class="o">=</span><span class="n">dry_run</span><span class="p">,</span>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a>    <span class="p">)</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="n">input_values</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">collected</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">requests</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="o">.</span><span class="n">is_reference</span><span class="p">}</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="n">reference_values</span> <span class="o">=</span> <span class="p">{</span><span class="n">Binding</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">):</span> <span class="n">collected</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">requests</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">is_reference</span><span class="p">}</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="n">planned</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PlannedStep</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>    <span class="k">for</span> <span class="n">wf</span> <span class="ow">in</span> <span class="n">workflows</span><span class="p">:</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>        <span class="n">bound</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">bound_params</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>        <span class="k">if</span> <span class="n">bound</span> <span class="ow">or</span> <span class="n">input_refs</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">):</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"params"</span><span class="p">:</span> <span class="n">substitute_inputs</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">,</span> <span class="n">bound</span><span class="p">,</span> <span class="n">input_values</span><span class="p">)})</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a>        <span class="n">overrides</span> <span class="o">=</span> <span class="p">{</span><span class="n">b</span><span class="o">.</span><span class="n">param</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">reference_values</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">step_id</span> <span class="o">==</span> <span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">}</span>
+<a id="__codelineno-0-305" name="__codelineno-0-305"></a>        <span class="k">if</span> <span class="n">overrides</span><span class="p">:</span>
+<a id="__codelineno-0-306" name="__codelineno-0-306"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"params"</span><span class="p">:</span> <span class="p">{</span><span class="o">**</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{}),</span> <span class="o">**</span><span class="n">overrides</span><span class="p">}})</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307"></a>        <span class="n">schema</span> <span class="o">=</span> <span class="n">param_schema</span><span class="p">(</span><span class="n">wf</span><span class="p">)</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a>        <span class="k">if</span> <span class="n">project_dir</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>            <span class="n">wf</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"params"</span><span class="p">:</span> <span class="n">absolutize_input_paths</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">,</span> <span class="n">schema</span><span class="p">)})</span>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>        <span class="k">elif</span> <span class="n">project_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_reject_relative_inputs</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a>        <span class="c1"># Before references are resolved: other steps' outputs are covered by</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a>        <span class="c1"># their step keys, and may not exist yet</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a>        <span class="n">global_params</span> <span class="o">=</span> <span class="p">(</span><span class="n">global_options</span><span class="o">.</span><span class="n">params</span> <span class="k">if</span> <span class="n">global_options</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+<a id="__codelineno-0-316" name="__codelineno-0-316"></a>        <span class="k">if</span> <span class="n">project_dir</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">global_params</span><span class="p">:</span>
+<a id="__codelineno-0-317" name="__codelineno-0-317"></a>            <span class="n">global_params</span> <span class="o">=</span> <span class="n">absolutize_input_paths</span><span class="p">(</span><span class="n">global_params</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a>        <span class="n">input_files</span> <span class="o">=</span> <span class="n">input_fingerprints</span><span class="p">({</span><span class="o">**</span><span class="n">global_params</span><span class="p">,</span> <span class="o">**</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{})})</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a>        <span class="n">wf_resolved</span> <span class="o">=</span> <span class="n">resolve_references</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">graph</span><span class="p">,</span> <span class="n">resolved</span><span class="o">=</span><span class="n">resolved</span><span class="p">)</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a>        <span class="n">resolved</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">wf_resolved</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{}</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a>        <span class="n">upstream</span> <span class="o">=</span> <span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">predecessors</span><span class="p">(</span><span class="n">wf</span><span class="p">)</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step_key</span><span class="p">(</span><span class="n">wf_resolved</span><span class="p">,</span> <span class="n">global_options</span><span class="p">,</span> <span class="n">upstream</span><span class="p">,</span> <span class="n">input_files</span><span class="p">)</span>
+<a id="__codelineno-0-324" name="__codelineno-0-324"></a>        <span class="n">keys</span><span class="p">[</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">key</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a>        <span class="n">state_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_dir</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a>        <span class="n">spec</span> <span class="o">=</span> <span class="n">build_step_spec</span><span class="p">(</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a>            <span class="n">wf_resolved</span><span class="p">,</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a>            <span class="n">global_options</span><span class="p">,</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>            <span class="n">state_dir</span><span class="o">=</span><span class="n">state_dir</span><span class="p">,</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a>            <span class="n">launch_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span><span class="p">,</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a>            <span class="n">work_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span> <span class="o">/</span> <span class="s2">"work"</span><span class="p">,</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a>            <span class="n">log_file</span><span class="o">=</span><span class="n">state_dir</span> <span class="o">/</span> <span class="s2">"nextflow.log"</span><span class="p">,</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a>            <span class="n">nextflow_cache_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_nextflow_cache_dir</span><span class="p">(</span><span class="n">wf</span><span class="p">),</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a>            <span class="n">project_dir</span><span class="o">=</span><span class="n">project_dir</span><span class="p">,</span>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a>            <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a>            <span class="n">extra_profile</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">nf_profile</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a>            <span class="n">nf_config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">nf_config</span><span class="p">,</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a>            <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>            <span class="n">stub</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_options</span><span class="o">.</span><span class="n">stub</span><span class="p">,</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a>        <span class="p">)</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a>        <span class="n">planned</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+<a id="__codelineno-0-343" name="__codelineno-0-343"></a>            <span class="n">PlannedStep</span><span class="p">(</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344"></a>                <span class="c1"># as configured, with the config files' absolute paths (as its resolved params' cache key)</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a>                <span class="n">workflow</span><span class="o">=</span><span class="n">with_absolute_config_paths</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">get_workflow_by_id</span><span class="p">(</span><span class="n">wf</span><span class="o">.</span><span class="n">id</span><span class="p">)</span> <span class="ow">or</span> <span class="n">wf</span><span class="p">,</span> <span class="n">project_dir</span><span class="p">),</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>                <span class="n">resolved_params</span><span class="o">=</span><span class="n">wf_resolved</span><span class="o">.</span><span class="n">params</span> <span class="ow">or</span> <span class="p">{},</span>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a>                <span class="n">spec</span><span class="o">=</span><span class="n">spec</span><span class="p">,</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a>                <span class="n">command</span><span class="o">=</span><span class="n">engine_for</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">workflow_type</span><span class="p">)</span><span class="o">.</span><span class="n">build</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349"></a>                <span class="c1"># The step's outdir holds the last run's results, so an older</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350"></a>                <span class="c1"># success with this key counts only if no other key ran since.</span>
+<a id="__codelineno-0-351" name="__codelineno-0-351"></a>                <span class="n">skip</span><span class="o">=</span><span class="n">resume</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_run_success</span><span class="p">(</span><span class="n">run_dir</span><span class="o">=</span><span class="n">state_dir</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_run_was</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">state_dir</span><span class="p">),</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a>            <span class="p">)</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a>        <span class="p">)</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a>    <span class="n">_check_outdirs</span><span class="p">(</span><span class="n">planned</span><span class="p">)</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a>    <span class="k">return</span> <span class="n">RunPlan</span><span class="p">(</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a>        <span class="n">steps</span><span class="o">=</span><span class="n">planned</span><span class="p">,</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>        <span class="n">values</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">collected</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a>        <span class="n">missing</span><span class="o">=</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">collected</span><span class="o">.</span><span class="n">missing</span><span class="p">],</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>

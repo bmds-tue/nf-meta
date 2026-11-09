@@ -1310,14 +1310,14 @@ Paths are kept as written when saved via the editor.</p>
 <td>mapping (str → scalar)</td>
 <td>no</td>
 <td>none</td>
-<td>Merged under each step's own <code>params</code>; the step's values win on a key collision. Values must be <code>str</code>/<code>int</code>/<code>float</code>/<code>bool</code>.</td>
+<td><strong>Deprecated</strong>, to be removed in a later version: set params per step and declare shared values as <a href="../inputs/">inputs</a>. Merged under each step's own <code>params</code>; the step's values win on a key collision. Values must be <code>str</code>/<code>int</code>/<code>float</code>/<code>bool</code>.</td>
 </tr>
 <tr>
 <td><code>nextflow_version</code></td>
 <td>string, int or float</td>
 <td>no</td>
 <td>none</td>
-<td>e.g. <code>"25.10"</code>, <code>"25.10.4-edge"</code>, <code>25</code>. Checked against <code>nextflow -version</code> before a run; a mismatch is reported. Steps of type <code>nf-module</code> need 26.04 or later.</td>
+<td>e.g. <code>"25.10"</code>, <code>"25.10.4-edge"</code>, <code>25</code>. Write it in quotes: unquoted, YAML reads <code>25.10</code> as the number 25.1, which is refused. Checked against <code>nextflow -version</code> before a run; a mismatch is reported. Steps of type <code>nf-module</code> need 26.04 or later.</td>
 </tr>
 </tbody>
 </table>
@@ -1439,7 +1439,7 @@ These fields apply to both:</p>
 <td>string</td>
 <td>no</td>
 <td>none</td>
-<td>Another entry script of the pipeline (<code>-main-script</code>). Not for nf-core pipelines.</td>
+<td>Another entry script of the pipeline (<code>-main-script</code>), relative to its root. Nextflow then treats the script's folder as the pipeline: the params are checked against the <code>nextflow_schema.json</code> next to the script, and only that folder's <code>nextflow.config</code> is read, not the root's. The script must exist in the repository at <code>version</code> (checked on github.com, gitlab.com and bitbucket.org). See <a href="../overview/#several-pipelines-in-one-repository">Several pipelines in one repository</a>. Not for nf-core pipelines.</td>
 </tr>
 </tbody>
 </table>

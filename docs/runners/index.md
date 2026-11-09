@@ -17,8 +17,9 @@ nf-meta run metapipeline.yaml --dry-run       # print each step's command and pa
 
 ### Where results go
 
-Every step runs in one **out dir**: `nf-meta-out/` next to the config, or the folder given with
-`--out`. A relative `outdir` param therefore lands inside it, and references to an upstream
+Every step runs in one **out dir**: `nf-meta-out/` in the folder `nf-meta run` is started from,
+or the folder given with `--out` (relative to that folder too). Paths in the config are still
+relative to the config's folder. A relative `outdir` param therefore lands inside it, and references to an upstream
 step's `outdir` find its results there.
 
 ```
@@ -102,7 +103,7 @@ run before.
 
 | Option | Effect |
 |---|---|
-| `--out DIR` | The out dir (required for a config from a URL). |
+| `--out DIR` | The out dir (default: `nf-meta-out` in the current directory). |
 | `--dry-run` | Print each step's command and params file without running anything. In `prompt` mode it asks for missing values, so the commands are the real ones; otherwise missing values show as placeholders. |
 | `--stub` | Pass `-stub` to Nextflow: each process runs its stub instead of its script, to check the wiring without real compute. |
 | `--nf-profile`, `-p` | A Nextflow profile for every step, after the configured ones. |

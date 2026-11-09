@@ -53,12 +53,11 @@ A reference is checked topologically, and against both pipeline's metadata, if a
 without downloading it first:
 
 ```bash
-nf-meta run https://raw.githubusercontent.com/<org>/<repo>/<commit>/metapipeline.yaml --out results
+nf-meta run https://raw.githubusercontent.com/<org>/<repo>/<commit>/metapipeline.yaml
 ```
 
 A config from a URL has no folder of its own, so:
 
-- `--out` is required for `run`;
 - relative `params_file`/`nf_config` paths in it are an error (use absolute paths, download the
   files, or make them [inputs](inputs.md));
 - the editor never writes back to the URL. Before the first change, the editor asks to save the metapipeline locally.

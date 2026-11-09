@@ -50,7 +50,7 @@ class SimplePythonRunner(BaseRunner):
     Python process, in DAG order, streaming output as it runs.
 
     Every step runs Nextflow from the out dir (`run_options.out_dir`, default
-    `<project dir>/nf-meta-out`), sharing its `work/` dir. Relative input
+    `nf-meta-out` in the current directory), sharing its `work/` dir. Relative input
     paths are made absolute against the project dir first. nf-meta's own state
     lives in `<out dir>/.nf-meta/`.
 
@@ -82,9 +82,7 @@ class SimplePythonRunner(BaseRunner):
     def _resolve_out_dir(self, graph: MetaworkflowGraph) -> Path:
         if self.out_dir is not None:
             return self.out_dir
-        if graph.project_dir is None:
-            raise NfMetaRunnerError("An out dir is required for a config loaded from a URL (--out).")
-        return (graph.project_dir / DEFAULT_OUT_DIR).resolve()
+        return (Path.cwd() / DEFAULT_OUT_DIR).resolve()
 
     def _state_dir(self, wf: Workflow, step_key: str) -> Path:
         return self.state_root / "steps" / f"{wf.id}_{step_key}"

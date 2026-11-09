@@ -39,7 +39,7 @@ def fake_execute(monkeypatch, mock_nextflow):
     executed: list[str] = []
     outcome = {"success": True}
 
-    def execute(self, spec, command):
+    def execute(self, spec, command, label=""):
         executed.append(spec.step_id)
         return outcome["success"]
 
@@ -267,7 +267,7 @@ class TestRun:
     def test_resume_reruns_a_step_whose_outdir_another_run_overwrote(self, tmp_path, monkeypatch, mock_nextflow):
         executed: list[str] = []
 
-        def execute(self, spec, command):
+        def execute(self, spec, command, label=""):
             executed.append(spec.params["count"])
             spec.state_dir.mkdir(parents=True, exist_ok=True)
             (spec.state_dir / SimplePythonRunner.OUT_FILE).write_text("done")

@@ -11,7 +11,6 @@ from typing import Any
 import yaml
 from rich.console import Console, Group
 from rich.live import Live
-from rich.panel import Panel
 from rich.spinner import Spinner
 from rich.text import Text
 
@@ -150,6 +149,7 @@ class SimplePythonRunner(BaseRunner):
         cmd: list[str],
         cwd: Path | None = None,
         env: dict[str, str] | None = None,
+        label: str = "",
     ) -> tuple[int, str, str]:
         process = subprocess.Popen(
             cmd,
@@ -172,49 +172,56 @@ class SimplePythonRunner(BaseRunner):
         stderr_thread = threading.Thread(target=_collect_stderr, daemon=True)
         stderr_thread.start()
 
+        spinner = Spinner("dots", text=Text(label), style="bold blue")
+
+        def view() -> Group:
+            # One line per output line, cut at the terminal width, so the live
+            # region keeps its height when the terminal is resized
+            return Group(spinner, *(Text(f"  {line}", style="dim", no_wrap=True, overflow="ellipsis") for line in tail))
+
+        if not console.is_terminal:  # a live region only shows in a terminal
+            console.print(Text.assemble(("▶ ", "bold blue"), label))
         assert process.stdout is not None
-        with Live(console=console, refresh_per_second=4) as live:
+        with Live(view(), console=console, refresh_per_second=4, transient=True) as live:
             for raw_line in process.stdout:
                 stdout_lines.append(raw_line)
-                tail.append(raw_line.strip())
-                live.update(
-                    Group(
-                        Panel("\n".join(tail), title="Step output"),
-                        Spinner("dots", text="Running step ..."),
-                    )
-                )
-
+                tail.append(raw_line.rstrip())
+                live.update(view())
             process.wait()
             stderr_thread.join()
-            stderr = "".join(stderr_lines)
-            stdout = "".join(stdout_lines)
-
-            if process.returncode > 0 and stderr:
-                live.update(Panel(stderr, title="Errors"))
-            else:
-                live.update(Text("Running step ... Done"))
+        stderr = "".join(stderr_lines)
+        stdout = "".join(stdout_lines)
 
         return (process.returncode, stdout, stderr)
 
-    def _execute(self, spec: StepSpec, command: StepCommand) -> bool:
-        """Run one step's command, streaming its output. Writes `OUT_FILE`
-        and, on failure, `ERROR_FILE` to the step's state dir."""
+    def _execute(self, spec: StepSpec, command: StepCommand, label: str = "") -> bool:
+        """Run one step's command, showing `label` and its latest output while
+        it runs, then the step's outcome, and on failure its errors. Writes
+        `OUT_FILE` and, on failure, `ERROR_FILE` to the step's state dir."""
         spec.state_dir.mkdir(parents=True, exist_ok=True)
         command.cwd.mkdir(parents=True, exist_ok=True)
         command.write_files()
 
         argv = [check_nextflow(), *command.argv[1:]]
         logger.info(f"Running nextflow command: {argv}")
-        exit_code, out, err = self._stream_proc_out(argv, cwd=command.cwd, env=command.env)
+        exit_code, out, err = self._stream_proc_out(argv, cwd=command.cwd, env=command.env, label=label)
 
         with (spec.state_dir / self.OUT_FILE).open("w") as f:
             f.write(out)
 
         if exit_code != 0:
+            console.print(Text.assemble(("✗ ", "bold red"), f"{label}: Step failed"))
+            # Nextflow reports config errors on stderr, errors during the run on stdout
+            last_lines = "\n".join(out.splitlines()[-self.run_options.output_lines :])
+            for header, text in (("Step output", last_lines), ("Errors", err)):
+                if text.strip():
+                    console.print(Text(header, style="bold"))
+                    console.print(Text(text.rstrip(), style="dim"))
             logger.error(f"Command exited with code {exit_code}. Step dir: {spec.state_dir}")
             with (spec.state_dir / self.ERROR_FILE).open("w") as f:
                 f.write(err)
         else:
+            console.print(Text.assemble(("✓ ", "green"), f"{label}: Done"))
             (spec.state_dir / self.ERROR_FILE).unlink(missing_ok=True)
 
         return exit_code == 0
@@ -450,6 +457,7 @@ class SimplePythonRunner(BaseRunner):
         self._check_nextflow(graph, list(steps))
         self._notice_legacy_cache(graph)
         self._record_inputs(steps, graph)
+        console.print()
 
         for i, step in enumerate(steps):
             step_label = f"Step {i + 1}/{len(steps)} - {step.workflow.name}"
@@ -464,14 +472,10 @@ class SimplePythonRunner(BaseRunner):
                 console.print(f"[green]↩[/green] {step_label}: Skipping (already done)")
                 continue
 
-            console.print(f"[bold blue]▶[/bold blue] {step_label}")
-            if not self._execute(step.spec, step.command):
-                console.print(f"[bold red]✗[/bold red] {step_label}: Step failed")
+            if not self._execute(step.spec, step.command, label=step_label):
                 raise NfMetaRunnerError(
                     f"Step '{step.workflow.id}' ({step.workflow.name}) failed. Output and errors: {step.spec.state_dir}"
                 )
-
-            console.print(f"[green]✓[/green] {step_label}: Done")
 
         console.print("[bold green]All steps completed successfully[/bold green]")
         logger.info("All steps completed")

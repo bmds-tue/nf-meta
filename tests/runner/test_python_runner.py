@@ -5,6 +5,7 @@ import yaml
 
 from nf_meta.core.graph import MetaworkflowGraph  # type: ignore[import]
 from nf_meta.core.models import GlobalOptions, Transition  # type: ignore[import]
+from nf_meta.runner import python_runner  # type: ignore[import]
 from nf_meta.runner.errors import NfMetaRunnerError  # type: ignore[import]
 from nf_meta.runner.python_runner import SimplePythonRunner  # type: ignore[import]
 from nf_meta.runner.spec import resolve_references  # type: ignore[import]
@@ -199,6 +200,30 @@ class TestExecute:
         assert runner._execute(step.spec, step.command) is False
         assert (step.spec.state_dir / SimplePythonRunner.ERROR_FILE).read_text() == "error text"
 
+    def _shown(self, runner, step):
+        with python_runner.console.capture() as captured:
+            runner._execute(step.spec, step.command, label="Step 1/1 - nf-core/rnaseq")
+        return captured.get()
+
+    def test_success_shows_one_line(self, runner, wf_rnaseq):
+        runner._stream_proc_out = MagicMock(return_value=(0, "N E X T F L O W\nall done\n", ""))
+        assert self._shown(runner, self._step(runner, wf_rnaseq)) == "✓ Step 1/1 - nf-core/rnaseq: Done\n"
+
+    def test_failure_shows_the_errors(self, runner, wf_rnaseq):
+        runner._stream_proc_out = MagicMock(return_value=(1, "progress\n", "Unknown configuration profile: 'm3c'\n"))
+        shown = self._shown(runner, self._step(runner, wf_rnaseq))
+        assert shown == (
+            "✗ Step 1/1 - nf-core/rnaseq: Step failed\n"
+            "Step output\nprogress\n"
+            "Errors\nUnknown configuration profile: 'm3c'\n"
+        )
+
+    def test_failure_without_stderr_shows_the_last_output(self, runner, wf_rnaseq):
+        runner._stream_proc_out = MagicMock(return_value=(1, "line 1\nERROR ~ [boom]\n", ""))
+        shown = self._shown(runner, self._step(runner, wf_rnaseq))
+        assert shown.endswith("Step output\nline 1\nERROR ~ [boom]\n")
+        assert "Errors" not in shown
+
     def test_writes_params_file_before_running(self, runner, wf_rnaseq):
         wf = wf_rnaseq.model_copy(update={"params": {"input": "samples.csv"}})
         seen = {}
@@ -270,7 +295,7 @@ class TestRun:
     def _record(self, runner, success=True):
         executed = []
 
-        def fake_execute(spec, command):
+        def fake_execute(spec, command, label=""):
             executed.append(spec.workflow)
             return success
 

@@ -102,7 +102,7 @@ def mock_nfcore(monkeypatch):
     monkeypatch.setattr("nf_meta.core.registry._get_nfcore_components_raw", lambda: FAKE_NFCORE_COMPONENTS)
     monkeypatch.setattr("nf_meta.core.dynamic_validation.url_exists", lambda url, timeout=10: True)
     monkeypatch.setattr(
-        "nf_meta.core.dynamic_validation.github_file_exists",
+        "nf_meta.core.dynamic_validation.repo_file_exists",
         lambda url, path, ref: True,
     )
     monkeypatch.setattr(

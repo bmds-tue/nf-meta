@@ -55,8 +55,8 @@ To just see that everything runs as expected, we use Nextflow's stub-run mechani
 This Nextflow run options is resurfaced to the `nf-meta run` cli interface as the `--stub` flag.
 This can be useful to confirm the structure and parameter wiring resolves correctly without waiting on real compute or container pulls.
 
-The results land in `nf-meta-out/results/` next to the config: every step runs in the out dir
-(`--out` sets another one).
+The results land in `nf-meta-out/results/` in the folder you ran `nf-meta` from: every step runs
+in the out dir (`--out` sets another one).
 
 ## Next steps
 

@@ -258,7 +258,7 @@ def _with_warnings(warnings: list):
     "-o",
     "out_dir",
     type=click.Path(file_okay=False, path_type=Path),
-    help="Directory to run in and write results to (default: nf-meta-out next to the config)",
+    help="Directory to run in and write results to (default: nf-meta-out in the current directory)",
 )
 @click.option(
     "--dry-run",

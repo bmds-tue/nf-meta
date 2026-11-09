@@ -96,6 +96,12 @@ def private_state_dir(monkeypatch, tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def start_in_an_empty_dir(monkeypatch, tmp_path_factory):
+    """Start every test in an empty folder: a run's default out dir is the current directory."""
+    monkeypatch.chdir(tmp_path_factory.mktemp("cwd"))
+
+
+@pytest.fixture(autouse=True)
 def mock_nfcore(monkeypatch):
     """Replace HTTP-backed helpers with static stubs for every test."""
     monkeypatch.setattr("nf_meta.core.models.get_nfcore_pipelines", lambda: FAKE_NFCORE_PIPELINES)

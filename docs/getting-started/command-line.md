@@ -29,7 +29,7 @@ Runs the steps in the order declared by the graph. The main options:
 | Option | Effect |
 |---|---|
 | `--resume` | Skip steps that already succeeded unchanged; resume Nextflow's tasks for the rest. |
-| `-o`, `--out DIR` | Where to run and write results (default: `nf-meta-out` next to the config). |
+| `-o`, `--out DIR` | Where to run and write results (default: `nf-meta-out` in the current directory). |
 | `-i`, `--input NAME=VALUE` | A value for an input (once per value), or `<step-id>.<param>` for a step outside the run. |
 | `--inputs-file FILE` | Input values as a YAML mapping. |
 | `--input-mode prompt\|fail\|reproduce` | What to do with values the run needs but doesn't have. |

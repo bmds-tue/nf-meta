@@ -61,7 +61,7 @@ class TestCheckPipelineMainScriptExists:
 
     def test_github_file_found_no_diagnostic(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: True,
         )
         wf = NfPipeline(
@@ -74,7 +74,7 @@ class TestCheckPipelineMainScriptExists:
 
     def test_github_file_missing_raises_error(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: False,
         )
         wf = NfPipeline(
@@ -88,17 +88,36 @@ class TestCheckPipelineMainScriptExists:
         assert diagnostics[0].severity == Severity.ERROR
         assert "not found" in diagnostics[0].message
 
-    def test_non_github_url_warns(self):
+    def test_gitlab_file_is_checked(self, monkeypatch):
+        asked = []
+        monkeypatch.setattr(
+            "nf_meta.core.dynamic_validation.repo_file_exists",
+            lambda url, path, ref: asked.append(url) or False,
+        )
         wf = NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
             url="https://gitlab.com/my-org/custom-pipeline",
+            main_script="workflows/missing.nf",
+        )
+        [d] = check_pipeline_main_script_exists(wf)
+        assert d.severity == Severity.ERROR
+        assert asked == ["https://gitlab.com/my-org/custom-pipeline"]
+
+    def test_other_host_warns(self, monkeypatch):
+        def other_host(url, path, ref):
+            raise PipelineSchemaError("unsupported")
+
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.repo_file_exists", other_host)
+        wf = NfPipeline(
+            name="my-org/custom-pipeline",
+            version="1.0.0",
+            url="https://example.org/my-org/custom-pipeline",
             main_script="workflows/special.nf",
         )
-        diagnostics = check_pipeline_main_script_exists(wf)
-        assert len(diagnostics) == 1
-        assert diagnostics[0].severity == Severity.WARNING
-        assert "Cannot validate" in diagnostics[0].message
+        [d] = check_pipeline_main_script_exists(wf)
+        assert d.severity == Severity.WARNING
+        assert "Cannot validate" in d.message
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +302,7 @@ class TestRunDynamicChecks:
             lambda url, version, folder="": calls.append("schema") or {},
         )
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: calls.append("github") or True,
         )
         previous = wf_custom

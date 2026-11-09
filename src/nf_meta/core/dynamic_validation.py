@@ -34,6 +34,7 @@ from .models import (
 from .nf_param_validation import validate_params
 from .registry import (
     ParamSpec,
+    PipelineSchemaError,
     RegistryError,
     RegistryUnavailableError,
     Schema,
@@ -42,7 +43,7 @@ from .registry import (
     get_module_schema,
     get_nfcore_module_releases,
     get_pipeline_schema,
-    github_file_exists,
+    repo_file_exists,
     url_exists,
 )
 
@@ -132,43 +133,34 @@ def check_pipeline_folder(wf: NfPipeline) -> list[Diagnostic]:
 
 
 def check_pipeline_main_script_exists(wf: NfPipeline) -> list[Diagnostic]:
-    """From NfPipeline.validate_main_script's github_file_exists block."""
-    if wf.main_script is None or wf.path:  # a local one: see check_pipeline_folder
+    """For a pipeline with `main_script` in a repository: an error if the
+    script isn't in the repository at `version`, a warning if that can't be
+    checked."""
+    if wf.main_script is None or wf.path or not wf.url or not wf.version:  # local: see check_pipeline_folder
         return []
 
-    if wf.url and "github.com" in wf.url and wf.version:
-        try:
-            exists = github_file_exists(wf.url, wf.main_script, wf.version)
-        except RegistryUnavailableError as e:
-            return [
-                Diagnostic(
-                    workflow_id=wf.id,
-                    field="main_script",
-                    message=f"Cannot check main_script '{wf.main_script}': {e}",
-                    severity=Severity.WARNING,
-                )
-            ]
-        if not exists:
-            return [
-                Diagnostic(
-                    workflow_id=wf.id,
-                    field="main_script",
-                    message=(
-                        f"main_script '{wf.main_script}' not found in repository '{wf.url}' at ref '{wf.version}'"
-                    ),
-                    severity=Severity.ERROR,
-                )
-            ]
-        return []
+    def warning(message: str) -> list[Diagnostic]:
+        return [Diagnostic(workflow_id=wf.id, field="main_script", message=message, severity=Severity.WARNING)]
 
-    return [
-        Diagnostic(
-            workflow_id=wf.id,
-            field="main_script",
-            message=(f"Cannot validate main_script '{wf.main_script}': '{wf.url}' is not a GitHub URL"),
-            severity=Severity.WARNING,
+    try:
+        exists = repo_file_exists(wf.url, wf.main_script, wf.version)
+    except PipelineSchemaError:
+        return warning(
+            f"Cannot validate main_script '{wf.main_script}': '{wf.url}' is not on github.com, gitlab.com "
+            "or bitbucket.org"
         )
-    ]
+    except RegistryUnavailableError as e:
+        return warning(f"Cannot check main_script '{wf.main_script}': {e}")
+    if not exists:
+        return [
+            Diagnostic(
+                workflow_id=wf.id,
+                field="main_script",
+                message=f"main_script '{wf.main_script}' not found in repository '{wf.url}' at ref '{wf.version}'",
+                severity=Severity.ERROR,
+            )
+        ]
+    return []
 
 
 def check_pipeline_params_schema(wf: NfPipeline) -> list[Diagnostic]:
@@ -407,9 +399,9 @@ def _prefetch(workflows: list[Workflow]) -> None:
         if isinstance(wf, NfPipeline):
             if wf.url and not wf.is_nfcore:
                 tasks[("url_exists", wf.url)] = (url_exists, (wf.url,))
-            if wf.main_script and wf.url and "github.com" in wf.url and wf.version:
-                tasks[("github_file_exists", wf.url, wf.main_script, wf.version)] = (
-                    github_file_exists,
+            if wf.main_script and wf.url and wf.version and not wf.path:
+                tasks[("repo_file_exists", wf.url, wf.main_script, wf.version)] = (
+                    repo_file_exists,
                     (wf.url, wf.main_script, wf.version),
                 )
             if wf.url and wf.name and wf.version:

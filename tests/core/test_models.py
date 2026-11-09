@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from nf_meta.core import registry
 from nf_meta.core.dynamic_validation import check_pipeline_main_script_exists
 from nf_meta.core.errors import Severity
 from nf_meta.core.models import (
@@ -130,7 +131,7 @@ class TestWorkflowMainScript:
 
     def test_main_script_raises_when_file_not_found_on_github(self, monkeypatch):
         monkeypatch.setattr(
-            "nf_meta.core.dynamic_validation.github_file_exists",
+            "nf_meta.core.dynamic_validation.repo_file_exists",
             lambda url, path, ref: False,
         )
         wf = NfPipeline(
@@ -142,11 +143,12 @@ class TestWorkflowMainScript:
         diagnostics = check_pipeline_main_script_exists(wf)
         assert any(d.severity == Severity.ERROR and "not found" in d.message for d in diagnostics)
 
-    def test_main_script_warns_for_non_github_url(self):
+    def test_main_script_warns_for_an_unsupported_host(self, monkeypatch):
+        monkeypatch.setattr("nf_meta.core.dynamic_validation.repo_file_exists", registry.repo_file_exists)
         wf = NfPipeline(
             name="my-org/custom-pipeline",
             version="1.0.0",
-            url="https://gitlab.com/my-org/custom-pipeline",
+            url="https://example.org/my-org/custom-pipeline",
             main_script="workflows/special.nf",
         )
         diagnostics = check_pipeline_main_script_exists(wf)

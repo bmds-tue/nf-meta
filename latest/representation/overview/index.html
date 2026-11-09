@@ -580,6 +580,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#several-pipelines-in-one-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several pipelines in one repository
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#validating-and-running" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1095,6 +1106,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#several-pipelines-in-one-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several pipelines in one repository
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#validating-and-running" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1188,11 +1210,10 @@ A reference is checked topologically, and against both pipeline's metadata, if a
 <h2 id="configs-from-a-url">Configs from a URL<a class="headerlink" href="#configs-from-a-url" title="Permanent link">&para;</a></h2>
 <p><code>nf-meta run</code> and <code>nf-meta editor</code> also take a config's URL, so a published metapipeline runs
 without downloading it first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>https://raw.githubusercontent.com/&lt;org&gt;/&lt;repo&gt;/&lt;commit&gt;/metapipeline.yaml<span class="w"> </span>--out<span class="w"> </span>results
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>https://raw.githubusercontent.com/&lt;org&gt;/&lt;repo&gt;/&lt;commit&gt;/metapipeline.yaml
 </code></pre></div>
 <p>A config from a URL has no folder of its own, so:</p>
 <ul>
-<li><code>--out</code> is required for <code>run</code>;</li>
 <li>relative <code>params_file</code>/<code>nf_config</code> paths in it are an error (use absolute paths, download the
   files, or make them <a href="../inputs/">inputs</a>);</li>
 <li>the editor never writes back to the URL. Before the first change, the editor asks to save the metapipeline locally.</li>
@@ -1207,17 +1228,37 @@ pipelines), a step can run it from a local folder with <code>path:</code> instea
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">n01</span>
 </code></pre></div>
 <p>nf-meta runs <code>nextflow run &lt;folder&gt;</code> and reads the param schema from the folder's
-<code>nextflow_schema.json</code>. The folder must hold <code>main.nf</code> (or the step's <code>main_script</code>). With
-<code>--resume</code>, a change to the pipeline's files re-runs the step.</p>
+<code>nextflow_schema.json</code>. The folder must hold <code>main.nf</code> (or the step's <code>main_script</code>, see below).
+With <code>--resume</code>, a change to the pipeline's files re-runs the step.</p>
 <div class="admonition warning">
 <p class="admonition-title">Not reproducible</p>
 <p>A config referencing a local pipeline only runs where that folder exists and its code can change
 between runs, so <code>validate</code>, <code>run</code> and the editor always warn about it. To share the
 metapipeline, publish the pipeline to a public repository described with <code>url:</code> and <code>version:</code>.</p>
 </div>
+<h2 id="several-pipelines-in-one-repository">Several pipelines in one repository<a class="headerlink" href="#several-pipelines-in-one-repository" title="Permanent link">&para;</a></h2>
+<p>One repository can hold several pipelines, for example small connectors between steps, each in
+its own folder. A step picks one with <code>main_script</code>, relative to the repository's root (or to the
+<code>path</code> folder):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">steps</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">n02</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fetchngs2rnaseq</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/my-org/connectors</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0.0</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nt">main_script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">connectors/fetchngs2rnaseq/main.nf</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">n01</span>
+</code></pre></div>
+<p>Nextflow then treats the script's folder as the pipeline. Each folder needs everything a pipeline
+needs, in that folder:</p>
+<ul>
+<li><code>nextflow_schema.json</code>: nf-meta checks the step's params against this file and the editor builds
+  its form from it. A schema at the repository's root is not used.</li>
+<li><code>nextflow.config</code>, if the pipeline needs one. The root's <code>nextflow.config</code> (and its <code>manifest</code>)
+  is not read.</li>
+</ul>
 <h2 id="validating-and-running">Validating and running<a class="headerlink" href="#validating-and-running" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>nf-meta<span class="w"> </span>validate<span class="w"> </span>metapipeline.yaml<span class="w">   </span><span class="c1"># static + schema checks</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>metapipeline.yaml<span class="w">        </span><span class="c1"># executes the chain in dependency order, requires Nextflow</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>nf-meta<span class="w"> </span>validate<span class="w"> </span>metapipeline.yaml<span class="w">   </span><span class="c1"># static + schema checks</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>metapipeline.yaml<span class="w">        </span><span class="c1"># executes the chain in dependency order, requires Nextflow</span>
 </code></pre></div>
 <p>As the name indicates, <code>nf-meta validate</code> checks the correctness of a metapipeline config.
 It checks if the YAML shape, i.e. top-level keys described by the <a href="#editor-autocompletion-json-schema">schema</a>
@@ -1237,9 +1278,9 @@ Since nf-meta describes a structurally flexible declaration format, the schema h
 what's valid inside a given workflow's <code>params:</code>.</p>
 <p>Any config saved through the editor has the following line added automatically, which enables these static checks
 in VSCode when using the YAML extension (<code>redhat.vscdoe-yaml</code>):
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># yaml-language-server: $schema=https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/schemas/metapipeline.schema.json</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">steps</span><span class="p">:</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># yaml-language-server: $schema=https://raw.githubusercontent.com/bmds-tue/nf-meta/refs/heads/main/schemas/metapipeline.schema.json</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">steps</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">...</span>
 </code></pre></div></p>
 <p>To utilize it in VSCode:</p>
 <ol>
@@ -1249,7 +1290,7 @@ in VSCode when using the YAML extension (<code>redhat.vscdoe-yaml</code>):
 <li>Start typing, see static validation hints, and use <code>Ctrl+Space</code> to auto-complete keys</li>
 </ol>
 <p>The schema can be re-generated via an <code>nf-meta</code> installation and the extension be pointed at a local path.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>nf-meta<span class="w"> </span>export-schema<span class="w"> </span>schemas/metapipeline.schema.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>nf-meta<span class="w"> </span>export-schema<span class="w"> </span>schemas/metapipeline.schema.json
 </code></pre></div>
 
 

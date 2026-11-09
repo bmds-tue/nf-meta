@@ -1234,6 +1234,12 @@ or module (nf-core names and versions are completed from the nf-core catalog), a
   see <a href="../representation/overview/#developing-a-pipeline-locally">Developing a pipeline locally</a>).</li>
 </ul>
 <p>Problems show at the field they belong to; a change the checks refuse is not saved.</p>
+<p>Warnings don't block a change: an old key name, two steps sharing an outdir, a local pipeline, a
+repository that couldn't be checked. The yellow count in the footer, next to the history, opens
+the Warnings tab: all warnings about the config, grouped by key. Each step's warnings show as a
+yellow count on its node: click it to open the tab with that step's warnings marked. Warnings about
+old key names go away once the editor has saved the file in the current form. Drag the panel's top
+edge to make it taller.</p>
 <p><strong>Inputs.</strong> Lists all run-time inputs of the metapipeline, with the params they fill. Hovering an input
 highlights its steps on the graph. An input's form sets its description, default and rules
 (type, format, allowed values, …), and the step params it fills: "Add step param" picks the step,
@@ -1241,7 +1247,7 @@ then the param, with each param's description, type and default. A choice at the
 inputs in the steps' params or all in the <code>inputs:</code> section.</p>
 <p><img alt="The Inputs tab" src="editor-inputs-light.png#only-light" />
 <img alt="The Inputs tab" src="editor-inputs.png#only-dark" /></p>
-<p><strong>Globals.</strong> Settings for every step: Nextflow version, profile and config, and shared params.</p>
+<p><strong>Globals.</strong> Settings for every step: Nextflow version, profile and config, and shared params (deprecated, see the <a href="../representation/reference/">config reference</a>).</p>
 <p>Fields that take a path (a step's params file and Nextflow config, the global Nextflow config,
 params and input defaults with a path format) have a folder button that browses the machine
 running the editor and fills in the absolute path of the file or folder you pick. You can also

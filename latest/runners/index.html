@@ -1229,8 +1229,9 @@ dag order from this Python process, each as a <code>nextflow run</code> (pipelin
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>nf-meta<span class="w"> </span>run<span class="w"> </span>metapipeline.yaml<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print each step's command and params, run nothing</span>
 </code></pre></div>
 <h3 id="where-results-go">Where results go<a class="headerlink" href="#where-results-go" title="Permanent link">&para;</a></h3>
-<p>Every step runs in one <strong>out dir</strong>: <code>nf-meta-out/</code> next to the config, or the folder given with
-<code>--out</code>. A relative <code>outdir</code> param therefore lands inside it, and references to an upstream
+<p>Every step runs in one <strong>out dir</strong>: <code>nf-meta-out/</code> in the folder <code>nf-meta run</code> is started from,
+or the folder given with <code>--out</code> (relative to that folder too). Paths in the config are still
+relative to the config's folder. A relative <code>outdir</code> param therefore lands inside it, and references to an upstream
 step's <code>outdir</code> find its results there.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>nf-meta-out/                       every step's Nextflow launch folder
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  out_fetchngs/  out_rnaseq/  ...  relative step outdirs
@@ -1240,6 +1241,12 @@ step's <code>outdir</code> find its results there.</p>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    nextflow/&lt;id&gt;/                 the step's own Nextflow history and task cache
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    inputs.yaml                    the input values of the last run (for --input-mode reproduce)
 </code></pre></div>
+<p>Give each step its own <code>outdir</code>. <code>nf-meta run</code> refuses two steps with the same outdir, and
+<code>validate</code> and <code>run</code> warn about an outdir inside another step's. A pipeline step
+without an <code>outdir</code> param writes wherever the pipeline's own config says, relative to the out dir,
+so <code>run</code> warns about it too.</p>
+<p>With <code>--resume</code>, a step that already succeeded with the same step key is skipped only if no other
+version of it ran since, because the step's outdir holds the results of its last run.</p>
 <p>Relative input paths in params are made absolute against the config's folder before a step
 runs, so they work from the out dir: a param counts as an input path when its schema declares a
 path, or when its value names a file or folder that exists in the config's folder. <code>outdir</code>,
@@ -1299,7 +1306,7 @@ run before.</p>
 <tbody>
 <tr>
 <td><code>--out DIR</code></td>
-<td>The out dir (required for a config from a URL).</td>
+<td>The out dir (default: <code>nf-meta-out</code> in the current directory).</td>
 </tr>
 <tr>
 <td><code>--dry-run</code></td>
